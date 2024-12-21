@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Implementation.JobManagement.Common.Services;
 using RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.Models;
 
 namespace RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.Services;
@@ -11,6 +12,7 @@ namespace RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.Services;
 internal class SqsJobSource(
     IAmazonSQS sqs,
     ISourceMessageConverter converter,
+    ISourceMessageSorter sorter,
     ILogger<SqsJobSource> logger,
     IOptions<SqsJobSource.ConfigurationModel> options) : IJobSource
 {
@@ -34,11 +36,7 @@ internal class SqsJobSource(
             VisibilityTimeout = VisibilityTimeoutSeconds
         }, cancellationToken);
 
-        var response = new JobSourceResponse
-        {
-            RecommendedHeartbeatIntervalSeconds = (int) Math.Ceiling(VisibilityTimeoutSeconds * 0.75),
-            Items = []
-        };
+        var items = new List<IJobModel>();
 
         foreach (var message in sqsResponse.Messages)
         {
@@ -58,13 +56,19 @@ internal class SqsJobSource(
                     Data = @object
                 };
 
-                response.Items.Add(data);
+                items.Add(data);
             }
             catch (Exception e)
             {
                 logger.LogWarning(e, "Error parsing SQS message: {MessageBody}", message.Body);
             }
         }
+
+        var response = new JobSourceResponse
+        {
+            RecommendedHeartbeatIntervalSeconds = (int) Math.Ceiling(VisibilityTimeoutSeconds * 0.75),
+            Items = sorter.GetSortedListOfJobs(items)
+        };
 
         return response;
     }
