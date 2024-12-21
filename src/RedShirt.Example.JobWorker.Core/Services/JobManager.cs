@@ -96,6 +96,12 @@ internal class JobManager(
                 try
                 {
                     envelope.Result = result;
+                    await jobSource.AcknowledgeCompletionAsync(envelope.Job, cancellationToken);
+                }
+                catch (Exception e)
+                {
+                    logger.LogError(e, "Job acknowledge failed");
+                    envelope.Result = false;
                 }
                 finally
                 {
