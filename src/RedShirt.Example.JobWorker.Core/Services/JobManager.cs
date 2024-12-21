@@ -171,11 +171,12 @@ internal class JobManager(
         {
             await Task.Delay(1, cancellationToken);
         }
+
         WaitHandle.WaitAll(_waitHandles.ToArray());
-        
+
         _readyToReceiveJobsWaitHandle.Set();
         _readyToReceiveJobsWaitHandle.Reset();
-        
+
         var envelopes = new List<JobEnvelope>();
 
         foreach (var item in response.Items)
@@ -188,7 +189,7 @@ internal class JobManager(
             _queue.Enqueue(envelope);
             envelopes.Add(envelope);
         }
-        
+
         _isLoadingJobs = false;
 
         var heartbeatDoneEvent = new ManualResetEvent(false);
@@ -211,9 +212,10 @@ internal class JobManager(
         would take over 3 seconds if Task.Run were not used. A clean run
         should take ~2.5 seconds.
          */
-        var heartbeatTask = response.RecommendedHeartbeatIntervalSeconds > 0 ?
-            Task.Run(() => HeartbeatMonitorAsync(heartbeatDoneEvent, response, envelopes, cancellationToken),
-                cancellationToken) : null;
+        var heartbeatTask = response.RecommendedHeartbeatIntervalSeconds > 0
+            ? Task.Run(() => HeartbeatMonitorAsync(heartbeatDoneEvent, response, envelopes, cancellationToken),
+                cancellationToken)
+            : null;
 
         // Wait for completion
 

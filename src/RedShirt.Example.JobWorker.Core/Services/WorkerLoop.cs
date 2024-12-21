@@ -27,7 +27,7 @@ internal class WorkerLoop(
                 await Policy.Handle<NoJobException>(_ => executionEndArbiter.ShouldKeepRunning())
                     .WaitAndRetryForeverAsync(retryAttempt =>
                             TimeSpan.FromSeconds(Math.Min(Math.Max(10, options.Value.MaxIdleWaitSeconds),
-                                Math.Pow(2, retryAttempt))), onRetry:
+                                Math.Pow(2, retryAttempt))),
                         (_, span) =>
                         {
                             logger.LogTrace("Received no jobs from source, retrying in {Span} s", span.Seconds);
@@ -37,7 +37,6 @@ internal class WorkerLoop(
                         var jobResponse = await jobSource.GetJobsAsync(cancellationToken);
                         if (jobResponse.Items.Count == 0)
                         {
-
                             throw new NoJobException();
                         }
 
