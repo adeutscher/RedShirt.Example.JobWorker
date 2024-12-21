@@ -157,20 +157,22 @@ internal class JobManager(
 
     public async Task RunAsync(JobSourceResponse response, CancellationToken cancellationToken = default)
     {
-        // Clear board
+        // Clear the board
         _successfullyCompletedJobsCount = 0;
         _completedJobsCount = 0;
+        _completedWorkersCount = 0;
         var timer = Stopwatch.StartNew();
 
         // Queue jobs
         _isLoadingJobs = true;
 
+        // Make sure we aren't being asked to manage jobs before the worker threads are ready 
         while (_waitHandles.Count != GetWorkerCount())
         {
             await Task.Delay(1, cancellationToken);
         }
-
         WaitHandle.WaitAll(_waitHandles.ToArray());
+        
         _readyToReceiveJobsWaitHandle.Set();
         _readyToReceiveJobsWaitHandle.Reset();
         
