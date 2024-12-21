@@ -1,13 +1,17 @@
+using RedShirt.Example.JobWorker.Core.Services;
+
 namespace RedShirt.Example.JobWorker.Core;
 
 public interface IHandler
 {
-    Task HandleAsync();
+    Task HandleAsync(CancellationToken cancellationToken = default);
 }
 
-internal class Handler : IHandler
+internal class Handler(IJobSourceBootstrapper jobSourceBootstrapper, IWorkerLoop workerLoop) : IHandler
 {
-    public async Task HandleAsync()
+    public Task HandleAsync(CancellationToken cancellationToken = default)
     {
+        jobSourceBootstrapper.Bootstrap();
+        return workerLoop.RunAsync(cancellationToken);
     }
 }

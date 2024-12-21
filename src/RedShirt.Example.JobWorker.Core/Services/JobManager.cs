@@ -6,13 +6,13 @@ using System.Diagnostics;
 
 namespace RedShirt.Example.JobWorker.Core.Services;
 
-public interface IJobManager
+internal interface IJobManager
 {
     Task RunAsync(JobSourceResponse response, CancellationToken cancellationToken = default);
     void Start(CancellationToken cancellationToken = default);
 }
 
-public class JobManager(
+internal class JobManager(
     ISafeJobRunner safeJobRunner,
     IJobSource jobSource,
     ILogger<JobManager> logger,

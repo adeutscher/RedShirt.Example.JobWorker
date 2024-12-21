@@ -4,27 +4,41 @@ using RedShirt.Example.JobWorker.Core.Exceptions;
 
 namespace RedShirt.Example.JobWorker.Core.Services;
 
-public class WorkerLoop(
+public interface IWorkerLoop
+{
+    Task RunAsync(CancellationToken cancellationToken = default);
+}
+
+internal class WorkerLoop(
     IExecutionEndArbiter executionEndArbiter,
     IJobManager jobManager,
     IJobSource jobSource,
-    IOptions<WorkerLoop.ConfigurationModel> options)
+    IOptions<WorkerLoop.ConfigurationModel> options) : IWorkerLoop
 {
-    public Task RunAsync(CancellationToken cancellationToken = default)
+    public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        return Policy.Handle<NoJobException>()
-            .WaitAndRetryForeverAsync(retryAttempt =>
-                TimeSpan.FromSeconds(Math.Max(1, Math.Min(options.Value.MaxWaitSeconds, Math.Pow(2, retryAttempt)))))
-            .ExecuteAsync(async () =>
-            {
-                var jobResponse = await jobSource.GetJobsAsync(cancellationToken);
-                if (jobResponse.Items.Count == 0)
+        jobManager.Start(cancellationToken);
+        try
+        {
+            await Policy.Handle<NoJobException>(_ => executionEndArbiter.ShouldKeepRunning())
+                .WaitAndRetryForeverAsync(retryAttempt =>
+                    TimeSpan.FromSeconds(Math.Max(1,
+                        Math.Min(options.Value.MaxWaitSeconds, Math.Pow(2, retryAttempt)))))
+                .ExecuteAsync(async () =>
                 {
-                    throw new NoJobException();
-                }
+                    var jobResponse = await jobSource.GetJobsAsync(cancellationToken);
+                    if (jobResponse.Items.Count == 0)
+                    {
+                        throw new NoJobException();
+                    }
 
-                await jobManager.RunAsync(jobResponse, cancellationToken);
-            });
+                    await jobManager.RunAsync(jobResponse, cancellationToken);
+                });
+        }
+        catch (NoJobException)
+        {
+            // pass, only thrown to here in the specific case of a SIGTERM.
+        }
     }
 
     public class ConfigurationModel

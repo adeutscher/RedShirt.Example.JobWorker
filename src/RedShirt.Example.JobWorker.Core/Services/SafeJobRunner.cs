@@ -5,12 +5,12 @@ using RedShirt.Example.JobWorker.Core.Models;
 
 namespace RedShirt.Example.JobWorker.Core.Services;
 
-public interface ISafeJobRunner
+internal interface ISafeJobRunner
 {
     Task<bool> RunSafelyAsync(IJobModel job, CancellationToken cancellationToken = default);
 }
 
-public class SafeJobRunner(IJobLogicRunner jobLogicRunner, ILogger<SafeJobRunner> logger) : ISafeJobRunner
+internal class SafeJobRunner(IJobLogicRunner jobLogicRunner, ILogger<SafeJobRunner> logger) : ISafeJobRunner
 {
     public async Task<bool> RunSafelyAsync(IJobModel job, CancellationToken cancellationToken = default)
     {

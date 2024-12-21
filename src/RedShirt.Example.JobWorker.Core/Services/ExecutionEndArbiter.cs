@@ -7,7 +7,7 @@ public interface IExecutionEndArbiter : IDisposable
     bool ShouldKeepRunning();
 }
 
-public class ExecutionEndArbiter : IExecutionEndArbiter
+internal class ExecutionEndArbiter : IExecutionEndArbiter
 {
     private readonly ILogger<ExecutionEndArbiter> _logger;
 
