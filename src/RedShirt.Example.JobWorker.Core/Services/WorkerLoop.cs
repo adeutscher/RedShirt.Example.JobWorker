@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
 using RedShirt.Example.JobWorker.Core.Exceptions;
@@ -13,6 +14,7 @@ internal class WorkerLoop(
     IExecutionEndArbiter executionEndArbiter,
     IJobManager jobManager,
     IJobSource jobSource,
+    ILogger<WorkerLoop> logger,
     IOptions<WorkerLoop.ConfigurationModel> options) : IWorkerLoop
 {
     public async Task RunAsync(CancellationToken cancellationToken = default)
@@ -20,20 +22,28 @@ internal class WorkerLoop(
         jobManager.Start(cancellationToken);
         try
         {
-            await Policy.Handle<NoJobException>(_ => executionEndArbiter.ShouldKeepRunning())
-                .WaitAndRetryForeverAsync(retryAttempt =>
-                    TimeSpan.FromSeconds(Math.Max(1,
-                        Math.Min(options.Value.MaxWaitSeconds, Math.Pow(2, retryAttempt)))))
-                .ExecuteAsync(async () =>
-                {
-                    var jobResponse = await jobSource.GetJobsAsync(cancellationToken);
-                    if (jobResponse.Items.Count == 0)
+            while (executionEndArbiter.ShouldKeepRunning())
+            {
+                await Policy.Handle<NoJobException>(_ => executionEndArbiter.ShouldKeepRunning())
+                    .WaitAndRetryForeverAsync(retryAttempt =>
+                            TimeSpan.FromSeconds(Math.Min(Math.Max(10, options.Value.MaxIdleWaitSeconds),
+                                Math.Pow(2, retryAttempt))), onRetry:
+                        (_, span) =>
+                        {
+                            logger.LogTrace("Received no jobs from source, retrying in {Span} s", span.Seconds);
+                        })
+                    .ExecuteAsync(async () =>
                     {
-                        throw new NoJobException();
-                    }
+                        var jobResponse = await jobSource.GetJobsAsync(cancellationToken);
+                        if (jobResponse.Items.Count == 0)
+                        {
 
-                    await jobManager.RunAsync(jobResponse, cancellationToken);
-                });
+                            throw new NoJobException();
+                        }
+
+                        await jobManager.RunAsync(jobResponse, cancellationToken);
+                    });
+            }
         }
         catch (NoJobException)
         {
@@ -43,6 +53,6 @@ internal class WorkerLoop(
 
     public class ConfigurationModel
     {
-        public required int MaxWaitSeconds { get; init; }
+        public required int MaxIdleWaitSeconds { get; init; }
     }
 }

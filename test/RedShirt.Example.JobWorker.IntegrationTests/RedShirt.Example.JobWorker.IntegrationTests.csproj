@@ -22,8 +22,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\RedShirt.Example.JobWorker.Core\RedShirt.Example.JobWorker.Core.csproj"/>
-        <ProjectReference Include="..\RedShirt.Example.JobWorker\RedShirt.Example.JobWorker.csproj" />
+        <ProjectReference Include="..\..\src\RedShirt.Example.JobWorker\RedShirt.Example.JobWorker.csproj" />
     </ItemGroup>
 
 </Project>

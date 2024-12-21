@@ -16,9 +16,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\RedShirt.Example.JobWorker.Core.Logic\RedShirt.Example.JobWorker.Core.Logic.csproj"/>
-        <ProjectReference Include="..\..\src\RedShirt.Example.JobWorker.Core\RedShirt.Example.JobWorker.Core.csproj"/>
-        <ProjectReference Include="..\..\src\RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs\RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Core.Logic\RedShirt.Example.JobWorker.Core.Logic.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Core\RedShirt.Example.JobWorker.Core.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs\RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.csproj"/>
     </ItemGroup>
 
 </Project>

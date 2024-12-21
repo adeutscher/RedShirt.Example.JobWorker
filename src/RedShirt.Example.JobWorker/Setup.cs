@@ -15,8 +15,11 @@ public static class Setup
             .Build();
 
         Log.Logger = new LoggerConfiguration()
+            // Need to set a minimum log level in both Serilog-land and Microsoft-land
+            .MinimumLevel.Verbose()
             .Enrich.FromLogContext()
-            .WriteTo.Console()
+            .WriteTo.Console(outputTemplate:
+                "{Level:u3} {Message:l}{NewLine}{Exception}")
             .CreateLogger();
 
         if (!Enum.TryParse<LogLevel>(configuration["LogLevel"], out var logLevel))

@@ -13,7 +13,9 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
             .AddSingleton<IHandler, Handler>()
             .AddSingleton<IJobManager, JobManager>()
+            .Configure<JobManager.ConfigurationModel>(configuration.GetSection("Jobs"))
             .AddSingleton<ISafeJobRunner, SafeJobRunner>()
-            .AddSingleton<IWorkerLoop, WorkerLoop>();
+            .AddSingleton<IWorkerLoop, WorkerLoop>()
+            .Configure<WorkerLoop.ConfigurationModel>(configuration.GetSection("Jobs"));
     }
 }

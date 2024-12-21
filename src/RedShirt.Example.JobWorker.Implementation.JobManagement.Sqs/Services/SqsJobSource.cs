@@ -62,7 +62,7 @@ internal class SqsJobSource(
             }
             catch (Exception e)
             {
-                logger.LogError(e, "Raw SQS message: {MessageBody}", message.Body);
+                logger.LogWarning(e, "Error parsing SQS message: {MessageBody}", message.Body);
             }
         }
 

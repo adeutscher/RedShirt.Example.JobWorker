@@ -119,12 +119,6 @@ internal class JobManager(
     private async Task HeartbeatMonitorAsync(ManualResetEvent resetEvent, JobSourceResponse sourceResponse,
         List<JobEnvelope> envelopes, CancellationToken cancellationToken = default)
     {
-        if (sourceResponse.RecommendedHeartbeatIntervalSeconds <= 0)
-        {
-            // No heartbeats to monitor
-            return;
-        }
-
         while (envelopes.Count > 0)
         {
             if (resetEvent.WaitOne(TimeSpan.FromSeconds(sourceResponse.RecommendedHeartbeatIntervalSeconds)))
@@ -178,6 +172,8 @@ internal class JobManager(
 
         WaitHandle.WaitAll(_waitHandles.ToArray());
         _readyToReceiveJobsWaitHandle.Set();
+        _readyToReceiveJobsWaitHandle.Reset();
+        
         var envelopes = new List<JobEnvelope>();
 
         foreach (var item in response.Items)
@@ -190,11 +186,10 @@ internal class JobManager(
             _queue.Enqueue(envelope);
             envelopes.Add(envelope);
         }
-
+        
         _isLoadingJobs = false;
 
         var heartbeatDoneEvent = new ManualResetEvent(false);
-        _readyToReceiveJobsWaitHandle.Reset();
 
         // Monitor heartbeats
 
@@ -214,9 +209,9 @@ internal class JobManager(
         would take over 3 seconds if Task.Run were not used. A clean run
         should take ~2.5 seconds.
          */
-        var heartbeatTask =
+        var heartbeatTask = response.RecommendedHeartbeatIntervalSeconds > 0 ?
             Task.Run(() => HeartbeatMonitorAsync(heartbeatDoneEvent, response, envelopes, cancellationToken),
-                cancellationToken);
+                cancellationToken) : null;
 
         // Wait for completion
 
@@ -230,9 +225,13 @@ internal class JobManager(
         }
 
         heartbeatDoneEvent.Set();
-        await heartbeatTask;
+        if (heartbeatTask is not null)
+        {
+            await heartbeatTask;
+        }
+
         timer.Stop();
-        logger.LogDebug("Finished {JobsSuccessful}/{JobsTotal} in {ElapsedMilliseconds} ms",
+        logger.LogDebug("Successfully finished {JobsSuccessful}/{JobsTotal} jobs in {ElapsedMilliseconds} ms",
             _successfullyCompletedJobsCount, _completedJobsCount, timer.ElapsedMilliseconds);
     }
 
