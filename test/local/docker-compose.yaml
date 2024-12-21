@@ -1,0 +1,26 @@
+services:
+  localstack:
+    image: localstack/localstack:latest
+    ports:
+      - 4566:4566
+
+  worker:
+    build:
+      context: ../..
+      args:
+        TESTS_ENABLE: "${TESTS_ENABLE-1}"    
+    depends_on:
+      - localstack
+    environment:
+      # General
+      AWS_SERVICE_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: foo
+      AWS_SECRET_ACCESS_KEY: bar
+      # App-specific variables
+      LOG_LEVEL: Trace
+      JOBS__WORKER_THREAD_COUNT: 2
+      JOBS__MAX_IDLE_WAIT_SECONDS: 30
+      ## Job Management (SQS)
+      JOB_SOURCE__SQS__QUEUE_URL: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/input
+      JOB_SOURCE__SQS__MESSAGE_BATCH_SIZE: 10
+      JOB_SOURCE__SQS__VISIBILITY_TIMEOUT_SECONDS: 300

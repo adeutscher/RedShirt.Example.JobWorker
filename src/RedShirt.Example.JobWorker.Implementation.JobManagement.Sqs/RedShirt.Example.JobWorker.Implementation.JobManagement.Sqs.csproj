@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Implementation.JobManagement.Common\RedShirt.Example.JobWorker.Implementation.JobManagement.Common.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.301"/>
+        <PackageReference Include="AWSSDK.SQS" Version="3.7.400.68"/>
+    </ItemGroup>
+
+</Project>

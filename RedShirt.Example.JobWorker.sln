@@ -1,0 +1,78 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{A19E3CC6-A81D-4B43-9E46-40329127E637}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker", "src\RedShirt.Example.JobWorker\RedShirt.Example.JobWorker.csproj", "{81C22C57-1441-4DC0-9953-47434B802572}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.Core", "src\RedShirt.Example.JobWorker.Core\RedShirt.Example.JobWorker.Core.csproj", "{E7DD2856-E8F6-45EE-804B-0E1FCFD4CA74}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs", "src\RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs\RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.csproj", "{4F4859A8-1D3D-48D8-84BC-D5ADAAABC3E7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.Core.UnitTests", "test\RedShirt.Example.JobWorker.Core.UnitTests\RedShirt.Example.JobWorker.Core.UnitTests.csproj", "{2B3C7006-6333-466A-A359-A70E29E2BB58}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.UnitTests", "test\RedShirt.Example.JobWorker.UnitTests\RedShirt.Example.JobWorker.UnitTests.csproj", "{12A61D39-51AB-4066-9FF1-5EA77E022C23}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.Core.Logic", "src\RedShirt.Example.JobWorker.Core.Logic\RedShirt.Example.JobWorker.Core.Logic.csproj", "{C950C6B7-D9E5-4D55-8AC1-DB2D3D20BB10}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.Implementation.JobManagement.Common", "src\RedShirt.Example.JobWorker.Implementation.JobManagement.Common\RedShirt.Example.JobWorker.Implementation.JobManagement.Common.csproj", "{377750FA-CB98-4D65-8B83-41726F9042AA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.IntegrationTests", "test\RedShirt.Example.JobWorker.IntegrationTests\RedShirt.Example.JobWorker.IntegrationTests.csproj", "{681C0BC0-5F00-4516-AFB0-29CBAFC21FB4}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{CCB447F9-CA85-462E-A5A5-771B50E0F48E}"
+	ProjectSection(SolutionItems) = preProject
+		Dockerfile = Dockerfile
+		README.md = README.md
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{81C22C57-1441-4DC0-9953-47434B802572} = {0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}
+		{E7DD2856-E8F6-45EE-804B-0E1FCFD4CA74} = {0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}
+		{4F4859A8-1D3D-48D8-84BC-D5ADAAABC3E7} = {0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}
+		{2B3C7006-6333-466A-A359-A70E29E2BB58} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
+		{12A61D39-51AB-4066-9FF1-5EA77E022C23} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
+		{C950C6B7-D9E5-4D55-8AC1-DB2D3D20BB10} = {0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}
+		{377750FA-CB98-4D65-8B83-41726F9042AA} = {0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}
+		{681C0BC0-5F00-4516-AFB0-29CBAFC21FB4} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{81C22C57-1441-4DC0-9953-47434B802572}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{81C22C57-1441-4DC0-9953-47434B802572}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{81C22C57-1441-4DC0-9953-47434B802572}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{81C22C57-1441-4DC0-9953-47434B802572}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E7DD2856-E8F6-45EE-804B-0E1FCFD4CA74}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E7DD2856-E8F6-45EE-804B-0E1FCFD4CA74}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E7DD2856-E8F6-45EE-804B-0E1FCFD4CA74}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E7DD2856-E8F6-45EE-804B-0E1FCFD4CA74}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4F4859A8-1D3D-48D8-84BC-D5ADAAABC3E7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4F4859A8-1D3D-48D8-84BC-D5ADAAABC3E7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4F4859A8-1D3D-48D8-84BC-D5ADAAABC3E7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4F4859A8-1D3D-48D8-84BC-D5ADAAABC3E7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2B3C7006-6333-466A-A359-A70E29E2BB58}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2B3C7006-6333-466A-A359-A70E29E2BB58}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2B3C7006-6333-466A-A359-A70E29E2BB58}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2B3C7006-6333-466A-A359-A70E29E2BB58}.Release|Any CPU.Build.0 = Release|Any CPU
+		{12A61D39-51AB-4066-9FF1-5EA77E022C23}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{12A61D39-51AB-4066-9FF1-5EA77E022C23}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{12A61D39-51AB-4066-9FF1-5EA77E022C23}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{12A61D39-51AB-4066-9FF1-5EA77E022C23}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C950C6B7-D9E5-4D55-8AC1-DB2D3D20BB10}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C950C6B7-D9E5-4D55-8AC1-DB2D3D20BB10}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C950C6B7-D9E5-4D55-8AC1-DB2D3D20BB10}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C950C6B7-D9E5-4D55-8AC1-DB2D3D20BB10}.Release|Any CPU.Build.0 = Release|Any CPU
+		{377750FA-CB98-4D65-8B83-41726F9042AA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{377750FA-CB98-4D65-8B83-41726F9042AA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{377750FA-CB98-4D65-8B83-41726F9042AA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{377750FA-CB98-4D65-8B83-41726F9042AA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{681C0BC0-5F00-4516-AFB0-29CBAFC21FB4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{681C0BC0-5F00-4516-AFB0-29CBAFC21FB4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{681C0BC0-5F00-4516-AFB0-29CBAFC21FB4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{681C0BC0-5F00-4516-AFB0-29CBAFC21FB4}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
