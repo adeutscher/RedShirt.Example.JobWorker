@@ -4,11 +4,16 @@ services:
     ports:
       - 4566:4566
 
+  redis:
+    image: redis:latest
+    ports:
+      - '6379:6379'
+
   worker:
     build:
       context: ../..
       args:
-        TESTS_ENABLE: "${TESTS_ENABLE-1}"    
+        TESTS_ENABLE: "${TESTS_ENABLE-1}"
     depends_on:
       - localstack
     environment:
@@ -24,3 +29,11 @@ services:
       JOB_SOURCE__SQS__QUEUE_URL: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/input
       JOB_SOURCE__SQS__MESSAGE_BATCH_SIZE: 10
       JOB_SOURCE__SQS__VISIBILITY_TIMEOUT_SECONDS: 300
+      ## Job Management (Kinesis)
+      USE_KINESIS: "${USE_KINESIS-0}"
+      JOB_SOURCE__KINESIS__BATCH_SIZE: 10
+      JOB_SOURCE__KINESIS__STREAM_ARN: arn:aws:kinesis:us-east-1:000000000000:stream/input
+      JOB_SOURCE__KINESIS__CHECKPOINT__TABLE_NAME: checkpoint
+      JOB_SOURCE__KINESIS__FAILURES__QUEUE_URL: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/kinesis-failures
+      JOB_SOURCE__KINESIS__REDIS__ENDPOINT_ADDRESS: redis
+      JOB_SOURCE__KINESIS__REDIS__ENDPOINT_PORT: 6379

@@ -18,8 +18,14 @@ internal class SqsJobSource(
 {
     private int VisibilityTimeoutSeconds => Math.Max(20, options.Value.VisibilityTimeoutSeconds);
 
-    public Task AcknowledgeCompletionAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+        CancellationToken cancellationToken = default)
     {
+        if (!success)
+        {
+            return Task.CompletedTask;
+        }
+
         return sqs.DeleteMessageAsync(new DeleteMessageRequest
         {
             QueueUrl = options.Value.QueueUrl,
