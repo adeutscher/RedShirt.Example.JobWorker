@@ -92,7 +92,7 @@ internal class HighLevelStreamSource(
             Lock = currentIterationLock;
 
             // Update long-term checkpoint
-            await checkpointStorage.UpdateLongTermAsync(shard, innerResponse.IteratorString, cancellationToken);
+            await checkpointStorage.UpdateLongTermAsync(shard, innerResponse.Items.Last().MessageId, cancellationToken);
 
             return new JobSourceResponse
             {

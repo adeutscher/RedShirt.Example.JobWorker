@@ -25,12 +25,25 @@ internal class LowLevelStreamSource(
     public async Task<StreamSourceResponse> GetJobsAsync(string iteratorString,
         CancellationToken cancellationToken = default)
     {
-        var kinesisResponse = await kinesisClient.GetRecordsAsync(new GetRecordsRequest
+        GetRecordsResponse kinesisResponse;
+
+        try
         {
-            Limit = 100,
-            StreamARN = options.Value.StreamArn,
-            ShardIterator = iteratorString
-        }, cancellationToken);
+            kinesisResponse = await kinesisClient.GetRecordsAsync(new GetRecordsRequest
+            {
+                Limit = 100, // TODO: Make configurable
+                StreamARN = options.Value.StreamArn,
+                ShardIterator = iteratorString
+            }, cancellationToken);
+        }
+        catch (ExpiredIteratorException)
+        {
+            return new StreamSourceResponse
+            {
+                IteratorString = string.Empty,
+                Items = []
+            };
+        }
 
         var items = new List<IJobModel>();
 
@@ -50,7 +63,7 @@ internal class LowLevelStreamSource(
 
                 var data = new JobModel
                 {
-                    MessageId = string.Empty,
+                    MessageId = item.SequenceNumber,
                     Data = @object
                 };
 

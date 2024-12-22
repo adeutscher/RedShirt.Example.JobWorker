@@ -43,6 +43,8 @@ public static class ServiceCollectionExtensions
     {
         return services
             .AddCommonJobManagement(configuration)
+            .Configure<KinesisConfiguration>(configuration.GetSection("JobSource:Kinesis"))
+            .Configure<RedisConfiguration>(configuration.GetSection("JobSource:Kinesis:Redis"))
             .AddAwsServiceWithLocalSupport<IAmazonKinesis>()
             .AddAwsServiceWithLocalSupport<IAmazonSQS>()
             .AddAwsServiceWithLocalSupport<IAmazonDynamoDB>()
@@ -51,9 +53,10 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobSource, HighLevelStreamSource>()
             .AddSingleton<ILowLevelStreamSource, LowLevelStreamSource>()
             .AddSingleton<IKinesisShardLister, KinesisShardLister>()
+            .AddSingleton<ISequenceNumberStorage, DynamoSequenceNumberStorage>()
+            .Configure<DynamoSequenceNumberStorage.ConfigurationModel>(
+                configuration.GetSection("JobSource:Kinesis:Checkpoint"))
             .AddSingleton<IRedisConnectionSource, RedisConnectionSource>()
-            .Configure<KinesisConfiguration>(configuration.GetSection("JobSource:Kinesis"))
-            .Configure<RedisConfiguration>(configuration.GetSection("JobSource:Kinesis:Redis"))
             .AddSingleton<IJobSourceBootstrapper, NoReactionJobSourceBootstrapper>()
             .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>();
     }
