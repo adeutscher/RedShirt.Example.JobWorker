@@ -42,7 +42,6 @@ public static class ServiceCollectionExtensions
             .AddAwsServiceWithLocalSupport<IAmazonSQS>()
             .AddSingleton<IJobSource, SqsJobSource>()
             .Configure<SqsJobSource.ConfigurationModel>(configuration.GetSection("JobSource:SQS"))
-            .AddSingleton<IJobSourceBootstrapper, NoReactionJobSourceBootstrapper>()
             .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>();
     }
 }

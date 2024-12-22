@@ -7,11 +7,10 @@ public interface IHandler
     Task HandleAsync(CancellationToken cancellationToken = default);
 }
 
-internal class Handler(IJobSourceBootstrapper jobSourceBootstrapper, IWorkerLoop workerLoop) : IHandler
+internal class Handler(IWorkerLoop workerLoop) : IHandler
 {
     public Task HandleAsync(CancellationToken cancellationToken = default)
     {
-        jobSourceBootstrapper.Bootstrap();
         return workerLoop.RunAsync(cancellationToken);
     }
 }

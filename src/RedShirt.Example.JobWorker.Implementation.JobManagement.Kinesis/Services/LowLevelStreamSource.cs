@@ -31,7 +31,7 @@ internal class LowLevelStreamSource(
         {
             kinesisResponse = await kinesisClient.GetRecordsAsync(new GetRecordsRequest
             {
-                Limit = 100, // TODO: Make configurable
+                Limit = Math.Max(1, options.Value.BatchSize),
                 StreamARN = options.Value.StreamArn,
                 ShardIterator = iteratorString
             }, cancellationToken);
