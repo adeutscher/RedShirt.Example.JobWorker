@@ -15,7 +15,7 @@ internal class HighLevelStreamSource(
     ILogger<HighLevelStreamSource> logger,
     IOptions<HighLevelStreamSource.ConfigurationModel> options) : IJobSource
 {
-    internal readonly SemaphoreSlim AcknowledgeSemaphore = new(1, 1);
+    private readonly SemaphoreSlim _acknowledgeSemaphore = new(1, 1);
     internal int JobCount { get; set; }
     internal int JobCountTally { get; set; }
 
@@ -24,11 +24,11 @@ internal class HighLevelStreamSource(
     public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
-        await AcknowledgeSemaphore.WaitAsync(cancellationToken);
+        await _acknowledgeSemaphore.WaitAsync(cancellationToken);
         try
         {
             JobCountTally++;
-            if (Lock is not null && JobCount >= JobCountTally)
+            if (Lock?.IsAcquired == true && JobCount >= JobCountTally)
             {
                 logger.LogTrace("Releasing distributed lock");
                 Lock.Unlock();
@@ -37,7 +37,7 @@ internal class HighLevelStreamSource(
         }
         finally
         {
-            AcknowledgeSemaphore.Release();
+            _acknowledgeSemaphore.Release();
         }
     }
 
