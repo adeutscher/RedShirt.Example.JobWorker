@@ -58,6 +58,9 @@ public class HighLevelStreamSourceTests
         Assert.Equal(0, response.RecommendedHeartbeatIntervalSeconds);
         var item = Assert.Single(response.Items);
         Assert.Same(jobModel, item);
+
+        Assert.Equal(1, streamSource.JobCount);
+        Assert.NotNull(streamSource.Lock);
     }
 
     [Fact]
