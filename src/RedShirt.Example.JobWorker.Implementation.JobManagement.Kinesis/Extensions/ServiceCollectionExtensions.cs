@@ -44,6 +44,7 @@ public static class ServiceCollectionExtensions
         return services
             .AddCommonJobManagement(configuration)
             .Configure<KinesisConfiguration>(configuration.GetSection("JobSource:Kinesis"))
+            .AddSingleton<IAbstractedLocker, RedLocker>()
             .Configure<RedisConfiguration>(configuration.GetSection("JobSource:Kinesis:Redis"))
             .AddAwsServiceWithLocalSupport<IAmazonKinesis>()
             .AddAwsServiceWithLocalSupport<IAmazonSQS>()

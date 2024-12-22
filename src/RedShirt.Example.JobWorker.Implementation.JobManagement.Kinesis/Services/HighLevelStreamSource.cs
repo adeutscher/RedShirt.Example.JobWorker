@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using RedLockNet;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.Models;
 using RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.Utility;
 
 namespace RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.Services;
@@ -10,7 +10,7 @@ namespace RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.Servic
 internal class HighLevelStreamSource(
     ICheckpointStorage checkpointStorage,
     IKinesisShardLister lister,
-    IRedisConnectionSource redisConnectionSource,
+    IAbstractedLocker locker,
     ILowLevelStreamSource lowLevelStreamSource,
     ILogger<HighLevelStreamSource> logger,
     IOptions<HighLevelStreamSource.ConfigurationModel> options) : IJobSource
@@ -19,7 +19,7 @@ internal class HighLevelStreamSource(
     internal int JobCount { get; set; }
     internal int JobCountTally { get; set; }
 
-    internal IRedLock? Lock { get; set; }
+    internal IAbstractedLock? Lock { get; set; }
 
     public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
@@ -31,7 +31,7 @@ internal class HighLevelStreamSource(
             if (Lock is not null && JobCount >= JobCountTally)
             {
                 logger.LogTrace("Releasing distributed lock");
-                Lock.Dispose();
+                Lock.Unlock();
                 Lock = null;
             }
         }
@@ -53,7 +53,6 @@ internal class HighLevelStreamSource(
         JobCountTally = 0;
 
         // Get Lock Factory
-        var lockFactory = redisConnectionSource.GetLockFactory();
 
         // List through shards
         var shards = await lister.GetListOfShardsAsync(cancellationToken);
@@ -61,7 +60,7 @@ internal class HighLevelStreamSource(
         {
             // Try to get lock
             var currentIterationLock =
-                await lockFactory.CreateLockAsync(KeyHelper.GetLockKey(shard), TimeSpan.FromSeconds(10));
+                await locker.GetLockAsync(KeyHelper.GetLockKey(shard), cancellationToken);
             if (!currentIterationLock.IsAcquired)
             {
                 // If cannot get lock, then continue
@@ -89,7 +88,7 @@ internal class HighLevelStreamSource(
             if (innerResponse.Items.Count == 0)
             {
                 // No jobs
-                currentIterationLock.Dispose(); // Technically done automatically, but to be sure
+                currentIterationLock.Unlock(); // Technically done automatically, but to be sure
                 continue;
                 // release lock and continue    
             }
