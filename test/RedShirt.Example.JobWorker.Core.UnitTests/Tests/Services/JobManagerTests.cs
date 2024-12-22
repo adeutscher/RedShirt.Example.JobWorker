@@ -21,8 +21,10 @@ public class JobManagerTests
                 await Task.Delay(2500, ct);
                 return numberOfJobs % 2 == 0;
             });
+        var failureHandler = new Mock<IJobFailureHandler>();
         var jobSource = new Mock<IJobSource>();
-        var jobManager = new JobManager(safeRunner.Object, jobSource.Object, new NullLogger<JobManager>(),
+        var jobManager = new JobManager(safeRunner.Object, jobSource.Object, failureHandler.Object,
+            new NullLogger<JobManager>(),
             Options.Create(
                 new JobManager.ConfigurationModel
                 {
@@ -75,7 +77,10 @@ public class JobManagerTests
                 return false;
             });
         var jobSource = new Mock<IJobSource>();
-        var jobManager = new JobManager(safeRunner.Object, jobSource.Object, new NullLogger<JobManager>(),
+        var failureHandler = new Mock<IJobFailureHandler>();
+
+        var jobManager = new JobManager(safeRunner.Object, jobSource.Object, failureHandler.Object,
+            new NullLogger<JobManager>(),
             Options.Create(
                 new JobManager.ConfigurationModel
                 {
@@ -115,7 +120,10 @@ public class JobManagerTests
                 return false;
             });
         var jobSource = new Mock<IJobSource>();
-        var jobManager = new JobManager(safeRunner.Object, jobSource.Object, new NullLogger<JobManager>(),
+        var failureHandler = new Mock<IJobFailureHandler>();
+
+        var jobManager = new JobManager(safeRunner.Object, jobSource.Object, failureHandler.Object,
+            new NullLogger<JobManager>(),
             Options.Create(
                 new JobManager.ConfigurationModel
                 {
@@ -144,7 +152,10 @@ public class JobManagerTests
     {
         var safeRunner = new Mock<ISafeJobRunner>();
         var jobSource = new Mock<IJobSource>();
-        var jobManager = new JobManager(safeRunner.Object, jobSource.Object, new NullLogger<JobManager>(),
+        var failureHandler = new Mock<IJobFailureHandler>();
+
+        var jobManager = new JobManager(safeRunner.Object, jobSource.Object, failureHandler.Object,
+            new NullLogger<JobManager>(),
             Options.Create(
                 new JobManager.ConfigurationModel
                 {
@@ -181,7 +192,10 @@ public class JobManagerTests
     {
         var safeRunner = new Mock<ISafeJobRunner>();
         var jobSource = new Mock<IJobSource>();
-        var jobManager = new JobManager(safeRunner.Object, jobSource.Object, new NullLogger<JobManager>(),
+        var failureHandler = new Mock<IJobFailureHandler>();
+
+        var jobManager = new JobManager(safeRunner.Object, jobSource.Object, failureHandler.Object,
+            new NullLogger<JobManager>(),
             Options.Create(
                 new JobManager.ConfigurationModel
                 {

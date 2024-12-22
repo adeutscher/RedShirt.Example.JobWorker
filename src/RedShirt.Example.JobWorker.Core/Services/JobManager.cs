@@ -15,6 +15,7 @@ internal interface IJobManager
 internal class JobManager(
     ISafeJobRunner safeJobRunner,
     IJobSource jobSource,
+    IJobFailureHandler jobFailureHandler,
     ILogger<JobManager> logger,
     IOptions<JobManager.ConfigurationModel> options) : IJobManager
 {
@@ -76,7 +77,22 @@ internal class JobManager(
                     break;
                 }
 
-                var result = await safeJobRunner.RunSafelyAsync(envelope!.Job, cancellationToken);
+                var result = false;
+                try
+                {
+                    result = await safeJobRunner.RunSafelyAsync(envelope!.Job, cancellationToken);
+                }
+                catch (Exception e)
+                {
+                    try
+                    {
+                        await jobFailureHandler.HandleFailureAsync(envelope!.Job, e, cancellationToken);
+                    }
+                    catch (Exception e2)
+                    {
+                        logger.LogError(e2, "Job failure handling failed");
+                    }
+                }
 
                 await _completedJobsCountSemaphore.WaitAsync(cancellationToken);
                 try
@@ -92,7 +108,7 @@ internal class JobManager(
                     _completedJobsCountSemaphore.Release();
                 }
 
-                await envelope.Semaphore.WaitAsync(cancellationToken);
+                await envelope!.Semaphore.WaitAsync(cancellationToken);
                 try
                 {
                     envelope.Result = result;
