@@ -12,7 +12,7 @@ internal class RedLocker(IRedisConnectionSource redisConnectionSource) : IAbstra
         return new RedLockLock(await redis.CreateLockAsync(KeyHelper.GetLockKey(lockName), TimeSpan.FromSeconds(30)));
     }
 
-    public class RedLockLock(IRedLock redLock) : IAbstractedLock
+    internal class RedLockLock(IRedLock redLock) : IAbstractedLock
     {
         public bool IsAcquired => redLock.IsAcquired;
 

@@ -58,6 +58,8 @@ public static class ServiceCollectionExtensions
             .Configure<DynamoSequenceNumberStorage.ConfigurationModel>(
                 configuration.GetSection("JobSource:Kinesis:Checkpoint"))
             .AddSingleton<IRedisConnectionSource, RedisConnectionSource>()
-            .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>();
+            .AddSingleton<IJobFailureHandler, SqsQueueFailureHandler>()
+            .Configure<SqsQueueFailureHandler.ConfigurationModel>(
+                configuration.GetSection("JobSource:Kinesis:Failures"));
     }
 }
