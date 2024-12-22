@@ -1,5 +1,6 @@
 using RedLockNet;
 using RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.Models;
+using RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.Utility;
 
 namespace RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.Services;
 
@@ -8,7 +9,7 @@ internal class RedLocker(IRedisConnectionSource redisConnectionSource) : IAbstra
     public async Task<IAbstractedLock> GetLockAsync(string lockName, CancellationToken cancellationToken = default)
     {
         var redis = redisConnectionSource.GetLockFactory();
-        return new RedLockLock(await redis.CreateLockAsync(lockName, TimeSpan.FromSeconds(30)));
+        return new RedLockLock(await redis.CreateLockAsync(KeyHelper.GetLockKey(lockName), TimeSpan.FromSeconds(30)));
     }
 
     public class RedLockLock(IRedLock redLock) : IAbstractedLock

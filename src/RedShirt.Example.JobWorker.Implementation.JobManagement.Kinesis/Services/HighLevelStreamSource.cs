@@ -12,8 +12,7 @@ internal class HighLevelStreamSource(
     IKinesisShardLister lister,
     IAbstractedLocker locker,
     ILowLevelStreamSource lowLevelStreamSource,
-    ILogger<HighLevelStreamSource> logger,
-    IOptions<HighLevelStreamSource.ConfigurationModel> options) : IJobSource
+    ILogger<HighLevelStreamSource> logger) : IJobSource
 {
     private readonly SemaphoreSlim _acknowledgeSemaphore = new(1, 1);
     internal int JobCount { get; set; }
@@ -60,7 +59,7 @@ internal class HighLevelStreamSource(
         {
             // Try to get lock
             var currentIterationLock =
-                await locker.GetLockAsync(KeyHelper.GetLockKey(shard), cancellationToken);
+                await locker.GetLockAsync(shard, cancellationToken);
             if (!currentIterationLock.IsAcquired)
             {
                 // If cannot get lock, then continue
@@ -88,7 +87,7 @@ internal class HighLevelStreamSource(
             if (innerResponse.Items.Count == 0)
             {
                 // No jobs
-                currentIterationLock.Unlock(); // Technically done automatically, but to be sure
+                currentIterationLock.Unlock();
                 continue;
                 // release lock and continue    
             }
@@ -113,9 +112,5 @@ internal class HighLevelStreamSource(
     public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
-    }
-
-    public class ConfigurationModel
-    {
     }
 }
