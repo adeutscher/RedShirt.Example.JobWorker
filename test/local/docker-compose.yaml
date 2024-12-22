@@ -31,6 +31,7 @@ services:
       JOB_SOURCE__SQS__VISIBILITY_TIMEOUT_SECONDS: 300
       ## Job Management (Kinesis)
       USE_KINESIS: "${USE_KINESIS-0}"
+      JOB_SOURCE__KINESIS__BATCH_SIZE: 10
       JOB_SOURCE__KINESIS__STREAM_ARN: arn:aws:kinesis:us-east-1:000000000000:stream/input
       JOB_SOURCE__KINESIS__CHECKPOINT__TABLE_NAME: checkpoint
       JOB_SOURCE__KINESIS__REDIS__ENDPOINT_ADDRESS: redis
