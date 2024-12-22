@@ -41,7 +41,8 @@ internal class LowLevelStreamSource(
             return new StreamSourceResponse
             {
                 IteratorString = string.Empty,
-                Items = []
+                Items = [],
+                LastSequenceNumber = null
             };
         }
 
@@ -78,7 +79,8 @@ internal class LowLevelStreamSource(
         return new StreamSourceResponse
         {
             IteratorString = kinesisResponse.NextShardIterator,
-            Items = sorter.GetSortedListOfJobs(items)
+            Items = sorter.GetSortedListOfJobs(items),
+            LastSequenceNumber = items.LastOrDefault()?.MessageId
         };
     }
 }

@@ -80,6 +80,12 @@ internal class HighLevelStreamSource(
             // Update short-term checkpoint
             await checkpointStorage.UpdateShortTermAsync(shard, innerResponse.IteratorString, cancellationToken);
 
+            // Update long-term checkpoint
+            if (!string.IsNullOrWhiteSpace(innerResponse.LastSequenceNumber))
+            {
+                await checkpointStorage.UpdateLongTermAsync(shard, innerResponse.LastSequenceNumber, cancellationToken);
+            }
+
             if (innerResponse.Items.Count == 0)
             {
                 // No jobs
@@ -90,9 +96,6 @@ internal class HighLevelStreamSource(
 
             JobCount = innerResponse.Items.Count;
             Lock = currentIterationLock;
-
-            // Update long-term checkpoint
-            await checkpointStorage.UpdateLongTermAsync(shard, innerResponse.Items.Last().MessageId, cancellationToken);
 
             return new JobSourceResponse
             {
