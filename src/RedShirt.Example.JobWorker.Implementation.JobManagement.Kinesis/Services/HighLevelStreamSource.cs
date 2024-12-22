@@ -1,9 +1,7 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.Models;
-using RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.Utility;
 
 namespace RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.Services;
 
