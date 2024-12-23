@@ -39,7 +39,6 @@ public class WorkerLoopTests
 
         await loop.RunAsync(cts.Token);
 
-        jobManager.Verify(j => j.Start(It.IsAny<CancellationToken>()), Times.Once);
         jobManager.Verify(j => j.RunAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()), Times.Once);
         jobManager.Verify(j => j.RunAsync(jobSourceResponse, cts.Token), Times.Once);
 
@@ -74,7 +73,6 @@ public class WorkerLoopTests
 
         await loop.RunAsync(cts.Token);
 
-        jobManager.Verify(j => j.Start(It.IsAny<CancellationToken>()), Times.Once);
         jobManager.Verify(j => j.RunAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()), Times.Never);
 
         jobSource.Verify(j => j.GetJobsAsync(cts.Token), Times.Exactly(2));

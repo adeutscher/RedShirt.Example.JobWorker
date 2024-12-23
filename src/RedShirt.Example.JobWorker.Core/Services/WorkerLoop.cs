@@ -19,7 +19,6 @@ internal class WorkerLoop(
 {
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        jobManager.Start(cancellationToken);
         try
         {
             while (executionEndArbiter.ShouldKeepRunning())
