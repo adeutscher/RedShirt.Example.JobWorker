@@ -26,7 +26,7 @@ internal class WorkerLoop(
             {
                 await Policy.Handle<NoJobException>(_ => executionEndArbiter.ShouldKeepRunning())
                     .WaitAndRetryForeverAsync(retryAttempt =>
-                            TimeSpan.FromSeconds(Math.Min(Math.Max(10, options.Value.MaxIdleWaitSeconds),
+                            TimeSpan.FromSeconds(Math.Min(Math.Max(1, options.Value.MaxIdleWaitSeconds),
                                 Math.Pow(2, retryAttempt))),
                         (_, span) =>
                         {

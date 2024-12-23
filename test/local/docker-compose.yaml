@@ -23,8 +23,9 @@ services:
       AWS_SECRET_ACCESS_KEY: bar
       # App-specific variables
       LOG_LEVEL: Trace
-      JOBS__WORKER_THREAD_COUNT: 2
+      JOBS__INTERNAL_RETRY_COUNT: 2
       JOBS__MAX_IDLE_WAIT_SECONDS: 30
+      JOBS__WORKER_THREAD_COUNT: 2
       ## Job Management (SQS)
       JOB_SOURCE__SQS__QUEUE_URL: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/input
       JOB_SOURCE__SQS__MESSAGE_BATCH_SIZE: 10
