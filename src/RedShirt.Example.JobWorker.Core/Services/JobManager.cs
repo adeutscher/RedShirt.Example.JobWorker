@@ -27,7 +27,7 @@ internal class JobManager(
     private readonly ManualResetEvent _readyToReceiveJobsWaitHandle = new(false);
     private readonly SemaphoreSlim _startSemaphore = new(1, 1);
 
-    private readonly List<WaitHandle> _waitHandles = new();
+    private readonly List<WaitHandle> _workerWaitHandles = new();
     private readonly AutoResetEvent _workerCompleteEvent = new(false);
     private int _completedJobsCount;
 
@@ -51,7 +51,7 @@ internal class JobManager(
         await _startSemaphore.WaitAsync(cancellationToken);
         try
         {
-            _waitHandles.Add(waitHandler);
+            _workerWaitHandles.Add(waitHandler);
         }
         finally
         {
@@ -189,12 +189,12 @@ internal class JobManager(
         _isLoadingJobs = true;
 
         // Make sure we aren't being asked to manage jobs before the worker threads are ready 
-        while (_waitHandles.Count != GetWorkerCount())
+        while (_workerWaitHandles.Count != GetWorkerCount())
         {
             await Task.Delay(1, cancellationToken);
         }
 
-        WaitHandle.WaitAll(_waitHandles.ToArray());
+        WaitHandle.WaitAll(_workerWaitHandles.ToArray());
 
         _readyToReceiveJobsWaitHandle.Set();
         _readyToReceiveJobsWaitHandle.Reset();
