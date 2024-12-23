@@ -15,7 +15,6 @@ internal interface IJobManager
 internal class JobManager(
     ISafeJobRunner safeJobRunner,
     IJobSource jobSource,
-    IJobFailureHandler jobFailureHandler,
     ILogger<JobManager> logger,
     IOptions<JobManager.ConfigurationModel> options) : IJobManager
 {
@@ -26,9 +25,9 @@ internal class JobManager(
 
     private readonly ManualResetEvent _readyToReceiveJobsWaitHandle = new(false);
     private readonly SemaphoreSlim _startSemaphore = new(1, 1);
+    private readonly AutoResetEvent _workerCompleteEvent = new(false);
 
     private readonly List<WaitHandle> _workerWaitHandles = new();
-    private readonly AutoResetEvent _workerCompleteEvent = new(false);
     private int _completedJobsCount;
 
     private int _completedWorkersCount;
@@ -77,22 +76,8 @@ internal class JobManager(
                     break;
                 }
 
-                var result = false;
-                try
-                {
-                    result = await safeJobRunner.RunSafelyAsync(envelope!.Job, cancellationToken);
-                }
-                catch (Exception e)
-                {
-                    try
-                    {
-                        await jobFailureHandler.HandleFailureAsync(envelope!.Job, e, cancellationToken);
-                    }
-                    catch (Exception e2)
-                    {
-                        logger.LogError(e2, "Job failure handling failed");
-                    }
-                }
+                var result = await safeJobRunner.RunSafelyAsync(envelope!.Job, cancellationToken);
+                ;
 
                 await _completedJobsCountSemaphore.WaitAsync(cancellationToken);
                 try
@@ -108,7 +93,7 @@ internal class JobManager(
                     _completedJobsCountSemaphore.Release();
                 }
 
-                await envelope!.Semaphore.WaitAsync(cancellationToken);
+                await envelope.Semaphore.WaitAsync(cancellationToken);
                 try
                 {
                     envelope.Result = result;
