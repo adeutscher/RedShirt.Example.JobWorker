@@ -27,7 +27,7 @@ public class SqsJobSourceTests
         sqs.Setup(a => a.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new ReceiveMessageResponse
             {
-                Messages = 
+                Messages =
                 [
                     new Message
                     {
@@ -101,5 +101,101 @@ public class SqsJobSourceTests
         Assert.Same(mock1, response.Items[0].Data);
         Assert.Equal(receiptHandle2, response.Items[1].MessageId);
         Assert.Same(mock2, response.Items[1].Data);
+    }
+
+    [Fact]
+    public async Task Test_AcknowledgeAsync()
+    {
+        var sqs = new Mock<IAmazonSQS>();
+        var config = new SqsJobSource.ConfigurationModel
+        {
+            QueueUrl = Guid.NewGuid()
+                .ToString(),
+            MessageBatchSize = 0,
+            VisibilityTimeoutSeconds = 0
+        };
+
+        var source = new SqsJobSource(sqs.Object, null!, null!, new NullLogger<SqsJobSource>(), Options.Create(config));
+
+        var messageId = Guid.NewGuid().ToString();
+        var job = new Mock<IJobModel>();
+        job.Setup(j => j.MessageId).Returns(messageId);
+
+        var cts = new CancellationTokenSource();
+
+        await source.AcknowledgeCompletionAsync(job.Object, true, cts.Token);
+
+        sqs.Verify(s => s.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        sqs.Verify(s => s.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(), cts.Token), Times.Once);
+
+        var request = Assert.Single(sqs.Invocations).Arguments[0] as DeleteMessageRequest;
+        Assert.NotNull(request);
+
+        Assert.Equal(config.QueueUrl, request.QueueUrl);
+        Assert.Equal(messageId, request.ReceiptHandle);
+    }
+
+    [Fact]
+    public async Task Test_AcknowledgeAsync_NonSuccess()
+    {
+        var sqs = new Mock<IAmazonSQS>();
+        var config = new SqsJobSource.ConfigurationModel
+        {
+            QueueUrl = Guid.NewGuid()
+                .ToString(),
+            MessageBatchSize = 0,
+            VisibilityTimeoutSeconds = 0
+        };
+
+        var source = new SqsJobSource(sqs.Object, null!, null!, new NullLogger<SqsJobSource>(), Options.Create(config));
+
+        var messageId = Guid.NewGuid().ToString();
+        var job = new Mock<IJobModel>();
+        job.Setup(j => j.MessageId).Returns(messageId);
+
+        var cts = new CancellationTokenSource();
+
+        await source.AcknowledgeCompletionAsync(job.Object, false, cts.Token);
+
+        Assert.Empty(sqs.Invocations);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(10)]
+    public async Task Test_HeartbeatAsync(int timeoutSeconds)
+    {
+        var sqs = new Mock<IAmazonSQS>();
+        var config = new SqsJobSource.ConfigurationModel
+        {
+            QueueUrl = Guid.NewGuid()
+                .ToString(),
+            MessageBatchSize = 0,
+            VisibilityTimeoutSeconds = timeoutSeconds
+        };
+
+        var source = new SqsJobSource(sqs.Object, null!, null!, new NullLogger<SqsJobSource>(), Options.Create(config));
+
+        var messageId = Guid.NewGuid().ToString();
+        var job = new Mock<IJobModel>();
+        job.Setup(j => j.MessageId).Returns(messageId);
+
+        var cts = new CancellationTokenSource();
+
+        await source.HeartbeatAsync(job.Object, cts.Token);
+
+        sqs.Verify(
+            s => s.ChangeMessageVisibilityAsync(It.IsAny<ChangeMessageVisibilityRequest>(),
+                It.IsAny<CancellationToken>()), Times.Once);
+        sqs.Verify(s => s.ChangeMessageVisibilityAsync(It.IsAny<ChangeMessageVisibilityRequest>(), cts.Token),
+            Times.Once);
+
+        var request = Assert.Single(sqs.Invocations).Arguments[0] as ChangeMessageVisibilityRequest;
+        Assert.NotNull(request);
+
+        Assert.Equal(config.QueueUrl, request.QueueUrl);
+        Assert.Equal(config.VisibilityTimeoutSeconds, request.VisibilityTimeout);
+        Assert.Equal(messageId, request.ReceiptHandle);
     }
 }

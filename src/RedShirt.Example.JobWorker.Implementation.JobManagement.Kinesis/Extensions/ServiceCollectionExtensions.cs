@@ -54,6 +54,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobSource, HighLevelStreamSource>()
             .AddSingleton<ILowLevelStreamSource, LowLevelStreamSource>()
             .AddSingleton<IKinesisShardLister, KinesisShardLister>()
+            .AddSingleton<IShortTermIteratorStorage, RedisShortTermIteratorStorage>()
             .AddSingleton<ISequenceNumberStorage, DynamoSequenceNumberStorage>()
             .Configure<DynamoSequenceNumberStorage.ConfigurationModel>(
                 configuration.GetSection("JobSource:Kinesis:Checkpoint"))

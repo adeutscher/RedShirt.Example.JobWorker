@@ -8,8 +8,8 @@ internal class RedLocker(IRedisConnectionSource redisConnectionSource) : IAbstra
 {
     public async Task<IAbstractedLock> GetLockAsync(string lockName, CancellationToken cancellationToken = default)
     {
-        var redis = redisConnectionSource.GetLockFactory();
-        return new RedLockLock(await redis.CreateLockAsync(KeyHelper.GetLockKey(lockName), TimeSpan.FromSeconds(30)));
+        var distributedLockFactory = redisConnectionSource.GetLockFactory();
+        return new RedLockLock(await distributedLockFactory.CreateLockAsync(KeyHelper.GetLockKey(lockName), TimeSpan.FromSeconds(30)));
     }
 
     internal class RedLockLock(IRedLock redLock) : IAbstractedLock

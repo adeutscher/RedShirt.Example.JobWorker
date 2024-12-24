@@ -2,7 +2,6 @@ using Amazon.Kinesis;
 using Amazon.Kinesis.Model;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.Configuration;
-using RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.Utility;
 
 namespace RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.Services;
 
@@ -14,23 +13,21 @@ public interface ICheckpointStorage
 }
 
 internal class CheckpointStorage(
-    IRedisConnectionSource redisConnectionSource,
+    IShortTermIteratorStorage shortTermIteratorStorage,
     ISequenceNumberStorage sequenceNumberStorage,
     IAmazonKinesis kinesis,
     IOptions<KinesisConfiguration> options) : ICheckpointStorage
 {
     public async Task<string> GetCheckpointAsync(string shardId, CancellationToken cancellationToken = default)
     {
-        var redis = redisConnectionSource.GetDatabase();
-
-        var shortTermString = await redis.StringGetAsync(KeyHelper.GetCheckpointKey(shardId));
+        var shortTermString = await shortTermIteratorStorage.GetAsync(shardId, cancellationToken);
         if (!string.IsNullOrWhiteSpace(shortTermString))
         {
-            return shortTermString.ToString();
+            return shortTermString;
         }
 
         var sequenceNumber =
-            await sequenceNumberStorage.GetLastSequenceNumber(KeyHelper.GetCheckpointKey(shardId), cancellationToken);
+            await sequenceNumberStorage.GetLastSequenceNumber(shardId, cancellationToken);
         if (!string.IsNullOrEmpty(sequenceNumber))
         {
             var stagedIterator = await kinesis.GetShardIteratorAsync(new GetShardIteratorRequest
@@ -57,21 +54,13 @@ internal class CheckpointStorage(
     public Task UpdateLongTermAsync(string shardName, string sequenceNumber,
         CancellationToken cancellationToken = default)
     {
-        return sequenceNumberStorage.SetLastSequenceNumber(KeyHelper.GetCheckpointKey(shardName), sequenceNumber,
+        return sequenceNumberStorage.SetLastSequenceNumber(shardName, sequenceNumber,
             cancellationToken);
     }
 
     public Task UpdateShortTermAsync(string shardName, string iteratorString,
         CancellationToken cancellationToken = default)
     {
-        var db = redisConnectionSource.GetDatabase();
-        // ReSharper disable once ConvertIfStatementToReturnStatement
-        if (string.IsNullOrEmpty(iteratorString))
-        {
-            return db.StringSetAsync(KeyHelper.GetCheckpointKey(shardName), string.Empty, TimeSpan.FromSeconds(1));
-        }
-
-        return db.StringSetAsync(KeyHelper.GetCheckpointKey(shardName), iteratorString,
-            TimeSpan.FromMinutes(5) - TimeSpan.FromSeconds(5));
+        return shortTermIteratorStorage.SetAsync(shardName, iteratorString, cancellationToken);
     }
 }
