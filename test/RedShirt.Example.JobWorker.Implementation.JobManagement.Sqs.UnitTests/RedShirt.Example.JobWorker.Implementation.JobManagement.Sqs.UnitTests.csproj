@@ -22,7 +22,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\src\RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs\RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.csproj" />
+      <ProjectReference Include="..\..\src\RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs\RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.csproj" />
     </ItemGroup>
 
 </Project>

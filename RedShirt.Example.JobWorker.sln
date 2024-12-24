@@ -30,7 +30,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.UnitTests", "test\RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.UnitTests\RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.UnitTests.csproj", "{85FD097D-868D-4F09-B2D3-520C06799F4A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.UnitTests", "RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.UnitTests\RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.UnitTests.csproj", "{824673B9-FE9C-4D82-9171-47F14D6CEED0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.UnitTests", "test\RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.UnitTests\RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.UnitTests.csproj", "{824673B9-FE9C-4D82-9171-47F14D6CEED0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
