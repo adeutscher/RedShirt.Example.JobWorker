@@ -21,11 +21,12 @@ public class HighLevelStreamSourceTests
         var cts = new CancellationTokenSource();
 
         var streamSource = new HighLevelStreamSource(checkpointStorage.Object, lister.Object, locker.Object,
-            lowLevelStreamSource.Object, new NullLogger<HighLevelStreamSource>());
-
-        streamSource.Lock = @lock.Object;
-        streamSource.JobCount = 2;
-        streamSource.JobCountTally = 0;
+            lowLevelStreamSource.Object, new NullLogger<HighLevelStreamSource>())
+        {
+            Lock = @lock.Object,
+            JobCount = 2,
+            JobCountTally = 0
+        };
 
         await streamSource.AcknowledgeCompletionAsync(null!, false, cts.Token);
         Assert.Equal(1, streamSource.JobCountTally);
@@ -148,5 +149,15 @@ public class HighLevelStreamSourceTests
             };
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await streamSource.GetJobsAsync());
+    }
+
+    [Fact]
+    public async Task Test_HeartbeatAsync()
+    {
+        var streamSource = new HighLevelStreamSource(null!, null!, null!,
+            null!, new NullLogger<HighLevelStreamSource>());
+
+        await streamSource.HeartbeatAsync(null!);
+        Assert.Null(streamSource.Lock);
     }
 }
