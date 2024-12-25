@@ -8,6 +8,54 @@ namespace RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.UnitTe
 public class HighLevelStreamSourceTests
 {
     [Fact]
+    public async Task Test_AcknowledgeAsync()
+    {
+        var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
+        var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
+        var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
+        var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
+
+        var @lock = new Mock<IAbstractedLock>();
+        @lock.Setup(l => l.IsAcquired)
+            .Returns(true);
+        var cts = new CancellationTokenSource();
+
+        var streamSource = new HighLevelStreamSource(checkpointStorage.Object, lister.Object, locker.Object,
+            lowLevelStreamSource.Object, new NullLogger<HighLevelStreamSource>());
+
+        streamSource.Lock = @lock.Object;
+        streamSource.JobCount = 2;
+        streamSource.JobCountTally = 0;
+
+        await streamSource.AcknowledgeCompletionAsync(null!, false, cts.Token);
+        Assert.Equal(1, streamSource.JobCountTally);
+        @lock.Verify(l => l.IsAcquired, Times.Once);
+        @lock.Verify(l => l.Unlock(), Times.Never);
+
+        await streamSource.AcknowledgeCompletionAsync(null!, false, cts.Token);
+        Assert.Equal(2, streamSource.JobCountTally);
+        @lock.Verify(l => l.IsAcquired, Times.Exactly(2));
+        @lock.Verify(l => l.Unlock(), Times.Once);
+        Assert.Null(streamSource.Lock);
+    }
+
+    [Fact]
+    public async Task Test_AcknowledgeAsync_NullLock()
+    {
+        var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
+        var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
+        var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
+        var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
+
+        var cts = new CancellationTokenSource();
+
+        var streamSource = new HighLevelStreamSource(checkpointStorage.Object, lister.Object, locker.Object,
+            lowLevelStreamSource.Object, new NullLogger<HighLevelStreamSource>());
+
+        await streamSource.AcknowledgeCompletionAsync(null!, false, cts.Token);
+    }
+
+    [Fact]
     public async Task Test_GetJobsAsync()
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);

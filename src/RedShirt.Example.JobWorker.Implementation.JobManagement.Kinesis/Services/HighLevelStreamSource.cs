@@ -25,7 +25,7 @@ internal class HighLevelStreamSource(
         try
         {
             JobCountTally++;
-            if (Lock?.IsAcquired == true && JobCount >= JobCountTally)
+            if (Lock?.IsAcquired == true && JobCountTally >= JobCount)
             {
                 logger.LogTrace("Releasing distributed lock");
                 Lock.Unlock();
