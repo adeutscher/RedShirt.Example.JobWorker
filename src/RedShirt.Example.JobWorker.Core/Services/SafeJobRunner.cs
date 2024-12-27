@@ -43,7 +43,7 @@ internal class SafeJobRunner(
         }
     }
 
-    public class ConfigurationModel
+    public sealed class ConfigurationModel
     {
         public required int InternalRetryCount { get; init; }
     }

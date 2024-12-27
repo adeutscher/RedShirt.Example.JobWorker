@@ -77,7 +77,6 @@ internal class JobManager(
                 }
 
                 var result = await safeJobRunner.RunSafelyAsync(envelope!.Job, cancellationToken);
-                ;
 
                 await _completedJobsCountSemaphore.WaitAsync(cancellationToken);
                 try
@@ -254,7 +253,7 @@ internal class JobManager(
         }
     }
 
-    private class JobEnvelope
+    private sealed class JobEnvelope
     {
         public SemaphoreSlim Semaphore { get; } = new(1, 1);
         public required IJobModel Job { get; init; }
@@ -262,7 +261,7 @@ internal class JobManager(
         public bool IsCompleted => Result is not null;
     }
 
-    public class ConfigurationModel
+    public sealed class ConfigurationModel
     {
         public required int WorkerThreadCount { get; init; }
     }

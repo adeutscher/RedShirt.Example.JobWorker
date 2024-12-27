@@ -49,7 +49,7 @@ internal class WorkerLoop(
         }
     }
 
-    public class ConfigurationModel
+    public sealed class ConfigurationModel
     {
         public required int MaxIdleWaitSeconds { get; init; }
     }
