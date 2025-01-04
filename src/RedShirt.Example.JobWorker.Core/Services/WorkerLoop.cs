@@ -29,7 +29,7 @@ internal class WorkerLoop(
                                 Math.Pow(2, retryAttempt))),
                         (_, span) =>
                         {
-                            logger.LogTrace("Received no jobs from source, retrying in {Span} s", span.Seconds);
+                            logger.LogTrace("Received no jobs from source, retrying in {Span} s", span.TotalSeconds);
                         })
                     .ExecuteAsync(async () =>
                     {
