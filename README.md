@@ -6,6 +6,7 @@ Repo features:
 * Configuration is based on environment variables.
 * Message polling with:
     * Amazon SQS
+    * Amazon Kinesis
 
 # Initialisation
 
