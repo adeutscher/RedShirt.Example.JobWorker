@@ -33,7 +33,7 @@ internal class DynamoSequenceNumberStorage(
             ExpirationTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                              + 3600 * Math.Max(1, options.Value.RecordDurationHours)
                              - 5
-        }, new DynamoDBOperationConfig
+        }, new SaveConfig
         {
             OverrideTableName = options.Value.TableName
         }, cancellationToken);

@@ -89,7 +89,7 @@ public class DynamoSequenceNumberStorageTests
     {
         var ctx = new Mock<IDynamoDBContext>();
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         var tableName = Guid.NewGuid().ToString();
 
@@ -103,10 +103,10 @@ public class DynamoSequenceNumberStorageTests
         await storage.SetLastSequenceNumber("foo", "bar", cts.Token);
 
         ctx.Verify(
-            c => c.SaveAsync(It.IsAny<DynamoSequenceNumberStorage.Record>(), It.IsAny<DynamoDBOperationConfig>(),
+            c => c.SaveAsync(It.IsAny<DynamoSequenceNumberStorage.Record>(), It.IsAny<SaveConfig>(),
                 It.IsAny<CancellationToken>()), Times.Once);
         ctx.Verify(
-            c => c.SaveAsync(It.IsAny<DynamoSequenceNumberStorage.Record>(), It.IsAny<DynamoDBOperationConfig>(),
+            c => c.SaveAsync(It.IsAny<DynamoSequenceNumberStorage.Record>(), It.IsAny<SaveConfig>(),
                 cts.Token), Times.Once);
 
         var invocation = Assert.Single(ctx.Invocations);
@@ -115,7 +115,7 @@ public class DynamoSequenceNumberStorageTests
         Assert.NotEqual("foo", record.ShardId);
         Assert.Contains("foo", record.ShardId);
         Assert.Equal("bar", record.Value);
-        var opConfig = invocation.Arguments[1] as DynamoDBOperationConfig;
+        var opConfig = invocation.Arguments[1] as SaveConfig;
         Assert.NotNull(opConfig);
         Assert.Equal(tableName, opConfig.OverrideTableName);
     }
