@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Logic.Extensions;
-using RedShirt.Example.JobWorker.Implementation.JobManagement.Kinesis.Extensions;
-using RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.Sqs.Extensions;
 
 namespace RedShirt.Example.JobWorker.Extensions;
 
