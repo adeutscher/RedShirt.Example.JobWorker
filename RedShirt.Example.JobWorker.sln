@@ -32,6 +32,14 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests", "test\RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests\RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests.csproj", "{824673B9-FE9C-4D82-9171-47F14D6CEED0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.FileDownload.Core", "src\RedShirt.Example.JobWorker.FileDownload.Core\RedShirt.Example.JobWorker.FileDownload.Core.csproj", "{DA449DDF-3F1B-4B75-9FF0-8975E8CE465D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.FileDownload.S3", "src\RedShirt.Example.JobWorker.FileDownload.S3\RedShirt.Example.JobWorker.FileDownload.S3.csproj", "{AC776411-873C-4DE8-A6CE-41DE3C825D0F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.Common.Aws", "src\RedShirt.Example.JobWorker.Common.Aws\RedShirt.Example.JobWorker.Common.Aws.csproj", "{1A8B9E8D-D8CD-49D3-B324-B2C9FB5D085C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.FileDownload.S3.UnitTests", "RedShirt.Example.JobWorker.FileDownload.S3.UnitTests\RedShirt.Example.JobWorker.FileDownload.S3.UnitTests.csproj", "{61BE852D-DA91-46FF-95ED-422D887C5C4F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -49,6 +57,10 @@ Global
 		{A390FFBC-559B-4F85-9A32-B664BF330D1F} = {0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}
 		{85FD097D-868D-4F09-B2D3-520C06799F4A} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
 		{824673B9-FE9C-4D82-9171-47F14D6CEED0} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
+		{DA449DDF-3F1B-4B75-9FF0-8975E8CE465D} = {0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}
+		{AC776411-873C-4DE8-A6CE-41DE3C825D0F} = {0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}
+		{1A8B9E8D-D8CD-49D3-B324-B2C9FB5D085C} = {0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}
+		{61BE852D-DA91-46FF-95ED-422D887C5C4F} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{81C22C57-1441-4DC0-9953-47434B802572}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -95,5 +107,21 @@ Global
 		{824673B9-FE9C-4D82-9171-47F14D6CEED0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{824673B9-FE9C-4D82-9171-47F14D6CEED0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{824673B9-FE9C-4D82-9171-47F14D6CEED0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DA449DDF-3F1B-4B75-9FF0-8975E8CE465D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DA449DDF-3F1B-4B75-9FF0-8975E8CE465D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DA449DDF-3F1B-4B75-9FF0-8975E8CE465D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DA449DDF-3F1B-4B75-9FF0-8975E8CE465D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AC776411-873C-4DE8-A6CE-41DE3C825D0F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AC776411-873C-4DE8-A6CE-41DE3C825D0F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AC776411-873C-4DE8-A6CE-41DE3C825D0F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AC776411-873C-4DE8-A6CE-41DE3C825D0F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1A8B9E8D-D8CD-49D3-B324-B2C9FB5D085C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1A8B9E8D-D8CD-49D3-B324-B2C9FB5D085C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1A8B9E8D-D8CD-49D3-B324-B2C9FB5D085C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1A8B9E8D-D8CD-49D3-B324-B2C9FB5D085C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{61BE852D-DA91-46FF-95ED-422D887C5C4F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{61BE852D-DA91-46FF-95ED-422D887C5C4F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{61BE852D-DA91-46FF-95ED-422D887C5C4F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{61BE852D-DA91-46FF-95ED-422D887C5C4F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
