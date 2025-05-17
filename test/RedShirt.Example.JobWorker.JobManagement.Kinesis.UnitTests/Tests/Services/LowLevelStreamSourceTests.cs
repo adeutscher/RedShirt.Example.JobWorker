@@ -78,7 +78,7 @@ public class LowLevelStreamSourceTests
                 StreamArn = streamArn
             }));
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         var response = await source.GetJobsAsync("foo", cts.Token);
         Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
         Assert.Equal(2, response.Items.Count);
@@ -125,7 +125,7 @@ public class LowLevelStreamSourceTests
                 StreamArn = streamArn
             }));
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         var response = await source.GetJobsAsync("foo", cts.Token);
         Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
         Assert.Empty(response.Items);
@@ -163,7 +163,7 @@ public class LowLevelStreamSourceTests
                 StreamArn = streamArn
             }));
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         var response = await source.GetJobsAsync("foo", cts.Token);
         Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
         Assert.Empty(response.Items);
