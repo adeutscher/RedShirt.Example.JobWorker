@@ -77,7 +77,7 @@ public class SqsJobSourceTests
                 VisibilityTimeoutSeconds = visibilityTimeoutInSeconds
             }));
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         var response = await source.GetJobsAsync(cts.Token);
         Assert.Equal(2, response.Items.Count);
 
@@ -103,6 +103,51 @@ public class SqsJobSourceTests
         Assert.Same(mock2, response.Items[1].Data);
     }
 
+    /// <summary>
+    ///     In 4.X of AWSDK.SQS, AmazonSQSClient.ReceiveMessageAsync currently returns null
+    ///     instead of an empty response object.
+    ///     Whether a bug or a feature, accounting for it with this test.
+    /// </summary>
+    [Fact]
+    public async Task TestGetJobsAsync_Null()
+    {
+        var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
+        sqs.Setup(a => a.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => null);
+
+        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
+        var sorter = new Mock<ISourceMessageSorter>();
+
+        var queueUrl = Guid.NewGuid().ToString();
+        const int batchSize = 10;
+        const int visibilityTimeoutInSeconds = 100;
+
+        var source = new SqsJobSource(sqs.Object, converter.Object, sorter.Object,
+            new NullLogger<SqsJobSource>(), Options.Create(new SqsJobSource.ConfigurationModel
+            {
+                QueueUrl = queueUrl,
+                MessageBatchSize = batchSize,
+                VisibilityTimeoutSeconds = visibilityTimeoutInSeconds
+            }));
+
+        using var cts = new CancellationTokenSource();
+        var response = await source.GetJobsAsync(cts.Token);
+        Assert.Empty(response.Items);
+
+        sqs.Verify(a => a.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        sqs.Verify(
+            a => a.ReceiveMessageAsync(
+                It.Is<ReceiveMessageRequest>(r =>
+                    r.QueueUrl == queueUrl
+                    && r.MaxNumberOfMessages == batchSize
+                    && r.VisibilityTimeout == visibilityTimeoutInSeconds),
+                cts.Token), Times.Once);
+
+        Assert.Empty(converter.Invocations);
+        Assert.Empty(sorter.Invocations);
+    }
+
     [Fact]
     public async Task Test_AcknowledgeAsync()
     {
@@ -121,7 +166,7 @@ public class SqsJobSourceTests
         var job = new Mock<IJobModel>();
         job.Setup(j => j.MessageId).Returns(messageId);
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         await source.AcknowledgeCompletionAsync(job.Object, true, cts.Token);
 
@@ -154,7 +199,7 @@ public class SqsJobSourceTests
         var job = new Mock<IJobModel>();
         job.Setup(j => j.MessageId).Returns(messageId);
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         await source.AcknowledgeCompletionAsync(job.Object, false, cts.Token);
 
@@ -181,7 +226,7 @@ public class SqsJobSourceTests
         var job = new Mock<IJobModel>();
         job.Setup(j => j.MessageId).Returns(messageId);
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         await source.HeartbeatAsync(job.Object, cts.Token);
 

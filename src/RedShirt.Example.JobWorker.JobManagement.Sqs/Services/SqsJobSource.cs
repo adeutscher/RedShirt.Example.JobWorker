@@ -44,7 +44,7 @@ internal class SqsJobSource(
 
         var items = new List<IJobModel>();
 
-        foreach (var message in sqsResponse.Messages)
+        foreach (var message in sqsResponse?.Messages ?? [])
         {
             try
             {
@@ -73,7 +73,7 @@ internal class SqsJobSource(
         var response = new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = (int) Math.Ceiling(VisibilityTimeoutSeconds * 0.75),
-            Items = sorter.GetSortedListOfJobs(items)
+            Items = items.Count > 0 ? sorter.GetSortedListOfJobs(items) : []
         };
 
         return response;
