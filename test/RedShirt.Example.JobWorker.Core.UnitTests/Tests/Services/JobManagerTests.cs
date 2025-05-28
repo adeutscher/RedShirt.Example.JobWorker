@@ -7,6 +7,98 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services;
 
 public class JobManagerTests
 {
+    /// <summary>
+    ///     Confirm that the job acknowledgement should be allowed to fail without bringing everything else down.
+    ///     Be careful about editing the timings on this because justification comments inside JobManager directly refer to
+    ///     this test.
+    /// </summary>
+    [Fact(Timeout = 5000)]
+    public async Task Test_RunJobAsync_Basic_Acknowledge_Failed()
+    {
+        var safeRunner = new Mock<ISafeJobRunner>();
+        safeRunner
+            .Setup(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
+            .Returns(async (IJobModel _, CancellationToken ct) =>
+            {
+                await Task.Delay(2500, ct);
+                return false;
+            });
+        var jobSource = new Mock<IJobSource>();
+        jobSource.Setup(s =>
+                s.AcknowledgeCompletionAsync(It.IsAny<IJobModel>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .Returns((IJobModel _, bool _, CancellationToken _) => throw new Exception("BOOM"));
+
+        var jobManager = new JobManager(safeRunner.Object, jobSource.Object,
+            new NullLogger<JobManager>(),
+            Options.Create(
+                new JobManager.ConfigurationModel
+                {
+                    WorkerThreadCount = 1
+                }));
+
+        var job = new Mock<IJobModel>(MockBehavior.Strict);
+
+        jobManager.Start();
+        await jobManager.RunAsync(new JobSourceResponse
+        {
+            RecommendedHeartbeatIntervalSeconds = 1,
+            Items = [job.Object]
+        });
+
+        safeRunner.Verify(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Once);
+        safeRunner.Verify(s => s.RunSafelyAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
+
+        jobSource.Verify(s => s.HeartbeatAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.AtLeast(2));
+        jobSource.Verify(s => s.HeartbeatAsync(job.Object, It.IsAny<CancellationToken>()), Times.AtLeast(2));
+
+        jobSource.Verify(s => s.AcknowledgeCompletionAsync(job.Object, It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    /// <summary>
+    ///     Confirm that the heartbeat should be allowed to fail without bringing everything else down.
+    ///     Be careful about editing the timings on this because justification comments inside JobManager directly refer to
+    ///     this test.
+    /// </summary>
+    [Fact(Timeout = 5000)]
+    public async Task Test_RunJobAsync_Basic_Heartbeat_Failed()
+    {
+        var safeRunner = new Mock<ISafeJobRunner>();
+        safeRunner
+            .Setup(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
+            .Returns(async (IJobModel _, CancellationToken ct) =>
+            {
+                await Task.Delay(2500, ct);
+                return false;
+            });
+        var jobSource = new Mock<IJobSource>();
+        jobSource.Setup(s => s.HeartbeatAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
+            .Returns((IJobModel _, CancellationToken _) => throw new Exception("BOOM"));
+
+        var jobManager = new JobManager(safeRunner.Object, jobSource.Object,
+            new NullLogger<JobManager>(),
+            Options.Create(
+                new JobManager.ConfigurationModel
+                {
+                    WorkerThreadCount = 1
+                }));
+
+        var job = new Mock<IJobModel>(MockBehavior.Strict);
+
+        jobManager.Start();
+        await jobManager.RunAsync(new JobSourceResponse
+        {
+            RecommendedHeartbeatIntervalSeconds = 1,
+            Items = [job.Object]
+        });
+
+        safeRunner.Verify(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Once);
+        safeRunner.Verify(s => s.RunSafelyAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
+
+        jobSource.Verify(s => s.HeartbeatAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Once);
+        jobSource.Verify(s => s.HeartbeatAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     [Theory(Timeout = 10000)]
     [InlineData(2)]
     [InlineData(3)]

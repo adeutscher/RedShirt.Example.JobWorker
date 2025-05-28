@@ -70,6 +70,49 @@ public class SafeJobRunnerTests
             Times.Once);
     }
 
+    /// <summary>
+    ///     The safety wrapper should also be able to tolerate a failed run of the failure handler.
+    /// </summary>
+    /// <param name="retryCount"></param>
+    /// <exception cref="JobRetryException"></exception>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task Test_Run_True_Failure_Failed(int retryCount)
+    {
+        var logicRunner = new Mock<IJobLogicRunner>();
+        var failureHandler = new Mock<IJobFailureHandler>();
+
+        var safeRunner = new SafeJobRunner(logicRunner.Object, failureHandler.Object, new NullLogger<SafeJobRunner>(),
+            Options.Create(new SafeJobRunner.ConfigurationModel
+            {
+                InternalRetryCount = retryCount
+            }));
+
+        var jobData = new Mock<IJobDataModel>();
+        var job = new Mock<IJobModel>();
+        job.Setup(j => j.Data)
+            .Returns(jobData.Object);
+
+        var cts = new CancellationTokenSource();
+
+        logicRunner.Setup(l => l.RunAsync(jobData.Object, cts.Token))
+            .Returns((IJobDataModel _, CancellationToken _) => throw new JobRetryException());
+
+        failureHandler.Setup(f => f.HandleFailureAsync(job.Object, It.IsAny<JobRetryException>(), cts.Token))
+            .Throws(new Exception("BOOM"));
+
+        var result = await safeRunner.RunSafelyAsync(job.Object, cts.Token);
+        Assert.False(result);
+
+        Assert.Equal(retryCount + 1, logicRunner.Invocations.Count);
+        logicRunner.Verify(l => l.RunAsync(jobData.Object, cts.Token), Times.Exactly(retryCount + 1));
+
+        Assert.Single(failureHandler.Invocations);
+        failureHandler.Verify(f => f.HandleFailureAsync(job.Object, It.IsAny<JobRetryException>(), cts.Token),
+            Times.Once);
+    }
+
     [Fact]
     public async Task Test_Run_True_Retry()
     {

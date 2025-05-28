@@ -150,6 +150,7 @@ internal class JobManager(
                 catch (Exception e)
                 {
                     logger.LogError("Error while running heartbeat: {EMessage}", e.Message);
+                    // We are assuming that the heartbeat will keep failing, remove it from consideration.
                     envelopes.RemoveAt(i);
                     i--;
                 }
