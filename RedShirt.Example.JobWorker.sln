@@ -38,7 +38,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.Common.Aws", "src\RedShirt.Example.JobWorker.Common.Aws\RedShirt.Example.JobWorker.Common.Aws.csproj", "{1A8B9E8D-D8CD-49D3-B324-B2C9FB5D085C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.FileDownload.S3.UnitTests", "RedShirt.Example.JobWorker.FileDownload.S3.UnitTests\RedShirt.Example.JobWorker.FileDownload.S3.UnitTests.csproj", "{61BE852D-DA91-46FF-95ED-422D887C5C4F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.FileDownload.S3.UnitTests", "test\RedShirt.Example.JobWorker.FileDownload.S3.UnitTests\RedShirt.Example.JobWorker.FileDownload.S3.UnitTests.csproj", "{61BE852D-DA91-46FF-95ED-422D887C5C4F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

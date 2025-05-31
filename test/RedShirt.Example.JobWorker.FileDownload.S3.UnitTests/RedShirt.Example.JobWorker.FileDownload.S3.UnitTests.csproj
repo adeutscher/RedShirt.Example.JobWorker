@@ -24,7 +24,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\src\RedShirt.Example.JobWorker.FileDownload.S3\RedShirt.Example.JobWorker.FileDownload.S3.csproj" />
+      <ProjectReference Include="..\..\src\RedShirt.Example.JobWorker.FileDownload.S3\RedShirt.Example.JobWorker.FileDownload.S3.csproj" />
     </ItemGroup>
 
 </Project>
