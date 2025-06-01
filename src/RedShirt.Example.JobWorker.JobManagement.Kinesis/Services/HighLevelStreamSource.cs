@@ -13,8 +13,12 @@ internal class HighLevelStreamSource(
     ILogger<HighLevelStreamSource> logger) : IJobSource
 {
     private readonly SemaphoreSlim _acknowledgeSemaphore = new(1, 1);
+
     internal int JobCount { get; set; }
     internal int JobCountTally { get; set; }
+
+    internal string? LastShard { get; set; }
+    internal StreamSourceResponse? LastStreamSourceResponse { get; set; }
 
     internal IAbstractedLock? Lock { get; set; }
 
@@ -27,6 +31,8 @@ internal class HighLevelStreamSource(
             JobCountTally++;
             if (Lock?.IsAcquired == true && JobCountTally >= JobCount)
             {
+                await MoveTrackerAsync(cancellationToken);
+
                 logger.LogTrace("Releasing distributed lock");
                 Lock.Unlock();
                 Lock = null;
@@ -58,12 +64,15 @@ internal class HighLevelStreamSource(
             // Try to get lock
             var currentIterationLock =
                 await locker.GetLockAsync(shard, cancellationToken);
+
             if (!currentIterationLock.IsAcquired)
             {
                 // If cannot get lock, then continue
                 // Already in use by another worker
                 continue;
             }
+
+            LastShard = shard;
 
             // Got lock, we now have exclusive access to the shard
             ////
@@ -72,31 +81,24 @@ internal class HighLevelStreamSource(
             // Get iterator from storage
 
             // Get Items
-            var innerResponse = await lowLevelStreamSource.GetJobsAsync(iteratorString, cancellationToken);
-            // Update short-term checkpoint
-            await checkpointStorage.UpdateShortTermAsync(shard, innerResponse.IteratorString, cancellationToken);
+            LastStreamSourceResponse = await lowLevelStreamSource.GetJobsAsync(iteratorString, cancellationToken);
 
-            // Update long-term checkpoint
-            if (!string.IsNullOrWhiteSpace(innerResponse.LastSequenceNumber))
+            if (LastStreamSourceResponse.Items.Count == 0)
             {
-                await checkpointStorage.UpdateLongTermAsync(shard, innerResponse.LastSequenceNumber, cancellationToken);
-            }
-
-            if (innerResponse.Items.Count == 0)
-            {
+                await MoveTrackerAsync(cancellationToken);
                 // No jobs
                 currentIterationLock.Unlock();
                 continue;
                 // release lock and continue    
             }
 
-            JobCount = innerResponse.Items.Count;
+            JobCount = LastStreamSourceResponse.Items.Count;
             Lock = currentIterationLock;
 
             return new JobSourceResponse
             {
                 RecommendedHeartbeatIntervalSeconds = 0,
-                Items = innerResponse.Items
+                Items = LastStreamSourceResponse.Items
             };
         }
 
@@ -110,5 +112,24 @@ internal class HighLevelStreamSource(
     public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
+    }
+
+    internal async Task MoveTrackerAsync(CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(LastShard) || LastStreamSourceResponse is null)
+        {
+            return;
+        }
+
+        // Update short-term checkpoint
+        await checkpointStorage.UpdateShortTermAsync(LastShard, LastStreamSourceResponse.IteratorString,
+            cancellationToken);
+
+        // Update long-term checkpoint
+        if (!string.IsNullOrWhiteSpace(LastStreamSourceResponse.LastSequenceNumber))
+        {
+            await checkpointStorage.UpdateLongTermAsync(LastShard, LastStreamSourceResponse.LastSequenceNumber,
+                cancellationToken);
+        }
     }
 }
