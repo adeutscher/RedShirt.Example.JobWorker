@@ -35,6 +35,9 @@ internal class JobManager(
     private bool _isLoadingJobs;
     private int _successfullyCompletedJobsCount;
 
+    private uint _totalBatches;
+    private ulong _totalJobs;
+
     /// <summary>
     ///     Shorthand method to get thread count.
     /// </summary>
@@ -47,6 +50,7 @@ internal class JobManager(
     private async Task RunWorkerAsync(CancellationToken cancellationToken = default)
     {
         var waitHandler = new ManualResetEvent(false);
+
         await _startSemaphore.WaitAsync(cancellationToken);
         try
         {
@@ -150,7 +154,6 @@ internal class JobManager(
                 catch (Exception e)
                 {
                     logger.LogError("Error while running heartbeat: {EMessage}", e.Message);
-                    // We are assuming that the heartbeat will keep failing, remove it from consideration.
                     envelopes.RemoveAt(i);
                     i--;
                 }
@@ -182,7 +185,6 @@ internal class JobManager(
         WaitHandle.WaitAll(_workerWaitHandles.ToArray());
 
         _readyToReceiveJobsWaitHandle.Set();
-        _readyToReceiveJobsWaitHandle.Reset();
 
         var envelopes = new List<JobEnvelope>();
 
@@ -198,6 +200,7 @@ internal class JobManager(
         }
 
         _isLoadingJobs = false;
+        _readyToReceiveJobsWaitHandle.Reset();
 
         var heartbeatDoneEvent = new ManualResetEvent(false);
 
@@ -244,6 +247,9 @@ internal class JobManager(
         timer.Stop();
         logger.LogDebug("Successfully finished {JobsSuccessful}/{JobsTotal} jobs in {ElapsedMilliseconds} ms",
             _successfullyCompletedJobsCount, _completedJobsCount, timer.ElapsedMilliseconds);
+
+        _totalJobs += (uint) envelopes.Count;
+        logger.LogTrace("Total Jobs: {TotalJobs} ({TotalBatches} batches)", _totalJobs, ++_totalBatches);
     }
 
     public void Start(CancellationToken cancellationToken = default)
