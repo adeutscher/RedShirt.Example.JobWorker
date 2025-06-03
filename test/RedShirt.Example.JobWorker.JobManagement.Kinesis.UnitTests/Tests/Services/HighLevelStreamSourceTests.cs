@@ -120,7 +120,7 @@ public class HighLevelStreamSourceTests
         var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
         var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         lister.Setup(l => l.GetListOfShardsAsync(cts.Token))
             .ReturnsAsync(["foo", "bar"]);
@@ -159,5 +159,40 @@ public class HighLevelStreamSourceTests
 
         await streamSource.HeartbeatAsync(null!);
         Assert.Null(streamSource.Lock);
+    }
+
+    [Fact]
+    public async Task Test_MoveTracker()
+    {
+        var checkpointStorage = new Mock<ICheckpointStorage>();
+        var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
+        var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
+        var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
+
+        using var cts = new CancellationTokenSource();
+
+        var response = new StreamSourceResponse
+        {
+            IteratorString = "A",
+            LastSequenceNumber = "B",
+            Items = null!
+        };
+
+        var streamSource = new HighLevelStreamSource(checkpointStorage.Object, lister.Object, locker.Object,
+            lowLevelStreamSource.Object, new NullLogger<HighLevelStreamSource>())
+        {
+            LastShard = "SHARD",
+            LastStreamSourceResponse = response
+        };
+
+        await streamSource.MoveTrackerAsync(cts.Token);
+
+        Assert.Empty(lowLevelStreamSource.Invocations);
+        Assert.Empty(lister.Invocations);
+        Assert.Empty(locker.Invocations);
+
+        Assert.Equal(2, checkpointStorage.Invocations.Count);
+        checkpointStorage.Verify(c => c.UpdateShortTermAsync("SHARD", "A", cts.Token), Times.Once);
+        checkpointStorage.Verify(c => c.UpdateLongTermAsync("SHARD", "B", cts.Token), Times.Once);
     }
 }
