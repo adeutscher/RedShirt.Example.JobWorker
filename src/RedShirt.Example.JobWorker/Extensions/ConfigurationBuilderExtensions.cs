@@ -34,6 +34,12 @@ public static class ConfigurationBuilderExtensions
                 {
                     result.Add(simplified2, kvp.Value);
                 }
+
+                var simplified3 = parsed.Replace("_", " ");
+                if (keySet.Add(simplified3))
+                {
+                    result.Add(simplified3, kvp.Value);
+                }
             }
         }
 
