@@ -2,7 +2,7 @@ using RedShirt.Example.JobWorker.Core.Models;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 
-public class StreamSourceResponse
+internal class StreamSourceResponse
 {
     public required string IteratorString { get; init; }
     public required string? LastSequenceNumber { get; init; }

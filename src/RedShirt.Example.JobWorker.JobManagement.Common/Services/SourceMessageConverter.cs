@@ -12,7 +12,7 @@ public interface ISourceMessageConverter
     IJobDataModel? Convert(string input);
 }
 
-public class SourceMessageConverter : ISourceMessageConverter
+internal class SourceMessageConverter : ISourceMessageConverter
 {
     public IJobDataModel? Convert(string input)
     {

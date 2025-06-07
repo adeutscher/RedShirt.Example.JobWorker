@@ -1,6 +1,6 @@
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 
-public interface IAbstractedLock
+internal interface IAbstractedLock
 {
     bool IsAcquired { get; }
     void Unlock();

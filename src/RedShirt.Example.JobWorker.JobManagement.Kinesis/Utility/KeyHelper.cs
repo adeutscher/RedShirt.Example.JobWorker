@@ -1,6 +1,6 @@
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Utility;
 
-public static class KeyHelper
+internal static class KeyHelper
 {
     private static string GetShardWorkerId(string shardName)
     {

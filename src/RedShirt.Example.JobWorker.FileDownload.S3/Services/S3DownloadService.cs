@@ -1,29 +1,29 @@
 using Amazon.S3;
 using Amazon.S3.Model;
 using RedShirt.Example.JobWorker.FileDownload.Core.Models;
-using RedShirt.Example.JobWorker.FileDownload.Core.Services;
 using System.Security.Cryptography;
 
 namespace RedShirt.Example.JobWorker.FileDownload.S3.Services;
 
-public interface IS3DownloadService
+internal interface IS3DownloadService
 {
-    public Task<FileDownloadReport> DownloadAsync(string bucketName, string key, string fileName, CancellationToken cancellationToken = default);
+    public Task<FileDownloadReport> DownloadAsync(string bucketName, string key, string fileName,
+        CancellationToken cancellationToken = default);
 }
 
 internal class S3DownloadService(IAmazonS3 s3) : IS3DownloadService
 {
-    public async Task<FileDownloadReport> DownloadAsync(string bucketName, string key, string fileName, CancellationToken cancellationToken = default)
+    public async Task<FileDownloadReport> DownloadAsync(string bucketName, string key, string fileName,
+        CancellationToken cancellationToken = default)
     {
-
         using var md5 = MD5.Create();
         using var sha1 = SHA1.Create();
         using var sha256 = SHA256.Create();
         using var sha512 = SHA512.Create();
-        
+
         const int buflen = 8192;
         var buffer = new byte[buflen];
-        
+
         var bytesRead = 0;
         long bytesReadTotal = 0;
 

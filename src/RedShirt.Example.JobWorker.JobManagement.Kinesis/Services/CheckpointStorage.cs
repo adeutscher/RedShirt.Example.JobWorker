@@ -5,7 +5,7 @@ using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 
-public interface ICheckpointStorage
+internal interface ICheckpointStorage
 {
     Task<string> GetCheckpointAsync(string shardId, CancellationToken cancellationToken = default);
     Task UpdateLongTermAsync(string shardName, string sequenceNumber, CancellationToken cancellationToken = default);

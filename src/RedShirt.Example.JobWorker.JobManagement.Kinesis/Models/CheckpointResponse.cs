@@ -1,6 +1,6 @@
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 
-public class CheckpointResponse
+internal class CheckpointResponse
 {
     public required CheckpointRecord? Checkpoint { get; init; }
 }
