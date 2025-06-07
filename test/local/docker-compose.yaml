@@ -21,6 +21,7 @@ services:
       AWS_SERVICE_URL: http://localstack:4566
       AWS_ACCESS_KEY_ID: foo
       AWS_SECRET_ACCESS_KEY: bar
+      AWS_REGION: "${AWS_REGION-us-east-1}"
       # App-specific variables
       LOG_LEVEL: Trace
       JOBS__INTERNAL_RETRY_COUNT: 2
