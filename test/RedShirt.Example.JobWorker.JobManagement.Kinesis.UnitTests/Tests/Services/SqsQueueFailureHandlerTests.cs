@@ -17,7 +17,7 @@ public class SqsQueueFailureHandlerTests
             QueueUrl = null!
         }));
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         await sender.HandleFailureAsync(new Mock<IJobModel>().Object, null!, cts.Token);
 
         Assert.Empty(sqs.Invocations);
@@ -32,7 +32,7 @@ public class SqsQueueFailureHandlerTests
             QueueUrl = "foo"
         }));
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         await sender.HandleFailureAsync(new Mock<IJobModel>().Object, null!, cts.Token);
 
         Assert.Single(sqs.Invocations);

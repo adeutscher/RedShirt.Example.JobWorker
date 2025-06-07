@@ -28,7 +28,7 @@ internal class SafeJobRunner(
         }
         catch (Exception e)
         {
-            logger.LogError("Error running job: {EMessage}", e.Message);
+            logger.LogError(e, "Error running job: {EMessage}", e.Message);
 
             try
             {

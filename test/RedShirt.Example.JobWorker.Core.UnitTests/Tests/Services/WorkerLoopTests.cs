@@ -35,7 +35,7 @@ public class WorkerLoopTests
                 MaxIdleWaitSeconds = 1
             }));
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         await loop.RunAsync(cts.Token);
 
@@ -69,7 +69,7 @@ public class WorkerLoopTests
                 MaxIdleWaitSeconds = 1
             }));
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         await loop.RunAsync(cts.Token);
 

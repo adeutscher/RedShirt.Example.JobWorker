@@ -17,7 +17,7 @@ public class DynamoSequenceNumberStorageTests
             {
                 Value = value
             });
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         var tableName = Guid.NewGuid().ToString();
 
@@ -53,7 +53,7 @@ public class DynamoSequenceNumberStorageTests
     {
         var ctx = new Mock<IDynamoDBContext>();
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         var tableName = Guid.NewGuid().ToString();
 

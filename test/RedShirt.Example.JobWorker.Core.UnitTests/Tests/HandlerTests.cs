@@ -12,7 +12,7 @@ public class HandlerTests
 
         var handler = new Handler(jobManager.Object, loop.Object);
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         await handler.HandleAsync(cts.Token);
         Assert.Single(loop.Invocations);

@@ -25,7 +25,7 @@ public class SafeJobRunnerTests
         job.Setup(j => j.Data)
             .Returns(jobData.Object);
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         var result = await safeRunner.RunSafelyAsync(job.Object, cts.Token);
         Assert.True(result);
 
@@ -54,7 +54,7 @@ public class SafeJobRunnerTests
         job.Setup(j => j.Data)
             .Returns(jobData.Object);
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         logicRunner.Setup(l => l.RunAsync(jobData.Object, cts.Token))
             .Returns((IJobDataModel _, CancellationToken _) => throw new JobRetryException());
@@ -94,7 +94,7 @@ public class SafeJobRunnerTests
         job.Setup(j => j.Data)
             .Returns(jobData.Object);
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         logicRunner.Setup(l => l.RunAsync(jobData.Object, cts.Token))
             .Returns((IJobDataModel _, CancellationToken _) => throw new JobRetryException());
@@ -130,7 +130,7 @@ public class SafeJobRunnerTests
         job.Setup(j => j.Data)
             .Returns(jobData.Object);
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         var queue = new Queue<object?>();
         queue.Enqueue(job.Object);
