@@ -75,7 +75,8 @@ public class LowLevelStreamSourceTests
             new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
             {
                 BatchSize = batchSize,
-                StreamArn = streamArn
+                StreamArn = streamArn,
+                ShuffleShards = false
             }));
 
         using var cts = new CancellationTokenSource();
@@ -122,7 +123,8 @@ public class LowLevelStreamSourceTests
             new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
             {
                 BatchSize = batchSize,
-                StreamArn = streamArn
+                StreamArn = streamArn,
+                ShuffleShards = false
             }));
 
         using var cts = new CancellationTokenSource();
@@ -160,7 +162,8 @@ public class LowLevelStreamSourceTests
             new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
             {
                 BatchSize = batchSize,
-                StreamArn = streamArn
+                StreamArn = streamArn,
+                ShuffleShards = false
             }));
 
         using var cts = new CancellationTokenSource();

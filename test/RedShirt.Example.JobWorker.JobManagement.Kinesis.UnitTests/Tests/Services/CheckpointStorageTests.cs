@@ -17,7 +17,9 @@ public class CheckpointStorageTests
         var options = new KinesisConfiguration
         {
             BatchSize = 0,
-            StreamArn = Guid.NewGuid().ToString()
+            StreamArn = Guid.NewGuid()
+                .ToString(),
+            ShuffleShards = false
         };
 
         var checkpointStorage =
@@ -35,7 +37,7 @@ public class CheckpointStorageTests
             });
 
         var shardId = Guid.NewGuid().ToString();
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         var value = await checkpointStorage.GetCheckpointAsync(shardId, cts.Token);
 
         Assert.Single(shortTerm.Invocations);
@@ -64,7 +66,8 @@ public class CheckpointStorageTests
         var options = new KinesisConfiguration
         {
             BatchSize = 0,
-            StreamArn = Guid.NewGuid().ToString()
+            StreamArn = Guid.NewGuid().ToString(),
+            ShuffleShards = false
         };
 
         var checkpointStorage =
@@ -83,7 +86,7 @@ public class CheckpointStorageTests
             });
 
         var shardId = Guid.NewGuid().ToString();
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         var value = await checkpointStorage.GetCheckpointAsync(shardId, cts.Token);
 
         Assert.Single(shortTerm.Invocations);
@@ -112,7 +115,8 @@ public class CheckpointStorageTests
         var options = new KinesisConfiguration
         {
             BatchSize = 0,
-            StreamArn = Guid.NewGuid().ToString()
+            StreamArn = Guid.NewGuid().ToString(),
+            ShuffleShards = false
         };
 
         var checkpointStorage =
@@ -123,7 +127,7 @@ public class CheckpointStorageTests
             .ReturnsAsync(iteratorString);
 
         var shardId = Guid.NewGuid().ToString();
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         var value = await checkpointStorage.GetCheckpointAsync(shardId, cts.Token);
 
         Assert.Single(shortTerm.Invocations);
@@ -144,7 +148,8 @@ public class CheckpointStorageTests
         var options = new KinesisConfiguration
         {
             BatchSize = 0,
-            StreamArn = Guid.NewGuid().ToString()
+            StreamArn = Guid.NewGuid().ToString(),
+            ShuffleShards = false
         };
 
         var checkpointStorage =
@@ -152,7 +157,7 @@ public class CheckpointStorageTests
 
         var key = Guid.NewGuid().ToString();
         var value = Guid.NewGuid().ToString();
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         await checkpointStorage.UpdateLongTermAsync(key, value, cts.Token);
         Assert.Empty(shortTerm.Invocations);
@@ -170,7 +175,8 @@ public class CheckpointStorageTests
         var options = new KinesisConfiguration
         {
             BatchSize = 0,
-            StreamArn = Guid.NewGuid().ToString()
+            StreamArn = Guid.NewGuid().ToString(),
+            ShuffleShards = false
         };
 
         var checkpointStorage =
@@ -178,7 +184,7 @@ public class CheckpointStorageTests
 
         var key = Guid.NewGuid().ToString();
         var value = Guid.NewGuid().ToString();
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         await checkpointStorage.UpdateShortTermAsync(key, value, cts.Token);
         Assert.Single(shortTerm.Invocations);

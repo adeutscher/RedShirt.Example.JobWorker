@@ -28,6 +28,16 @@ internal class KinesisShardLister(IAmazonKinesis kinesis, IOptions<KinesisConfig
             continuationToken = response.NextToken;
         } while (!string.IsNullOrEmpty(continuationToken));
 
+        if (options.Value.ShuffleShards)
+        {
+            /*
+             * Shuffle the shards before returning them upwards.
+             * This will allow a single worker to be more balanced in
+             *  which shards it accesses.
+             */
+            list = list.OrderBy(_ => Guid.NewGuid()).ToList();
+        }
+
         return list;
     }
 }
