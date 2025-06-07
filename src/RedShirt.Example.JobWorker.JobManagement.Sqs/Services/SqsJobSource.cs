@@ -5,19 +5,19 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.JobManagement.Common.Services;
+using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Models;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
 
 internal class SqsJobSource(
     IAmazonSQS sqs,
+    ISqsMessageSource sqsMessageSource,
     ISourceMessageConverter converter,
     ISourceMessageSorter sorter,
     ILogger<SqsJobSource> logger,
-    IOptions<SqsJobSource.ConfigurationModel> options) : IJobSource
+    IOptions<SqsConfigurationModel> options) : IJobSource
 {
-    private int VisibilityTimeoutSeconds => Math.Max(20, options.Value.VisibilityTimeoutSeconds);
-
     public Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
@@ -35,16 +35,10 @@ internal class SqsJobSource(
 
     public async Task<JobSourceResponse> GetJobsAsync(CancellationToken cancellationToken = default)
     {
-        var sqsResponse = await sqs.ReceiveMessageAsync(new ReceiveMessageRequest
-        {
-            QueueUrl = options.Value.QueueUrl,
-            MaxNumberOfMessages = options.Value.MessageBatchSize,
-            VisibilityTimeout = VisibilityTimeoutSeconds
-        }, cancellationToken);
-
+        var messages = await sqsMessageSource.GetMessagesAsync(cancellationToken);
         var items = new List<IJobModel>();
 
-        foreach (var message in sqsResponse?.Messages ?? [])
+        foreach (var message in messages)
         {
             try
             {
@@ -72,7 +66,8 @@ internal class SqsJobSource(
 
         var response = new JobSourceResponse
         {
-            RecommendedHeartbeatIntervalSeconds = (int) Math.Ceiling(VisibilityTimeoutSeconds * 0.75),
+            RecommendedHeartbeatIntervalSeconds =
+                (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75),
             Items = items.Count > 0 ? sorter.GetSortedListOfJobs(items) : []
         };
 
@@ -87,12 +82,5 @@ internal class SqsJobSource(
             ReceiptHandle = message.MessageId,
             VisibilityTimeout = Math.Max(1, options.Value.VisibilityTimeoutSeconds)
         }, cancellationToken);
-    }
-
-    public class ConfigurationModel
-    {
-        public required string QueueUrl { get; init; }
-        public required int MessageBatchSize { get; init; }
-        public required int VisibilityTimeoutSeconds { get; init; }
     }
 }

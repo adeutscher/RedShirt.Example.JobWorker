@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Common.Services;
+using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
 
 namespace RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.UnitTests.Tests.Services;
@@ -24,33 +25,31 @@ public class SqsJobSourceTests
         var data4 = Guid.NewGuid().ToString();
 
         var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
-        sqs.Setup(a => a.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(() => new ReceiveMessageResponse
-            {
-                Messages =
-                [
-                    new Message
-                    {
-                        ReceiptHandle = receiptHandle1,
-                        Body = data1
-                    },
-                    new Message
-                    {
-                        ReceiptHandle = receiptHandle2,
-                        Body = data2
-                    },
-                    new Message
-                    {
-                        ReceiptHandle = Guid.NewGuid().ToString(), // moot
-                        Body = data3
-                    },
-                    new Message
-                    {
-                        ReceiptHandle = Guid.NewGuid().ToString(), // moot
-                        Body = data4
-                    }
-                ]
-            });
+        var sqsMessageSource = new Mock<ISqsMessageSource>(MockBehavior.Strict);
+        sqsMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            [
+                new Message
+                {
+                    ReceiptHandle = receiptHandle1,
+                    Body = data1
+                },
+                new Message
+                {
+                    ReceiptHandle = receiptHandle2,
+                    Body = data2
+                },
+                new Message
+                {
+                    ReceiptHandle = Guid.NewGuid().ToString(), // moot
+                    Body = data3
+                },
+                new Message
+                {
+                    ReceiptHandle = Guid.NewGuid().ToString(), // moot
+                    Body = data4
+                }
+            ]);
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
         converter.Setup(c => c.Convert(data1))
@@ -69,8 +68,8 @@ public class SqsJobSourceTests
         const int batchSize = 10;
         const int visibilityTimeoutInSeconds = 100;
 
-        var source = new SqsJobSource(sqs.Object, converter.Object, sorter.Object,
-            new NullLogger<SqsJobSource>(), Options.Create(new SqsJobSource.ConfigurationModel
+        var source = new SqsJobSource(sqs.Object, sqsMessageSource.Object, converter.Object, sorter.Object,
+            new NullLogger<SqsJobSource>(), Options.Create(new SqsConfigurationModel
             {
                 QueueUrl = queueUrl,
                 MessageBatchSize = batchSize,
@@ -82,14 +81,8 @@ public class SqsJobSourceTests
         Assert.Equal(2, response.Items.Count);
 
         sqs.Verify(a => a.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()),
-            Times.Once);
-        sqs.Verify(
-            a => a.ReceiveMessageAsync(
-                It.Is<ReceiveMessageRequest>(r =>
-                    r.QueueUrl == queueUrl
-                    && r.MaxNumberOfMessages == batchSize
-                    && r.VisibilityTimeout == visibilityTimeoutInSeconds),
-                cts.Token), Times.Once);
+            Times.Never);
+        sqsMessageSource.Verify(a => a.GetMessagesAsync(It.IsAny<CancellationToken>()), Times.Once);
 
         converter.Verify(c => c.Convert(data1), Times.Once);
         converter.Verify(c => c.Convert(data2), Times.Once);
@@ -103,56 +96,11 @@ public class SqsJobSourceTests
         Assert.Same(mock2, response.Items[1].Data);
     }
 
-    /// <summary>
-    ///     In 4.X of AWSDK.SQS, AmazonSQSClient.ReceiveMessageAsync currently returns null
-    ///     instead of an empty response object.
-    ///     Whether a bug or a feature, accounting for it with this test.
-    /// </summary>
-    [Fact]
-    public async Task TestGetJobsAsync_Null()
-    {
-        var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
-        sqs.Setup(a => a.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(() => null);
-
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        var sorter = new Mock<ISourceMessageSorter>();
-
-        var queueUrl = Guid.NewGuid().ToString();
-        const int batchSize = 10;
-        const int visibilityTimeoutInSeconds = 100;
-
-        var source = new SqsJobSource(sqs.Object, converter.Object, sorter.Object,
-            new NullLogger<SqsJobSource>(), Options.Create(new SqsJobSource.ConfigurationModel
-            {
-                QueueUrl = queueUrl,
-                MessageBatchSize = batchSize,
-                VisibilityTimeoutSeconds = visibilityTimeoutInSeconds
-            }));
-
-        using var cts = new CancellationTokenSource();
-        var response = await source.GetJobsAsync(cts.Token);
-        Assert.Empty(response.Items);
-
-        sqs.Verify(a => a.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()),
-            Times.Once);
-        sqs.Verify(
-            a => a.ReceiveMessageAsync(
-                It.Is<ReceiveMessageRequest>(r =>
-                    r.QueueUrl == queueUrl
-                    && r.MaxNumberOfMessages == batchSize
-                    && r.VisibilityTimeout == visibilityTimeoutInSeconds),
-                cts.Token), Times.Once);
-
-        Assert.Empty(converter.Invocations);
-        Assert.Empty(sorter.Invocations);
-    }
-
     [Fact]
     public async Task Test_AcknowledgeAsync()
     {
         var sqs = new Mock<IAmazonSQS>();
-        var config = new SqsJobSource.ConfigurationModel
+        var config = new SqsConfigurationModel
         {
             QueueUrl = Guid.NewGuid()
                 .ToString(),
@@ -160,7 +108,8 @@ public class SqsJobSourceTests
             VisibilityTimeoutSeconds = 0
         };
 
-        var source = new SqsJobSource(sqs.Object, null!, null!, new NullLogger<SqsJobSource>(), Options.Create(config));
+        var source = new SqsJobSource(sqs.Object, null!, null!, null!, new NullLogger<SqsJobSource>(),
+            Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
         var job = new Mock<IJobModel>();
@@ -185,7 +134,7 @@ public class SqsJobSourceTests
     public async Task Test_AcknowledgeAsync_NonSuccess()
     {
         var sqs = new Mock<IAmazonSQS>();
-        var config = new SqsJobSource.ConfigurationModel
+        var config = new SqsConfigurationModel
         {
             QueueUrl = Guid.NewGuid()
                 .ToString(),
@@ -193,7 +142,8 @@ public class SqsJobSourceTests
             VisibilityTimeoutSeconds = 0
         };
 
-        var source = new SqsJobSource(sqs.Object, null!, null!, new NullLogger<SqsJobSource>(), Options.Create(config));
+        var source = new SqsJobSource(sqs.Object, null!, null!, null!, new NullLogger<SqsJobSource>(),
+            Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
         var job = new Mock<IJobModel>();
@@ -212,7 +162,7 @@ public class SqsJobSourceTests
     public async Task Test_HeartbeatAsync(int timeoutSeconds)
     {
         var sqs = new Mock<IAmazonSQS>();
-        var config = new SqsJobSource.ConfigurationModel
+        var config = new SqsConfigurationModel
         {
             QueueUrl = Guid.NewGuid()
                 .ToString(),
@@ -220,7 +170,8 @@ public class SqsJobSourceTests
             VisibilityTimeoutSeconds = timeoutSeconds
         };
 
-        var source = new SqsJobSource(sqs.Object, null!, null!, new NullLogger<SqsJobSource>(), Options.Create(config));
+        var source = new SqsJobSource(sqs.Object, null!, null!, null!, new NullLogger<SqsJobSource>(),
+            Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
         var job = new Mock<IJobModel>();
