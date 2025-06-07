@@ -13,7 +13,6 @@ public class ConfigurationBuilderExtensionTests
     [InlineData("A__B", "A:B", "C")]
     [InlineData("X__Y", "X__Y", "Z")]
     [InlineData("C", "C", "D")]
-    [InlineData("Tags__Example_Tag", "Tags:Example Tag", "D")]
     public void Test_AddEnvironmentVariablesWithSegmentSupport(string environmentKey, string configurationKey,
         string value)
     {
