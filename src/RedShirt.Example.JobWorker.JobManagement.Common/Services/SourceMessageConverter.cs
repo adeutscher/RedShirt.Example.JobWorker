@@ -14,8 +14,13 @@ public interface ISourceMessageConverter
 
 internal class SourceMessageConverter : ISourceMessageConverter
 {
+    private readonly JsonSerializerOptions _options = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     public IJobDataModel? Convert(string input)
     {
-        return JsonSerializer.Deserialize<JobDataModel>(input);
+        return JsonSerializer.Deserialize<JobDataModel>(input, _options);
     }
 }
