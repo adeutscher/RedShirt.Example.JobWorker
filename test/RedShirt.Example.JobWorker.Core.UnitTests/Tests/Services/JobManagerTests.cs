@@ -15,6 +15,10 @@ public class JobManagerTests
     [Fact(Timeout = 5000)]
     public async Task Test_RunJobAsync_Basic_Acknowledge_Failed()
     {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter.Setup(e => e.ShouldKeepRunning())
+            .Returns(true);
+
         var safeRunner = new Mock<ISafeJobRunner>();
         safeRunner
             .Setup(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
@@ -28,7 +32,7 @@ public class JobManagerTests
                 s.AcknowledgeCompletionAsync(It.IsAny<IJobModel>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .Returns((IJobModel _, bool _, CancellationToken _) => throw new Exception("BOOM"));
 
-        var jobManager = new JobManager(safeRunner.Object, jobSource.Object,
+        var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new JobManager.ConfigurationModel
@@ -63,6 +67,10 @@ public class JobManagerTests
     [Fact(Timeout = 5000)]
     public async Task Test_RunJobAsync_Basic_Heartbeat_Failed()
     {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter.Setup(e => e.ShouldKeepRunning())
+            .Returns(true);
+
         var safeRunner = new Mock<ISafeJobRunner>();
         safeRunner
             .Setup(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
@@ -75,7 +83,7 @@ public class JobManagerTests
         jobSource.Setup(s => s.HeartbeatAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
             .Returns((IJobModel _, CancellationToken _) => throw new Exception("BOOM"));
 
-        var jobManager = new JobManager(safeRunner.Object, jobSource.Object,
+        var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new JobManager.ConfigurationModel
@@ -105,6 +113,10 @@ public class JobManagerTests
     [InlineData(4)]
     public async Task Test_RunJobAsync_Basic_Heartbeat_MultipleJobs(int numberOfJobs)
     {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter.Setup(e => e.ShouldKeepRunning())
+            .Returns(true);
+
         var safeRunner = new Mock<ISafeJobRunner>();
         safeRunner
             .Setup(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
@@ -114,7 +126,7 @@ public class JobManagerTests
                 return numberOfJobs % 2 == 0;
             });
         var jobSource = new Mock<IJobSource>();
-        var jobManager = new JobManager(safeRunner.Object, jobSource.Object,
+        var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new JobManager.ConfigurationModel
@@ -159,6 +171,10 @@ public class JobManagerTests
     [Fact(Timeout = 5000)]
     public async Task Test_RunJobAsync_Basic_Heartbeat_OneJob()
     {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter.Setup(e => e.ShouldKeepRunning())
+            .Returns(true);
+
         var safeRunner = new Mock<ISafeJobRunner>();
         safeRunner
             .Setup(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
@@ -169,7 +185,7 @@ public class JobManagerTests
             });
         var jobSource = new Mock<IJobSource>();
 
-        var jobManager = new JobManager(safeRunner.Object, jobSource.Object,
+        var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new JobManager.ConfigurationModel
@@ -201,6 +217,10 @@ public class JobManagerTests
     [Fact(Timeout = 5000)]
     public async Task Test_RunJobAsync_Basic_Heartbeat_OneJob_Long()
     {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter.Setup(e => e.ShouldKeepRunning())
+            .Returns(true);
+
         var safeRunner = new Mock<ISafeJobRunner>();
         safeRunner
             .Setup(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
@@ -211,7 +231,7 @@ public class JobManagerTests
             });
         var jobSource = new Mock<IJobSource>();
 
-        var jobManager = new JobManager(safeRunner.Object, jobSource.Object,
+        var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new JobManager.ConfigurationModel
@@ -239,10 +259,14 @@ public class JobManagerTests
     [InlineData(4)]
     public async Task Test_RunJobAsync_Basic_NoHeartbeat_MultipleJobs(int numberOfJobs)
     {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter.Setup(e => e.ShouldKeepRunning())
+            .Returns(true);
+
         var safeRunner = new Mock<ISafeJobRunner>();
         var jobSource = new Mock<IJobSource>();
 
-        var jobManager = new JobManager(safeRunner.Object, jobSource.Object,
+        var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new JobManager.ConfigurationModel
@@ -278,10 +302,14 @@ public class JobManagerTests
     [Fact(Timeout = 5000)]
     public async Task Test_RunJobAsync_Basic_NoHeartbeat_OneJob()
     {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter.Setup(e => e.ShouldKeepRunning())
+            .Returns(true);
+
         var safeRunner = new Mock<ISafeJobRunner>();
         var jobSource = new Mock<IJobSource>();
 
-        var jobManager = new JobManager(safeRunner.Object, jobSource.Object,
+        var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new JobManager.ConfigurationModel

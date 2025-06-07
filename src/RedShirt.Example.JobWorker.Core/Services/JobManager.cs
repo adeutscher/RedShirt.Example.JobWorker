@@ -13,6 +13,7 @@ internal interface IJobManager
 }
 
 internal class JobManager(
+    IExecutionEndArbiter executionEndArbiter,
     ISafeJobRunner safeJobRunner,
     IJobSource jobSource,
     ILogger<JobManager> logger,
@@ -61,7 +62,7 @@ internal class JobManager(
             _startSemaphore.Release();
         }
 
-        while (true)
+        while (executionEndArbiter.ShouldKeepRunning())
         {
             waitHandler.Set();
             _readyToReceiveJobsWaitHandle.WaitOne();
@@ -82,35 +83,9 @@ internal class JobManager(
 
                 var result = await safeJobRunner.RunSafelyAsync(envelope!.Job, cancellationToken);
 
-                await _completedJobsCountSemaphore.WaitAsync(cancellationToken);
-                try
-                {
-                    _completedJobsCount++;
-                    if (result)
-                    {
-                        _successfullyCompletedJobsCount++;
-                    }
-                }
-                finally
-                {
-                    _completedJobsCountSemaphore.Release();
-                }
-
-                await envelope.Semaphore.WaitAsync(cancellationToken);
-                try
-                {
-                    envelope.Result = result;
-                    await jobSource.AcknowledgeCompletionAsync(envelope.Job, result, cancellationToken);
-                }
-                catch (Exception e)
-                {
-                    logger.LogError(e, "Job acknowledge failed");
-                    envelope.Result = false;
-                }
-                finally
-                {
-                    envelope.Semaphore.Release();
-                }
+                var task1 = UpdateJobCountsAsync(result, cancellationToken);
+                var task2 = AcknowledgeCompletionAsync(envelope, result, cancellationToken);
+                Task.WaitAll([task1, task2], cancellationToken);
             }
 
             await _completedWorkersCountSemaphore.WaitAsync(cancellationToken);
@@ -126,6 +101,43 @@ internal class JobManager(
         }
     }
 
+    private async Task AcknowledgeCompletionAsync(JobEnvelope envelope, bool result,
+        CancellationToken cancellationToken = default)
+    {
+        await envelope.Semaphore.WaitAsync(cancellationToken);
+        try
+        {
+            envelope.Result = result;
+            await jobSource.AcknowledgeCompletionAsync(envelope.Job, result, cancellationToken);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Job acknowledge failed");
+            envelope.Result = false;
+        }
+        finally
+        {
+            envelope.Semaphore.Release();
+        }
+    }
+
+    private async Task UpdateJobCountsAsync(bool result, CancellationToken cancellationToken)
+    {
+        await _completedJobsCountSemaphore.WaitAsync(cancellationToken);
+        try
+        {
+            _completedJobsCount++;
+            if (result)
+            {
+                _successfullyCompletedJobsCount++;
+            }
+        }
+        finally
+        {
+            _completedJobsCountSemaphore.Release();
+        }
+    }
+
     private async Task HeartbeatMonitorAsync(ManualResetEvent resetEvent, JobSourceResponse sourceResponse,
         List<JobEnvelope> envelopes, CancellationToken cancellationToken = default)
     {
@@ -136,13 +148,12 @@ internal class JobManager(
                 return;
             }
 
-            for (var i = 0; i < envelopes.Count; i++)
+            for (var i = envelopes.Count - 1; i >= 0; i--)
             {
                 var item = envelopes[i]; // shorthand
                 if (item.IsCompleted)
                 {
                     envelopes.RemoveAt(i);
-                    i--;
                     continue;
                 }
 
@@ -153,9 +164,8 @@ internal class JobManager(
                 }
                 catch (Exception e)
                 {
-                    logger.LogError("Error while running heartbeat: {EMessage}", e.Message);
+                    logger.LogError(e, "Error while running heartbeat: {EMessage}", e.Message);
                     envelopes.RemoveAt(i);
-                    i--;
                 }
                 finally
                 {
