@@ -9,9 +9,9 @@ public interface IHandler
 
 internal class Handler(IJobManager jobManager, IWorkerLoop workerLoop) : IHandler
 {
-    public Task HandleAsync(CancellationToken cancellationToken = default)
+    public async Task HandleAsync(CancellationToken cancellationToken = default)
     {
-        jobManager.Start(cancellationToken);
-        return workerLoop.RunAsync(cancellationToken);
+        await jobManager.StartAsync(cancellationToken);
+        await workerLoop.RunAsync(cancellationToken);
     }
 }

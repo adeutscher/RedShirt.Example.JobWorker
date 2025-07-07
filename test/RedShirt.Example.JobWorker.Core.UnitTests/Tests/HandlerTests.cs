@@ -16,7 +16,7 @@ public class HandlerTests
 
         await handler.HandleAsync(cts.Token);
         Assert.Single(loop.Invocations);
-        jobManager.Verify(i => i.Start(cts.Token), Times.Once);
+        jobManager.Verify(i => i.StartAsync(cts.Token), Times.Once);
         loop.Verify(i => i.RunAsync(cts.Token), Times.Once);
     }
 }

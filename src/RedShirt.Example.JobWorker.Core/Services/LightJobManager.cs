@@ -50,8 +50,9 @@ internal class LightJobManager(ILogger<LightJobManager> logger, ISafeJobRunner s
         logger.LogTrace("Total Jobs: {TotalJobs} ({TotalBatches} batches)", _totalJobs, ++_totalBatches);
     }
 
-    public void Start(CancellationToken cancellationToken = default)
+    public Task StartAsync(CancellationToken cancellationToken = default)
     {
         // Nothing to do here in this implementation
+        return Task.CompletedTask;
     }
 }

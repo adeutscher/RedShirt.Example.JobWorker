@@ -42,7 +42,7 @@ public class JobManagerTests
 
         var job = new Mock<IJobModel>(MockBehavior.Strict);
 
-        jobManager.Start();
+        await jobManager.StartAsync();
         await jobManager.RunAsync(new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 1,
@@ -93,7 +93,7 @@ public class JobManagerTests
 
         var job = new Mock<IJobModel>(MockBehavior.Strict);
 
-        jobManager.Start();
+        await jobManager.StartAsync();
         await jobManager.RunAsync(new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 1,
@@ -143,7 +143,7 @@ public class JobManagerTests
             jobs.Add(item.Object);
         }
 
-        jobManager.Start();
+        await jobManager.StartAsync();
         await jobManager.RunAsync(new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 1,
@@ -195,7 +195,7 @@ public class JobManagerTests
 
         var job = new Mock<IJobModel>(MockBehavior.Strict);
 
-        jobManager.Start();
+        await jobManager.StartAsync();
         await jobManager.RunAsync(new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 1,
@@ -207,6 +207,48 @@ public class JobManagerTests
 
         jobSource.Verify(s => s.HeartbeatAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.AtLeast(2));
         jobSource.Verify(s => s.HeartbeatAsync(job.Object, It.IsAny<CancellationToken>()), Times.AtLeast(2));
+    }
+
+    /// <summary>
+    ///     Test refreshes with one job.
+    ///     Be careful about editing the timings on this because justification comments inside JobManager directly refer to
+    ///     this test.
+    /// </summary>
+    [Fact(Timeout = 5000)]
+    public async Task Test_RunJobAsync_Basic_Heartbeat_OneJob_Instant()
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter.Setup(e => e.ShouldKeepRunning())
+            .Returns(true);
+
+        var safeRunner = new Mock<ISafeJobRunner>();
+        safeRunner
+            .Setup(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
+            .Returns((IJobModel _, CancellationToken _) => Task.FromResult(true));
+        var jobSource = new Mock<IJobSource>();
+
+        var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
+            new NullLogger<JobManager>(),
+            Options.Create(
+                new JobManager.ConfigurationModel
+                {
+                    WorkerThreadCount = 1
+                }));
+
+        var job = new Mock<IJobModel>(MockBehavior.Strict);
+
+        await jobManager.StartAsync();
+        await jobManager.RunAsync(new JobSourceResponse
+        {
+            RecommendedHeartbeatIntervalSeconds = 1,
+            Items = [job.Object]
+        });
+
+        safeRunner.Verify(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Once);
+        safeRunner.Verify(s => s.RunSafelyAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
+
+        jobSource.Verify(s => s.HeartbeatAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Never);
+        jobSource.Verify(s => s.HeartbeatAsync(job.Object, It.IsAny<CancellationToken>()), Times.Never);
     }
 
     /// <summary>
@@ -241,7 +283,7 @@ public class JobManagerTests
 
         var job = new Mock<IJobModel>(MockBehavior.Strict);
 
-        jobManager.Start();
+        await jobManager.StartAsync();
         await jobManager.RunAsync(new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 10,
@@ -283,7 +325,7 @@ public class JobManagerTests
             jobs.Add(item.Object);
         }
 
-        jobManager.Start();
+        await jobManager.StartAsync();
         await jobManager.RunAsync(new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 0,
@@ -319,7 +361,7 @@ public class JobManagerTests
 
         var job = new Mock<IJobModel>(MockBehavior.Strict);
 
-        jobManager.Start();
+        await jobManager.StartAsync();
         await jobManager.RunAsync(new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 0,

@@ -9,7 +9,7 @@ namespace RedShirt.Example.JobWorker.Core.Services;
 internal interface IJobManager
 {
     Task RunAsync(JobSourceResponse response, CancellationToken cancellationToken = default);
-    void Start(CancellationToken cancellationToken = default);
+    Task StartAsync(CancellationToken cancellationToken = default);
 }
 
 internal class JobManager(
@@ -69,7 +69,7 @@ internal class JobManager(
 
             while (true)
             {
-                var gotJob = _queue.TryDequeue(out var envelope);
+                var gotJob = _queue.TryDequeue(out var item);
                 if (!gotJob && _isLoadingJobs)
                 {
                     await Task.Delay(1, cancellationToken);
@@ -81,10 +81,10 @@ internal class JobManager(
                     break;
                 }
 
-                var result = await safeJobRunner.RunSafelyAsync(envelope!.Job, cancellationToken);
+                var result = await safeJobRunner.RunSafelyAsync(item!.Job, cancellationToken);
 
                 var task1 = UpdateJobCountsAsync(result, cancellationToken);
-                var task2 = AcknowledgeCompletionAsync(envelope, result, cancellationToken);
+                var task2 = AcknowledgeCompletionAsync(item, result, cancellationToken);
                 Task.WaitAll([task1, task2], cancellationToken);
             }
 
@@ -101,23 +101,23 @@ internal class JobManager(
         }
     }
 
-    private async Task AcknowledgeCompletionAsync(JobEnvelope envelope, bool result,
+    private async Task AcknowledgeCompletionAsync(JobEnvelope item, bool result,
         CancellationToken cancellationToken = default)
     {
-        await envelope.Semaphore.WaitAsync(cancellationToken);
+        await item.Semaphore.WaitAsync(cancellationToken);
         try
         {
-            envelope.Result = result;
-            await jobSource.AcknowledgeCompletionAsync(envelope.Job, result, cancellationToken);
+            item.Result = result;
+            await jobSource.AcknowledgeCompletionAsync(item.Job, result, cancellationToken);
         }
         catch (Exception e)
         {
             logger.LogError(e, "Job acknowledge failed");
-            envelope.Result = false;
+            item.Result = false;
         }
         finally
         {
-            envelope.Semaphore.Release();
+            item.Semaphore.Release();
         }
     }
 
@@ -138,11 +138,13 @@ internal class JobManager(
         }
     }
 
-    private async Task HeartbeatMonitorAsync(ManualResetEvent resetEvent, JobSourceResponse sourceResponse,
+    private async Task HeartbeatMonitorAsync(AutoResetEvent bootstrapEvent, ManualResetEvent resetEvent,
+        JobSourceResponse sourceResponse,
         List<JobEnvelope> envelopes, CancellationToken cancellationToken = default)
     {
         while (envelopes.Count > 0)
         {
+            bootstrapEvent.Set();
             if (resetEvent.WaitOne(TimeSpan.FromSeconds(sourceResponse.RecommendedHeartbeatIntervalSeconds)))
             {
                 return;
@@ -151,15 +153,16 @@ internal class JobManager(
             for (var i = envelopes.Count - 1; i >= 0; i--)
             {
                 var item = envelopes[i]; // shorthand
-                if (item.IsCompleted)
-                {
-                    envelopes.RemoveAt(i);
-                    continue;
-                }
 
                 await item.Semaphore.WaitAsync(cancellationToken);
                 try
                 {
+                    if (item.IsCompleted)
+                    {
+                        envelopes.RemoveAt(i);
+                        continue;
+                    }
+
                     await jobSource.HeartbeatAsync(item.Job, cancellationToken);
                 }
                 catch (Exception e)
@@ -185,12 +188,6 @@ internal class JobManager(
 
         // Queue jobs
         _isLoadingJobs = true;
-
-        // Make sure we aren't being asked to manage jobs before the worker threads are ready 
-        while (_workerWaitHandles.Count != GetWorkerCount())
-        {
-            await Task.Delay(1, cancellationToken);
-        }
 
         WaitHandle.WaitAll(_workerWaitHandles.ToArray());
 
@@ -232,10 +229,16 @@ internal class JobManager(
         would take over 3 seconds if Task.Run were not used. A clean run
         should take ~2.5 seconds.
          */
-        var heartbeatTask = response.RecommendedHeartbeatIntervalSeconds > 0
-            ? Task.Run(() => HeartbeatMonitorAsync(heartbeatDoneEvent, response, envelopes, cancellationToken),
-                cancellationToken)
-            : null;
+        Task? heartbeatTask = null;
+        if (response.RecommendedHeartbeatIntervalSeconds > 0)
+        {
+            var bootstrapEvent = new AutoResetEvent(false);
+            heartbeatTask =
+                Task.Run(
+                    () => HeartbeatMonitorAsync(bootstrapEvent, heartbeatDoneEvent, response, envelopes,
+                        cancellationToken), cancellationToken);
+            bootstrapEvent.WaitOne(TimeSpan.FromSeconds(5));
+        }
 
         // Wait for completion
 
@@ -262,11 +265,17 @@ internal class JobManager(
         logger.LogTrace("Total Jobs: {TotalJobs} ({TotalBatches} batches)", _totalJobs, ++_totalBatches);
     }
 
-    public void Start(CancellationToken cancellationToken = default)
+    public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         for (var i = 0; i < GetWorkerCount(); i++)
         {
             Task.Run(() => RunWorkerAsync(cancellationToken), cancellationToken);
+        }
+
+        // Make sure we aren't being asked to manage jobs before the worker threads are ready 
+        while (_workerWaitHandles.Count != GetWorkerCount())
+        {
+            await Task.Delay(1, cancellationToken);
         }
     }
 

@@ -57,11 +57,11 @@ public class LightJobManagerTests
     }
 
     [Fact]
-    public void Test_Start()
+    public async Task Test_Start()
     {
         // All nulls shouldn't matter, implementation of Start should be empty
         var jobManager = new LightJobManager(null!, null!, null!);
-        jobManager.Start();
+        await jobManager.StartAsync();
         Assert.Equal(1, 1); // Satisfy Sonar checks
     }
 }

@@ -9,6 +9,6 @@ internal class JobLogicRunner(ILogger<JobLogicRunner> logger) : IJobLogicRunner
     public Task RunAsync(IJobDataModel job, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Sleeping for {DurationSeconds} seconds", job.SleepDurationSeconds);
-        return Task.Delay(job.SleepDurationSeconds * 1000, cancellationToken);
+        return Task.Delay(TimeSpan.FromSeconds(job.SleepDurationSeconds), cancellationToken);
     }
 }
