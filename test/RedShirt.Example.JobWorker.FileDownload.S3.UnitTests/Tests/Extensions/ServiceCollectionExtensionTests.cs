@@ -16,6 +16,7 @@ public class ServiceCollectionExtensionTests
 
         var environment = new Dictionary<string, string>
         {
+            ["AWS_REGION"] = "us-east-1",
             ["AWS_SERVICE_URL"] = "http://foo.bar",
             ["AWS_ACCESS_KEY_ID"] = "foo",
             ["AWS_SECRET_ACCESS_KEY"] = "bar",
