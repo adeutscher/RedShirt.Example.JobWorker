@@ -1,20 +1,19 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.Aws\RedShirt.Example.JobWorker.Common.Aws.csproj" />
-      <ProjectReference Include="..\RedShirt.Example.JobWorker.FileDownload.Core\RedShirt.Example.JobWorker.FileDownload.Core.csproj" />
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.Aws\RedShirt.Example.JobWorker.Common.Aws.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.FileDownload.Core\RedShirt.Example.JobWorker.FileDownload.Core.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="AWSSDK.S3" Version="4.0.1.3" />
-      <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.5" />
-      <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.5" />
+        <PackageReference Include="AWSSDK.S3" Version="4.0.13.1"/>
+        <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0"/>
     </ItemGroup>
 
 </Project>

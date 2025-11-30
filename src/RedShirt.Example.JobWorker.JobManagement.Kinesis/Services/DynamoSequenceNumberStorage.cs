@@ -16,11 +16,10 @@ internal class DynamoSequenceNumberStorage(
 {
     public async Task<string?> GetLastSequenceNumber(string key, CancellationToken cancellationToken = default)
     {
-        var record = await dynamoDbContext.LoadAsync<Record>(KeyHelper.GetCheckpointKey(key),
-            new DynamoDBOperationConfig
-            {
-                OverrideTableName = options.Value.TableName
-            }, cancellationToken);
+        var record = await dynamoDbContext.LoadAsync<Record>(KeyHelper.GetCheckpointKey(key), new LoadConfig
+        {
+            OverrideTableName = options.Value.TableName
+        }, cancellationToken);
         return record?.Value;
     }
 

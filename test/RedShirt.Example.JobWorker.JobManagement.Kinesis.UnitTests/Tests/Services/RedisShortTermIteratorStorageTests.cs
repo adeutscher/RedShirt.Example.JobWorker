@@ -73,11 +73,11 @@ public class RedisShortTermIteratorStorageTests
 
         Assert.Single(database.Invocations);
         database.Verify(d =>
-            d.StringSetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<TimeSpan>(), It.IsAny<bool>(),
-                It.IsAny<When>(), It.IsAny<CommandFlags>()), Times.Once);
+            d.StringSetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<Expiration>(),
+                It.IsAny<ValueCondition>(), It.IsAny<CommandFlags>()), Times.Once);
         database.Verify(d =>
             d.StringSetAsync(It.Is<RedisKey>(r => r.ToString().Contains(key)),
-                It.Is<RedisValue>(r => r.ToString() == value), It.IsAny<TimeSpan>(), It.IsAny<bool>(), It.IsAny<When>(),
+                It.Is<RedisValue>(r => r.ToString() == value), It.IsAny<Expiration>(), It.IsAny<ValueCondition>(),
                 It.IsAny<CommandFlags>()), Times.Once);
     }
 

@@ -15,7 +15,9 @@ public static class ServiceCollectionExtensions
             .AddFileDownloadS3(configuration)
             .AddCoreLogic(configuration);
 
-        if (configuration.GetValue("UseKinesis", 0) >= 1)
+        var useKinesisRaw = configuration.GetValue("UseKinesis", "0");
+
+        if (int.TryParse(useKinesisRaw, out var useKinesis) && useKinesis >= 1)
         {
             services = services
                 .AddKinesisJobManagement(configuration);

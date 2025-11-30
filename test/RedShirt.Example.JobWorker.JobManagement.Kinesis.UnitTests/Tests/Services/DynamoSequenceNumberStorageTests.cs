@@ -12,7 +12,7 @@ public class DynamoSequenceNumberStorageTests
         var ctx = new Mock<IDynamoDBContext>();
         var value = Guid.NewGuid().ToString();
         ctx.Setup(c => c.LoadAsync<DynamoSequenceNumberStorage.Record>(It.IsAny<string>(),
-                It.IsAny<DynamoDBOperationConfig>(), It.IsAny<CancellationToken>()))
+                It.IsAny<LoadConfig>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DynamoSequenceNumberStorage.Record
             {
                 Value = value
@@ -33,17 +33,17 @@ public class DynamoSequenceNumberStorageTests
 
         ctx.Verify(
             c => c.LoadAsync<DynamoSequenceNumberStorage.Record>(It.IsAny<string>(),
-                It.IsAny<DynamoDBOperationConfig>(), It.IsAny<CancellationToken>()), Times.Once);
+                It.IsAny<LoadConfig>(), It.IsAny<CancellationToken>()), Times.Once);
         ctx.Verify(
             c => c.LoadAsync<DynamoSequenceNumberStorage.Record>(It.IsAny<string>(),
-                It.IsAny<DynamoDBOperationConfig>(), cts.Token), Times.Once);
+                It.IsAny<LoadConfig>(), cts.Token), Times.Once);
 
         var invocation = Assert.Single(ctx.Invocations);
         var record = invocation.Arguments[0] as string;
         Assert.NotNull(record);
         Assert.NotEqual("foo", record);
         Assert.Contains("foo", record);
-        var opConfig = invocation.Arguments[1] as DynamoDBOperationConfig;
+        var opConfig = invocation.Arguments[1] as LoadConfig;
         Assert.NotNull(opConfig);
         Assert.Equal(tableName, opConfig.OverrideTableName);
     }
@@ -69,17 +69,17 @@ public class DynamoSequenceNumberStorageTests
 
         ctx.Verify(
             c => c.LoadAsync<DynamoSequenceNumberStorage.Record>(It.IsAny<string>(),
-                It.IsAny<DynamoDBOperationConfig>(), It.IsAny<CancellationToken>()), Times.Once);
+                It.IsAny<LoadConfig>(), It.IsAny<CancellationToken>()), Times.Once);
         ctx.Verify(
             c => c.LoadAsync<DynamoSequenceNumberStorage.Record>(It.IsAny<string>(),
-                It.IsAny<DynamoDBOperationConfig>(), cts.Token), Times.Once);
+                It.IsAny<LoadConfig>(), cts.Token), Times.Once);
 
         var invocation = Assert.Single(ctx.Invocations);
         var record = invocation.Arguments[0] as string;
         Assert.NotNull(record);
         Assert.NotEqual("foo", record);
         Assert.Contains("foo", record);
-        var opConfig = invocation.Arguments[1] as DynamoDBOperationConfig;
+        var opConfig = invocation.Arguments[1] as LoadConfig;
         Assert.NotNull(opConfig);
         Assert.Equal(tableName, opConfig.OverrideTableName);
     }
