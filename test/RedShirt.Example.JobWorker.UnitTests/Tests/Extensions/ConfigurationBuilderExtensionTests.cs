@@ -9,7 +9,7 @@ public class ConfigurationBuilderExtensionTests
     [InlineData("A", "A", "B")]
     [InlineData("A", "a", "B")]
     [InlineData("A_B", "A_B", "C")]
-    [InlineData("A_B", "AB", "C")]
+    [InlineData("C_D", "CD", "E")]
     [InlineData("A__B", "A:B", "C")]
     [InlineData("X__Y", "X__Y", "Z")]
     [InlineData("C", "C", "D")]
