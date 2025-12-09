@@ -27,7 +27,7 @@ public class ConfigurationBuilderExtensionTests
                 .AddEnvironmentVariablesWithSegmentSupport()
                 .Build();
 
-            Assert.Equal(configuration[configurationKey], value);
+            Assert.Equal(value, configuration[configurationKey]);
         });
     }
 }
