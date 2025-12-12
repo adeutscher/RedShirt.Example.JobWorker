@@ -8,9 +8,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.1" />
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.1" />
-        <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.1" />
+        <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.1"/>
         <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0"/>
         <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1"/>
     </ItemGroup>
@@ -18,8 +18,6 @@
     <ItemGroup>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Core.Logic\RedShirt.Example.JobWorker.Core.Logic.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Core\RedShirt.Example.JobWorker.Core.csproj"/>
-        <ProjectReference Include="..\RedShirt.Example.JobWorker.FileDownload.Core\RedShirt.Example.JobWorker.FileDownload.Core.csproj"/>
-        <ProjectReference Include="..\RedShirt.Example.JobWorker.FileDownload.S3\RedShirt.Example.JobWorker.FileDownload.S3.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Kinesis\RedShirt.Example.JobWorker.JobManagement.Kinesis.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Sqs\RedShirt.Example.JobWorker.JobManagement.Sqs.csproj"/>
     </ItemGroup>
