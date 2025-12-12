@@ -1,7 +1,0 @@
-namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
-
-internal class CheckpointRecord
-{
-    public SemaphoreSlim Lock { get; } = new(1, 1);
-    public required string IteratorString { get; init; }
-}
