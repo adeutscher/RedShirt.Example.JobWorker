@@ -77,7 +77,7 @@ public class SqsJobSourceTests
             }));
 
         using var cts = new CancellationTokenSource();
-        var response = await source.GetJobsAsync(cts.Token);
+        var response = await source.GetJobsAsync(TestContext.Current.CancellationToken);
         Assert.Equal(2, response.Items.Count);
 
         sqs.Verify(a => a.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()),
@@ -115,13 +115,12 @@ public class SqsJobSourceTests
         var job = new Mock<IJobModel>();
         job.Setup(j => j.MessageId).Returns(messageId);
 
-        using var cts = new CancellationTokenSource();
-
-        await source.AcknowledgeCompletionAsync(job.Object, true, cts.Token);
+        await source.AcknowledgeCompletionAsync(job.Object, true, TestContext.Current.CancellationToken);
 
         sqs.Verify(s => s.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(), It.IsAny<CancellationToken>()),
             Times.Once);
-        sqs.Verify(s => s.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(), cts.Token), Times.Once);
+        sqs.Verify(s => s.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(), TestContext.Current.CancellationToken),
+            Times.Once);
 
         var request = Assert.Single(sqs.Invocations).Arguments[0] as DeleteMessageRequest;
         Assert.NotNull(request);
@@ -151,7 +150,7 @@ public class SqsJobSourceTests
 
         using var cts = new CancellationTokenSource();
 
-        await source.AcknowledgeCompletionAsync(job.Object, false, cts.Token);
+        await source.AcknowledgeCompletionAsync(job.Object, false, TestContext.Current.CancellationToken);
 
         Assert.Empty(sqs.Invocations);
     }
@@ -177,14 +176,14 @@ public class SqsJobSourceTests
         var job = new Mock<IJobModel>();
         job.Setup(j => j.MessageId).Returns(messageId);
 
-        using var cts = new CancellationTokenSource();
-
-        await source.HeartbeatAsync(job.Object, cts.Token);
+        await source.HeartbeatAsync(job.Object, TestContext.Current.CancellationToken);
 
         sqs.Verify(
             s => s.ChangeMessageVisibilityAsync(It.IsAny<ChangeMessageVisibilityRequest>(),
                 It.IsAny<CancellationToken>()), Times.Once);
-        sqs.Verify(s => s.ChangeMessageVisibilityAsync(It.IsAny<ChangeMessageVisibilityRequest>(), cts.Token),
+        sqs.Verify(
+            s => s.ChangeMessageVisibilityAsync(It.IsAny<ChangeMessageVisibilityRequest>(),
+                TestContext.Current.CancellationToken),
             Times.Once);
 
         var request = Assert.Single(sqs.Invocations).Arguments[0] as ChangeMessageVisibilityRequest;

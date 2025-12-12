@@ -17,8 +17,7 @@ public class SqsQueueFailureHandlerTests
             QueueUrl = null!
         }));
 
-        using var cts = new CancellationTokenSource();
-        await sender.HandleFailureAsync(new Mock<IJobModel>().Object, null!, cts.Token);
+        await sender.HandleFailureAsync(new Mock<IJobModel>().Object, null!, TestContext.Current.CancellationToken);
 
         Assert.Empty(sqs.Invocations);
     }
@@ -32,11 +31,12 @@ public class SqsQueueFailureHandlerTests
             QueueUrl = "foo"
         }));
 
-        using var cts = new CancellationTokenSource();
-        await sender.HandleFailureAsync(new Mock<IJobModel>().Object, null!, cts.Token);
+        await sender.HandleFailureAsync(new Mock<IJobModel>().Object, null!, TestContext.Current.CancellationToken);
 
         Assert.Single(sqs.Invocations);
         sqs.Verify(a => a.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);
-        sqs.Verify(a => a.SendMessageAsync(It.Is<SendMessageRequest>(r => r.QueueUrl == "foo"), cts.Token), Times.Once);
+        sqs.Verify(
+            a => a.SendMessageAsync(It.Is<SendMessageRequest>(r => r.QueueUrl == "foo"),
+                TestContext.Current.CancellationToken), Times.Once);
     }
 }

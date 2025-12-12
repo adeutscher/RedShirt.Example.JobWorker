@@ -12,11 +12,9 @@ public class HandlerTests
 
         var handler = new Handler(jobManager.Object, loop.Object);
 
-        using var cts = new CancellationTokenSource();
-
-        await handler.HandleAsync(cts.Token);
+        await handler.HandleAsync(TestContext.Current.CancellationToken);
         Assert.Single(loop.Invocations);
-        jobManager.Verify(i => i.StartAsync(cts.Token), Times.Once);
-        loop.Verify(i => i.RunAsync(cts.Token), Times.Once);
+        jobManager.Verify(i => i.StartAsync(TestContext.Current.CancellationToken), Times.Once);
+        loop.Verify(i => i.RunAsync(TestContext.Current.CancellationToken), Times.Once);
     }
 }

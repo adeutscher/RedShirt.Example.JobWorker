@@ -62,9 +62,7 @@ public class SqsMessageSourceTests
 
         var messageSource = new SqsMessageSource(sqs.Object, Options.Create(options));
 
-        using var cts = new CancellationTokenSource();
-
-        var messages = await messageSource.GetMessagesAsync(cts.Token);
+        var messages = await messageSource.GetMessagesAsync(TestContext.Current.CancellationToken);
 
         Assert.NotNull(messages);
 
@@ -81,7 +79,7 @@ public class SqsMessageSourceTests
                 It.Is<ReceiveMessageRequest>(r =>
                     r.QueueUrl == queueUrl
                     && r.VisibilityTimeout == visibilityTimeout),
-                cts.Token), Times.Exactly(expectedNumberOfInvocations));
+                TestContext.Current.CancellationToken), Times.Exactly(expectedNumberOfInvocations));
     }
 
     /// <summary>
@@ -110,9 +108,7 @@ public class SqsMessageSourceTests
 
         var messageSource = new SqsMessageSource(sqs.Object, Options.Create(options));
 
-        using var cts = new CancellationTokenSource();
-
-        var messages = await messageSource.GetMessagesAsync(cts.Token);
+        var messages = await messageSource.GetMessagesAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(messages);
 
@@ -121,6 +117,6 @@ public class SqsMessageSourceTests
                 It.Is<ReceiveMessageRequest>(r =>
                     r.QueueUrl == queueUrl
                     && r.VisibilityTimeout == visibilityTimeout),
-                cts.Token), Times.Once);
+                TestContext.Current.CancellationToken), Times.Once);
     }
 }

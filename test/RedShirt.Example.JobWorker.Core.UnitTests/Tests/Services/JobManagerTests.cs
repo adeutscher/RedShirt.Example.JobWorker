@@ -42,12 +42,12 @@ public class JobManagerTests
 
         var job = new Mock<IJobModel>(MockBehavior.Strict);
 
-        await jobManager.StartAsync();
+        await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 1,
             Items = [job.Object]
-        });
+        }, TestContext.Current.CancellationToken);
 
         safeRunner.Verify(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Once);
         safeRunner.Verify(s => s.RunSafelyAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
@@ -93,12 +93,12 @@ public class JobManagerTests
 
         var job = new Mock<IJobModel>(MockBehavior.Strict);
 
-        await jobManager.StartAsync();
+        await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 1,
             Items = [job.Object]
-        });
+        }, TestContext.Current.CancellationToken);
 
         safeRunner.Verify(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Once);
         safeRunner.Verify(s => s.RunSafelyAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
@@ -143,12 +143,12 @@ public class JobManagerTests
             jobs.Add(item.Object);
         }
 
-        await jobManager.StartAsync();
+        await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 1,
             Items = jobs
-        });
+        }, TestContext.Current.CancellationToken);
 
         safeRunner.Verify(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()),
             Times.Exactly(numberOfJobs));
@@ -195,12 +195,12 @@ public class JobManagerTests
 
         var job = new Mock<IJobModel>(MockBehavior.Strict);
 
-        await jobManager.StartAsync();
+        await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 1,
             Items = [job.Object]
-        });
+        }, TestContext.Current.CancellationToken);
 
         safeRunner.Verify(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Once);
         safeRunner.Verify(s => s.RunSafelyAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
@@ -237,12 +237,12 @@ public class JobManagerTests
 
         var job = new Mock<IJobModel>(MockBehavior.Strict);
 
-        await jobManager.StartAsync();
+        await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 1,
             Items = [job.Object]
-        });
+        }, TestContext.Current.CancellationToken);
 
         safeRunner.Verify(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Once);
         safeRunner.Verify(s => s.RunSafelyAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
@@ -283,12 +283,12 @@ public class JobManagerTests
 
         var job = new Mock<IJobModel>(MockBehavior.Strict);
 
-        await jobManager.StartAsync();
+        await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 10,
             Items = [job.Object]
-        });
+        }, TestContext.Current.CancellationToken);
 
         safeRunner.Verify(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Once);
         safeRunner.Verify(s => s.RunSafelyAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
@@ -325,12 +325,12 @@ public class JobManagerTests
             jobs.Add(item.Object);
         }
 
-        await jobManager.StartAsync();
+        await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 0,
             Items = jobs
-        });
+        }, TestContext.Current.CancellationToken);
 
         safeRunner.Verify(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()),
             Times.Exactly(numberOfJobs));
@@ -361,12 +361,12 @@ public class JobManagerTests
 
         var job = new Mock<IJobModel>(MockBehavior.Strict);
 
-        await jobManager.StartAsync();
+        await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 0,
             Items = [job.Object]
-        });
+        }, TestContext.Current.CancellationToken);
 
         safeRunner.Verify(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Once);
         safeRunner.Verify(s => s.RunSafelyAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);

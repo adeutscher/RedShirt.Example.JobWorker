@@ -20,7 +20,7 @@ public class RedisShortTermIteratorStorageTests
             .ReturnsAsync(value);
 
         var storage = new RedisShortTermIteratorStorage(connectionSource.Object);
-        var storedValue = await storage.GetAsync(key);
+        var storedValue = await storage.GetAsync(key, TestContext.Current.CancellationToken);
 
         Assert.Equal(value, storedValue);
 
@@ -46,7 +46,7 @@ public class RedisShortTermIteratorStorageTests
             .ReturnsAsync(value);
 
         var storage = new RedisShortTermIteratorStorage(connectionSource.Object);
-        var storedValue = await storage.GetAsync(key);
+        var storedValue = await storage.GetAsync(key, TestContext.Current.CancellationToken);
 
         Assert.Equal(value, storedValue);
 
@@ -69,7 +69,7 @@ public class RedisShortTermIteratorStorageTests
         var value = Guid.NewGuid().ToString();
 
         var storage = new RedisShortTermIteratorStorage(connectionSource.Object);
-        await storage.SetAsync(key, value);
+        await storage.SetAsync(key, value, TestContext.Current.CancellationToken);
 
         Assert.Single(database.Invocations);
         database.Verify(d =>
@@ -93,7 +93,7 @@ public class RedisShortTermIteratorStorageTests
         string? value = null;
 
         var storage = new RedisShortTermIteratorStorage(connectionSource.Object);
-        await storage.SetAsync(key, value);
+        await storage.SetAsync(key, value, TestContext.Current.CancellationToken);
 
         Assert.Single(database.Invocations);
         database.Verify(d =>

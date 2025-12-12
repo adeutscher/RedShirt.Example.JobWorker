@@ -35,14 +35,12 @@ public class WorkerLoopTests
                 MaxIdleWaitSeconds = 1
             }));
 
-        using var cts = new CancellationTokenSource();
-
-        await loop.RunAsync(cts.Token);
+        await loop.RunAsync(TestContext.Current.CancellationToken);
 
         jobManager.Verify(j => j.RunAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()), Times.Once);
-        jobManager.Verify(j => j.RunAsync(jobSourceResponse, cts.Token), Times.Once);
+        jobManager.Verify(j => j.RunAsync(jobSourceResponse, TestContext.Current.CancellationToken), Times.Once);
 
-        jobSource.Verify(j => j.GetJobsAsync(cts.Token), Times.Once);
+        jobSource.Verify(j => j.GetJobsAsync(TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Fact]
@@ -69,12 +67,10 @@ public class WorkerLoopTests
                 MaxIdleWaitSeconds = 1
             }));
 
-        using var cts = new CancellationTokenSource();
-
-        await loop.RunAsync(cts.Token);
+        await loop.RunAsync(TestContext.Current.CancellationToken);
 
         jobManager.Verify(j => j.RunAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()), Times.Never);
 
-        jobSource.Verify(j => j.GetJobsAsync(cts.Token), Times.Exactly(2));
+        jobSource.Verify(j => j.GetJobsAsync(TestContext.Current.CancellationToken), Times.Exactly(2));
     }
 }

@@ -28,12 +28,12 @@ public class HighLevelStreamSourceTests
             JobCountTally = 0
         };
 
-        await streamSource.AcknowledgeCompletionAsync(null!, false, cts.Token);
+        await streamSource.AcknowledgeCompletionAsync(null!, false, TestContext.Current.CancellationToken);
         Assert.Equal(1, streamSource.JobCountTally);
         @lock.Verify(l => l.IsAcquired, Times.Once);
         @lock.Verify(l => l.Unlock(), Times.Never);
 
-        await streamSource.AcknowledgeCompletionAsync(null!, false, cts.Token);
+        await streamSource.AcknowledgeCompletionAsync(null!, false, TestContext.Current.CancellationToken);
         Assert.Equal(2, streamSource.JobCountTally);
         @lock.Verify(l => l.IsAcquired, Times.Exactly(2));
         @lock.Verify(l => l.Unlock(), Times.Once);
@@ -53,8 +53,8 @@ public class HighLevelStreamSourceTests
         var streamSource = new HighLevelStreamSource(checkpointStorage.Object, lister.Object, locker.Object,
             lowLevelStreamSource.Object, new NullLogger<HighLevelStreamSource>());
 
-        await streamSource.AcknowledgeCompletionAsync(null!, false, cts.Token);
-        
+        await streamSource.AcknowledgeCompletionAsync(null!, false, TestContext.Current.CancellationToken);
+
         // Nothing really to verify here other than not throwing an exception
         // Asserting true to satisfy SonarQube
         Assert.True(true);
@@ -74,18 +74,16 @@ public class HighLevelStreamSourceTests
 
         var jobModel = new Mock<IJobModel>().Object;
 
-        using var cts = new CancellationTokenSource();
-
-        lister.Setup(l => l.GetListOfShardsAsync(cts.Token))
+        lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["foo"]);
 
-        locker.Setup(l => l.GetLockAsync(It.IsAny<string>(), cts.Token))
+        locker.Setup(l => l.GetLockAsync(It.IsAny<string>(), TestContext.Current.CancellationToken))
             .ReturnsAsync(@lock.Object);
 
-        checkpointStorage.Setup(c => c.GetCheckpointAsync("foo", cts.Token))
+        checkpointStorage.Setup(c => c.GetCheckpointAsync("foo", TestContext.Current.CancellationToken))
             .ReturnsAsync("bar");
 
-        lowLevelStreamSource.Setup(l => l.GetJobsAsync("bar", cts.Token))
+        lowLevelStreamSource.Setup(l => l.GetJobsAsync("bar", TestContext.Current.CancellationToken))
             .ReturnsAsync(new StreamSourceResponse
             {
                 IteratorString = "1",
@@ -96,15 +94,15 @@ public class HighLevelStreamSourceTests
                 ]
             });
 
-        checkpointStorage.Setup(c => c.UpdateShortTermAsync("foo", "1", cts.Token))
+        checkpointStorage.Setup(c => c.UpdateShortTermAsync("foo", "1", TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
-        checkpointStorage.Setup(c => c.UpdateLongTermAsync("foo", "2", cts.Token))
+        checkpointStorage.Setup(c => c.UpdateLongTermAsync("foo", "2", TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
         var streamSource = new HighLevelStreamSource(checkpointStorage.Object, lister.Object, locker.Object,
             lowLevelStreamSource.Object, new NullLogger<HighLevelStreamSource>());
 
-        var response = await streamSource.GetJobsAsync(cts.Token);
+        var response = await streamSource.GetJobsAsync(TestContext.Current.CancellationToken);
 
         locker.Verify(l => l.GetLockAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
 
@@ -126,16 +124,16 @@ public class HighLevelStreamSourceTests
 
         using var cts = new CancellationTokenSource();
 
-        lister.Setup(l => l.GetListOfShardsAsync(cts.Token))
+        lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["foo", "bar"]);
 
-        locker.Setup(l => l.GetLockAsync(It.IsAny<string>(), cts.Token))
+        locker.Setup(l => l.GetLockAsync(It.IsAny<string>(), TestContext.Current.CancellationToken))
             .ReturnsAsync(new Mock<IAbstractedLock>().Object);
 
         var streamSource = new HighLevelStreamSource(checkpointStorage.Object, lister.Object, locker.Object,
             lowLevelStreamSource.Object, new NullLogger<HighLevelStreamSource>());
 
-        var response = await streamSource.GetJobsAsync(cts.Token);
+        var response = await streamSource.GetJobsAsync(TestContext.Current.CancellationToken);
 
         locker.Verify(l => l.GetLockAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
 
@@ -152,7 +150,8 @@ public class HighLevelStreamSourceTests
                 Lock = new Mock<IAbstractedLock>().Object
             };
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await streamSource.GetJobsAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await streamSource.GetJobsAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -161,7 +160,7 @@ public class HighLevelStreamSourceTests
         var streamSource = new HighLevelStreamSource(null!, null!, null!,
             null!, new NullLogger<HighLevelStreamSource>());
 
-        await streamSource.HeartbeatAsync(null!);
+        await streamSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);
         Assert.Null(streamSource.Lock);
     }
 
@@ -172,8 +171,6 @@ public class HighLevelStreamSourceTests
         var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
         var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
         var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
-
-        using var cts = new CancellationTokenSource();
 
         var response = new StreamSourceResponse
         {
@@ -189,14 +186,16 @@ public class HighLevelStreamSourceTests
             LastStreamSourceResponse = response
         };
 
-        await streamSource.MoveTrackerAsync(cts.Token);
+        await streamSource.MoveTrackerAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(lowLevelStreamSource.Invocations);
         Assert.Empty(lister.Invocations);
         Assert.Empty(locker.Invocations);
 
         Assert.Equal(2, checkpointStorage.Invocations.Count);
-        checkpointStorage.Verify(c => c.UpdateShortTermAsync("SHARD", "A", cts.Token), Times.Once);
-        checkpointStorage.Verify(c => c.UpdateLongTermAsync("SHARD", "B", cts.Token), Times.Once);
+        checkpointStorage.Verify(c => c.UpdateShortTermAsync("SHARD", "A", TestContext.Current.CancellationToken),
+            Times.Once);
+        checkpointStorage.Verify(c => c.UpdateLongTermAsync("SHARD", "B", TestContext.Current.CancellationToken),
+            Times.Once);
     }
 }

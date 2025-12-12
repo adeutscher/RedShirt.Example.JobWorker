@@ -37,16 +37,15 @@ public class CheckpointStorageTests
             });
 
         var shardId = Guid.NewGuid().ToString();
-        using var cts = new CancellationTokenSource();
-        var value = await checkpointStorage.GetCheckpointAsync(shardId, cts.Token);
+        var value = await checkpointStorage.GetCheckpointAsync(shardId, TestContext.Current.CancellationToken);
 
         Assert.Single(shortTerm.Invocations);
-        shortTerm.Verify(s => s.GetAsync(shardId, cts.Token), Times.Once);
+        shortTerm.Verify(s => s.GetAsync(shardId, TestContext.Current.CancellationToken), Times.Once);
 
         Assert.Equal(iteratorString, value);
 
         Assert.Single(longTerm.Invocations);
-        longTerm.Verify(l => l.GetLastSequenceNumber(shardId, cts.Token), Times.Once);
+        longTerm.Verify(l => l.GetLastSequenceNumber(shardId, TestContext.Current.CancellationToken), Times.Once);
         var kinesisInvocation = Assert.Single(kinesis.Invocations);
         var kinesisRequest = kinesisInvocation.Arguments[0] as GetShardIteratorRequest;
         Assert.NotNull(kinesisRequest);
@@ -54,7 +53,9 @@ public class CheckpointStorageTests
         Assert.Equal(shardId, kinesisRequest.ShardId);
         Assert.Null(kinesisRequest.StartingSequenceNumber);
         Assert.Equal(ShardIteratorType.TRIM_HORIZON, kinesisRequest.ShardIteratorType);
-        kinesis.Verify(a => a.GetShardIteratorAsync(It.IsAny<GetShardIteratorRequest>(), cts.Token), Times.Once);
+        kinesis.Verify(
+            a => a.GetShardIteratorAsync(It.IsAny<GetShardIteratorRequest>(), TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Fact]
@@ -86,16 +87,15 @@ public class CheckpointStorageTests
             });
 
         var shardId = Guid.NewGuid().ToString();
-        using var cts = new CancellationTokenSource();
-        var value = await checkpointStorage.GetCheckpointAsync(shardId, cts.Token);
+        var value = await checkpointStorage.GetCheckpointAsync(shardId, TestContext.Current.CancellationToken);
 
         Assert.Single(shortTerm.Invocations);
-        shortTerm.Verify(s => s.GetAsync(shardId, cts.Token), Times.Once);
+        shortTerm.Verify(s => s.GetAsync(shardId, TestContext.Current.CancellationToken), Times.Once);
 
         Assert.Equal(iteratorString, value);
 
         Assert.Single(longTerm.Invocations);
-        longTerm.Verify(l => l.GetLastSequenceNumber(shardId, cts.Token), Times.Once);
+        longTerm.Verify(l => l.GetLastSequenceNumber(shardId, TestContext.Current.CancellationToken), Times.Once);
         var kinesisInvocation = Assert.Single(kinesis.Invocations);
         var kinesisRequest = kinesisInvocation.Arguments[0] as GetShardIteratorRequest;
         Assert.NotNull(kinesisRequest);
@@ -103,7 +103,9 @@ public class CheckpointStorageTests
         Assert.Equal(shardId, kinesisRequest.ShardId);
         Assert.Equal(sequenceNumber, kinesisRequest.StartingSequenceNumber);
         Assert.Equal(ShardIteratorType.AFTER_SEQUENCE_NUMBER, kinesisRequest.ShardIteratorType);
-        kinesis.Verify(a => a.GetShardIteratorAsync(It.IsAny<GetShardIteratorRequest>(), cts.Token), Times.Once);
+        kinesis.Verify(
+            a => a.GetShardIteratorAsync(It.IsAny<GetShardIteratorRequest>(), TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Fact]
@@ -127,11 +129,10 @@ public class CheckpointStorageTests
             .ReturnsAsync(iteratorString);
 
         var shardId = Guid.NewGuid().ToString();
-        using var cts = new CancellationTokenSource();
-        var value = await checkpointStorage.GetCheckpointAsync(shardId, cts.Token);
+        var value = await checkpointStorage.GetCheckpointAsync(shardId, TestContext.Current.CancellationToken);
 
         Assert.Single(shortTerm.Invocations);
-        shortTerm.Verify(s => s.GetAsync(shardId, cts.Token), Times.Once);
+        shortTerm.Verify(s => s.GetAsync(shardId, TestContext.Current.CancellationToken), Times.Once);
 
         Assert.Equal(iteratorString, value);
 
@@ -157,12 +158,11 @@ public class CheckpointStorageTests
 
         var key = Guid.NewGuid().ToString();
         var value = Guid.NewGuid().ToString();
-        using var cts = new CancellationTokenSource();
 
-        await checkpointStorage.UpdateLongTermAsync(key, value, cts.Token);
+        await checkpointStorage.UpdateLongTermAsync(key, value, TestContext.Current.CancellationToken);
         Assert.Empty(shortTerm.Invocations);
         Assert.Single(longTerm.Invocations);
-        longTerm.Verify(l => l.SetLastSequenceNumber(key, value, cts.Token), Times.Once);
+        longTerm.Verify(l => l.SetLastSequenceNumber(key, value, TestContext.Current.CancellationToken), Times.Once);
         Assert.Empty(kinesis.Invocations);
     }
 
@@ -184,11 +184,10 @@ public class CheckpointStorageTests
 
         var key = Guid.NewGuid().ToString();
         var value = Guid.NewGuid().ToString();
-        using var cts = new CancellationTokenSource();
 
-        await checkpointStorage.UpdateShortTermAsync(key, value, cts.Token);
+        await checkpointStorage.UpdateShortTermAsync(key, value, TestContext.Current.CancellationToken);
         Assert.Single(shortTerm.Invocations);
-        shortTerm.Verify(s => s.SetAsync(key, value, cts.Token), Times.Once);
+        shortTerm.Verify(s => s.SetAsync(key, value, TestContext.Current.CancellationToken), Times.Once);
         Assert.Empty(longTerm.Invocations);
         Assert.Empty(kinesis.Invocations);
     }

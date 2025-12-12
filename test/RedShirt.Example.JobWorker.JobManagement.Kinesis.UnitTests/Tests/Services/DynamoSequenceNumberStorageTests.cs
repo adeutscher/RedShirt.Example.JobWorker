@@ -17,7 +17,6 @@ public class DynamoSequenceNumberStorageTests
             {
                 Value = value
             });
-        using var cts = new CancellationTokenSource();
 
         var tableName = Guid.NewGuid().ToString();
 
@@ -28,7 +27,7 @@ public class DynamoSequenceNumberStorageTests
                 RecordDurationHours = 0
             }));
 
-        var result = await storage.GetLastSequenceNumber("foo", cts.Token);
+        var result = await storage.GetLastSequenceNumber("foo", TestContext.Current.CancellationToken);
         Assert.Equal(value, result);
 
         ctx.Verify(
@@ -36,7 +35,7 @@ public class DynamoSequenceNumberStorageTests
                 It.IsAny<LoadConfig>(), It.IsAny<CancellationToken>()), Times.Once);
         ctx.Verify(
             c => c.LoadAsync<DynamoSequenceNumberStorage.Record>(It.IsAny<string>(),
-                It.IsAny<LoadConfig>(), cts.Token), Times.Once);
+                It.IsAny<LoadConfig>(), TestContext.Current.CancellationToken), Times.Once);
 
         var invocation = Assert.Single(ctx.Invocations);
         var record = invocation.Arguments[0] as string;
@@ -64,7 +63,7 @@ public class DynamoSequenceNumberStorageTests
                 RecordDurationHours = 0
             }));
 
-        var result = await storage.GetLastSequenceNumber("foo", cts.Token);
+        var result = await storage.GetLastSequenceNumber("foo", TestContext.Current.CancellationToken);
         Assert.Null(result);
 
         ctx.Verify(
@@ -72,7 +71,7 @@ public class DynamoSequenceNumberStorageTests
                 It.IsAny<LoadConfig>(), It.IsAny<CancellationToken>()), Times.Once);
         ctx.Verify(
             c => c.LoadAsync<DynamoSequenceNumberStorage.Record>(It.IsAny<string>(),
-                It.IsAny<LoadConfig>(), cts.Token), Times.Once);
+                It.IsAny<LoadConfig>(), TestContext.Current.CancellationToken), Times.Once);
 
         var invocation = Assert.Single(ctx.Invocations);
         var record = invocation.Arguments[0] as string;
@@ -100,14 +99,14 @@ public class DynamoSequenceNumberStorageTests
                 RecordDurationHours = 0
             }));
 
-        await storage.SetLastSequenceNumber("foo", "bar", cts.Token);
+        await storage.SetLastSequenceNumber("foo", "bar", TestContext.Current.CancellationToken);
 
         ctx.Verify(
             c => c.SaveAsync(It.IsAny<DynamoSequenceNumberStorage.Record>(), It.IsAny<SaveConfig>(),
                 It.IsAny<CancellationToken>()), Times.Once);
         ctx.Verify(
             c => c.SaveAsync(It.IsAny<DynamoSequenceNumberStorage.Record>(), It.IsAny<SaveConfig>(),
-                cts.Token), Times.Once);
+                TestContext.Current.CancellationToken), Times.Once);
 
         var invocation = Assert.Single(ctx.Invocations);
         var record = invocation.Arguments[0] as DynamoSequenceNumberStorage.Record;

@@ -25,12 +25,11 @@ public class SafeJobRunnerTests
         job.Setup(j => j.Data)
             .Returns(jobData.Object);
 
-        using var cts = new CancellationTokenSource();
-        var result = await safeRunner.RunSafelyAsync(job.Object, cts.Token);
+        var result = await safeRunner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
         Assert.True(result);
 
         Assert.Single(logicRunner.Invocations);
-        logicRunner.Verify(l => l.RunAsync(jobData.Object, cts.Token), Times.Once);
+        logicRunner.Verify(l => l.RunAsync(jobData.Object, TestContext.Current.CancellationToken), Times.Once);
 
         Assert.Empty(failureHandler.Invocations);
     }
@@ -54,19 +53,19 @@ public class SafeJobRunnerTests
         job.Setup(j => j.Data)
             .Returns(jobData.Object);
 
-        using var cts = new CancellationTokenSource();
-
-        logicRunner.Setup(l => l.RunAsync(jobData.Object, cts.Token))
+        logicRunner.Setup(l => l.RunAsync(jobData.Object, TestContext.Current.CancellationToken))
             .Returns((IJobDataModel _, CancellationToken _) => throw new JobRetryException());
 
-        var result = await safeRunner.RunSafelyAsync(job.Object, cts.Token);
+        var result = await safeRunner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
         Assert.False(result);
 
         Assert.Equal(retryCount + 1, logicRunner.Invocations.Count);
-        logicRunner.Verify(l => l.RunAsync(jobData.Object, cts.Token), Times.Exactly(retryCount + 1));
+        logicRunner.Verify(l => l.RunAsync(jobData.Object, TestContext.Current.CancellationToken),
+            Times.Exactly(retryCount + 1));
 
         Assert.Single(failureHandler.Invocations);
-        failureHandler.Verify(f => f.HandleFailureAsync(job.Object, It.IsAny<JobRetryException>(), cts.Token),
+        failureHandler.Verify(
+            f => f.HandleFailureAsync(job.Object, It.IsAny<JobRetryException>(), TestContext.Current.CancellationToken),
             Times.Once);
     }
 
@@ -94,22 +93,23 @@ public class SafeJobRunnerTests
         job.Setup(j => j.Data)
             .Returns(jobData.Object);
 
-        using var cts = new CancellationTokenSource();
-
-        logicRunner.Setup(l => l.RunAsync(jobData.Object, cts.Token))
+        logicRunner.Setup(l => l.RunAsync(jobData.Object, TestContext.Current.CancellationToken))
             .Returns((IJobDataModel _, CancellationToken _) => throw new JobRetryException());
 
-        failureHandler.Setup(f => f.HandleFailureAsync(job.Object, It.IsAny<JobRetryException>(), cts.Token))
+        failureHandler.Setup(f =>
+                f.HandleFailureAsync(job.Object, It.IsAny<JobRetryException>(), TestContext.Current.CancellationToken))
             .Throws(new Exception("BOOM"));
 
-        var result = await safeRunner.RunSafelyAsync(job.Object, cts.Token);
+        var result = await safeRunner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
         Assert.False(result);
 
         Assert.Equal(retryCount + 1, logicRunner.Invocations.Count);
-        logicRunner.Verify(l => l.RunAsync(jobData.Object, cts.Token), Times.Exactly(retryCount + 1));
+        logicRunner.Verify(l => l.RunAsync(jobData.Object, TestContext.Current.CancellationToken),
+            Times.Exactly(retryCount + 1));
 
         Assert.Single(failureHandler.Invocations);
-        failureHandler.Verify(f => f.HandleFailureAsync(job.Object, It.IsAny<JobRetryException>(), cts.Token),
+        failureHandler.Verify(
+            f => f.HandleFailureAsync(job.Object, It.IsAny<JobRetryException>(), TestContext.Current.CancellationToken),
             Times.Once);
     }
 
@@ -130,12 +130,10 @@ public class SafeJobRunnerTests
         job.Setup(j => j.Data)
             .Returns(jobData.Object);
 
-        using var cts = new CancellationTokenSource();
-
         var queue = new Queue<object?>();
         queue.Enqueue(job.Object);
 
-        logicRunner.Setup(l => l.RunAsync(jobData.Object, cts.Token))
+        logicRunner.Setup(l => l.RunAsync(jobData.Object, TestContext.Current.CancellationToken))
             .Returns((IJobDataModel _, CancellationToken _) =>
             {
                 if (queue.TryDequeue(out _))
@@ -146,11 +144,11 @@ public class SafeJobRunnerTests
                 return Task.CompletedTask;
             });
 
-        var result = await safeRunner.RunSafelyAsync(job.Object, cts.Token);
+        var result = await safeRunner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
         Assert.True(result);
 
         Assert.Equal(2, logicRunner.Invocations.Count);
-        logicRunner.Verify(l => l.RunAsync(jobData.Object, cts.Token), Times.Exactly(2));
+        logicRunner.Verify(l => l.RunAsync(jobData.Object, TestContext.Current.CancellationToken), Times.Exactly(2));
 
         Assert.Empty(failureHandler.Invocations);
     }

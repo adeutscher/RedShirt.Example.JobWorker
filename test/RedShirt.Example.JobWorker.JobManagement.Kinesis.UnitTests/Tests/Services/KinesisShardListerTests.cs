@@ -45,18 +45,22 @@ public class KinesisShardListerTests
             ShuffleShards = false
         }));
 
-        using var cts = new CancellationTokenSource();
-        var output = await lister.GetListOfShardsAsync(cts.Token);
+        var output = await lister.GetListOfShardsAsync(TestContext.Current.CancellationToken);
         Assert.Equal(2, output.Count);
         Assert.Contains("foo", output);
         Assert.Contains("bar", output);
 
         kinesis.Verify(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), It.IsAny<CancellationToken>()),
             Times.Exactly(3));
-        kinesis.Verify(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), cts.Token), Times.Exactly(3));
-        kinesis.Verify(a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.StreamARN == streamArn), cts.Token),
+        kinesis.Verify(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), TestContext.Current.CancellationToken),
             Times.Exactly(3));
-        kinesis.Verify(a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.NextToken == "NEXT"), cts.Token),
+        kinesis.Verify(
+            a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.StreamARN == streamArn),
+                TestContext.Current.CancellationToken),
+            Times.Exactly(3));
+        kinesis.Verify(
+            a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.NextToken == "NEXT"),
+                TestContext.Current.CancellationToken),
             Times.Exactly(2));
     }
 
@@ -72,7 +76,8 @@ public class KinesisShardListerTests
 
         var queue = new Queue<string>();
         const int bufferItemsCount = 2000;
-        var populateQueueAction = () =>
+
+        void PopulateQueueAction()
         {
             queue.Enqueue("foo");
             queue.Enqueue("bar");
@@ -80,7 +85,7 @@ public class KinesisShardListerTests
             {
                 queue.Enqueue($"{i}");
             }
-        };
+        }
 
         kinesis.Setup(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((ListShardsRequest _, CancellationToken _) =>
@@ -112,8 +117,8 @@ public class KinesisShardListerTests
         }));
 
         using var cts = new CancellationTokenSource();
-        populateQueueAction();
-        var output = await lister.GetListOfShardsAsync(cts.Token);
+        PopulateQueueAction();
+        var output = await lister.GetListOfShardsAsync(TestContext.Current.CancellationToken);
         Assert.Equal(bufferItemsCount + 2, output.Count);
         Assert.Contains("foo", output);
         Assert.Contains("bar", output);
@@ -124,18 +129,22 @@ public class KinesisShardListerTests
 
         kinesis.Verify(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), It.IsAny<CancellationToken>()),
             Times.Exactly(bufferItemsCount + 3));
-        kinesis.Verify(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), cts.Token),
+        kinesis.Verify(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), TestContext.Current.CancellationToken),
             Times.Exactly(bufferItemsCount + 3));
-        kinesis.Verify(a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.StreamARN == streamArn), cts.Token),
+        kinesis.Verify(
+            a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.StreamARN == streamArn),
+                TestContext.Current.CancellationToken),
             Times.Exactly(bufferItemsCount + 3));
-        kinesis.Verify(a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.NextToken == "NEXT"), cts.Token),
+        kinesis.Verify(
+            a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.NextToken == "NEXT"),
+                TestContext.Current.CancellationToken),
             Times.Exactly(bufferItemsCount + 2));
 
         // Test randomness by running list again.
 
         Assert.Empty(queue);
-        populateQueueAction();
-        var output2 = await lister.GetListOfShardsAsync(cts.Token);
+        PopulateQueueAction();
+        var output2 = await lister.GetListOfShardsAsync(TestContext.Current.CancellationToken);
         Assert.Equal(bufferItemsCount + 2, output2.Count);
         Assert.Contains("foo", output2);
         Assert.Contains("bar", output2);
@@ -146,11 +155,15 @@ public class KinesisShardListerTests
 
         kinesis.Verify(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), It.IsAny<CancellationToken>()),
             Times.Exactly(2 * (bufferItemsCount + 3)));
-        kinesis.Verify(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), cts.Token),
+        kinesis.Verify(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), TestContext.Current.CancellationToken),
             Times.Exactly(2 * (bufferItemsCount + 3)));
-        kinesis.Verify(a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.StreamARN == streamArn), cts.Token),
+        kinesis.Verify(
+            a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.StreamARN == streamArn),
+                TestContext.Current.CancellationToken),
             Times.Exactly(2 * (bufferItemsCount + 3)));
-        kinesis.Verify(a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.NextToken == "NEXT"), cts.Token),
+        kinesis.Verify(
+            a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.NextToken == "NEXT"),
+                TestContext.Current.CancellationToken),
             Times.Exactly(2 * (bufferItemsCount + 2)));
 
         Assert.NotSame(output, output2);
@@ -175,8 +188,8 @@ public class KinesisShardListerTests
                 continue;
             }
 
-            populateQueueAction();
-            output2 = await lister.GetListOfShardsAsync(cts.Token);
+            PopulateQueueAction();
+            output2 = await lister.GetListOfShardsAsync(TestContext.Current.CancellationToken);
             /*
              * Skip the other double-checks, at this point in the test
              *  we trust the contents/calls of the lister.

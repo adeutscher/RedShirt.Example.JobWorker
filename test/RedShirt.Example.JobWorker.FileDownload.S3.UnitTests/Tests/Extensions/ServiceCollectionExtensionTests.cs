@@ -10,10 +10,6 @@ public class ServiceCollectionExtensionTests
     [Fact]
     public void Test1()
     {
-        var provider = new ServiceCollection()
-            .AddFileDownloadS3(new ConfigurationBuilder().Build())
-            .BuildServiceProvider();
-
         var environment = new Dictionary<string, string>
         {
             ["AWS_REGION"] = "us-east-1",
@@ -25,6 +21,12 @@ public class ServiceCollectionExtensionTests
         };
 
         TestUtilities.WrapEnvironment(environment, () =>
-            Assert.NotNull(provider.GetRequiredService<IFileDownloadService>()));
+        {
+            var provider = new ServiceCollection()
+                .AddFileDownloadS3(new ConfigurationBuilder().Build())
+                .BuildServiceProvider();
+
+            Assert.NotNull(provider.GetRequiredService<IFileDownloadService>());
+        });
     }
 }

@@ -13,7 +13,7 @@ public class RedisLockerTests
         source.Setup(s => s.GetDatabase()).Returns(db.Object);
 
         var locker = new RedisLocker(source.Object);
-        var @lock = await locker.GetLockAsync("abc");
+        var @lock = await locker.GetLockAsync("abc", TestContext.Current.CancellationToken);
         Assert.NotNull(@lock);
         Assert.False(@lock.IsAcquired);
         @lock.Unlock();

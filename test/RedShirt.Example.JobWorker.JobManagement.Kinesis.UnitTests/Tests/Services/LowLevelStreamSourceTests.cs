@@ -79,8 +79,7 @@ public class LowLevelStreamSourceTests
                 ShuffleShards = false
             }));
 
-        using var cts = new CancellationTokenSource();
-        var response = await source.GetJobsAsync("foo", cts.Token);
+        var response = await source.GetJobsAsync("foo", TestContext.Current.CancellationToken);
         Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
         Assert.Equal(2, response.Items.Count);
 
@@ -92,7 +91,7 @@ public class LowLevelStreamSourceTests
                     r.StreamARN == streamArn
                     && r.Limit == batchSize
                     && r.ShardIterator == "foo"),
-                cts.Token), Times.Once);
+                TestContext.Current.CancellationToken), Times.Once);
 
         converter.Verify(c => c.Convert(data1), Times.Once);
         converter.Verify(c => c.Convert(data2), Times.Once);
@@ -127,8 +126,7 @@ public class LowLevelStreamSourceTests
                 ShuffleShards = false
             }));
 
-        using var cts = new CancellationTokenSource();
-        var response = await source.GetJobsAsync("foo", cts.Token);
+        var response = await source.GetJobsAsync("foo", TestContext.Current.CancellationToken);
         Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
         Assert.Empty(response.Items);
 
@@ -140,7 +138,7 @@ public class LowLevelStreamSourceTests
                     r.StreamARN == streamArn
                     && r.Limit == batchSize
                     && r.ShardIterator == "foo"),
-                cts.Token), Times.Once);
+                TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Theory]
@@ -166,8 +164,7 @@ public class LowLevelStreamSourceTests
                 ShuffleShards = false
             }));
 
-        using var cts = new CancellationTokenSource();
-        var response = await source.GetJobsAsync("foo", cts.Token);
+        var response = await source.GetJobsAsync("foo", TestContext.Current.CancellationToken);
         Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
         Assert.Empty(response.Items);
 
@@ -179,6 +176,6 @@ public class LowLevelStreamSourceTests
                     r.StreamARN == streamArn
                     && r.Limit == batchSize
                     && r.ShardIterator == "foo"),
-                cts.Token), Times.Once);
+                TestContext.Current.CancellationToken), Times.Once);
     }
 }
