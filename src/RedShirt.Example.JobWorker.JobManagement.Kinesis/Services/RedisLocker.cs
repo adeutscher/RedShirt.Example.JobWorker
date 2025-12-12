@@ -1,5 +1,6 @@
 using Medallion.Threading.Redis;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 
@@ -8,7 +9,7 @@ internal class RedisLocker(IRedisConnectionSource redisConnectionSource) : IAbst
     public async Task<IAbstractedLock> GetLockAsync(string lockName, CancellationToken cancellationToken = default)
     {
         var redis = redisConnectionSource.GetDatabase();
-        var redisLock = new RedisDistributedLock(lockName, redis);
+        var redisLock = new RedisDistributedLock(KeyHelper.GetLockKey(lockName), redis);
         return new DistributedLock(await redisLock.TryAcquireAsync(cancellationToken: cancellationToken));
     }
 
