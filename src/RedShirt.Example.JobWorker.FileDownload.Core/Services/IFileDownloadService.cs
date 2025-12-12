@@ -4,5 +4,6 @@ namespace RedShirt.Example.JobWorker.FileDownload.Core.Services;
 
 public interface IFileDownloadService
 {
-    Task<FileDownloadReport> DownloadAsync(string fromPath, string writePath, CancellationToken cancellationToken = default);
+    Task<FileDownloadReport> DownloadAsync(string fromPath, string writePath,
+        CancellationToken cancellationToken = default);
 }

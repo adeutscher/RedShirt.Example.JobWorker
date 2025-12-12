@@ -23,7 +23,7 @@ public class DependencyInjectionTests
             ["AWS_SERVICE_URL"] = "http://foo.bar",
             ["AWS_ACCESS_KEY_ID"] = "foo",
             ["AWS_SECRET_ACCESS_KEY"] = "bar",
-            ["AWS_SESSION_TOKEN"] = "foobar",
+            ["AWS_SESSION_TOKEN"] = "foobar"
         }, () => { Assert.NotNull(Setup.GetRunner()); });
     }
 }
