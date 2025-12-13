@@ -6,12 +6,6 @@ using System.Diagnostics;
 
 namespace RedShirt.Example.JobWorker.Core.Services;
 
-internal interface IJobManager
-{
-    Task RunAsync(JobSourceResponse response, CancellationToken cancellationToken = default);
-    Task StartAsync(CancellationToken cancellationToken = default);
-}
-
 internal class JobManager(
     IExecutionEndArbiter executionEndArbiter,
     ISafeJobRunner safeJobRunner,
@@ -269,7 +263,9 @@ internal class JobManager(
     {
         for (var i = 0; i < GetWorkerCount(); i++)
         {
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
             Task.Run(() => RunWorkerAsync(cancellationToken), cancellationToken);
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
         }
 
         // Make sure we aren't being asked to manage jobs before the worker threads are ready 

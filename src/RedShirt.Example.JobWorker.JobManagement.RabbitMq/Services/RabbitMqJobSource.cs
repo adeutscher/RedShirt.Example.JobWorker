@@ -51,7 +51,7 @@ internal class RabbitMqJobSource : IJobSource
         var channel = await _channel.Value;
 
         _logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from RabbitMQ Queue: {QueueName}",
-            _configuration.Value.QueueName);
+            _configuration.Value.BatchSize, _configuration.Value.QueueName);
 
         var getJobsResponseItems = new List<IJobModel>();
 

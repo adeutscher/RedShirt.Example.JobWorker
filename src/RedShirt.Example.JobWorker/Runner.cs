@@ -2,7 +2,7 @@ using RedShirt.Example.JobWorker.Core;
 
 namespace RedShirt.Example.JobWorker;
 
-public class Runner(IHandler handler)
+public sealed class Runner(IHandler handler)
 {
     public Task RunAsync()
     {

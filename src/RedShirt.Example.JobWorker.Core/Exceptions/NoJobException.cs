@@ -1,3 +1,3 @@
 namespace RedShirt.Example.JobWorker.Core.Exceptions;
 
-public class NoJobException : Exception;
+public sealed class NoJobException : Exception;

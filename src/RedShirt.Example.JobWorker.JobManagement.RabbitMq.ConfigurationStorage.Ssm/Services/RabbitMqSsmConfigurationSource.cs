@@ -6,7 +6,7 @@ using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.ConfigurationStorage.Ssm.Services;
 
-public class RabbitMqSsmConfigurationSource(
+internal class RabbitMqSsmConfigurationSource(
     IAmazonSimpleSystemsManagement ssm,
     IOptions<RabbitMqSsmConfigurationSource.ConfigurationModel> options) : IRabbitMqServerConfigurationSource
 {

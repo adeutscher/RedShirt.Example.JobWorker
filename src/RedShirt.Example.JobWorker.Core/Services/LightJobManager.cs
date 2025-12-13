@@ -6,8 +6,8 @@ namespace RedShirt.Example.JobWorker.Core.Services;
 
 /// <summary>
 ///     Simpler version of JobManager that simply does a foreach loop through jobs rather than any multithreading.
-///     Not recommended for use with job source implementations that require heartbeats, as this implementation doesn't use
-///     heartbeats at all.
+///     Not recommended for use with job source implementations that require heartbeats managed to be managed by Core,
+///     as this implementation doesn't use heartbeats at all.
 /// </summary>
 /// <param name="logger"></param>
 /// <param name="safeJobRunner"></param>

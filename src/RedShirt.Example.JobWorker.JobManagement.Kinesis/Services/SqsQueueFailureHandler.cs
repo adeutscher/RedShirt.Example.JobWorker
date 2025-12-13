@@ -25,7 +25,7 @@ internal class SqsQueueFailureHandler(IAmazonSQS sqs, IOptions<SqsQueueFailureHa
         }, cancellationToken);
     }
 
-    public class ConfigurationModel
+    internal class ConfigurationModel
     {
         public required string QueueUrl { get; init; }
     }

@@ -11,6 +11,13 @@ internal interface ISafeJobRunner
     Task<bool> RunSafelyAsync(IJobModel job, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+///     Try/Catch layer around the execution of a job.
+/// </summary>
+/// <param name="jobLogicRunner"></param>
+/// <param name="jobFailureHandler"></param>
+/// <param name="logger"></param>
+/// <param name="options"></param>
 internal class SafeJobRunner(
     IJobLogicRunner jobLogicRunner,
     IJobFailureHandler jobFailureHandler,
@@ -22,7 +29,18 @@ internal class SafeJobRunner(
         try
         {
             await Policy.Handle<JobRetryException>()
-                .RetryAsync(Math.Max(0, options.Value.InternalRetryCount))
+                .RetryAsync(
+                    Math.Max(0, options.Value.InternalRetryCount),
+                    async (e, _) =>
+                    {
+                        if (e is JobRetryException {DelayTimeMilliseconds: > 0} retryException)
+                        {
+                            // User has requested that the job handler wait for a certiain amount of time before retrying.
+                            await Task.Delay(TimeSpan.FromMilliseconds(retryException.DelayTimeMilliseconds),
+                                cancellationToken);
+                        }
+                    }
+                )
                 .ExecuteAsync(() => jobLogicRunner.RunAsync(job.Data, cancellationToken));
             return true;
         }

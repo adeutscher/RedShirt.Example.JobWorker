@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
+using System.Diagnostics;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services;
 
@@ -113,6 +114,10 @@ public class SafeJobRunnerTests
             Times.Once);
     }
 
+    /// <summary>
+    ///     Test that the job shall be retried once due to a JobRetryException and then succeed on the retry.
+    /// </summary>
+    /// <exception cref="JobRetryException"></exception>
     [Fact]
     public async Task Test_Run_True_Retry()
     {
@@ -146,6 +151,58 @@ public class SafeJobRunnerTests
 
         var result = await safeRunner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
         Assert.True(result);
+
+        Assert.Equal(2, logicRunner.Invocations.Count);
+        logicRunner.Verify(l => l.RunAsync(jobData.Object, TestContext.Current.CancellationToken), Times.Exactly(2));
+
+        Assert.Empty(failureHandler.Invocations);
+    }
+
+    /// <summary>
+    ///     Test that the job shall be retried once due to a JobRetryException and then succeed on the retry.
+    ///     The JobRetryException shall request a 500ms delay before retrying.
+    /// </summary>
+    /// <exception cref="JobRetryException"></exception>
+    [Fact]
+    public async Task Test_Run_True_Retry_WithDelay()
+    {
+        var logicRunner = new Mock<IJobLogicRunner>();
+        var failureHandler = new Mock<IJobFailureHandler>();
+
+        var safeRunner = new SafeJobRunner(logicRunner.Object, failureHandler.Object, new NullLogger<SafeJobRunner>(),
+            Options.Create(new SafeJobRunner.ConfigurationModel
+            {
+                InternalRetryCount = 2
+            }));
+
+        var jobData = new Mock<IJobDataModel>();
+        var job = new Mock<IJobModel>();
+        job.Setup(j => j.Data)
+            .Returns(jobData.Object);
+
+        var queue = new Queue<object?>();
+        queue.Enqueue(job.Object);
+
+        logicRunner.Setup(l => l.RunAsync(jobData.Object, TestContext.Current.CancellationToken))
+            .Returns((IJobDataModel _, CancellationToken _) =>
+            {
+                if (queue.TryDequeue(out _))
+                {
+                    throw new JobRetryException
+                    {
+                        DelayTimeMilliseconds = 500
+                    };
+                }
+
+                return Task.CompletedTask;
+            });
+
+        var stopwatch = Stopwatch.StartNew();
+        var result = await safeRunner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
+        stopwatch.Stop();
+        Assert.True(result);
+
+        Assert.True(stopwatch.ElapsedMilliseconds >= 450); // 50ms grace
 
         Assert.Equal(2, logicRunner.Invocations.Count);
         logicRunner.Verify(l => l.RunAsync(jobData.Object, TestContext.Current.CancellationToken), Times.Exactly(2));

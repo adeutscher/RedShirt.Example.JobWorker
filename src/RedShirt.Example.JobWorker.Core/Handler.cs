@@ -11,7 +11,9 @@ internal class Handler(IJobManager jobManager, IWorkerLoop workerLoop) : IHandle
 {
     public async Task HandleAsync(CancellationToken cancellationToken = default)
     {
+        // Kick off the job manager
         await jobManager.StartAsync(cancellationToken);
+        // Enter worker loop
         await workerLoop.RunAsync(cancellationToken);
     }
 }

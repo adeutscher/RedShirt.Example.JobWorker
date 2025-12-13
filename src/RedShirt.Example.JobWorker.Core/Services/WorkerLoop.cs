@@ -5,7 +5,7 @@ using RedShirt.Example.JobWorker.Core.Exceptions;
 
 namespace RedShirt.Example.JobWorker.Core.Services;
 
-public interface IWorkerLoop
+internal interface IWorkerLoop
 {
     Task RunAsync(CancellationToken cancellationToken = default);
 }
@@ -36,6 +36,7 @@ internal class WorkerLoop(
                         var jobResponse = await jobSource.GetJobsAsync(cancellationToken);
                         if (jobResponse.Items.Count == 0)
                         {
+                            // Throwing an exception in order to leverage Polly's handling for incremental backoff.
                             throw new NoJobException();
                         }
 

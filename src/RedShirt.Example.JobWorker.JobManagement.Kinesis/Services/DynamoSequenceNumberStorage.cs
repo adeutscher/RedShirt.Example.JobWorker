@@ -47,7 +47,7 @@ internal class DynamoSequenceNumberStorage(
         public long ExpirationTime { get; set; }
     }
 
-    public class ConfigurationModel
+    internal class ConfigurationModel
     {
         public required string TableName { get; init; }
         public required int RecordDurationHours { get; init; }

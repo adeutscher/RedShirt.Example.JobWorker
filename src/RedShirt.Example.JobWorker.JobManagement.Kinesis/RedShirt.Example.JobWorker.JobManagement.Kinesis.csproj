@@ -12,10 +12,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.10.4" />
-        <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.3.17" />
-        <PackageReference Include="AWSSDK.Kinesis" Version="4.0.7.9" />
-        <PackageReference Include="AWSSDK.SQS" Version="4.0.2.8" />
+        <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.10.4"/>
+        <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.3.17"/>
+        <PackageReference Include="AWSSDK.Kinesis" Version="4.0.7.9"/>
+        <PackageReference Include="AWSSDK.SQS" Version="4.0.2.8"/>
         <PackageReference Include="DistributedLock.Redis" Version="1.1.1"/>
         <PackageReference Include="StackExchange.Redis" Version="2.10.1"/>
     </ItemGroup>
