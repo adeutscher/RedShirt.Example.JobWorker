@@ -19,14 +19,17 @@ internal class RabbitMqJobSource : IJobSource
     private readonly Lazy<Task<IConnection>> _connection;
     private readonly ILogger<RabbitMqJobSource> _logger;
     private readonly ISourceMessageConverter _messageConverter;
+    private readonly ISourceMessageSorter _messageSorter;
 
     public RabbitMqJobSource(IRabbitMqConnectionFactory connectionFactory,
         IOptions<ConfigurationModel> configuration,
         ISourceMessageConverter messageConverter,
+        ISourceMessageSorter messageSorter,
         ILogger<RabbitMqJobSource> logger)
     {
         _configuration = configuration;
         _logger = logger;
+        _messageSorter = messageSorter;
         _messageConverter = messageConverter;
         _connection = new Lazy<Task<IConnection>>(() => connectionFactory.GetConnectionAsync());
         _channel = new Lazy<Task<IChannel>>(async () =>
@@ -47,54 +50,59 @@ internal class RabbitMqJobSource : IJobSource
     {
         var channel = await _channel.Value;
 
-        _logger.LogTrace("Fetching information from RabbitMQ Queue: {QueueName}", _configuration.Value.QueueName);
+        _logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from RabbitMQ Queue: {QueueName}",
+            _configuration.Value.QueueName);
 
-        var result = await channel.BasicGetAsync(_configuration.Value.QueueName, false, cancellationToken);
+        var getJobsResponseItems = new List<IJobModel>();
 
-        if (result is null)
+        while (getJobsResponseItems.Count < _configuration.Value.EffectiveBatchSize)
         {
-            return new JobSourceResponse
+            var result = await channel.BasicGetAsync(_configuration.Value.QueueName, false, cancellationToken);
+
+            if (result is null)
             {
-                RecommendedHeartbeatIntervalSeconds = 0,
-                Items = []
-            };
-        }
+                // Nothing more to grab at the moment.
+                break;
+            }
 
-        IJobDataModel? convertedMessage = null;
-        string? body = null;
-        try
-        {
-            body = Encoding.UTF8.GetString(result.Body.ToArray());
-            convertedMessage = _messageConverter.Convert(body);
-        }
-        catch (Exception e)
-        {
-            _logger.LogWarning(e, "Error parsing RabbitMQ message: {MessageBody}", body);
-        }
-
-        if (convertedMessage is null)
-        {
-            // Could not parse message
-            return new JobSourceResponse
+            IJobDataModel? convertedMessage = null;
+            string? body = null;
+            try
             {
-                RecommendedHeartbeatIntervalSeconds = 0,
-                Items = []
-            };
-        }
+                body = Encoding.UTF8.GetString(result.Body.ToArray());
+                convertedMessage = _messageConverter.Convert(body);
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning(e, "Error parsing RabbitMQ message: {MessageBody}", body);
 
-        // Got a message
+                /*
+                 * What exactly to do with bad messages is a bit up in the air at the moment.
+                 * Deleting them from the queue is 'good enough' for now for this general template.
+                 */
+
+                // Delete the message so that it cannot keep gumming up the queue
+                await channel.BasicAckAsync(result.DeliveryTag, false, cancellationToken);
+            }
+
+            if (convertedMessage is null)
+            {
+                // Try to get a message again.
+                continue;
+            }
+
+            // Got a message, add it to return set.
+            getJobsResponseItems.Add(new JobModel
+            {
+                MessageId = result.DeliveryTag.ToString(),
+                Data = convertedMessage
+            });
+        }
 
         return new JobSourceResponse
         {
             RecommendedHeartbeatIntervalSeconds = 0,
-            Items =
-            [
-                new JobModel
-                {
-                    MessageId = result.DeliveryTag.ToString(),
-                    Data = convertedMessage
-                }
-            ]
+            Items = _messageSorter.GetSortedListOfJobs(getJobsResponseItems)
         };
     }
 
@@ -110,5 +118,13 @@ internal class RabbitMqJobSource : IJobSource
     public sealed class ConfigurationModel
     {
         public required string QueueName { get; init; }
+
+        /// <summary>
+        ///     Set maximum number of messages to get per call.
+        ///     The main reason to get multiple messages would be to take advantage of Core's multi-threading capabilities.
+        /// </summary>
+        public required int BatchSize { get; init; }
+
+        public int EffectiveBatchSize => Math.Max(1, BatchSize);
     }
 }
