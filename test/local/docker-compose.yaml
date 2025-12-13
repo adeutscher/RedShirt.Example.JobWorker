@@ -63,3 +63,4 @@ services:
       JOB_SOURCE__RABBITMQ__USER_PATH: /rabbitmq/user
       JOB_SOURCE__RABBITMQ__PASSWORD_PATH: /rabbitmq/password
       JOB_SOURCE__RABBITMQ__QUEUE_NAME: RabbitQueue
+      JOB_SOURCE__RABBITMQ__BATCH_SIZE: 10
