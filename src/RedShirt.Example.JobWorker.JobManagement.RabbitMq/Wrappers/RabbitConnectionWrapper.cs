@@ -8,12 +8,12 @@ internal interface IRabbitConnectionWrapper
     Task<IConnection> CreateConnectionAsync(CancellationToken cancellationToken = default);
 }
 
-internal class RabbitConnectionWrapper(ConnectionFactory connectionFactory) : IRabbitConnectionWrapper
+internal class RabbitConnectionWrapper(IConnectionFactory connectionFactory) : IRabbitConnectionWrapper
 {
     /// <summary>
     ///     Concession to unit tests
     /// </summary>
-    internal ConnectionFactory InternalConnectionFactory => connectionFactory;
+    internal ConnectionFactory InternalConnectionFactory => (connectionFactory as ConnectionFactory)!;
 
     public IConnectionFactory ConnectionFactory => connectionFactory;
 
