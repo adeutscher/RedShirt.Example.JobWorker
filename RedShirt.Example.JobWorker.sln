@@ -44,6 +44,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.Common.Aws.UnitTests", "test\RedShirt.Example.JobWorker.Common.Aws.UnitTests\RedShirt.Example.JobWorker.Common.Aws.UnitTests.csproj", "{EC09D0B8-C494-44E0-BEDE-0FD26E37AF19}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.JobManagement.Common.UnitTests", "test\RedShirt.Example.JobWorker.JobManagement.Common.UnitTests\RedShirt.Example.JobWorker.JobManagement.Common.UnitTests.csproj", "{F3C90D90-4812-4E81-8371-14F0893E6069}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.Core.Logic.UnitTests", "test\RedShirt.Example.JobWorker.Core.Logic.UnitTests\RedShirt.Example.JobWorker.Core.Logic.UnitTests.csproj", "{D1432770-8C8B-4A8F-9CA8-F16B6C8279CE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -67,6 +71,8 @@ Global
 		{268BF574-5EFD-4C68-94DC-9A31D935E220} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
 		{9AF2016D-C8F3-4896-AD6A-C25ECE751060} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
 		{EC09D0B8-C494-44E0-BEDE-0FD26E37AF19} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
+		{F3C90D90-4812-4E81-8371-14F0893E6069} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
+		{D1432770-8C8B-4A8F-9CA8-F16B6C8279CE} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{81C22C57-1441-4DC0-9953-47434B802572}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -137,5 +143,13 @@ Global
 		{EC09D0B8-C494-44E0-BEDE-0FD26E37AF19}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EC09D0B8-C494-44E0-BEDE-0FD26E37AF19}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EC09D0B8-C494-44E0-BEDE-0FD26E37AF19}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F3C90D90-4812-4E81-8371-14F0893E6069}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F3C90D90-4812-4E81-8371-14F0893E6069}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F3C90D90-4812-4E81-8371-14F0893E6069}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F3C90D90-4812-4E81-8371-14F0893E6069}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D1432770-8C8B-4A8F-9CA8-F16B6C8279CE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D1432770-8C8B-4A8F-9CA8-F16B6C8279CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D1432770-8C8B-4A8F-9CA8-F16B6C8279CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D1432770-8C8B-4A8F-9CA8-F16B6C8279CE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

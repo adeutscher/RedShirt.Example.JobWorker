@@ -14,7 +14,8 @@ internal class SourceMessageSorter : ISourceMessageSorter
 {
     public List<IJobModel> GetSortedListOfJobs(List<IJobModel> input)
     {
-        return input
-            .OrderByDescending(i => i.Data.SleepDurationSeconds).ToList();
+        // The default template does not sort the list at all,
+        // but this class was made to be a central, ideal place to do it.
+        return input;
     }
 }
