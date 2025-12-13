@@ -42,6 +42,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.JobManagement.RabbitMq.ConfigurationStorage.Ssm.UnitTests", "test\RedShirt.Example.JobWorker.JobManagement.RabbitMq.ConfigurationStorage.Ssm.UnitTests\RedShirt.Example.JobWorker.JobManagement.RabbitMq.ConfigurationStorage.Ssm.UnitTests.csproj", "{9AF2016D-C8F3-4896-AD6A-C25ECE751060}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.Common.Aws.UnitTests", "test\RedShirt.Example.JobWorker.Common.Aws.UnitTests\RedShirt.Example.JobWorker.Common.Aws.UnitTests.csproj", "{EC09D0B8-C494-44E0-BEDE-0FD26E37AF19}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -64,6 +66,7 @@ Global
 		{8975CCA7-A114-4370-9351-45388CA19455} = {0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}
 		{268BF574-5EFD-4C68-94DC-9A31D935E220} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
 		{9AF2016D-C8F3-4896-AD6A-C25ECE751060} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
+		{EC09D0B8-C494-44E0-BEDE-0FD26E37AF19} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{81C22C57-1441-4DC0-9953-47434B802572}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -130,5 +133,9 @@ Global
 		{9AF2016D-C8F3-4896-AD6A-C25ECE751060}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9AF2016D-C8F3-4896-AD6A-C25ECE751060}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9AF2016D-C8F3-4896-AD6A-C25ECE751060}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EC09D0B8-C494-44E0-BEDE-0FD26E37AF19}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EC09D0B8-C494-44E0-BEDE-0FD26E37AF19}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EC09D0B8-C494-44E0-BEDE-0FD26E37AF19}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EC09D0B8-C494-44E0-BEDE-0FD26E37AF19}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
