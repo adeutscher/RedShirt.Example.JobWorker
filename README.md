@@ -7,6 +7,7 @@ Repo features:
 * Message polling with:
     * Amazon SQS
     * Amazon Kinesis
+    * RabbitMQ
 
 # Initialisation
 
@@ -24,6 +25,11 @@ Recommended steps when using this as a template:
 4. In the `Implementation.JobManagement.Common` project, update `SourceMessageConverter` and `SourceMessageSorter` to
    fit your needs for your project.
 5. Update the `Core.Logic` project to handle `IJobDataModel` jobs as needed by your project.
+6. Select a message source type and remove unused projects. Supported message sources:
+
+    * Amazon SQS
+    * RabbitMQ
+    * Amazon Kinesis
 
 # Testing
 
