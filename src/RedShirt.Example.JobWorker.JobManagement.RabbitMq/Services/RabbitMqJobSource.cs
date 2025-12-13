@@ -75,18 +75,18 @@ internal class RabbitMqJobSource : IJobSource
             catch (Exception e)
             {
                 _logger.LogWarning(e, "Error parsing RabbitMQ message: {MessageBody}", body);
-
-                /*
-                 * What exactly to do with bad messages is a bit up in the air at the moment.
-                 * Deleting them from the queue is 'good enough' for now for this general template.
-                 */
-
-                // Delete the message so that it cannot keep gumming up the queue
-                await channel.BasicAckAsync(result.DeliveryTag, false, cancellationToken);
             }
 
             if (convertedMessage is null)
             {
+                /*
+                 * What exactly to do with bad messages is a bit up in the air at the moment.
+                 * Deleting them from the queue is 'good enough' for now in this general template.
+                 */
+
+                // Delete the message so that it cannot keep gumming up the queue
+                await channel.BasicAckAsync(result.DeliveryTag, false, cancellationToken);
+
                 // Try to get a message again.
                 continue;
             }

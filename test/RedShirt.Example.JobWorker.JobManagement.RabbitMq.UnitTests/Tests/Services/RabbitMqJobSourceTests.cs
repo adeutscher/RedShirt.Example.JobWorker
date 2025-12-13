@@ -481,6 +481,78 @@ public class RabbitMqJobSourceTests
         Assert.Single(sorter.Invocations);
     }
 
+    /// <summary>
+    ///     Spin-off of Test_GetJobs_ParsingError
+    ///     Confirm that the job will also be deleted if the parser silently failed to parse.
+    /// </summary>
+    [Fact]
+    public async Task Test_GetJobs_ParsingNull()
+    {
+        var queueName = Guid.NewGuid().ToString();
+
+        var configuration = new RabbitMqJobSource.ConfigurationModel
+        {
+            QueueName = queueName,
+            BatchSize = 1
+        };
+
+        var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
+
+        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
+        mockConnection.Setup(c => c.CreateChannelAsync())
+            .ReturnsAsync(mockChannel.Object);
+
+        var rabbitConnectionFactory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
+        rabbitConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockConnection.Object);
+
+        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
+
+        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
+        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
+            .Returns<List<IJobModel>>(input => input);
+
+        // Setup Job Returns
+
+        ulong deliveryTag = 1234;
+        var bodyString = "{}";
+
+        var mockChannelQueue = new Queue<BasicGetResult>();
+        mockChannelQueue.Enqueue(new BasicGetResult(deliveryTag, false, "foo", "bar", 1,
+            new Mock<IReadOnlyBasicProperties>().Object,
+            new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(bodyString))));
+
+        mockChannel
+            .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
+            .ReturnsAsync(() => mockChannelQueue.TryDequeue(out var job) ? job : null);
+
+        mockChannel
+            .Setup(c => c.BasicAckAsync(deliveryTag, false, It.IsAny<CancellationToken>()))
+            .Returns(() => new ValueTask());
+
+        converter
+            .Setup(c => c.Convert(bodyString))
+            .Returns((IJobDataModel?) null);
+
+        // Declare objects
+
+        var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
+            converter.Object, sorter.Object, new NullLogger<RabbitMqJobSource>());
+
+        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Empty(jobResponse.Items);
+
+        Assert.Single(rabbitConnectionFactory.Invocations);
+        Assert.Single(mockConnection.Invocations);
+        Assert.Equal(3, mockChannel.Invocations.Count);
+
+        Assert.Single(converter.Invocations);
+        Assert.Single(sorter.Invocations);
+    }
+
     [Fact]
     public async Task Test_HeartbeatAsync()
     {
@@ -502,5 +574,5 @@ public class RabbitMqJobSourceTests
         Assert.True(true); // Satisfy Sonar requirements
     }
 
-    private sealed class LandmineException : Exception;
+    public sealed class LandmineException : Exception;
 }
