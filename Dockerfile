@@ -16,8 +16,8 @@ RUN dotnet build
 ARG TESTS_ENABLE=1
 RUN \[ ${TESTS_ENABLE} -ne 1 \] \
   || \
-      \[ -d "test" \] \
-      && dotnet test
+      ([ -d "test" \] \
+      && dotnet test )
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release

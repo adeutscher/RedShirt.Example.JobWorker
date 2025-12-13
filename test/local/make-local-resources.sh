@@ -1,7 +1,11 @@
 #!/bin/bash
 
+export AWS_REGION=us-east-1
+
+# SQS
 awslocal sqs create-queue --queue-name input
 
+# Kinesis
 awslocal kinesis create-stream --stream-name input
 awslocal sqs create-queue --queue-name kinesis-failures
 
@@ -11,3 +15,8 @@ awslocal dynamodb create-table --table-name checkpoint \
         --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
 awslocal dynamodb update-time-to-live --table-name checkpoint \
                 --time-to-live-specification Enabled=true,AttributeName=ExpirationTime
+
+# RabbitMQ
+
+awslocal ssm put-parameter --type String --name /rabbitmq/user --value foo
+awslocal ssm put-parameter --type String --name /rabbitmq/password --value bar

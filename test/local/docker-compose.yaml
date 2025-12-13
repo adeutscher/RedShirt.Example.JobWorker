@@ -9,6 +9,21 @@ services:
     ports:
       - '6379:6379'
 
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"   # AMQP protocol port
+      - "15672:15672" # Management UI port
+    environment:
+      RABBITMQ_DEFAULT_USER: foo
+      RABBITMQ_DEFAULT_PASS: bar
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   worker:
     build:
       context: ../..
@@ -41,3 +56,10 @@ services:
       JOB_SOURCE__KINESIS__FAILURES__QUEUE_URL: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/kinesis-failures
       JOB_SOURCE__KINESIS__REDIS__ENDPOINT_ADDRESS: redis
       JOB_SOURCE__KINESIS__REDIS__ENDPOINT_PORT: 6379
+      ## Job Management (RabbitMQ)
+      USE_RABBITMQ: "${USE_RABBITMQ-0}"
+      JOB_SOURCE__RABBITMQ__HOSTNAME: rabbitmq
+      JOB_SOURCE__RABBITMQ__VHost: /
+      JOB_SOURCE__RABBITMQ__USER_PATH: /rabbitmq/user
+      JOB_SOURCE__RABBITMQ__PASSWORD_PATH: /rabbitmq/password
+      JOB_SOURCE__RABBITMQ__QUEUE_NAME: RabbitQueue
