@@ -44,7 +44,7 @@ services:
       JOBS__WORKER_THREAD_COUNT: 2
       ## Job Management (SQS)
       JOB_SOURCE__SQS__QUEUE_URL: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/input
-      JOB_SOURCE__SQS__MESSAGE_BATCH_SIZE: 10
+      JOB_SOURCE__SQS__BATCH_SIZE: 10
       JOB_SOURCE__SQS__VISIBILITY_TIMEOUT_SECONDS: 300
       ## Job Management (Kinesis)
       USE_KINESIS: "${USE_KINESIS-0}"

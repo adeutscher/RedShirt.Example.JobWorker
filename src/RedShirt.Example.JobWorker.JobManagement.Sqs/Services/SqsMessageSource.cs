@@ -27,7 +27,7 @@ internal class SqsMessageSource(IAmazonSQS sqs, IOptions<SqsConfigurationModel> 
     public async Task<List<Message>> GetMessagesAsync(CancellationToken cancellationToken = default)
     {
         var messages = new List<Message>();
-        var batchSize = options.Value.EffectiveMessageBatchSize;
+        var batchSize = options.Value.EffectiveBatchSize;
 
         while (batchSize > 10)
         {

@@ -56,7 +56,7 @@ public class SqsMessageSourceTests
         var options = new SqsConfigurationModel
         {
             QueueUrl = queueUrl,
-            MessageBatchSize = batchSize,
+            BatchSize = batchSize,
             VisibilityTimeoutSeconds = visibilityTimeout
         };
 
@@ -102,7 +102,7 @@ public class SqsMessageSourceTests
         var options = new SqsConfigurationModel
         {
             QueueUrl = queueUrl,
-            MessageBatchSize = batchSize,
+            BatchSize = batchSize,
             VisibilityTimeoutSeconds = visibilityTimeout
         };
 
