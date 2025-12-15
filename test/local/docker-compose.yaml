@@ -9,6 +9,17 @@ services:
     ports:
       - '6379:6379'
 
+  activemq:
+    image: apache/activemq-artemis:latest
+    container_name: activemq
+    ports:
+    # https://artemis.apache.org/components/artemis/documentation/latest/docker.html
+      - '61616:61616'
+      - '8161:8161'
+    environment:
+      ARTEMIS_USER: admin
+      ARTEMIS_PASSWORD: admin
+
   rabbitmq:
     image: rabbitmq:4-management
     container_name: rabbitmq
@@ -64,3 +75,10 @@ services:
       JOB_SOURCE__RABBITMQ__PASSWORD_PATH: /rabbitmq/password
       JOB_SOURCE__RABBITMQ__QUEUE_NAME: RabbitQueue
       JOB_SOURCE__RABBITMQ__BATCH_SIZE: 10
+      ## Job Management (RabbitMQ)
+      USE_ACTIVEMQ: "${USE_ACTIVEMQ-0}"
+      JOB_SOURCE__ACTIVEMQ__BROKER_URI: tcp://activemq:61616
+      JOB_SOURCE__ACTIVEMQ__USER_PATH: /activemq/user
+      JOB_SOURCE__ACTIVEMQ__PASSWORD_PATH: /activemq/password
+      JOB_SOURCE__ACTIVEMQ__QUEUE_NAME: /queue/ActiveQueue
+      JOB_SOURCE__ACTIVEMQ__BATCH_SIZE: 10

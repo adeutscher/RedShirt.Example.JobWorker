@@ -3,6 +3,21 @@ namespace RedShirt.Example.JobWorker.IntegrationTests.Tests;
 public class DependencyInjectionTests
 {
     [Fact]
+    public void Test_Get_Runner_Active()
+    {
+        TestUtilities.WrapEnvironment(new Dictionary<string, string>
+        {
+            ["AWS_SERVICE_URL"] = "http://foo.bar",
+            ["AWS_ACCESS_KEY_ID"] = "foo",
+            ["AWS_SECRET_ACCESS_KEY"] = "bar",
+            ["AWS_SESSION_TOKEN"] = "foobar",
+            ["UseActiveMq"] = "1",
+            ["UseRabbitMq"] = "0",
+            ["UseKinesis"] = "0"
+        }, () => { Assert.NotNull(Setup.GetRunner()); });
+    }
+
+    [Fact]
     public void Test_Get_Runner_Kinesis()
     {
         TestUtilities.WrapEnvironment(new Dictionary<string, string>
@@ -11,6 +26,7 @@ public class DependencyInjectionTests
             ["AWS_ACCESS_KEY_ID"] = "foo",
             ["AWS_SECRET_ACCESS_KEY"] = "bar",
             ["AWS_SESSION_TOKEN"] = "foobar",
+            ["UseActiveMq"] = "0",
             ["UseKinesis"] = "1"
         }, () => { Assert.NotNull(Setup.GetRunner()); });
     }
@@ -24,6 +40,8 @@ public class DependencyInjectionTests
             ["AWS_ACCESS_KEY_ID"] = "foo",
             ["AWS_SECRET_ACCESS_KEY"] = "bar",
             ["AWS_SESSION_TOKEN"] = "foobar",
+            ["UseActiveMq"] = "0",
+            ["UseKinesis"] = "0",
             ["UseRabbitMq"] = "1"
         }, () => { Assert.NotNull(Setup.GetRunner()); });
     }
@@ -36,7 +54,10 @@ public class DependencyInjectionTests
             ["AWS_SERVICE_URL"] = "http://foo.bar",
             ["AWS_ACCESS_KEY_ID"] = "foo",
             ["AWS_SECRET_ACCESS_KEY"] = "bar",
-            ["AWS_SESSION_TOKEN"] = "foobar"
+            ["AWS_SESSION_TOKEN"] = "foobar",
+            ["UseActiveMq"] = "0",
+            ["UseKinesis"] = "0",
+            ["UseRabbitMq"] = "0"
         }, () => { Assert.NotNull(Setup.GetRunner()); });
     }
 }

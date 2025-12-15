@@ -18,5 +18,10 @@ awslocal dynamodb update-time-to-live --table-name checkpoint \
 
 # RabbitMQ
 
-awslocal ssm put-parameter --type String --name /rabbitmq/user --value foo
-awslocal ssm put-parameter --type String --name /rabbitmq/password --value bar
+awslocal ssm put-parameter --overwrite --type String --name /rabbitmq/user --value foo
+awslocal ssm put-parameter --overwrite --type String --name /rabbitmq/password --value bar
+
+# ActiveMQ Artemis
+
+awslocal ssm put-parameter --overwrite --type String --name /activemq/user --value admin
+awslocal ssm put-parameter --overwrite --type String --name /activemq/password --value admin

@@ -18,6 +18,8 @@
     <ItemGroup>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Core.Logic\RedShirt.Example.JobWorker.Core.Logic.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Core\RedShirt.Example.JobWorker.Core.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.ActiveMq.ConfigurationStorage.Ssm\RedShirt.Example.JobWorker.JobManagement.ActiveMq.ConfigurationStorage.Ssm.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.ActiveMq\RedShirt.Example.JobWorker.JobManagement.ActiveMq.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Kinesis\RedShirt.Example.JobWorker.JobManagement.Kinesis.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.RabbitMq.ConfigurationStorage.Ssm\RedShirt.Example.JobWorker.JobManagement.RabbitMq.ConfigurationStorage.Ssm.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.RabbitMq\RedShirt.Example.JobWorker.JobManagement.RabbitMq.csproj"/>

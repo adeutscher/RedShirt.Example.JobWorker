@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Logic.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.ActiveMq.ConfigurationStorage.Ssm.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.ConfigurationStorage.Ssm.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Extensions;
@@ -21,15 +23,22 @@ public static class ServiceCollectionExtensions
          *      and prune away the other ones.
          */
         var useKinesisRaw = configuration.GetValue("UseKinesis", "0");
+        var useActiveMqRaw = configuration.GetValue("UseActiveMq", "0");
         var useRabbitMqRaw = configuration.GetValue("UseRabbitMq", "0");
 
-        if (int.TryParse(useRabbitMqRaw, out var useRabbitMq) && useRabbitMq >= 1)
+        if (int.TryParse(useRabbitMqRaw, out var useRabbitMq) && useRabbitMq == 1)
         {
             services = services
                 .AddRabbitMqJobManagement(configuration)
                 .AddRabbitMqConfigurationSsmStorage(configuration);
         }
-        else if (int.TryParse(useKinesisRaw, out var useKinesis) && useKinesis >= 1)
+        else if (int.TryParse(useActiveMqRaw, out var useActiveMq) && useActiveMq == 1)
+        {
+            services = services
+                .AddActiveMqJobManagement(configuration)
+                .AddActiveMqConfigurationSsmStorage(configuration);
+        }
+        else if (int.TryParse(useKinesisRaw, out var useKinesis) && useKinesis == 1)
         {
             services = services
                 .AddKinesisJobManagement(configuration);
