@@ -148,8 +148,6 @@ public class ActiveMqJobSourceTests
 
         var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
 
-        var queue = new Mock<IQueue>(MockBehavior.Strict);
-
         var mockSession = new Mock<ISession>(MockBehavior.Strict);
         mockSession.Setup(s => s.GetQueueAsync(queueName))
             .ReturnsAsync((IQueue?) null);

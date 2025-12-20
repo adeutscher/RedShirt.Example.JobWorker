@@ -16,8 +16,6 @@ public class NatsCredentialSourceViaSsmTests
 
         var valueName = Guid.NewGuid().ToString();
         var valuePassword = Guid.NewGuid().ToString();
-        var valueHostname = Guid.NewGuid().ToString();
-        var valueVirtualHost = Guid.NewGuid().ToString();
 
         // Setup
         var ssm = new Mock<IAmazonSimpleSystemsManagement>(MockBehavior.Strict);

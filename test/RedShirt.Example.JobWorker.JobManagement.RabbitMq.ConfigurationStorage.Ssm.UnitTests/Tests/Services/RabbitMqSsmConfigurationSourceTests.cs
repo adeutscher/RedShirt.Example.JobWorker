@@ -22,7 +22,7 @@ public class RabbitMqSsmConfigurationSourceTests
         // Setup
         var ssm = new Mock<IAmazonSimpleSystemsManagement>(MockBehavior.Strict);
 
-        var x = ssm.Setup(s =>
+        ssm.Setup(s =>
                 s.GetParameterAsync(It.Is<GetParameterRequest>(r => r.Name == paramName && r.WithDecryption == true),
                     TestContext.Current.CancellationToken))
             .ReturnsAsync(new GetParameterResponse
