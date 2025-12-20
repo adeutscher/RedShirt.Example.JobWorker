@@ -274,8 +274,6 @@ public class NatsJobSourceTests
         var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>>();
         mockData.Add(mockMessage.Object);
 
-        var jobDataModel = new Mock<IJobDataModel>();
-
         mockBodyRetriever.Setup(br => br.GetMessageBody(mockMessage.Object))
             .Returns("{___}");
 
@@ -317,6 +315,108 @@ public class NatsJobSourceTests
         Assert.Single(sorter.Invocations);
 
         mockMessage.Verify(m => m.AckAsync(It.IsAny<AckOpts?>(), TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    /// <summary>
+    ///     Test of getting multiple jobs
+    /// </summary>
+    [Theory]
+    [InlineData(0, 1)] // Confirm EffectiveBatchSize
+    [InlineData(2, 2)]
+    [InlineData(10, 10)]
+    public async Task Test_GetJobs_GotMultiple(int batchSize, int expectedBatchSize)
+    {
+        var queueName = Guid.NewGuid().ToString();
+
+        var configuration = new NatsJobSource.ConfigurationModel
+        {
+            StreamName = queueName,
+            BatchSize = batchSize
+        };
+
+        var mockBodyRetriever = new Mock<IBodyRetriever>(MockBehavior.Strict);
+
+        var mockGetter = new Mock<IFetchNoWaitGetter>();
+
+        var mockConsumer = new Mock<INatsJSConsumer>(MockBehavior.Strict);
+
+        var mockContext = new Mock<INatsJSContext>(MockBehavior.Strict);
+        mockContext
+            .Setup(c => c.CreateOrUpdateConsumerAsync(It.IsAny<string>(), It.IsAny<ConsumerConfig>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockConsumer.Object);
+
+        var mockContextFactory = new Mock<INatsJetStreamContextFactory>(MockBehavior.Strict);
+        mockContextFactory
+            .Setup(f => f.CreateNatsJSContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockContext.Object);
+
+        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
+
+        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
+        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
+            .Returns<List<IJobModel>>(input => input);
+
+        // Setup Job Returns
+
+        var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>>();
+        var messageIds = new List<string>();
+
+        for (var i = 0; i < expectedBatchSize; i++)
+        {
+            var messageId = Guid.NewGuid().ToString();
+            messageIds.Add(messageId);
+            var mockMessage = new Mock<INatsJSMsg<NatsMemoryOwner<byte>>>();
+            mockMessage.Setup(m => m.Subject).Returns(messageId);
+            mockData.Add(mockMessage.Object);
+
+            var jobDataModel = new Mock<IJobDataModel>();
+
+            mockBodyRetriever.Setup(br => br.GetMessageBody(mockMessage.Object))
+                .Returns("{___}");
+
+            converter.Setup(c => c.Convert("{___}"))
+                .Returns(jobDataModel.Object);
+        }
+
+        mockGetter
+            .Setup(c => c.FetchNoWaitAsync(mockConsumer.Object, It.IsAny<NatsJSFetchOpts>(),
+                TestContext.Current.CancellationToken))
+            .Returns(() => mockData.ToAsyncEnumerable());
+
+        // Declare objects
+
+        var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object, mockBodyRetriever.Object,
+            converter.Object, sorter.Object, new NullLogger<NatsJobSource>(), Options.Create(configuration));
+
+        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(expectedBatchSize, jobResponse.Items.Count);
+
+        for (var i = 0; i < expectedBatchSize; i++)
+        {
+            Assert.Single(jobResponse.Items, item => item.MessageId == messageIds[i]);
+        }
+
+        Assert.Single(mockContextFactory.Invocations);
+        Assert.Single(mockContext.Invocations);
+        mockContext.Verify(
+            c => c.CreateOrUpdateConsumerAsync(It.IsAny<string>(), It.IsAny<ConsumerConfig>(),
+                It.IsAny<CancellationToken>()), Times.Once);
+
+        Assert.Empty(mockConsumer.Invocations);
+        Assert.Single(mockGetter.Invocations);
+        mockGetter
+            .Verify(
+                g => g.FetchNoWaitAsync(mockConsumer.Object,
+                    It.Is<NatsJSFetchOpts>(o => o.MaxMsgs == expectedBatchSize),
+                    It.IsAny<CancellationToken>()), Times.Once);
+
+        Assert.Equal(expectedBatchSize, mockBodyRetriever.Invocations.Count);
+        Assert.Equal(expectedBatchSize, converter.Invocations.Count);
+        Assert.Single(sorter.Invocations);
     }
 
     [Fact]
