@@ -6,6 +6,14 @@ using System.Diagnostics;
 
 namespace RedShirt.Example.JobWorker.Core.Services;
 
+/// <summary>
+///     Handles multithreading and heartbeating of jobs.
+/// </summary>
+/// <param name="executionEndArbiter"></param>
+/// <param name="safeJobRunner"></param>
+/// <param name="jobSource"></param>
+/// <param name="logger"></param>
+/// <param name="options"></param>
 internal class JobManager(
     IExecutionEndArbiter executionEndArbiter,
     ISafeJobRunner safeJobRunner,
@@ -32,15 +40,6 @@ internal class JobManager(
 
     private uint _totalBatches;
     private ulong _totalJobs;
-
-    /// <summary>
-    ///     Shorthand method to get thread count.
-    /// </summary>
-    /// <returns></returns>
-    private int GetWorkerCount()
-    {
-        return Math.Max(1, options.Value.WorkerThreadCount);
-    }
 
     private async Task RunWorkerAsync(CancellationToken cancellationToken = default)
     {
@@ -239,7 +238,7 @@ internal class JobManager(
         while (true)
         {
             _workerCompleteEvent.WaitOne(TimeSpan.FromSeconds(1));
-            if (_completedWorkersCount == GetWorkerCount())
+            if (_completedWorkersCount == options.Value.EffectiveWorkerThreadCount)
             {
                 break;
             }
@@ -261,7 +260,7 @@ internal class JobManager(
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        for (var i = 0; i < GetWorkerCount(); i++)
+        for (var i = 0; i < options.Value.EffectiveWorkerThreadCount; i++)
         {
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
             Task.Run(() => RunWorkerAsync(cancellationToken), cancellationToken);
@@ -269,7 +268,7 @@ internal class JobManager(
         }
 
         // Make sure we aren't being asked to manage jobs before the worker threads are ready 
-        while (_workerWaitHandles.Count != GetWorkerCount())
+        while (_workerWaitHandles.Count != options.Value.EffectiveWorkerThreadCount)
         {
             await Task.Delay(1, cancellationToken);
         }
@@ -285,6 +284,7 @@ internal class JobManager(
 
     public sealed class ConfigurationModel
     {
+        public int EffectiveWorkerThreadCount => Math.Max(1, WorkerThreadCount);
         public required int WorkerThreadCount { get; init; }
     }
 }

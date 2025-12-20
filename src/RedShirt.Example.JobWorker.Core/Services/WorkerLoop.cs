@@ -10,6 +10,15 @@ internal interface IWorkerLoop
     Task RunAsync(CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+///     Fetches jobs and passes them along to the Job Manager.
+///     If no jobs are retrieved, then back off before trying again
+/// </summary>
+/// <param name="executionEndArbiter"></param>
+/// <param name="jobManager"></param>
+/// <param name="jobSource"></param>
+/// <param name="logger"></param>
+/// <param name="options"></param>
 internal class WorkerLoop(
     IExecutionEndArbiter executionEndArbiter,
     IJobManager jobManager,
@@ -25,7 +34,8 @@ internal class WorkerLoop(
             {
                 await Policy.Handle<NoJobException>(_ => executionEndArbiter.ShouldKeepRunning())
                     .WaitAndRetryForeverAsync(retryAttempt =>
-                            TimeSpan.FromSeconds(Math.Min(Math.Max(1, options.Value.MaxIdleWaitSeconds),
+                            // Exponential back-off, to the cap of a configurable amount
+                            TimeSpan.FromSeconds(Math.Min(options.Value.EffectiveMaxIdleWaitSeconds,
                                 Math.Pow(2, retryAttempt))),
                         (_, span) =>
                         {
@@ -52,6 +62,7 @@ internal class WorkerLoop(
 
     public sealed class ConfigurationModel
     {
+        public int EffectiveMaxIdleWaitSeconds => Math.Max(1, MaxIdleWaitSeconds);
         public required int MaxIdleWaitSeconds { get; init; }
     }
 }

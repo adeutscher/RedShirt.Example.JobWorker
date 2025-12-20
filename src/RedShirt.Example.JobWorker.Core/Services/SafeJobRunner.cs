@@ -35,7 +35,7 @@ internal class SafeJobRunner(
                     {
                         if (e is JobRetryException {DelayTimeMilliseconds: > 0} retryException)
                         {
-                            // User has requested that the job handler wait for a certiain amount of time before retrying.
+                            // User has requested that the job handler wait for a certain amount of time before retrying.
                             await Task.Delay(TimeSpan.FromMilliseconds(retryException.DelayTimeMilliseconds),
                                 cancellationToken);
                         }
@@ -54,7 +54,7 @@ internal class SafeJobRunner(
             }
             catch (Exception e2)
             {
-                logger.LogError(e2, "Job failure handling failed");
+                logger.LogError(e2, "Job failure handling failed: {EMessage}", e2.Message);
             }
 
             return false;

@@ -2,6 +2,10 @@ using Microsoft.Extensions.Logging;
 
 namespace RedShirt.Example.JobWorker.Core.Services;
 
+/// <summary>
+///     Dictates if the app should continue running.
+///     Written as a test-friendly alternative to `while(true){}`
+/// </summary>
 public interface IExecutionEndArbiter : IDisposable
 {
     bool ShouldKeepRunning();

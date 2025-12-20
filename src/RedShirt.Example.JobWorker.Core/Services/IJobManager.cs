@@ -2,6 +2,9 @@ using RedShirt.Example.JobWorker.Core.Models;
 
 namespace RedShirt.Example.JobWorker.Core.Services;
 
+/// <summary>
+///     The Job Manager is responsible for acting on a series of jobs returned from a source.
+/// </summary>
 internal interface IJobManager
 {
     Task RunAsync(JobSourceResponse response, CancellationToken cancellationToken = default);
