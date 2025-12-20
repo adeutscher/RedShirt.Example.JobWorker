@@ -56,6 +56,14 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.JobManagement.ActiveMq.ConfigurationStorage.Ssm.UnitTests", "test\RedShirt.Example.JobWorker.JobManagement.ActiveMq.ConfigurationStorage.Ssm.UnitTests\RedShirt.Example.JobWorker.JobManagement.ActiveMq.ConfigurationStorage.Ssm.UnitTests.csproj", "{A12B8E63-FA0F-4231-A136-7D5C1B00FE5E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.JobManagement.Nats", "src\RedShirt.Example.JobWorker.JobManagement.Nats\RedShirt.Example.JobWorker.JobManagement.Nats.csproj", "{22876E5C-32C1-48E1-8671-5095752E930A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.JobManagement.Nats.CredentialStorage.Ssm", "src\RedShirt.Example.JobWorker.JobManagement.Nats.CredentialStorage.Ssm\RedShirt.Example.JobWorker.JobManagement.Nats.CredentialStorage.Ssm.csproj", "{122A6489-D4D1-46F1-BD87-D28A59F91FDD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests", "test\RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests\RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.csproj", "{5F4983D7-6134-4605-80D1-227594B04509}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.JobManagement.Nats.CredentialStorage.Ssm.UnitTests", "test\RedShirt.Example.JobWorker.JobManagement.Nats.CredentialStorage.Ssm.UnitTests\RedShirt.Example.JobWorker.JobManagement.Nats.CredentialStorage.Ssm.UnitTests.csproj", "{4B50CD77-E7B6-4418-854A-4567D9926AFE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -85,6 +93,10 @@ Global
 		{7535444A-3BDD-4708-97E2-179958E34777} = {0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}
 		{75839C4A-3B71-47CB-B8B0-F998FC6EEFE8} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
 		{A12B8E63-FA0F-4231-A136-7D5C1B00FE5E} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
+		{22876E5C-32C1-48E1-8671-5095752E930A} = {0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}
+		{122A6489-D4D1-46F1-BD87-D28A59F91FDD} = {0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}
+		{5F4983D7-6134-4605-80D1-227594B04509} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
+		{4B50CD77-E7B6-4418-854A-4567D9926AFE} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{81C22C57-1441-4DC0-9953-47434B802572}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -179,5 +191,21 @@ Global
 		{A12B8E63-FA0F-4231-A136-7D5C1B00FE5E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A12B8E63-FA0F-4231-A136-7D5C1B00FE5E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A12B8E63-FA0F-4231-A136-7D5C1B00FE5E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{22876E5C-32C1-48E1-8671-5095752E930A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{22876E5C-32C1-48E1-8671-5095752E930A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{22876E5C-32C1-48E1-8671-5095752E930A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{22876E5C-32C1-48E1-8671-5095752E930A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{122A6489-D4D1-46F1-BD87-D28A59F91FDD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{122A6489-D4D1-46F1-BD87-D28A59F91FDD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{122A6489-D4D1-46F1-BD87-D28A59F91FDD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{122A6489-D4D1-46F1-BD87-D28A59F91FDD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5F4983D7-6134-4605-80D1-227594B04509}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5F4983D7-6134-4605-80D1-227594B04509}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5F4983D7-6134-4605-80D1-227594B04509}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5F4983D7-6134-4605-80D1-227594B04509}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4B50CD77-E7B6-4418-854A-4567D9926AFE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4B50CD77-E7B6-4418-854A-4567D9926AFE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4B50CD77-E7B6-4418-854A-4567D9926AFE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4B50CD77-E7B6-4418-854A-4567D9926AFE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

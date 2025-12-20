@@ -21,6 +21,8 @@
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.ActiveMq.ConfigurationStorage.Ssm\RedShirt.Example.JobWorker.JobManagement.ActiveMq.ConfigurationStorage.Ssm.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.ActiveMq\RedShirt.Example.JobWorker.JobManagement.ActiveMq.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Kinesis\RedShirt.Example.JobWorker.JobManagement.Kinesis.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Nats.CredentialStorage.Ssm\RedShirt.Example.JobWorker.JobManagement.Nats.CredentialStorage.Ssm.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Nats\RedShirt.Example.JobWorker.JobManagement.Nats.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.RabbitMq.ConfigurationStorage.Ssm\RedShirt.Example.JobWorker.JobManagement.RabbitMq.ConfigurationStorage.Ssm.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.RabbitMq\RedShirt.Example.JobWorker.JobManagement.RabbitMq.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Sqs\RedShirt.Example.JobWorker.JobManagement.Sqs.csproj"/>

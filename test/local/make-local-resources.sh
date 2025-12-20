@@ -25,3 +25,8 @@ awslocal ssm put-parameter --overwrite --type String --name /rabbitmq/password -
 
 awslocal ssm put-parameter --overwrite --type String --name /activemq/user --value admin
 awslocal ssm put-parameter --overwrite --type String --name /activemq/password --value admin
+
+# NATS
+
+awslocal ssm put-parameter --overwrite --type String --name /nats/user --value admin
+awslocal ssm put-parameter --overwrite --type String --name /nats/password --value admin

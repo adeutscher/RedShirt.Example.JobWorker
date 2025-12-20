@@ -4,6 +4,8 @@ using RedShirt.Example.JobWorker.Core.Logic.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.ConfigurationStorage.Ssm.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.Nats.CredentialStorage.Ssm.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.Nats.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.ConfigurationStorage.Ssm.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Extensions;
@@ -24,9 +26,16 @@ public static class ServiceCollectionExtensions
          */
         var useKinesisRaw = configuration.GetValue("UseKinesis", "0");
         var useActiveMqRaw = configuration.GetValue("UseActiveMq", "0");
+        var useNatsRaw = configuration.GetValue("UseNats", "0");
         var useRabbitMqRaw = configuration.GetValue("UseRabbitMq", "0");
 
-        if (int.TryParse(useRabbitMqRaw, out var useRabbitMq) && useRabbitMq == 1)
+        if (int.TryParse(useNatsRaw, out var useNats) && useNats == 1)
+        {
+            services = services
+                .AddNatsJobManagement(configuration)
+                .AddNatsCredentialsSsmStorage(configuration);
+        }
+        else if (int.TryParse(useRabbitMqRaw, out var useRabbitMq) && useRabbitMq == 1)
         {
             services = services
                 .AddRabbitMqJobManagement(configuration)

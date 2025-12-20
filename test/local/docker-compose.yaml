@@ -20,6 +20,16 @@ services:
       ARTEMIS_USER: admin
       ARTEMIS_PASSWORD: admin
 
+  nats:
+    image: nats
+    container_name: nats
+    ports:
+      # Client port (4222), HTTP management port (8222), Clustering port (6222)
+      - "4222:4222"
+      - "8222:8222"
+    # Enable JetStream and set admin credentials
+    command: ["-js", "--user", "admin", "--pass", "admin", "--http_port", "8222"]
+
   rabbitmq:
     image: rabbitmq:4-management
     container_name: rabbitmq
@@ -82,3 +92,10 @@ services:
       JOB_SOURCE__ACTIVEMQ__PASSWORD_PATH: /activemq/password
       JOB_SOURCE__ACTIVEMQ__QUEUE_NAME: /queue/ActiveQueue
       JOB_SOURCE__ACTIVEMQ__BATCH_SIZE: 10
+      ## JobManagement (NATS)
+      USE_NATS: "${USE_NATS-0}"
+      JOB_SOURCE__NATS__URL: nats://nats:4222
+      JOB_SOURCE__NATS__USER_PATH: /nats/user
+      JOB_SOURCE__NATS__PASSWORD_PATH: /nats/password
+      JOB_SOURCE__NATS__STREAM_NAME: TestStream
+      JOB_SOURCE__NATS__BATCH_SIZE: 10
