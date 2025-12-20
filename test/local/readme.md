@@ -35,10 +35,10 @@ export USE_RABBITMQ=0
 
 To initialize Kinesis and queue sample messages:
 
-1. Bring up localstack:
+1. Bring up localstack and Redis:
 
     ```
-    docker compose up -d localstack
+    docker compose up -d localstack redis
     ```
 
 2. Run the `make-local-resources.sh` script:
