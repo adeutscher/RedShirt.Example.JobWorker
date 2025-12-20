@@ -5,10 +5,11 @@ Repo features:
 * Initialisation script for quick namespace adjustment.
 * Configuration is based on environment variables.
 * Message polling with:
-    * Amazon SQS
-    * Amazon Kinesis
-    * Apache ActiveMQ Artemis
-    * RabbitMQ
+    * [Amazon SQS](https://aws.amazon.com/sqs/)
+    * [Amazon Kinesis](https://aws.amazon.com/kinesis/data-streams/)
+    * [Apache ActiveMQ Artemis](https://artemis.apache.org/components/artemis/)
+    * [NATS](https://nats.io/)
+    * [RabbitMQ](https://www.rabbitmq.com/)
 
 # Initialisation
 
