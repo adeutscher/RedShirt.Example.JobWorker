@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services;
@@ -26,8 +25,7 @@ public class InnerActiveMqConnectionFactoryTests
                 Password = valuePassword
             });
 
-        var innerFactory =
-            new InnerActiveMqConnectionFactory(configSource.Object, new NullLogger<InnerActiveMqConnectionFactory>());
+        var innerFactory = new InnerActiveMqConnectionFactory(configSource.Object);
 
         var rawWrapper = await innerFactory.GetConnectionFactoryWrapperAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(rawWrapper);

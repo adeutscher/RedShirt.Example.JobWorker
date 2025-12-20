@@ -1,5 +1,4 @@
 using Apache.NMS.ActiveMQ;
-using Microsoft.Extensions.Logging;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Wrappers;
 
@@ -12,8 +11,7 @@ internal interface IInnerActiveMqConnectionFactory
 }
 
 internal class InnerActiveMqConnectionFactory(
-    IActiveMqServerConfigurationSource configurationSource,
-    ILogger<InnerActiveMqConnectionFactory> logger)
+    IActiveMqServerConfigurationSource configurationSource)
     : IInnerActiveMqConnectionFactory
 {
     public async Task<IActiveConnectionWrapper> GetConnectionFactoryWrapperAsync(
