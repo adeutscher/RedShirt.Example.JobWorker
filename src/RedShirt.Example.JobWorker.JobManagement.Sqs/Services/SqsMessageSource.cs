@@ -12,6 +12,8 @@ internal interface ISqsMessageSource
 
 internal class SqsMessageSource(IAmazonSQS sqs, IOptions<SqsConfigurationModel> options) : ISqsMessageSource
 {
+    private const int MaxMessagesPerRequest = 10;
+
     private async Task<List<Message>> GetAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         var response = await sqs.ReceiveMessageAsync(new ReceiveMessageRequest
@@ -29,22 +31,22 @@ internal class SqsMessageSource(IAmazonSQS sqs, IOptions<SqsConfigurationModel> 
         var messages = new List<Message>();
         var batchSize = options.Value.EffectiveBatchSize;
 
-        while (batchSize > 10)
+        while (batchSize > MaxMessagesPerRequest)
         {
-            var loopResult = await GetAsync(10, cancellationToken);
+            var loopResult = await GetAsync(MaxMessagesPerRequest, cancellationToken);
 
             messages.AddRange(loopResult);
 
-            if (loopResult.Count < 10)
+            if (loopResult.Count < MaxMessagesPerRequest)
             {
                 // Received less than our batch size
                 break;
             }
 
-            batchSize -= 10;
+            batchSize -= MaxMessagesPerRequest;
         }
 
-        if (batchSize is > 0 and <= 10)
+        if (batchSize is > 0 and <= MaxMessagesPerRequest)
         {
             messages.AddRange(await GetAsync(batchSize, cancellationToken));
         }
