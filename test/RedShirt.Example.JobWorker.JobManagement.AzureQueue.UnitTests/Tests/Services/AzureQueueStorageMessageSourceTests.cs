@@ -61,7 +61,7 @@ public class AzureQueueStorageMessageSourceTests
                 return response;
             });
 
-        var visibilityTimeout = new Random().Next(100, 200);
+        var visibilityTimeout = new Random().Next(20, 59);
         var options = new AzureQueueStorageConfigurationModel
         {
             BatchSize = batchSize,
@@ -86,7 +86,7 @@ public class AzureQueueStorageMessageSourceTests
 
         client.Verify(
             a => a.GetMessagesAsync(
-                It.IsAny<int>(), It.Is<TimeSpan>(ts => ts.TotalSeconds == options.EffectiveVisibilityTimeoutSeconds),
+                It.IsAny<int>(), It.Is<TimeSpan>(ts => ts.Seconds == options.EffectiveVisibilityTimeoutSeconds),
                 TestContext.Current.CancellationToken),
             Times.Exactly(expectedNumberOfInvocations));
     }

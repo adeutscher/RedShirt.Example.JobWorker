@@ -22,7 +22,7 @@ internal class AzureQueueStorageJobSource(
     {
         if (message is not AzureJobModel messageAsAzureJobModel)
         {
-            // TODO: Throw some kind of exception?
+            // For consideration: Throw some kind of exception?
             return;
         }
 
@@ -79,7 +79,7 @@ internal class AzureQueueStorageJobSource(
     {
         if (message is not AzureJobModel messageAsAzureJobModel)
         {
-            // TODO: Throw some kind of exception?
+            // For consideration: Throw some kind of exception?
             return;
         }
 
