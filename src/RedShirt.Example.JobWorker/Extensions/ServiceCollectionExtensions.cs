@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Logic.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.ConfigurationStorage.Ssm.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.Common.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.CredentialStorage.Ssm.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Extensions;
@@ -17,6 +19,8 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection ConfigureWorker(this IServiceCollection services, IConfigurationRoot configuration)
     {
         services = services
+            .AddCoreJobManagement(configuration)
+            .AddCommonJobManagement()
             .AddCoreLogic(configuration);
 
         /*

@@ -6,7 +6,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Common.Aws.Extensions;
 using RedShirt.Example.JobWorker.Core.Services;
-using RedShirt.Example.JobWorker.JobManagement.Common.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 
@@ -18,7 +17,6 @@ public static class ServiceCollectionExtensions
         IConfigurationRoot configuration)
     {
         return services
-            .AddCommonJobManagement(configuration)
             .Configure<KinesisConfiguration>(configuration.GetSection("JobSource:Kinesis"))
             .AddSingleton<IAbstractedLocker, RedisLocker>()
             .Configure<RedisConfiguration>(configuration.GetSection("JobSource:Kinesis:Redis"))

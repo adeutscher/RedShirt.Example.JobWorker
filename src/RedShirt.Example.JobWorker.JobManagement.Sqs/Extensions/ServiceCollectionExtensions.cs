@@ -3,7 +3,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Common.Aws.Extensions;
 using RedShirt.Example.JobWorker.Core.Services;
-using RedShirt.Example.JobWorker.JobManagement.Common.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
 
@@ -15,7 +14,6 @@ public static class ServiceCollectionExtensions
         IConfigurationRoot configuration)
     {
         return services
-            .AddCommonJobManagement(configuration)
             .AddAwsServiceWithLocalSupport<IAmazonSQS>()
             .AddSingleton<IJobSource, SqsJobSource>()
             .AddSingleton<ISqsMessageSource, SqsMessageSource>()

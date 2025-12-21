@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services;
-using RedShirt.Example.JobWorker.JobManagement.Common.Extensions;
 
 namespace RedShirt.Example.JobWorker.JobManagement.ActiveMq.Extensions;
 
@@ -13,7 +12,6 @@ public static class ServiceCollectionExtensions
         IConfigurationRoot configuration)
     {
         return services
-            .AddCommonJobManagement(configuration)
             // Required
             .AddSingleton<IJobSource, ActiveMqJobSource>()
             .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>()

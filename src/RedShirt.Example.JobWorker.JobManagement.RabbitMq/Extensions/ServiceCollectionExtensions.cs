@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Services;
-using RedShirt.Example.JobWorker.JobManagement.Common.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 
@@ -13,7 +12,6 @@ public static class ServiceCollectionExtensions
         IConfigurationRoot configuration)
     {
         return services
-            .AddCommonJobManagement(configuration)
             // Required
             .AddSingleton<IJobSource, RabbitMqJobSource>()
             .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>()

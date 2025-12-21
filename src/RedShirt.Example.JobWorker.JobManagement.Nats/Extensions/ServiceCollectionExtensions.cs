@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Services;
-using RedShirt.Example.JobWorker.JobManagement.Common.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Utility;
@@ -14,7 +13,6 @@ public static class ServiceCollectionExtensions
         IConfigurationRoot configuration)
     {
         return services
-                .AddCommonJobManagement(configuration)
                 // Required
                 .AddSingleton<IJobSource, NatsJobSource>()
                 .Configure<NatsJobSource.ConfigurationModel>(configuration.GetSection("JobSource:NATS"))
