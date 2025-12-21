@@ -4,12 +4,12 @@ using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services;
 
-public interface IActiveMqMessageBodyRetriever
+internal interface IActiveMqMessageBodyRetriever
 {
     string? GetMessageBody(IMessage message);
 }
 
-public class ActiveMqMessageBodyRetriever : IActiveMqMessageBodyRetriever
+internal class ActiveMqMessageBodyRetriever : IActiveMqMessageBodyRetriever
 {
     public string? GetMessageBody(IMessage message)
     {

@@ -91,7 +91,7 @@ public class NatsJobSourceTests
 
         var mockContextFactory = new Mock<INatsJetStreamContextFactory>(MockBehavior.Strict);
         mockContextFactory
-            .Setup(f => f.CreateNatsJSContextAsync(It.IsAny<CancellationToken>()))
+            .Setup(f => f.CreateNatsJetStreamContextAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(mockContext.Object);
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
@@ -162,7 +162,7 @@ public class NatsJobSourceTests
 
         var mockContextFactory = new Mock<INatsJetStreamContextFactory>(MockBehavior.Strict);
         mockContextFactory
-            .Setup(f => f.CreateNatsJSContextAsync(It.IsAny<CancellationToken>()))
+            .Setup(f => f.CreateNatsJetStreamContextAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(mockContext.Object);
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
@@ -256,7 +256,7 @@ public class NatsJobSourceTests
 
         var mockContextFactory = new Mock<INatsJetStreamContextFactory>(MockBehavior.Strict);
         mockContextFactory
-            .Setup(f => f.CreateNatsJSContextAsync(It.IsAny<CancellationToken>()))
+            .Setup(f => f.CreateNatsJetStreamContextAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(mockContext.Object);
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
@@ -348,7 +348,7 @@ public class NatsJobSourceTests
 
         var mockContextFactory = new Mock<INatsJetStreamContextFactory>(MockBehavior.Strict);
         mockContextFactory
-            .Setup(f => f.CreateNatsJSContextAsync(It.IsAny<CancellationToken>()))
+            .Setup(f => f.CreateNatsJetStreamContextAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(mockContext.Object);
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);

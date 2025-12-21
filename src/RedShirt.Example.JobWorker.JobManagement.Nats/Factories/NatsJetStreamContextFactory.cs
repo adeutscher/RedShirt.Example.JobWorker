@@ -5,16 +5,16 @@ using RedShirt.Example.JobWorker.JobManagement.Nats.Services;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.Factories;
 
-public interface INatsJetStreamContextFactory
+internal interface INatsJetStreamContextFactory
 {
-    Task<INatsJSContext> CreateNatsJSContextAsync(CancellationToken cancellationToken = default);
+    Task<INatsJSContext> CreateNatsJetStreamContextAsync(CancellationToken cancellationToken = default);
 }
 
 internal class NatsJetStreamContextFactory(
     INatsCredentialSource natsCredentialSource,
     IOptions<NatsJetStreamContextFactory.ConfigurationModel> options) : INatsJetStreamContextFactory
 {
-    public async Task<INatsJSContext> CreateNatsJSContextAsync(CancellationToken cancellationToken = default)
+    public async Task<INatsJSContext> CreateNatsJetStreamContextAsync(CancellationToken cancellationToken = default)
     {
         var credentials = await natsCredentialSource.GetCredentialsAsync(cancellationToken);
 

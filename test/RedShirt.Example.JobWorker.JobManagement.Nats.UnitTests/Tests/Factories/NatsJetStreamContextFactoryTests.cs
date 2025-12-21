@@ -32,7 +32,7 @@ public class NatsJetStreamContextFactoryTests
 
         var factory = new NatsJetStreamContextFactory(credentialsSource.Object, Options.Create(options));
 
-        var context = await factory.CreateNatsJSContextAsync(TestContext.Current.CancellationToken);
+        var context = await factory.CreateNatsJetStreamContextAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(context);
 
         Assert.Equal(url, context.Connection.Opts.Url);

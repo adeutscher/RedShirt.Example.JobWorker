@@ -11,7 +11,7 @@ using RedShirt.Example.JobWorker.JobManagement.Nats.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.Services;
 
-public class NatsJobSource(
+internal class NatsJobSource(
     INatsJetStreamContextFactory natsJetStreamContextFactory,
     IFetchNoWaitGetter fetchNoWaitGetter,
     IBodyRetriever bodyRetriever,
@@ -21,7 +21,7 @@ public class NatsJobSource(
     IOptions<NatsJobSource.ConfigurationModel> options) : IJobSource
 {
     private readonly Lazy<Task<INatsJSContext>> _lazyContext =
-        new(() => natsJetStreamContextFactory.CreateNatsJSContextAsync());
+        new(() => natsJetStreamContextFactory.CreateNatsJetStreamContextAsync());
 
     public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)

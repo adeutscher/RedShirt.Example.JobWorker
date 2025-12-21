@@ -3,7 +3,7 @@ using NATS.Client.JetStream;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.Utility;
 
-public interface IFetchNoWaitGetter
+internal interface IFetchNoWaitGetter
 {
     IAsyncEnumerable<INatsJSMsg<NatsMemoryOwner<byte>>> FetchNoWaitAsync(INatsJSConsumer consumer, NatsJSFetchOpts opts,
         CancellationToken cancellationToken = default);
@@ -14,7 +14,7 @@ public interface IFetchNoWaitGetter
 ///     Written to separate some difficult-to-mock logic from NatsJobSource
 ///     Cannot seem to mock because of the internal-to-NATs type NatsJSApiResult when creating a consumer.
 /// </summary>
-public class FetchNoWaitGetter : IFetchNoWaitGetter
+internal class FetchNoWaitGetter : IFetchNoWaitGetter
 {
     public IAsyncEnumerable<INatsJSMsg<NatsMemoryOwner<byte>>> FetchNoWaitAsync(INatsJSConsumer consumer,
         NatsJSFetchOpts opts, CancellationToken cancellationToken = default)
