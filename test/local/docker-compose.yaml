@@ -45,6 +45,13 @@ services:
       timeout: 5s
       retries: 5
 
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: azurite
+    ports:
+      - "10001:10001" # Queue service
+    command: "azurite --queueHost 0.0.0.0 --loose"
+
   worker:
     build:
       context: ../..
@@ -92,10 +99,19 @@ services:
       JOB_SOURCE__ACTIVEMQ__PASSWORD_PATH: /activemq/password
       JOB_SOURCE__ACTIVEMQ__QUEUE_NAME: /queue/ActiveQueue
       JOB_SOURCE__ACTIVEMQ__BATCH_SIZE: 10
-      ## JobManagement (NATS)
+      ## Job Management (NATS)
       USE_NATS: "${USE_NATS-0}"
       JOB_SOURCE__NATS__URL: nats://nats:4222
       JOB_SOURCE__NATS__USER_PATH: /nats/user
       JOB_SOURCE__NATS__PASSWORD_PATH: /nats/password
       JOB_SOURCE__NATS__STREAM_NAME: TestStream
       JOB_SOURCE__NATS__BATCH_SIZE: 10
+      ## Job Management (Azure Queue Storage)
+      USE_AZURE_QUEUE_STORAGE: "${USE_AZURE_QUEUE_STORAGE-0}"
+      JOB_SOURCE__AZURE_QUEUE_STORAGE__URI: https://not-used-in-local-testing
+      ### Connection string (using default credentials)
+      ### https://learn.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string
+      JOB_SOURCE__AZURE_QUEUE_STORAGE__CONNECTION_STRING: QueueEndpoint=http://azurite:10001/devstoreaccount1;DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;
+      JOB_SOURCE__AZURE_QUEUE_STORAGE__QUEUE_NAME: test-azure-queue
+      JOB_SOURCE__AZURE_QUEUE_STORAGE__BATCH_SIZE: 10
+      JOB_SOURCE__AZURE_QUEUE_STORAGE__VISIBILITY_TIMEOUT_SECONDS: 300

@@ -23,11 +23,12 @@ docker compose up -d localstack
 ./send-sqs-message.py 12
 ```
 
-4. Before starting the worker, make sure that neither the `USE_KINESIS`, `USE_ACTIVEMQ`, `USE_NATS`, or `USE_RABBITMQ` variables are set to 1:
+4. Before starting the worker, make sure none of the `USE_` environment variables are set to **1**:
 
 ```
 export USE_ACTIVEMQ=0
 export USE_KINESIS=0
+export USE_AZURE_QUEUE_STORAGE=0
 export USE_NATS=0
 export USE_RABBITMQ=0
 ```
@@ -60,11 +61,12 @@ To initialize Kinesis and queue sample messages:
     ./put-kinesis-job.py 12
     ```
 
-4. Before starting the worker, make sure that neither the `USE_KINESIS` is set to `1` and that the `USE_ACTIVEMQ`, `USE_NATS`, `USE_RABBITMQ` variables are not set to `1`:
+4. Before starting the worker, make sure that neither the `USE_KINESIS` is set to `1` and that other `USE_` environment variables are not set to `1`:
 
     ```
     export USE_ACTIVEMQ=0
     export USE_KINESIS=1
+    export USE_AZURE_QUEUE_STORAGE=0
     export USE_NATS=0
     export USE_RABBITMQ=0
     ```
@@ -113,11 +115,12 @@ To initialize RabbitMQ and queue messages:
     {"SleepDurationSeconds": 12}
     ```
 
-9. Before starting the worker, make sure that the `USE_RABBITMQ` is set to `1` and neither the `USE_KINESIS`, `USE_NATS`, or `USE_ACTIVEMQ` variables are set to `1`:
+9. Before starting the worker, make sure that the `USE_RABBITMQ` is set to `1` and that other `USE_` environment variables are not set to `1`:
 
     ```
     export USE_RABBITMQ=0
     export USE_KINESIS=0
+    export USE_AZURE_QUEUE_STORAGE=0
     export USE_NATS=0
     export USE_RABBITMQ=1
     ```
@@ -180,11 +183,12 @@ To initialize RabbitMQ and queue messages:
     {"SleepDurationSeconds": 12}
     ```
 
-12. Before starting the worker, make sure that neither the `USE_ACTIVEMQ` is set to `1` and that the `USE_KINESIS`, `USE_NATS`, or `USE_RABBITMQ` variables are not set to `1`:
+12. Before starting the worker, make sure that neither the `USE_ACTIVEMQ` is set to `1` and that other `USE_` environment variables are not set to `1`:
 
     ```
     export USE_ACTIVEMQ=1
     export USE_KINESIS=0
+    export USE_AZURE_QUEUE_STORAGE=0
     export USE_NATS=0
     export USE_RABBITMQ=0
     ```
@@ -239,10 +243,62 @@ To install the `nats` command:
     ./send-nats-message.sh 5
     ```
 
-6. Before starting the worker, make sure that the `USE_NATS` is set to `1` and that the `USE_ACTIVEMQ`, `USE_KINESIS`, or `USE_RABBITMQ` variables are not set to `1`:
+6. Before starting the worker, make sure that the `USE_NATS` is set to `1` and that other `USE_` environment variables are not set to `1`:
 
     ```
     export USE_NATS=1
+    export USE_ACTIVEMQ=0
+    export USE_AZURE_QUEUE_STORAGE=0
+    export USE_KINESIS=0
+    export USE_RABBITMQ=0
+    ```
+
+7. Bring up the worker:
+
+    ```
+    docker compose up worker
+    ```
+
+## Azure Queue Storage
+
+Testing `Azure Queue Storage` will require:
+
+* Visual Studio Code to be installed
+* Within Visual Studio Code (VSCode), the `Azure Tools` and `Azureite` extensions must be installed.
+* Azure Storage Explorer to be downloaded from [here](https://azure.microsoft.com/en-us/products/storage/storage-explorer)
+
+For more information on using Visual Studio Code to interact with `azurite`, see [here](https://rajeevpentyala.com/2025/08/16/azurite-build-azure-queues-and-functions-locally-with-c/)
+
+### VSCode Configuration
+
+VSCode automatically knows how to point to your local `azurite` server after the service is started.
+
+
+### Testing Messages
+
+1. Bring up `azureite`:
+
+    ```
+    docker compose up -d `azurite`
+    ```
+
+2. In VSCode, go to the Azure tab.
+
+3. Look down in the `Workspace` section
+
+4. Create the `test-azure-queue` queue.
+
+5. Azure Storage Explorer should allow you to access the storage account for Azurite's `devstoreaccount1` without any configuration. After selecting the `test-azure-queue` queue, you can add a message to the queue. Please note that Storage Explorer's Add menu **stores the message as a Base64-encoded string by default**. So far, this seems to be unique to Storage Explorer. Because of this, **this template does not go out of its way to account for Base64**. However, but you may wish to consider it if you are adapting this into an application that uses Azure Queue Storage. Any messages added via Storage Explorer should be stored as **Plain UTF-8**. Message format.
+
+    ```
+    {"SleepDurationSeconds": 12}
+    ```
+
+6. Before starting the worker, make sure that the `USE_AZURE_QUEUE_STORAGE` is set to `1` and that other `USE_` environment variables are not set to `1`:
+
+    ```
+    export USE_AZURE_QUEUE_STORAGE=1
+    export USE_NATS=0
     export USE_ACTIVEMQ=0
     export USE_KINESIS=0
     export USE_RABBITMQ=0

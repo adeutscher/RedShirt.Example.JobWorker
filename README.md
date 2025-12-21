@@ -1,6 +1,6 @@
 # RedShirt.Example.JobWorker
 
-General template for polling/processing messages out of a variety of message stores. 
+General template for polling/processing messages out of a variety of message stores.
 
 Repo features:
 
@@ -10,6 +10,7 @@ Repo features:
     * [Amazon SQS](https://aws.amazon.com/sqs/)
     * [Amazon Kinesis](https://aws.amazon.com/kinesis/data-streams/)
     * [Apache ActiveMQ Artemis](https://artemis.apache.org/components/artemis/)
+    * [Azure Queue Storage](https://learn.microsoft.com/en-us/azure/storage/queues/storage-queues-introduction)
     * [NATS](https://nats.io/)
     * [RabbitMQ](https://www.rabbitmq.com/)
 
