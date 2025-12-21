@@ -1,5 +1,7 @@
 # RedShirt.Example.JobWorker
 
+General template for polling/processing messages out of a variety of message stores. 
+
 Repo features:
 
 * Initialisation script for quick namespace adjustment.
