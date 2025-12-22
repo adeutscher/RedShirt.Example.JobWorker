@@ -7,7 +7,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
 
 internal interface ISqsMessageSource
 {
-    Task<List<Message>> GetMessagesAsync(CancellationToken cancellationToken = default);
+    Task<List<Message>> GetMessagesAsync(int batchSize, CancellationToken cancellationToken = default);
 }
 
 internal class SqsMessageSource(IAmazonSQS sqs, IOptions<SqsConfigurationModel> options) : ISqsMessageSource
@@ -26,10 +26,9 @@ internal class SqsMessageSource(IAmazonSQS sqs, IOptions<SqsConfigurationModel> 
         return response?.Messages ?? [];
     }
 
-    public async Task<List<Message>> GetMessagesAsync(CancellationToken cancellationToken = default)
+    public async Task<List<Message>> GetMessagesAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         var messages = new List<Message>();
-        var batchSize = options.Value.EffectiveBatchSize;
 
         while (batchSize > MaxMessagesPerRequest)
         {

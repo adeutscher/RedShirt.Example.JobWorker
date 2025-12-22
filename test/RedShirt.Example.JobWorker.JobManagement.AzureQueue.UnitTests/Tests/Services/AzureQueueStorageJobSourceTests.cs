@@ -12,8 +12,11 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.Tests.Se
 
 public class AzureQueueStorageJobSourceTests
 {
-    [Fact]
-    public async Task TestGetJobsAsync()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(5)]
+    [InlineData(10)]
+    public async Task TestGetJobsAsync(int batchSize)
     {
         var receiptHandle1 = Guid.NewGuid().ToString();
         var data1 = Guid.NewGuid().ToString();
@@ -31,8 +34,8 @@ public class AzureQueueStorageJobSourceTests
             .Setup(s => s.GetQueueClient())
             .Returns(client.Object);
 
-        var sqsMessageSource = new Mock<IAzureQueueStorageMessageSource>(MockBehavior.Strict);
-        sqsMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<CancellationToken>()))
+        var azureMessageSource = new Mock<IAzureQueueStorageMessageSource>(MockBehavior.Strict);
+        azureMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(() =>
             [
                 new BasicMessageModel
@@ -74,24 +77,22 @@ public class AzureQueueStorageJobSourceTests
         sorter.Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
             .Returns((List<IJobModel> input) => input);
 
-        const int batchSize = 10;
         const int visibilityTimeoutInSeconds = 100;
 
-        var jobSource = new AzureQueueStorageJobSource(source.Object, sqsMessageSource.Object, converter.Object,
+        var jobSource = new AzureQueueStorageJobSource(source.Object, azureMessageSource.Object, converter.Object,
             sorter.Object,
             new NullLogger<AzureQueueStorageJobSource>(), Options.Create(new AzureQueueStorageConfigurationModel
             {
-                BatchSize = batchSize,
                 VisibilityTimeoutSeconds = visibilityTimeoutInSeconds
             }));
 
         using var cts = new CancellationTokenSource();
-        var response = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var response = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
         Assert.Equal(2, response.Items.Count);
 
         client.Verify(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
             Times.Never);
-        sqsMessageSource.Verify(a => a.GetMessagesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        azureMessageSource.Verify(a => a.GetMessagesAsync(batchSize, It.IsAny<CancellationToken>()), Times.Once);
 
         converter.Verify(c => c.Convert(data1), Times.Once);
         converter.Verify(c => c.Convert(data2), Times.Once);
@@ -103,6 +104,20 @@ public class AzureQueueStorageJobSourceTests
         Assert.Same(mock1, response.Items[0].Data);
         Assert.Equal(receiptHandle2, response.Items[1].MessageId);
         Assert.Same(mock2, response.Items[1].Data);
+    }
+
+    [Fact]
+    public void TestGetRecommendedHeartbeatInterval()
+    {
+        var options = new AzureQueueStorageConfigurationModel
+        {
+            VisibilityTimeoutSeconds = 20
+        };
+
+        var jobSource = new AzureQueueStorageJobSource(null!, null!, null!, null!,
+            new NullLogger<AzureQueueStorageJobSource>(), Options.Create(options));
+
+        Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
     }
 
     [Theory]
@@ -118,7 +133,6 @@ public class AzureQueueStorageJobSourceTests
 
         var config = new AzureQueueStorageConfigurationModel
         {
-            BatchSize = 0,
             VisibilityTimeoutSeconds = 0
         };
 
@@ -154,7 +168,6 @@ public class AzureQueueStorageJobSourceTests
 
         var config = new AzureQueueStorageConfigurationModel
         {
-            BatchSize = 0,
             VisibilityTimeoutSeconds = 0
         };
 
@@ -184,7 +197,6 @@ public class AzureQueueStorageJobSourceTests
 
         var config = new AzureQueueStorageConfigurationModel
         {
-            BatchSize = 0,
             VisibilityTimeoutSeconds = timeoutSeconds
         };
 
@@ -226,7 +238,6 @@ public class AzureQueueStorageJobSourceTests
 
         var config = new AzureQueueStorageConfigurationModel
         {
-            BatchSize = 0,
             VisibilityTimeoutSeconds = timeoutSeconds
         };
 

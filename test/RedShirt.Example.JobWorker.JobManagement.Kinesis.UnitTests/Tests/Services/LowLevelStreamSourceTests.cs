@@ -74,12 +74,11 @@ public class LowLevelStreamSourceTests
         var source = new LowLevelStreamSource(kinesis.Object, converter.Object, sorter.Object,
             new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
             {
-                BatchSize = batchSize,
                 StreamArn = streamArn,
                 ShuffleShards = false
             }));
 
-        var response = await source.GetJobsAsync("foo", TestContext.Current.CancellationToken);
+        var response = await source.GetJobsAsync(batchSize, "foo", TestContext.Current.CancellationToken);
         Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
         Assert.Equal(2, response.Items.Count);
 
@@ -121,12 +120,11 @@ public class LowLevelStreamSourceTests
         var source = new LowLevelStreamSource(kinesis.Object, converter.Object, sorter.Object,
             new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
             {
-                BatchSize = batchSize,
                 StreamArn = streamArn,
                 ShuffleShards = false
             }));
 
-        var response = await source.GetJobsAsync("foo", TestContext.Current.CancellationToken);
+        var response = await source.GetJobsAsync(batchSize, "foo", TestContext.Current.CancellationToken);
         Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
         Assert.Empty(response.Items);
 
@@ -159,12 +157,11 @@ public class LowLevelStreamSourceTests
         var source = new LowLevelStreamSource(kinesis.Object, converter.Object, sorter.Object,
             new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
             {
-                BatchSize = batchSize,
                 StreamArn = streamArn,
                 ShuffleShards = false
             }));
 
-        var response = await source.GetJobsAsync("foo", TestContext.Current.CancellationToken);
+        var response = await source.GetJobsAsync(batchSize, "foo", TestContext.Current.CancellationToken);
         Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
         Assert.Empty(response.Items);
 

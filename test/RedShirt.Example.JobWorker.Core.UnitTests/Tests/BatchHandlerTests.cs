@@ -1,16 +1,18 @@
 using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Batch;
+using RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests;
 
-public class HandlerTests
+public class BatchHandlerTests
 {
     [Fact]
     public async Task Test_Handler()
     {
         var jobManager = new Mock<IJobManager>();
-        var loop = new Mock<IWorkerLoop>();
+        var loop = new Mock<IBatchWorkerLoop>();
 
-        var handler = new Handler(jobManager.Object, loop.Object);
+        var handler = new BatchHandler(jobManager.Object, loop.Object);
 
         await handler.HandleAsync(TestContext.Current.CancellationToken);
         Assert.Single(loop.Invocations);

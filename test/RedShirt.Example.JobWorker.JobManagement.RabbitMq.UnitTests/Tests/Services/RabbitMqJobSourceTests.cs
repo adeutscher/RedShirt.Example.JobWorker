@@ -37,8 +37,7 @@ public class RabbitMqJobSourceTests
 
         var configuration = new RabbitMqJobSource.ConfigurationModel
         {
-            QueueName = null!, // moot
-            BatchSize = 1
+            QueueName = null! // moot
         };
 
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
@@ -64,8 +63,7 @@ public class RabbitMqJobSourceTests
 
         var configuration = new RabbitMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = 1
+            QueueName = queueName
         };
 
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
@@ -95,10 +93,10 @@ public class RabbitMqJobSourceTests
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
             converter.Object, sorter.Object, new NullLogger<RabbitMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(jobResponse.Items);
 
         Assert.Single(rabbitConnectionFactory.Invocations);
@@ -119,8 +117,7 @@ public class RabbitMqJobSourceTests
 
         var configuration = new RabbitMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = 1
+            QueueName = queueName
         };
 
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
@@ -163,87 +160,17 @@ public class RabbitMqJobSourceTests
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
             converter.Object, sorter.Object, new NullLogger<RabbitMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         var returnedJobItem = Assert.Single(jobResponse.Items);
         Assert.Equal(deliveryTag.ToString(), returnedJobItem.MessageId);
         Assert.Same(jobDataModel.Object, returnedJobItem.Data);
 
         Assert.Single(rabbitConnectionFactory.Invocations);
         Assert.Single(mockConnection.Invocations);
-        Assert.Single(mockChannel.Invocations);
-
-        Assert.Single(converter.Invocations);
-        Assert.Single(sorter.Invocations);
-    }
-
-    /// <summary>
-    ///     Confirm that configuration will bump up the effective batch size to a minimum of 1 even if the given value was 0.
-    /// </summary>
-    [Fact]
-    public async Task Test_GetJobs_GotJob_BatchSizeZero()
-    {
-        var queueName = Guid.NewGuid().ToString();
-
-        var configuration = new RabbitMqJobSource.ConfigurationModel
-        {
-            QueueName = queueName,
-            BatchSize = 0 // Intentionally setting to 0
-        };
-
-        var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-
-        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.CreateChannelAsync())
-            .ReturnsAsync(mockChannel.Object);
-
-        var rabbitConnectionFactory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
-        rabbitConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockConnection.Object);
-
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
-        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns<List<IJobModel>>(input => input);
-
-        // Setup Job Returns
-
-        ulong deliveryTag = 1234;
-        var bodyString = "{}";
-
-        var mockChannelQueue = new Queue<BasicGetResult>();
-        mockChannelQueue.Enqueue(new BasicGetResult(deliveryTag, false, "foo", "bar", 1,
-            new Mock<IReadOnlyBasicProperties>().Object,
-            new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(bodyString))));
-
-        mockChannel
-            .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
-            .ReturnsAsync(() => mockChannelQueue.TryDequeue(out var job) ? job : null);
-
-        var jobDataModel = new Mock<IJobDataModel>();
-
-        converter
-            .Setup(c => c.Convert(bodyString))
-            .Returns(jobDataModel.Object);
-
-        // Declare objects
-
-        var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            converter.Object, sorter.Object, new NullLogger<RabbitMqJobSource>());
-
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
-        var returnedJobItem = Assert.Single(jobResponse.Items);
-        Assert.Equal(deliveryTag.ToString(), returnedJobItem.MessageId);
-        Assert.Same(jobDataModel.Object, returnedJobItem.Data);
-
-        Assert.Single(rabbitConnectionFactory.Invocations);
-        Assert.Single(mockConnection.Invocations);
-        Assert.Single(mockChannel.Invocations);
+        Assert.Equal(2, mockChannel.Invocations.Count);
 
         Assert.Single(converter.Invocations);
         Assert.Single(sorter.Invocations);
@@ -259,8 +186,7 @@ public class RabbitMqJobSourceTests
 
         var configuration = new RabbitMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = 1
+            QueueName = queueName
         };
 
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
@@ -304,10 +230,10 @@ public class RabbitMqJobSourceTests
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
             converter.Object, sorter.Object, new NullLogger<RabbitMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
 
         Assert.Empty(jobResponse.Items); // Empty because we messed with the sorter response.
         Assert.Same(sortList, jobResponse.Items); // Should be the same list as the Mock override
@@ -333,8 +259,7 @@ public class RabbitMqJobSourceTests
 
         var configuration = new RabbitMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = batchSize
+            QueueName = queueName
         };
 
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
@@ -386,10 +311,10 @@ public class RabbitMqJobSourceTests
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
             converter.Object, sorter.Object, new NullLogger<RabbitMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Equal(batchSize, jobResponse.Items.Count);
 
         for (var i = 0; i < batchSize; i++)
@@ -420,8 +345,7 @@ public class RabbitMqJobSourceTests
 
         var configuration = new RabbitMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = 1
+            QueueName = queueName
         };
 
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
@@ -467,10 +391,10 @@ public class RabbitMqJobSourceTests
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
             converter.Object, sorter.Object, new NullLogger<RabbitMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(jobResponse.Items);
 
         Assert.Single(rabbitConnectionFactory.Invocations);
@@ -492,8 +416,7 @@ public class RabbitMqJobSourceTests
 
         var configuration = new RabbitMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = 1
+            QueueName = queueName
         };
 
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
@@ -539,10 +462,10 @@ public class RabbitMqJobSourceTests
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
             converter.Object, sorter.Object, new NullLogger<RabbitMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(jobResponse.Items);
 
         Assert.Single(rabbitConnectionFactory.Invocations);
@@ -560,8 +483,7 @@ public class RabbitMqJobSourceTests
 
         var configuration = new RabbitMqJobSource.ConfigurationModel
         {
-            QueueName = null!, // moot
-            BatchSize = 1
+            QueueName = null! // moot
         };
 
         var jobSource = new RabbitMqJobSource(null!, Options.Create(configuration),

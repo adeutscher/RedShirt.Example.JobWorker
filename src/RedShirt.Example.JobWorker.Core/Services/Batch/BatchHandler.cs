@@ -1,6 +1,6 @@
-using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
 
-namespace RedShirt.Example.JobWorker.Core;
+namespace RedShirt.Example.JobWorker.Core.Services.Batch;
 
 public interface IHandler
 {
@@ -11,14 +11,14 @@ public interface IHandler
 ///     Handle any initialization, then proceed to main worker loop.
 /// </summary>
 /// <param name="jobManager"></param>
-/// <param name="workerLoop"></param>
-internal class Handler(IJobManager jobManager, IWorkerLoop workerLoop) : IHandler
+/// <param name="batchWorkerLoop"></param>
+internal class BatchHandler(IJobManager jobManager, IBatchWorkerLoop batchWorkerLoop) : IHandler
 {
     public async Task HandleAsync(CancellationToken cancellationToken = default)
     {
         // Kick off the job manager
         await jobManager.StartAsync(cancellationToken);
         // Enter worker loop
-        await workerLoop.RunAsync(cancellationToken);
+        await batchWorkerLoop.RunAsync(cancellationToken);
     }
 }

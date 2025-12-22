@@ -16,7 +16,6 @@ public class CheckpointStorageTests
         var kinesis = new Mock<IAmazonKinesis>();
         var options = new KinesisConfiguration
         {
-            BatchSize = 0,
             StreamArn = Guid.NewGuid()
                 .ToString(),
             ShuffleShards = false
@@ -66,7 +65,6 @@ public class CheckpointStorageTests
         var kinesis = new Mock<IAmazonKinesis>();
         var options = new KinesisConfiguration
         {
-            BatchSize = 0,
             StreamArn = Guid.NewGuid().ToString(),
             ShuffleShards = false
         };
@@ -116,7 +114,6 @@ public class CheckpointStorageTests
         var kinesis = new Mock<IAmazonKinesis>();
         var options = new KinesisConfiguration
         {
-            BatchSize = 0,
             StreamArn = Guid.NewGuid().ToString(),
             ShuffleShards = false
         };
@@ -148,7 +145,6 @@ public class CheckpointStorageTests
         var kinesis = new Mock<IAmazonKinesis>();
         var options = new KinesisConfiguration
         {
-            BatchSize = 0,
             StreamArn = Guid.NewGuid().ToString(),
             ShuffleShards = false
         };
@@ -174,7 +170,6 @@ public class CheckpointStorageTests
         var kinesis = new Mock<IAmazonKinesis>();
         var options = new KinesisConfiguration
         {
-            BatchSize = 0,
             StreamArn = Guid.NewGuid().ToString(),
             ShuffleShards = false
         };

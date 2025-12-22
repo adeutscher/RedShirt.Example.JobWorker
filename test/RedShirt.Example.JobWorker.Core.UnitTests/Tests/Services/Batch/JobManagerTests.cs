@@ -2,8 +2,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.Batch;
 
-namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Batch;
 
 public class JobManagerTests
 {
@@ -31,6 +33,7 @@ public class JobManagerTests
         jobSource.Setup(s =>
                 s.AcknowledgeCompletionAsync(It.IsAny<IJobModel>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .Returns((IJobModel _, bool _, CancellationToken _) => throw new Exception("BOOM"));
+        jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
 
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
@@ -45,7 +48,6 @@ public class JobManagerTests
         await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
-            RecommendedHeartbeatIntervalSeconds = 1,
             Items = [job.Object]
         }, TestContext.Current.CancellationToken);
 
@@ -82,6 +84,7 @@ public class JobManagerTests
         var jobSource = new Mock<IJobSource>();
         jobSource.Setup(s => s.HeartbeatAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
             .Returns((IJobModel _, CancellationToken _) => throw new Exception("BOOM"));
+        jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
 
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
@@ -96,7 +99,6 @@ public class JobManagerTests
         await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
-            RecommendedHeartbeatIntervalSeconds = 1,
             Items = [job.Object]
         }, TestContext.Current.CancellationToken);
 
@@ -126,6 +128,7 @@ public class JobManagerTests
                 return numberOfJobs % 2 == 0;
             });
         var jobSource = new Mock<IJobSource>();
+        jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
@@ -146,7 +149,6 @@ public class JobManagerTests
         await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
-            RecommendedHeartbeatIntervalSeconds = 1,
             Items = jobs
         }, TestContext.Current.CancellationToken);
 
@@ -184,6 +186,7 @@ public class JobManagerTests
                 return false;
             });
         var jobSource = new Mock<IJobSource>();
+        jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
 
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
@@ -198,7 +201,6 @@ public class JobManagerTests
         await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
-            RecommendedHeartbeatIntervalSeconds = 1,
             Items = [job.Object]
         }, TestContext.Current.CancellationToken);
 
@@ -226,6 +228,7 @@ public class JobManagerTests
             .Setup(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
             .Returns((IJobModel _, CancellationToken _) => Task.FromResult(true));
         var jobSource = new Mock<IJobSource>();
+        jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
 
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
@@ -240,7 +243,6 @@ public class JobManagerTests
         await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
-            RecommendedHeartbeatIntervalSeconds = 1,
             Items = [job.Object]
         }, TestContext.Current.CancellationToken);
 
@@ -272,6 +274,7 @@ public class JobManagerTests
                 return false;
             });
         var jobSource = new Mock<IJobSource>();
+        jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(10);
 
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
@@ -286,7 +289,6 @@ public class JobManagerTests
         await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
-            RecommendedHeartbeatIntervalSeconds = 10,
             Items = [job.Object]
         }, TestContext.Current.CancellationToken);
 
@@ -307,6 +309,7 @@ public class JobManagerTests
 
         var safeRunner = new Mock<ISafeJobRunner>();
         var jobSource = new Mock<IJobSource>();
+        jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(0);
 
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
@@ -328,7 +331,6 @@ public class JobManagerTests
         await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
-            RecommendedHeartbeatIntervalSeconds = 0,
             Items = jobs
         }, TestContext.Current.CancellationToken);
 
@@ -350,6 +352,7 @@ public class JobManagerTests
 
         var safeRunner = new Mock<ISafeJobRunner>();
         var jobSource = new Mock<IJobSource>();
+        jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(0);
 
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
@@ -364,7 +367,6 @@ public class JobManagerTests
         await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
         {
-            RecommendedHeartbeatIntervalSeconds = 0,
             Items = [job.Object]
         }, TestContext.Current.CancellationToken);
 

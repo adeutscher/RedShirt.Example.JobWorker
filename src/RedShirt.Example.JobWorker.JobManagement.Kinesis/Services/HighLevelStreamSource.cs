@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
@@ -44,7 +44,9 @@ internal class HighLevelStreamSource(
         }
     }
 
-    public async Task<JobSourceResponse> GetJobsAsync(CancellationToken cancellationToken = default)
+    public int RecommendedHeartbeatIntervalSeconds => 0;
+
+    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         // Clear board
         if (Lock is not null)
@@ -81,7 +83,8 @@ internal class HighLevelStreamSource(
             // Get iterator from storage
 
             // Get Items
-            LastStreamSourceResponse = await lowLevelStreamSource.GetJobsAsync(iteratorString, cancellationToken);
+            LastStreamSourceResponse =
+                await lowLevelStreamSource.GetJobsAsync(batchSize, iteratorString, cancellationToken);
 
             if (LastStreamSourceResponse.Items.Count == 0)
             {
@@ -97,14 +100,12 @@ internal class HighLevelStreamSource(
 
             return new JobSourceResponse
             {
-                RecommendedHeartbeatIntervalSeconds = 0,
                 Items = LastStreamSourceResponse.Items
             };
         }
 
         return new JobSourceResponse
         {
-            RecommendedHeartbeatIntervalSeconds = 0,
             Items = []
         };
     }

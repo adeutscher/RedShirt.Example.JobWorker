@@ -60,8 +60,10 @@ public class HighLevelStreamSourceTests
         Assert.True(true);
     }
 
-    [Fact]
-    public async Task Test_GetJobsAsync()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task Test_GetJobsAsync(int batchSize)
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
@@ -83,7 +85,7 @@ public class HighLevelStreamSourceTests
         checkpointStorage.Setup(c => c.GetCheckpointAsync("foo", TestContext.Current.CancellationToken))
             .ReturnsAsync("bar");
 
-        lowLevelStreamSource.Setup(l => l.GetJobsAsync("bar", TestContext.Current.CancellationToken))
+        lowLevelStreamSource.Setup(l => l.GetJobsAsync(batchSize, "bar", TestContext.Current.CancellationToken))
             .ReturnsAsync(new StreamSourceResponse
             {
                 IteratorString = "1",
@@ -102,9 +104,9 @@ public class HighLevelStreamSourceTests
         var streamSource = new HighLevelStreamSource(checkpointStorage.Object, lister.Object, locker.Object,
             lowLevelStreamSource.Object, new NullLogger<HighLevelStreamSource>());
 
-        var response = await streamSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var response = await streamSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, response.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, streamSource.RecommendedHeartbeatIntervalSeconds);
         var item = Assert.Single(response.Items);
         Assert.Same(jobModel, item);
 
@@ -138,11 +140,11 @@ public class HighLevelStreamSourceTests
         var streamSource = new HighLevelStreamSource(checkpointStorage.Object, lister.Object, locker.Object,
             lowLevelStreamSource.Object, new NullLogger<HighLevelStreamSource>());
 
-        var response = await streamSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var response = await streamSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         locker.Verify(l => l.GetLockAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
 
-        Assert.Equal(0, response.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, streamSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(response.Items);
     }
 
@@ -156,7 +158,7 @@ public class HighLevelStreamSourceTests
             };
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await streamSource.GetJobsAsync(TestContext.Current.CancellationToken));
+            await streamSource.GetJobsAsync(1, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -181,7 +183,7 @@ public class HighLevelStreamSourceTests
         checkpointStorage.Setup(c => c.GetCheckpointAsync("foo", TestContext.Current.CancellationToken))
             .ReturnsAsync("bar");
 
-        lowLevelStreamSource.Setup(l => l.GetJobsAsync("bar", TestContext.Current.CancellationToken))
+        lowLevelStreamSource.Setup(l => l.GetJobsAsync(1, "bar", TestContext.Current.CancellationToken))
             .ReturnsAsync(new StreamSourceResponse
             {
                 IteratorString = "1",
@@ -197,9 +199,9 @@ public class HighLevelStreamSourceTests
         var streamSource = new HighLevelStreamSource(checkpointStorage.Object, lister.Object, locker.Object,
             lowLevelStreamSource.Object, new NullLogger<HighLevelStreamSource>());
 
-        var response = await streamSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var response = await streamSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, response.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, streamSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(response.Items);
 
         Assert.Single(locker.Invocations);

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Polly;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 
 namespace RedShirt.Example.JobWorker.Core.Services;
 

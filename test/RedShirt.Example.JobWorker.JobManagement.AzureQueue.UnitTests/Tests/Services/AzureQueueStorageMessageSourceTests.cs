@@ -38,7 +38,7 @@ public class AzureQueueStorageMessageSourceTests
         client
             .Setup(c => c.GetMessagesAsync(It.IsAny<int>(), It.IsAny<TimeSpan>(),
                 TestContext.Current.CancellationToken))
-            .ReturnsAsync((int callbackBatchSize, TimeSpan timeout, CancellationToken _) =>
+            .ReturnsAsync((int callbackBatchSize, TimeSpan _, CancellationToken _) =>
             {
                 var response = new List<IQueueMessageModel>();
 
@@ -64,13 +64,12 @@ public class AzureQueueStorageMessageSourceTests
         var visibilityTimeout = new Random().Next(20, 59);
         var options = new AzureQueueStorageConfigurationModel
         {
-            BatchSize = batchSize,
             VisibilityTimeoutSeconds = visibilityTimeout
         };
 
         var messageSource = new AzureQueueStorageMessageSource(source.Object, Options.Create(options));
 
-        var messages = await messageSource.GetMessagesAsync(TestContext.Current.CancellationToken);
+        var messages = await messageSource.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 
         Assert.NotNull(messages);
 

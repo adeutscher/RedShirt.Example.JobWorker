@@ -1,17 +1,29 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.Batch;
+using RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
 
-namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Batch;
 
-public class WorkerLoopTests
+public class BatchWorkerLoopTests
 {
-    [Fact]
-    public async Task Test_RunManagerOnce()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task Test_RunManagerOnce(int batchSize)
     {
         var arbiterQueue = new Queue<string>();
         arbiterQueue.Enqueue("A");
+
+        var sourceOptions = new JobSourceConfigurationModel
+        {
+            BatchSize = batchSize
+        };
 
         var endArbiter = new Mock<IExecutionEndArbiter>();
         endArbiter.Setup(e => e.ShouldKeepRunning())
@@ -21,16 +33,15 @@ public class WorkerLoopTests
 
         var jobSourceResponse = new JobSourceResponse
         {
-            RecommendedHeartbeatIntervalSeconds = 0,
             Items =
             [
                 new Mock<IJobModel>().Object
             ]
         };
-        jobSource.Setup(j => j.GetJobsAsync(It.IsAny<CancellationToken>()))
+        jobSource.Setup(j => j.GetJobsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(jobSourceResponse);
-        var loop = new WorkerLoop(endArbiter.Object, jobManager.Object, jobSource.Object, new NullLogger<WorkerLoop>(),
-            Options.Create(new WorkerLoop.ConfigurationModel
+        var loop = new BatchWorkerLoop(endArbiter.Object, jobManager.Object, jobSource.Object, new NullLogger<BatchWorkerLoop>(),
+            Options.Create(sourceOptions), Options.Create(new BatchWorkerLoop.ConfigurationModel
             {
                 MaxIdleWaitSeconds = 1
             }));
@@ -40,7 +51,8 @@ public class WorkerLoopTests
         jobManager.Verify(j => j.RunAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()), Times.Once);
         jobManager.Verify(j => j.RunAsync(jobSourceResponse, TestContext.Current.CancellationToken), Times.Once);
 
-        jobSource.Verify(j => j.GetJobsAsync(TestContext.Current.CancellationToken), Times.Once);
+        jobSource.Verify(j => j.GetJobsAsync(sourceOptions.EffectiveBatchSize, TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Fact]
@@ -50,19 +62,23 @@ public class WorkerLoopTests
         arbiterQueue.Enqueue("A");
         arbiterQueue.Enqueue("B");
 
+        var sourceOptions = new JobSourceConfigurationModel
+        {
+            BatchSize = 5
+        };
+
         var endArbiter = new Mock<IExecutionEndArbiter>();
         endArbiter.Setup(e => e.ShouldKeepRunning())
             .Returns(() => arbiterQueue.TryDequeue(out _));
         var jobManager = new Mock<IJobManager>();
-        var jobSource = new Mock<IJobSource>();
-        jobSource.Setup(j => j.GetJobsAsync(It.IsAny<CancellationToken>()))
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource.Setup(j => j.GetJobsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new JobSourceResponse
             {
-                RecommendedHeartbeatIntervalSeconds = 0,
                 Items = []
             });
-        var loop = new WorkerLoop(endArbiter.Object, jobManager.Object, jobSource.Object, new NullLogger<WorkerLoop>(),
-            Options.Create(new WorkerLoop.ConfigurationModel
+        var loop = new BatchWorkerLoop(endArbiter.Object, jobManager.Object, jobSource.Object, new NullLogger<BatchWorkerLoop>(),
+            Options.Create(sourceOptions), Options.Create(new BatchWorkerLoop.ConfigurationModel
             {
                 MaxIdleWaitSeconds = 1
             }));
@@ -71,6 +87,7 @@ public class WorkerLoopTests
 
         jobManager.Verify(j => j.RunAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()), Times.Never);
 
-        jobSource.Verify(j => j.GetJobsAsync(TestContext.Current.CancellationToken), Times.Exactly(2));
+        jobSource.Verify(j => j.GetJobsAsync(sourceOptions.BatchSize, TestContext.Current.CancellationToken),
+            Times.Exactly(2));
     }
 }

@@ -12,7 +12,8 @@ namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 
 internal interface ILowLevelStreamSource
 {
-    Task<StreamSourceResponse> GetJobsAsync(string iteratorString, CancellationToken cancellationToken = default);
+    Task<StreamSourceResponse> GetJobsAsync(int batchSize, string iteratorString,
+        CancellationToken cancellationToken = default);
 }
 
 internal class LowLevelStreamSource(
@@ -22,7 +23,7 @@ internal class LowLevelStreamSource(
     ILogger<LowLevelStreamSource> logger,
     IOptions<KinesisConfiguration> options) : ILowLevelStreamSource
 {
-    public async Task<StreamSourceResponse> GetJobsAsync(string iteratorString,
+    public async Task<StreamSourceResponse> GetJobsAsync(int batchSize, string iteratorString,
         CancellationToken cancellationToken = default)
     {
         GetRecordsResponse kinesisResponse;
@@ -31,7 +32,7 @@ internal class LowLevelStreamSource(
         {
             kinesisResponse = await kinesisClient.GetRecordsAsync(new GetRecordsRequest
             {
-                Limit = options.Value.EffectiveBatchSize,
+                Limit = batchSize,
                 StreamARN = options.Value.StreamArn,
                 ShardIterator = iteratorString
             }, cancellationToken);

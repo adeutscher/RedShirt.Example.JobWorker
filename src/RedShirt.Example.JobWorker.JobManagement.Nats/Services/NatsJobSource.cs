@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Common.Services;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
@@ -32,10 +32,12 @@ internal class NatsJobSource(
         }
     }
 
-    public async Task<JobSourceResponse> GetJobsAsync(CancellationToken cancellationToken = default)
+    public int RecommendedHeartbeatIntervalSeconds => 0;
+
+    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from NATS Stream: {StreamName}",
-            options.Value.BatchSize, options.Value.StreamName);
+            batchSize, options.Value.StreamName);
 
         var js = await _lazyContext.Value;
 
@@ -43,7 +45,7 @@ internal class NatsJobSource(
             new ConsumerConfig {Name = "c1", DurableName = "c1"}, cancellationToken);
         var fetchNoWaitOpts = new NatsJSFetchOpts
         {
-            MaxMsgs = options.Value.EffectiveBatchSize,
+            MaxMsgs = batchSize,
             IdleHeartbeat = TimeSpan.FromSeconds(5)
         };
 
@@ -96,7 +98,6 @@ internal class NatsJobSource(
 
         return new JobSourceResponse
         {
-            RecommendedHeartbeatIntervalSeconds = 0,
             Items = sorter.GetSortedListOfJobs(getJobsResponseItems)
         };
     }
@@ -109,8 +110,5 @@ internal class NatsJobSource(
     public sealed class ConfigurationModel
     {
         public required string StreamName { get; init; }
-        public required int BatchSize { get; init; }
-
-        public int EffectiveBatchSize => Math.Max(BatchSize, 1);
     }
 }

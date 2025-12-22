@@ -41,7 +41,6 @@ public class KinesisShardListerTests
         var lister = new KinesisShardLister(kinesis.Object, Options.Create(new KinesisConfiguration
         {
             StreamArn = streamArn,
-            BatchSize = 0,
             ShuffleShards = false
         }));
 
@@ -112,7 +111,6 @@ public class KinesisShardListerTests
         var lister = new KinesisShardLister(kinesis.Object, Options.Create(new KinesisConfiguration
         {
             StreamArn = streamArn,
-            BatchSize = 0,
             ShuffleShards = doShuffle
         }));
 

@@ -1,6 +1,6 @@
 using RedShirt.Example.JobWorker.Core.Models;
 
-namespace RedShirt.Example.JobWorker.Core.Services;
+namespace RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
 
 /// <summary>
 ///     The Job Manager is responsible for acting on a series of jobs returned from a source.

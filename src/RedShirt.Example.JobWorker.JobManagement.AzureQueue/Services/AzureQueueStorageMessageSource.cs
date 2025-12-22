@@ -7,7 +7,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services;
 
 internal interface IAzureQueueStorageMessageSource
 {
-    Task<List<IQueueMessageModel>> GetMessagesAsync(CancellationToken cancellationToken = default);
+    Task<List<IQueueMessageModel>> GetMessagesAsync(int batchSize, CancellationToken cancellationToken = default);
 }
 
 internal class AzureQueueStorageMessageSource(
@@ -23,10 +23,10 @@ internal class AzureQueueStorageMessageSource(
             TimeSpan.FromSeconds(options.Value.EffectiveVisibilityTimeoutSeconds), cancellationToken);
     }
 
-    public async Task<List<IQueueMessageModel>> GetMessagesAsync(CancellationToken cancellationToken = default)
+    public async Task<List<IQueueMessageModel>> GetMessagesAsync(int batchSize,
+        CancellationToken cancellationToken = default)
     {
         var messages = new List<IQueueMessageModel>();
-        var batchSize = options.Value.EffectiveBatchSize;
 
         while (batchSize > MaxBatchSizePerRequest)
         {

@@ -14,6 +14,8 @@ public class SqsJobSourceTests
     [Fact]
     public async Task TestGetJobsAsync()
     {
+        const int batchSize = 10;
+
         var receiptHandle1 = Guid.NewGuid().ToString();
         var data1 = Guid.NewGuid().ToString();
         var mock1 = new Mock<IJobDataModel>().Object;
@@ -26,7 +28,7 @@ public class SqsJobSourceTests
 
         var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
         var sqsMessageSource = new Mock<ISqsMessageSource>(MockBehavior.Strict);
-        sqsMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<CancellationToken>()))
+        sqsMessageSource.Setup(a => a.GetMessagesAsync(batchSize, It.IsAny<CancellationToken>()))
             .ReturnsAsync(() =>
             [
                 new Message
@@ -65,7 +67,7 @@ public class SqsJobSourceTests
             .Returns((List<IJobModel> input) => input);
 
         var queueUrl = Guid.NewGuid().ToString();
-        const int batchSize = 10;
+
         const int visibilityTimeoutInSeconds = 100;
 
         var source = new SqsJobSource(sqs.Object, sqsMessageSource.Object, converter.Object, sorter.Object,
@@ -77,12 +79,13 @@ public class SqsJobSourceTests
             }));
 
         using var cts = new CancellationTokenSource();
-        var response = await source.GetJobsAsync(TestContext.Current.CancellationToken);
+        var response = await source.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
         Assert.Equal(2, response.Items.Count);
 
         sqs.Verify(a => a.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
-        sqsMessageSource.Verify(a => a.GetMessagesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        sqsMessageSource.Verify(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
+        sqsMessageSource.Verify(a => a.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken), Times.Once);
 
         converter.Verify(c => c.Convert(data1), Times.Once);
         converter.Verify(c => c.Convert(data2), Times.Once);
@@ -94,6 +97,22 @@ public class SqsJobSourceTests
         Assert.Same(mock1, response.Items[0].Data);
         Assert.Equal(receiptHandle2, response.Items[1].MessageId);
         Assert.Same(mock2, response.Items[1].Data);
+    }
+
+    [Fact]
+    public void TestGetRecommendedHeartbeatInterval()
+    {
+        var options = new SqsConfigurationModel
+        {
+            QueueUrl = null!,
+            BatchSize = 0,
+            VisibilityTimeoutSeconds = 20
+        };
+
+        var jobSource = new SqsJobSource(null!, null!, null!, null!, new NullLogger<SqsJobSource>(),
+            Options.Create(options));
+
+        Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
     }
 
     [Fact]

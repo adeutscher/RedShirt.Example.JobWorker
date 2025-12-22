@@ -1,4 +1,4 @@
-using RedShirt.Example.JobWorker.Core;
+using RedShirt.Example.JobWorker.Core.Services.Batch;
 
 namespace RedShirt.Example.JobWorker;
 

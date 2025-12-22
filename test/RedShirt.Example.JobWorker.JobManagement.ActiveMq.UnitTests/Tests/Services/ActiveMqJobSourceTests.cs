@@ -22,8 +22,7 @@ public class ActiveMqJobSourceTests
         // Declare objects
         var configuration = new ActiveMqJobSource.ConfigurationModel
         {
-            QueueName = null!,
-            BatchSize = 0
+            QueueName = null!
         };
 
         var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration), null!, null!, null!,
@@ -51,8 +50,7 @@ public class ActiveMqJobSourceTests
         // Declare objects
         var configuration = new ActiveMqJobSource.ConfigurationModel
         {
-            QueueName = null!,
-            BatchSize = 0
+            QueueName = null!
         };
 
         var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration), null!, null!, null!,
@@ -70,8 +68,7 @@ public class ActiveMqJobSourceTests
 
         var configuration = new ActiveMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = 1
+            QueueName = queueName
         };
 
         var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
@@ -112,10 +109,10 @@ public class ActiveMqJobSourceTests
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
             bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(10, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(jobResponse.Items);
 
         Assert.Single(activeConnectionFactory.Invocations);
@@ -142,8 +139,7 @@ public class ActiveMqJobSourceTests
 
         var configuration = new ActiveMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = 1
+            QueueName = queueName
         };
 
         var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
@@ -181,7 +177,7 @@ public class ActiveMqJobSourceTests
             bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
 
         await Assert.ThrowsAsync<CouldNotLoadQueueException>(() =>
-            jobSource.GetJobsAsync(TestContext.Current.CancellationToken));
+            jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken));
 
         // Assert
 
@@ -207,8 +203,7 @@ public class ActiveMqJobSourceTests
 
         var configuration = new ActiveMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = 1
+            QueueName = queueName
         };
 
         var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
@@ -264,10 +259,10 @@ public class ActiveMqJobSourceTests
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
             bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         var returnedJobItem = Assert.Single(jobResponse.Items);
         Assert.Equal(messageId, returnedJobItem.MessageId);
         Assert.Same(jobDataModel.Object, returnedJobItem.Data);
@@ -295,8 +290,7 @@ public class ActiveMqJobSourceTests
 
         var configuration = new ActiveMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = 0 // Intentionally set to 0
+            QueueName = queueName
         };
 
         var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
@@ -352,10 +346,10 @@ public class ActiveMqJobSourceTests
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
             bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         var returnedJobItem = Assert.Single(jobResponse.Items);
         Assert.Equal(messageId, returnedJobItem.MessageId);
         Assert.Same(jobDataModel.Object, returnedJobItem.Data);
@@ -383,8 +377,7 @@ public class ActiveMqJobSourceTests
 
         var configuration = new ActiveMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = 1
+            QueueName = queueName
         };
 
         var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
@@ -434,10 +427,10 @@ public class ActiveMqJobSourceTests
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
             bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(jobResponse.Items);
 
         Assert.Empty(jobResponse.Items); // Empty because we messed with the sorter response.
@@ -467,8 +460,7 @@ public class ActiveMqJobSourceTests
 
         var configuration = new ActiveMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = 1
+            QueueName = queueName
         };
 
         var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
@@ -517,10 +509,10 @@ public class ActiveMqJobSourceTests
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
             bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(jobResponse.Items);
 
         Assert.Single(activeConnectionFactory.Invocations);
@@ -546,8 +538,7 @@ public class ActiveMqJobSourceTests
 
         var configuration = new ActiveMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = 1
+            QueueName = queueName
         };
 
         var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
@@ -596,10 +587,10 @@ public class ActiveMqJobSourceTests
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
             bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(jobResponse.Items);
 
         Assert.Single(activeConnectionFactory.Invocations);
@@ -628,8 +619,7 @@ public class ActiveMqJobSourceTests
 
         var configuration = new ActiveMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = batchSize
+            QueueName = queueName
         };
 
         var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
@@ -697,10 +687,10 @@ public class ActiveMqJobSourceTests
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
             bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Equal(batchSize, jobResponse.Items.Count);
 
         Assert.Single(activeConnectionFactory.Invocations);
@@ -724,7 +714,8 @@ public class ActiveMqJobSourceTests
             Assert.Equal(mockMessage.Object.NMSMessageId, returnedJobItem.MessageId);
             Assert.Same(jobDataModel.Object, returnedJobItem.Data);
 
-            converter.Verify(c => c.Convert(i.ToString()), Times.Once);
+            var i1 = i;
+            converter.Verify(c => c.Convert(i1.ToString()), Times.Once);
         }
 
         Assert.Single(sorter.Invocations);
@@ -740,8 +731,7 @@ public class ActiveMqJobSourceTests
 
         var configuration = new ActiveMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = 1
+            QueueName = queueName
         };
 
         var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
@@ -795,10 +785,10 @@ public class ActiveMqJobSourceTests
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
             bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(jobResponse.Items);
 
         Assert.Single(activeConnectionFactory.Invocations);
@@ -825,8 +815,7 @@ public class ActiveMqJobSourceTests
 
         var configuration = new ActiveMqJobSource.ConfigurationModel
         {
-            QueueName = queueName,
-            BatchSize = 1
+            QueueName = queueName
         };
 
         var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
@@ -880,10 +869,10 @@ public class ActiveMqJobSourceTests
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
             bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(jobResponse.Items);
 
         Assert.Single(activeConnectionFactory.Invocations);
@@ -906,8 +895,7 @@ public class ActiveMqJobSourceTests
 
         var configuration = new ActiveMqJobSource.ConfigurationModel
         {
-            QueueName = null!, // moot
-            BatchSize = 1
+            QueueName = null! // moot
         };
 
         var jobSource = new ActiveMqJobSource(null!, Options.Create(configuration),

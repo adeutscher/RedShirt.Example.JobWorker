@@ -1,11 +1,15 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
+using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Exceptions;
+using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.Batch;
+using RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
 
 namespace RedShirt.Example.JobWorker.Core.Services;
 
-internal interface IWorkerLoop
+internal interface IBatchWorkerLoop
 {
     Task RunAsync(CancellationToken cancellationToken = default);
 }
@@ -18,13 +22,14 @@ internal interface IWorkerLoop
 /// <param name="jobManager"></param>
 /// <param name="jobSource"></param>
 /// <param name="logger"></param>
-/// <param name="options"></param>
-internal class WorkerLoop(
+/// <param name="loopOptions"></param>
+internal class BatchWorkerLoop(
     IExecutionEndArbiter executionEndArbiter,
     IJobManager jobManager,
     IJobSource jobSource,
-    ILogger<WorkerLoop> logger,
-    IOptions<WorkerLoop.ConfigurationModel> options) : IWorkerLoop
+    ILogger<BatchWorkerLoop> logger,
+    IOptions<JobSourceConfigurationModel> jobSourceOptions,
+    IOptions<BatchWorkerLoop.ConfigurationModel> loopOptions) : IBatchWorkerLoop
 {
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
@@ -35,7 +40,7 @@ internal class WorkerLoop(
                 await Policy.Handle<NoJobException>(_ => executionEndArbiter.ShouldKeepRunning())
                     .WaitAndRetryForeverAsync(retryAttempt =>
                             // Exponential back-off, to the cap of a configurable amount
-                            TimeSpan.FromSeconds(Math.Min(options.Value.EffectiveMaxIdleWaitSeconds,
+                            TimeSpan.FromSeconds(Math.Min(loopOptions.Value.EffectiveMaxIdleWaitSeconds,
                                 Math.Pow(2, retryAttempt))),
                         (_, span) =>
                         {
@@ -43,7 +48,8 @@ internal class WorkerLoop(
                         })
                     .ExecuteAsync(async () =>
                     {
-                        var jobResponse = await jobSource.GetJobsAsync(cancellationToken);
+                        var jobResponse = await jobSource.GetJobsAsync(jobSourceOptions.Value.EffectiveBatchSize,
+                            cancellationToken);
                         if (jobResponse.Items.Count == 0)
                         {
                             // Throwing an exception in order to leverage Polly's handling for incremental backoff.

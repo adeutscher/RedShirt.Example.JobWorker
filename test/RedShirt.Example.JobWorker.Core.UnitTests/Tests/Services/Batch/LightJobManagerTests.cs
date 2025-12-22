@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.Batch;
 
-namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Batch;
 
 public class LightJobManagerTests
 {
@@ -40,8 +42,7 @@ public class LightJobManagerTests
                 job1.Object,
                 job2.Object,
                 job3.Object
-            ],
-            RecommendedHeartbeatIntervalSeconds = 0
+            ]
         }, TestContext.Current.CancellationToken);
 
         Assert.Equal(3, safeJobRunner.Invocations.Count);

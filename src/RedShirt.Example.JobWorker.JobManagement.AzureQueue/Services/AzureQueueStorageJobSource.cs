@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Models;
@@ -34,9 +34,9 @@ internal class AzureQueueStorageJobSource(
         await client.DeleteMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
     }
 
-    public async Task<JobSourceResponse> GetJobsAsync(CancellationToken cancellationToken = default)
+    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
-        var messages = await azureQueueStorageMessageSource.GetMessagesAsync(cancellationToken);
+        var messages = await azureQueueStorageMessageSource.GetMessagesAsync(batchSize, cancellationToken);
         var items = new List<IJobModel>();
 
         foreach (var message in messages)
@@ -67,13 +67,14 @@ internal class AzureQueueStorageJobSource(
 
         var response = new JobSourceResponse
         {
-            RecommendedHeartbeatIntervalSeconds =
-                (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75),
             Items = items.Count > 0 ? sorter.GetSortedListOfJobs(items) : []
         };
 
         return response;
     }
+
+    public int RecommendedHeartbeatIntervalSeconds =>
+        (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
     public async Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {

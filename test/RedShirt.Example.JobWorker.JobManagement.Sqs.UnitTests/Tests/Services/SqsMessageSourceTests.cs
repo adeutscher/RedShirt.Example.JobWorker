@@ -62,7 +62,7 @@ public class SqsMessageSourceTests
 
         var messageSource = new SqsMessageSource(sqs.Object, Options.Create(options));
 
-        var messages = await messageSource.GetMessagesAsync(TestContext.Current.CancellationToken);
+        var messages = await messageSource.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 
         Assert.NotNull(messages);
 
@@ -84,7 +84,7 @@ public class SqsMessageSourceTests
 
     /// <summary>
     ///     Confirm that the message source won't explode if the ReceiveMessageResponse from
-    ///     SQS is null. A version of the AWSSDK.SQS package has been known to do this when there
+    ///     SQS is null. A version of the AWS SDK's SQS package has been known to do this when there
     ///     are no messages to receive.
     /// </summary>
     [Fact]
@@ -108,7 +108,7 @@ public class SqsMessageSourceTests
 
         var messageSource = new SqsMessageSource(sqs.Object, Options.Create(options));
 
-        var messages = await messageSource.GetMessagesAsync(TestContext.Current.CancellationToken);
+        var messages = await messageSource.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 
         Assert.Empty(messages);
 

@@ -2,7 +2,7 @@ using Apache.NMS;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Models;
@@ -68,6 +68,8 @@ internal class ActiveMqJobSource : IJobSource
         });
     }
 
+    public int RecommendedHeartbeatIntervalSeconds => 0;
+
     public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
@@ -77,16 +79,16 @@ internal class ActiveMqJobSource : IJobSource
         }
     }
 
-    public async Task<JobSourceResponse> GetJobsAsync(CancellationToken cancellationToken = default)
+    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         _logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from ActiveMQ Queue: {QueueName}",
-            _configuration.Value.BatchSize, _configuration.Value.QueueName);
+            batchSize, _configuration.Value.QueueName);
 
         var getJobsResponseItems = new List<IJobModel>();
 
         var consumer = await _messageConsumer.Value;
 
-        while (getJobsResponseItems.Count < _configuration.Value.EffectiveBatchSize)
+        while (getJobsResponseItems.Count < batchSize)
         {
             var result = await consumer.ReceiveAsync(TimeSpan.FromMilliseconds(100));
 
@@ -140,7 +142,6 @@ internal class ActiveMqJobSource : IJobSource
 
         return new JobSourceResponse
         {
-            RecommendedHeartbeatIntervalSeconds = 0,
             Items = _messageSorter.GetSortedListOfJobs(getJobsResponseItems)
         };
     }
@@ -156,13 +157,5 @@ internal class ActiveMqJobSource : IJobSource
     public sealed class ConfigurationModel
     {
         public required string QueueName { get; init; }
-
-        /// <summary>
-        ///     Set maximum number of messages to get per call.
-        ///     The main reason to get multiple messages would be to take advantage of Core's multi-threading capabilities.
-        /// </summary>
-        public required int BatchSize { get; init; }
-
-        public int EffectiveBatchSize => Math.Max(1, BatchSize);
     }
 }

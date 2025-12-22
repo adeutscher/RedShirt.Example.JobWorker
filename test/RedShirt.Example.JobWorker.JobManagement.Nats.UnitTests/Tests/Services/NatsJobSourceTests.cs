@@ -11,7 +11,7 @@ using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Utility;
 
-namespace RedShirt.Example.JobWorker.JobManagement.Nats.CredentialStorage.Ssm.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Services;
 
 public class NatsJobSourceTests
 {
@@ -25,8 +25,7 @@ public class NatsJobSourceTests
         // Declare objects
         var configuration = new NatsJobSource.ConfigurationModel
         {
-            StreamName = null!,
-            BatchSize = 0
+            StreamName = null!
         };
 
         var natsJobSource = new NatsJobSource(null!, null!, null!, null!, null!,
@@ -54,8 +53,7 @@ public class NatsJobSourceTests
         // Declare objects
         var configuration = new NatsJobSource.ConfigurationModel
         {
-            StreamName = null!,
-            BatchSize = 0
+            StreamName = null!
         };
 
         var natsJobSource = new NatsJobSource(null!, null!, null!, null!, null!,
@@ -73,8 +71,7 @@ public class NatsJobSourceTests
 
         var configuration = new NatsJobSource.ConfigurationModel
         {
-            StreamName = queueName,
-            BatchSize = 1
+            StreamName = queueName
         };
 
         var mockGetter = new Mock<IFetchNoWaitGetter>();
@@ -112,10 +109,10 @@ public class NatsJobSourceTests
         var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object, mockBodyRetriever.Object,
             converter.Object, sorter.Object, new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(jobResponse.Items);
 
         Assert.Single(mockContextFactory.Invocations);
@@ -132,10 +129,9 @@ public class NatsJobSourceTests
     }
 
     /// <summary>
-    ///     Test of getting a single job
+    ///     Test of getting jobs
     /// </summary>
     [Theory]
-    [InlineData(0, 1)] // Confirm EffectiveBatchSize
     [InlineData(2, 2)]
     [InlineData(10, 10)]
     public async Task Test_GetJobs_GotJob(int batchSize, int expectedBatchSize)
@@ -144,8 +140,7 @@ public class NatsJobSourceTests
 
         var configuration = new NatsJobSource.ConfigurationModel
         {
-            StreamName = queueName,
-            BatchSize = batchSize
+            StreamName = queueName
         };
 
         var mockBodyRetriever = new Mock<IBodyRetriever>(MockBehavior.Strict);
@@ -177,8 +172,7 @@ public class NatsJobSourceTests
         var mockMessage = new Mock<INatsJSMsg<NatsMemoryOwner<byte>>>();
         mockMessage.Setup(m => m.Subject).Returns(messageId);
 
-        var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>>();
-        mockData.Add(mockMessage.Object);
+        var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>> {mockMessage.Object};
 
         var jobDataModel = new Mock<IJobDataModel>();
 
@@ -198,10 +192,10 @@ public class NatsJobSourceTests
         var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object, mockBodyRetriever.Object,
             converter.Object, sorter.Object, new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         var returnedJobItem = Assert.Single(jobResponse.Items);
         Assert.Equal(messageId, returnedJobItem.MessageId);
         Assert.Same(jobDataModel.Object, returnedJobItem.Data);
@@ -229,7 +223,6 @@ public class NatsJobSourceTests
     ///     Test of getting a single job
     /// </summary>
     [Theory]
-    [InlineData(0, 1)] // Confirm EffectiveBatchSize
     [InlineData(2, 2)]
     [InlineData(10, 10)]
     public async Task Test_GetJobs_GotJob_Exception(int batchSize, int expectedBatchSize)
@@ -238,8 +231,7 @@ public class NatsJobSourceTests
 
         var configuration = new NatsJobSource.ConfigurationModel
         {
-            StreamName = queueName,
-            BatchSize = batchSize
+            StreamName = queueName
         };
 
         var mockBodyRetriever = new Mock<IBodyRetriever>(MockBehavior.Strict);
@@ -271,8 +263,7 @@ public class NatsJobSourceTests
         var mockMessage = new Mock<INatsJSMsg<NatsMemoryOwner<byte>>>();
         mockMessage.Setup(m => m.Subject).Returns(messageId);
 
-        var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>>();
-        mockData.Add(mockMessage.Object);
+        var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>> {mockMessage.Object};
 
         mockBodyRetriever.Setup(br => br.GetMessageBody(mockMessage.Object))
             .Returns("{___}");
@@ -290,10 +281,10 @@ public class NatsJobSourceTests
         var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object, mockBodyRetriever.Object,
             converter.Object, sorter.Object, new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(jobResponse.Items);
 
         Assert.Single(mockContextFactory.Invocations);
@@ -321,7 +312,6 @@ public class NatsJobSourceTests
     ///     Test of getting multiple jobs
     /// </summary>
     [Theory]
-    [InlineData(0, 1)] // Confirm EffectiveBatchSize
     [InlineData(2, 2)]
     [InlineData(10, 10)]
     public async Task Test_GetJobs_GotMultiple(int batchSize, int expectedBatchSize)
@@ -330,8 +320,7 @@ public class NatsJobSourceTests
 
         var configuration = new NatsJobSource.ConfigurationModel
         {
-            StreamName = queueName,
-            BatchSize = batchSize
+            StreamName = queueName
         };
 
         var mockBodyRetriever = new Mock<IBodyRetriever>(MockBehavior.Strict);
@@ -389,10 +378,10 @@ public class NatsJobSourceTests
         var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object, mockBodyRetriever.Object,
             converter.Object, sorter.Object, new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
-        var jobResponse = await jobSource.GetJobsAsync(TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, jobResponse.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Equal(expectedBatchSize, jobResponse.Items.Count);
 
         for (var i = 0; i < expectedBatchSize; i++)
@@ -426,8 +415,7 @@ public class NatsJobSourceTests
 
         var configuration = new NatsJobSource.ConfigurationModel
         {
-            StreamName = null!, // moot
-            BatchSize = 1
+            StreamName = null! // moot
         };
 
         var jobSource = new NatsJobSource(null!, null!,

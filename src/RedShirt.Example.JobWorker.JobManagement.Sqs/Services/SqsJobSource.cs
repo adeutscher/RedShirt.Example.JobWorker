@@ -3,7 +3,7 @@ using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Common.Services;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Models;
@@ -33,9 +33,9 @@ internal class SqsJobSource(
         }, cancellationToken);
     }
 
-    public async Task<JobSourceResponse> GetJobsAsync(CancellationToken cancellationToken = default)
+    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
-        var messages = await sqsMessageSource.GetMessagesAsync(cancellationToken);
+        var messages = await sqsMessageSource.GetMessagesAsync(batchSize, cancellationToken);
         var items = new List<IJobModel>();
 
         foreach (var message in messages)
@@ -66,13 +66,14 @@ internal class SqsJobSource(
 
         var response = new JobSourceResponse
         {
-            RecommendedHeartbeatIntervalSeconds =
-                (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75),
             Items = items.Count > 0 ? sorter.GetSortedListOfJobs(items) : []
         };
 
         return response;
     }
+
+    public int RecommendedHeartbeatIntervalSeconds =>
+        (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
     public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {

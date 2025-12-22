@@ -1,5 +1,5 @@
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services;
 

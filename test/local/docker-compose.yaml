@@ -70,13 +70,13 @@ services:
       JOBS__INTERNAL_RETRY_COUNT: 2
       JOBS__MAX_IDLE_WAIT_SECONDS: 30
       JOBS__WORKER_THREAD_COUNT: 2
+      ## Job Management (General)
+      JOB_SOURCE__BATCH_SIZE: 10
       ## Job Management (SQS)
       JOB_SOURCE__SQS__QUEUE_URL: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/input
-      JOB_SOURCE__SQS__BATCH_SIZE: 10
       JOB_SOURCE__SQS__VISIBILITY_TIMEOUT_SECONDS: 300
       ## Job Management (Kinesis)
       USE_KINESIS: "${USE_KINESIS-0}"
-      JOB_SOURCE__KINESIS__BATCH_SIZE: 10
       JOB_SOURCE__KINESIS__STREAM_ARN: arn:aws:kinesis:us-east-1:000000000000:stream/input
       JOB_SOURCE__KINESIS__SHUFFLE_SHARDS: false
       JOB_SOURCE__KINESIS__CHECKPOINT__TABLE_NAME: checkpoint
@@ -91,21 +91,18 @@ services:
       JOB_SOURCE__RABBITMQ__USER_PATH: /rabbitmq/user
       JOB_SOURCE__RABBITMQ__PASSWORD_PATH: /rabbitmq/password
       JOB_SOURCE__RABBITMQ__QUEUE_NAME: RabbitQueue
-      JOB_SOURCE__RABBITMQ__BATCH_SIZE: 10
       ## Job Management (ActiveMQ)
       USE_ACTIVEMQ: "${USE_ACTIVEMQ-0}"
       JOB_SOURCE__ACTIVEMQ__BROKER_URI: tcp://activemq:61616
       JOB_SOURCE__ACTIVEMQ__USER_PATH: /activemq/user
       JOB_SOURCE__ACTIVEMQ__PASSWORD_PATH: /activemq/password
       JOB_SOURCE__ACTIVEMQ__QUEUE_NAME: /queue/ActiveQueue
-      JOB_SOURCE__ACTIVEMQ__BATCH_SIZE: 10
       ## Job Management (NATS)
       USE_NATS: "${USE_NATS-0}"
       JOB_SOURCE__NATS__URL: nats://nats:4222
       JOB_SOURCE__NATS__USER_PATH: /nats/user
       JOB_SOURCE__NATS__PASSWORD_PATH: /nats/password
       JOB_SOURCE__NATS__STREAM_NAME: TestStream
-      JOB_SOURCE__NATS__BATCH_SIZE: 10
       ## Job Management (Azure Queue Storage)
       USE_AZURE_QUEUE_STORAGE: "${USE_AZURE_QUEUE_STORAGE-0}"
       JOB_SOURCE__AZURE_QUEUE_STORAGE__URI: https://not-used-in-local-testing
@@ -113,5 +110,4 @@ services:
       ### https://learn.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string
       JOB_SOURCE__AZURE_QUEUE_STORAGE__CONNECTION_STRING: QueueEndpoint=http://azurite:10001/devstoreaccount1;DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;
       JOB_SOURCE__AZURE_QUEUE_STORAGE__QUEUE_NAME: test-azure-queue
-      JOB_SOURCE__AZURE_QUEUE_STORAGE__BATCH_SIZE: 10
       JOB_SOURCE__AZURE_QUEUE_STORAGE__VISIBILITY_TIMEOUT_SECONDS: 300

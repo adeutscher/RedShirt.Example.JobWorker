@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
 using System.Diagnostics;
 
-namespace RedShirt.Example.JobWorker.Core.Services;
+namespace RedShirt.Example.JobWorker.Core.Services.Batch;
 
 /// <summary>
 ///     Simpler version of JobManager that simply does a foreach loop through jobs rather than any multithreading.

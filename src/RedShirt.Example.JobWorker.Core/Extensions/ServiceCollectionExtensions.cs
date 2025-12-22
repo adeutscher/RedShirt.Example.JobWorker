@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Batch;
+using RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
 
 namespace RedShirt.Example.JobWorker.Core.Extensions;
 
@@ -10,13 +13,16 @@ public static class ServiceCollectionExtensions
         IConfigurationRoot configuration)
     {
         return services
+            // General
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
-            .AddSingleton<IHandler, Handler>()
-            .AddSingleton<IJobManager, JobManager>()
-            .Configure<JobManager.ConfigurationModel>(configuration.GetSection("Jobs"))
             .AddSingleton<ISafeJobRunner, SafeJobRunner>()
             .Configure<SafeJobRunner.ConfigurationModel>(configuration.GetSection("Jobs"))
-            .AddSingleton<IWorkerLoop, WorkerLoop>()
-            .Configure<WorkerLoop.ConfigurationModel>(configuration.GetSection("Jobs"));
+            .Configure<JobSourceConfigurationModel>(configuration.GetSection("JobSource"))
+            // Batch Mode
+            .AddSingleton<IHandler, BatchHandler>()
+            .AddSingleton<IJobManager, JobManager>()
+            .Configure<JobManager.ConfigurationModel>(configuration.GetSection("Jobs"))
+            .AddSingleton<IBatchWorkerLoop, BatchWorkerLoop>()
+            .Configure<BatchWorkerLoop.ConfigurationModel>(configuration.GetSection("Jobs"));
     }
 }

@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.Batch;
+using RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
@@ -132,13 +135,12 @@ internal class JobManager(
     }
 
     private async Task HeartbeatMonitorAsync(AutoResetEvent bootstrapEvent, ManualResetEvent resetEvent,
-        JobSourceResponse sourceResponse,
         List<JobEnvelope> envelopes, CancellationToken cancellationToken = default)
     {
         while (envelopes.Count > 0)
         {
             bootstrapEvent.Set();
-            if (resetEvent.WaitOne(TimeSpan.FromSeconds(sourceResponse.RecommendedHeartbeatIntervalSeconds)))
+            if (resetEvent.WaitOne(TimeSpan.FromSeconds(jobSource.RecommendedHeartbeatIntervalSeconds)))
             {
                 return;
             }
@@ -223,12 +225,12 @@ internal class JobManager(
         should take ~2.5 seconds.
          */
         Task? heartbeatTask = null;
-        if (response.RecommendedHeartbeatIntervalSeconds > 0)
+        if (jobSource.RecommendedHeartbeatIntervalSeconds > 0)
         {
             var bootstrapEvent = new AutoResetEvent(false);
             heartbeatTask =
                 Task.Run(
-                    () => HeartbeatMonitorAsync(bootstrapEvent, heartbeatDoneEvent, response, envelopes,
+                    () => HeartbeatMonitorAsync(bootstrapEvent, heartbeatDoneEvent, envelopes,
                         cancellationToken), cancellationToken);
             bootstrapEvent.WaitOne(TimeSpan.FromSeconds(5));
         }
