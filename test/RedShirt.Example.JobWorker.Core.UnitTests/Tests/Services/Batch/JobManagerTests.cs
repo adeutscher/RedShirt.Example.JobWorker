@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -38,7 +39,7 @@ public class JobManagerTests
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
-                new JobManager.ConfigurationModel
+                new ThreadConfigurationModel
                 {
                     WorkerThreadCount = 1
                 }));
@@ -89,7 +90,7 @@ public class JobManagerTests
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
-                new JobManager.ConfigurationModel
+                new  ThreadConfigurationModel
                 {
                     WorkerThreadCount = 1
                 }));
@@ -132,7 +133,7 @@ public class JobManagerTests
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
-                new JobManager.ConfigurationModel
+                new  ThreadConfigurationModel
                 {
                     WorkerThreadCount = 2
                 }));
@@ -191,7 +192,7 @@ public class JobManagerTests
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
-                new JobManager.ConfigurationModel
+                new  ThreadConfigurationModel
                 {
                     WorkerThreadCount = 1
                 }));
@@ -233,7 +234,7 @@ public class JobManagerTests
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
-                new JobManager.ConfigurationModel
+                new  ThreadConfigurationModel
                 {
                     WorkerThreadCount = 1
                 }));
@@ -279,7 +280,7 @@ public class JobManagerTests
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
-                new JobManager.ConfigurationModel
+                new  ThreadConfigurationModel
                 {
                     WorkerThreadCount = 1
                 }));
@@ -314,7 +315,7 @@ public class JobManagerTests
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
-                new JobManager.ConfigurationModel
+                new  ThreadConfigurationModel
                 {
                     WorkerThreadCount = 1
                 }));
@@ -357,7 +358,7 @@ public class JobManagerTests
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
             new NullLogger<JobManager>(),
             Options.Create(
-                new JobManager.ConfigurationModel
+                new  ThreadConfigurationModel
                 {
                     WorkerThreadCount = 1
                 }));
