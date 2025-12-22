@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.Batch;
@@ -22,7 +23,7 @@ internal class JobManager(
     ISafeJobRunner safeJobRunner,
     IJobSource jobSource,
     ILogger<JobManager> logger,
-    IOptions<JobManager.ConfigurationModel> options) : IJobManager
+    IOptions<ThreadConfigurationModel> options) : IJobManager
 {
     private readonly SemaphoreSlim _completedJobsCountSemaphore = new(1, 1);
     private readonly SemaphoreSlim _completedWorkersCountSemaphore = new(1, 1);
@@ -282,11 +283,5 @@ internal class JobManager(
         public required IJobModel Job { get; init; }
         public bool? Result { get; set; }
         public bool IsCompleted => Result is not null;
-    }
-
-    public sealed class ConfigurationModel
-    {
-        public int EffectiveWorkerThreadCount => Math.Max(1, WorkerThreadCount);
-        public required int WorkerThreadCount { get; init; }
     }
 }

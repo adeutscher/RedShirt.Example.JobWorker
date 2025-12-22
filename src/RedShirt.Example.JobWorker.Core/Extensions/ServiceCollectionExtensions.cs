@@ -18,10 +18,10 @@ public static class ServiceCollectionExtensions
             .AddSingleton<ISafeJobRunner, SafeJobRunner>()
             .Configure<SafeJobRunner.ConfigurationModel>(configuration.GetSection("Jobs"))
             .Configure<JobSourceConfigurationModel>(configuration.GetSection("JobSource"))
+            .Configure<ThreadConfigurationModel>(configuration.GetSection("Jobs"))
             // Batch Mode
             .AddSingleton<IHandler, BatchHandler>()
             .AddSingleton<IJobManager, JobManager>()
-            .Configure<JobManager.ConfigurationModel>(configuration.GetSection("Jobs"))
             .AddSingleton<IBatchWorkerLoop, BatchWorkerLoop>()
             .Configure<BatchWorkerLoop.ConfigurationModel>(configuration.GetSection("Jobs"));
     }
