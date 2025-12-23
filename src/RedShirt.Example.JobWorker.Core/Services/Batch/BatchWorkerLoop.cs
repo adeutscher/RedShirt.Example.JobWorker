@@ -4,10 +4,9 @@ using Polly;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.Batch;
 using RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
 
-namespace RedShirt.Example.JobWorker.Core.Services;
+namespace RedShirt.Example.JobWorker.Core.Services.Batch;
 
 internal interface IBatchWorkerLoop
 {
@@ -29,7 +28,7 @@ internal class BatchWorkerLoop(
     IJobSource jobSource,
     ILogger<BatchWorkerLoop> logger,
     IOptions<JobSourceConfigurationModel> jobSourceOptions,
-    IOptions<BatchWorkerLoop.ConfigurationModel> loopOptions) : IBatchWorkerLoop
+    IOptions<LoopOptionsConfigurationModel> loopOptions) : IBatchWorkerLoop
 {
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
@@ -64,11 +63,5 @@ internal class BatchWorkerLoop(
         {
             // pass, only thrown to here in the specific case of a SIGTERM.
         }
-    }
-
-    public sealed class ConfigurationModel
-    {
-        public int EffectiveMaxIdleWaitSeconds => Math.Max(1, MaxIdleWaitSeconds);
-        public required int MaxIdleWaitSeconds { get; init; }
     }
 }

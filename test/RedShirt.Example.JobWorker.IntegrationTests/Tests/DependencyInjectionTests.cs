@@ -4,7 +4,7 @@ namespace RedShirt.Example.JobWorker.IntegrationTests.Tests;
 public class DependencyInjectionTests
 {
     [Fact]
-    public void Test_Get_Runner_Active()
+    public void Test_Get_Runner_ActiveMq()
     {
         TestUtilities.WrapEnvironment(new Dictionary<string, string>
         {
@@ -96,6 +96,25 @@ public class DependencyInjectionTests
             ["AWS_ACCESS_KEY_ID"] = "foo",
             ["AWS_SECRET_ACCESS_KEY"] = "bar",
             ["AWS_SESSION_TOKEN"] = "foobar",
+            ["JOBS__LOADER__ENABLED"] = "0",
+            ["UseActiveMq"] = "0",
+            ["UseAzureQueueStorage"] = "0",
+            ["UseKinesis"] = "0",
+            ["UseNats"] = "0",
+            ["UseRabbitMq"] = "0"
+        }, () => { Assert.NotNull(Setup.GetRunner()); });
+    }
+
+    [Fact]
+    public void Test_Get_Runner_SQS_And_Loader_Mode()
+    {
+        TestUtilities.WrapEnvironment(new Dictionary<string, string>
+        {
+            ["AWS_SERVICE_URL"] = "http://foo.bar",
+            ["AWS_ACCESS_KEY_ID"] = "foo",
+            ["AWS_SECRET_ACCESS_KEY"] = "bar",
+            ["AWS_SESSION_TOKEN"] = "foobar",
+            ["JOBS__LOADER__ENABLED"] = "1",
             ["UseActiveMq"] = "0",
             ["UseAzureQueueStorage"] = "0",
             ["UseKinesis"] = "0",

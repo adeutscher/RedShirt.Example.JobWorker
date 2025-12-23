@@ -1,8 +1,7 @@
-using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Batch;
 using RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
 
-namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests;
+namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Batch;
 
 public class BatchHandlerTests
 {

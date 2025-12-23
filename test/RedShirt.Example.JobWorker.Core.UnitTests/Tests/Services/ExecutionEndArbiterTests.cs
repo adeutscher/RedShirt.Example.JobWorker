@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.Batch;
+using RedShirt.Example.JobWorker.Core.Services;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services;
 

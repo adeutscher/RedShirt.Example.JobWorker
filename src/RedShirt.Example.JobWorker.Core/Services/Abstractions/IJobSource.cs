@@ -9,6 +9,8 @@ public interface IJobSource
 {
     /// <summary>
     ///     Dictates how long is recommended to wait until sending a heartbeat for a message.
+    ///     Can be assumed to be unchanging during execution.
+    ///     The recommended value for this property is 75% of the message in-flight time.
     /// </summary>
     public int RecommendedHeartbeatIntervalSeconds { get; }
 

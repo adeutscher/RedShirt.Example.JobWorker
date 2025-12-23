@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace RedShirt.Example.JobWorker.Core.Services.Batch;
+namespace RedShirt.Example.JobWorker.Core.Services;
 
 /// <summary>
 ///     Dictates if the app should continue running.

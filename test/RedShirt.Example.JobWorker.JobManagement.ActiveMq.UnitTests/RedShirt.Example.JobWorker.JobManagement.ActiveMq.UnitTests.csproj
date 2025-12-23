@@ -26,7 +26,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\src\RedShirt.Example.JobWorker.JobManagement.ActiveMq\RedShirt.Example.JobWorker.JobManagement.ActiveMq.csproj" />
+        <ProjectReference Include="..\..\src\RedShirt.Example.JobWorker.JobManagement.ActiveMq\RedShirt.Example.JobWorker.JobManagement.ActiveMq.csproj"/>
     </ItemGroup>
 
 </Project>

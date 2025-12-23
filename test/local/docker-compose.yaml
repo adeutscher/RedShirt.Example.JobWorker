@@ -70,6 +70,8 @@ services:
       JOBS__INTERNAL_RETRY_COUNT: 2
       JOBS__MAX_IDLE_WAIT_SECONDS: 30
       JOBS__WORKER_THREAD_COUNT: 2
+      JOBS__LOADER__ENABLED: "${JOBS__LOADER__ENABLED-0}" # Experimental
+      JOBS__LOADER__BACKLOG_SIZE: 10
       ## Job Management (General)
       JOB_SOURCE__BATCH_SIZE: 10
       ## Job Management (SQS)

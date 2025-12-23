@@ -40,8 +40,9 @@ public class BatchWorkerLoopTests
         };
         jobSource.Setup(j => j.GetJobsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(jobSourceResponse);
-        var loop = new BatchWorkerLoop(endArbiter.Object, jobManager.Object, jobSource.Object, new NullLogger<BatchWorkerLoop>(),
-            Options.Create(sourceOptions), Options.Create(new BatchWorkerLoop.ConfigurationModel
+        var loop = new BatchWorkerLoop(endArbiter.Object, jobManager.Object, jobSource.Object,
+            new NullLogger<BatchWorkerLoop>(),
+            Options.Create(sourceOptions), Options.Create(new LoopOptionsConfigurationModel
             {
                 MaxIdleWaitSeconds = 1
             }));
@@ -77,8 +78,9 @@ public class BatchWorkerLoopTests
             {
                 Items = []
             });
-        var loop = new BatchWorkerLoop(endArbiter.Object, jobManager.Object, jobSource.Object, new NullLogger<BatchWorkerLoop>(),
-            Options.Create(sourceOptions), Options.Create(new BatchWorkerLoop.ConfigurationModel
+        var loop = new BatchWorkerLoop(endArbiter.Object, jobManager.Object, jobSource.Object,
+            new NullLogger<BatchWorkerLoop>(),
+            Options.Create(sourceOptions), Options.Create(new LoopOptionsConfigurationModel
             {
                 MaxIdleWaitSeconds = 1
             }));

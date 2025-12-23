@@ -3,15 +3,14 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.Batch;
 using RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
-namespace RedShirt.Example.JobWorker.Core.Services;
+namespace RedShirt.Example.JobWorker.Core.Services.Batch;
 
 /// <summary>
-///     Handles multithreading and heartbeating of jobs.
+///     Handles multithreading and heartbeats for jobs.
 /// </summary>
 /// <param name="executionEndArbiter"></param>
 /// <param name="safeJobRunner"></param>
