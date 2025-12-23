@@ -8,15 +8,15 @@ public class ExecutionEndArbiterTests
     [Fact]
     public void BasicArbiterTest()
     {
-        var arbiter = new ExecutionEndArbiter(new NullLogger<ExecutionEndArbiter>());
-        Assert.True(arbiter.IsRunning);
-        Assert.True(arbiter.ShouldKeepRunning());
+        using (var arbiter = new ExecutionEndArbiter(new NullLogger<ExecutionEndArbiter>()))
+        {
+            Assert.True(arbiter.IsRunning);
+            Assert.True(arbiter.ShouldKeepRunning());
 
-        arbiter.HandleSigTerm(null!, null!);
+            arbiter.HandleSigTerm(null!, null!);
 
-        Assert.False(arbiter.IsRunning);
-        Assert.False(arbiter.ShouldKeepRunning());
-
-        arbiter.Dispose(); // coverage
+            Assert.False(arbiter.IsRunning);
+            Assert.False(arbiter.ShouldKeepRunning());
+        }
     }
 }

@@ -21,14 +21,14 @@ internal sealed class ExecutionEndArbiter : IExecutionEndArbiter
         AppDomain.CurrentDomain.ProcessExit += HandleSigTerm;
     }
 
-    internal bool IsRunning { get; set; } = true;
+    internal bool IsRunning { get; private set; } = true;
 
     public bool ShouldKeepRunning()
     {
         return IsRunning;
     }
 
-    public void Dispose()
+    void IDisposable.Dispose()
     {
         AppDomain.CurrentDomain.ProcessExit -= HandleSigTerm;
     }
