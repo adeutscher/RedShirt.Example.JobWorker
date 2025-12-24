@@ -81,7 +81,7 @@ internal class SqsJobSource(
         {
             QueueUrl = options.Value.QueueUrl,
             ReceiptHandle = message.MessageId,
-            VisibilityTimeout = Math.Max(1, options.Value.VisibilityTimeoutSeconds)
+            VisibilityTimeout = options.Value.EffectiveVisibilityTimeoutSeconds
         }, cancellationToken);
     }
 }
