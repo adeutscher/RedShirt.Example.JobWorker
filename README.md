@@ -35,7 +35,7 @@ while the original "Batch" mode is the default. To enable "Loader" mode, either:
 
 Recommended steps when using this as a template:
 
-1. To change the namespace of the API en-masse for your purposes, use the `init-repo.sh` script:
+1. To change the namespace of this solution en-masse for your purposes, use the `init-repo.sh` script:
 
     ```bash
     bash init-repo.sh New.Namespace.Here
