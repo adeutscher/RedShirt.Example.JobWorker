@@ -16,6 +16,8 @@ Repo features:
 
 # Configuration
 
+For configuration examples, see the `worker` section of the `test/local/docker-compose.yaml` file.
+
 ## Loader Mode
 
 "Loader" mode is a new implementation of the handling of jobs pulled from the job source. Compared to the original
