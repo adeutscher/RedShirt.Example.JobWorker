@@ -14,6 +14,23 @@ Repo features:
     * [NATS](https://nats.io/)
     * [RabbitMQ](https://www.rabbitmq.com/)
 
+# Configuration
+
+## Loader Mode
+
+"Loader" mode is a new implementation of the handling of jobs pulled from the job source. Compared to the original
+"Batch" mode, it features:
+
+* Automatic backlog population for fewer delays between job executions.
+* Better separation of concerns for maintainability.
+
+"Loader" mode is currently marked as experimental until it can be tested more in deployed environments,
+while the original "Batch" mode is the default. To enable "Loader" mode, either:
+
+* Set the `JOBS__LOADER__ENABLED` environment variable to `1`.
+* Adjust the logic in `Core` project's `Extensions/ServiceCollectionExtensions.cs` (as part of initializing this
+  template)
+
 # Initialisation
 
 Recommended steps when using this as a template:
