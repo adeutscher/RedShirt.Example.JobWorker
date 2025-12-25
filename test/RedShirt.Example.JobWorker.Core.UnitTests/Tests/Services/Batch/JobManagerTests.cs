@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -96,6 +97,55 @@ public class JobManagerTests
                 }));
 
         var job = new Mock<IJobModel>(MockBehavior.Strict);
+
+        await jobManager.StartAsync(TestContext.Current.CancellationToken);
+        await jobManager.RunAsync(new JobSourceResponse
+        {
+            Items = [job.Object]
+        }, TestContext.Current.CancellationToken);
+
+        safeRunner.Verify(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Once);
+        safeRunner.Verify(s => s.RunSafelyAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
+
+        jobSource.Verify(s => s.HeartbeatAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Once);
+        jobSource.Verify(s => s.HeartbeatAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    ///     Confirm that the heartbeat should be allowed to fail without bringing everything else down.
+    ///     Be careful about editing the timings on this because justification comments inside JobManager directly refer to
+    ///     this test.
+    /// </summary>
+    [Fact(Timeout = 5000)]
+    public async Task Test_RunJobAsync_Basic_Heartbeat_Failed_CouldNotHeartbeatException()
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter.Setup(e => e.ShouldKeepRunning())
+            .Returns(true);
+
+        var safeRunner = new Mock<ISafeJobRunner>();
+        safeRunner
+            .Setup(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
+            .Returns(async (IJobModel _, CancellationToken ct) =>
+            {
+                await Task.Delay(2500, ct);
+                return false;
+            });
+        var jobSource = new Mock<IJobSource>();
+        jobSource.Setup(s => s.HeartbeatAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
+            .Returns((IJobModel _, CancellationToken _) => throw new CanNoLongerHeartbeatException());
+        jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
+
+        var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
+            new NullLogger<JobManager>(),
+            Options.Create(
+                new ThreadConfigurationModel
+                {
+                    WorkerThreadCount = 1
+                }));
+
+        var job = new Mock<IJobModel>(MockBehavior.Strict);
+        job.Setup(j => j.MessageId).Returns(Guid.NewGuid().ToString());
 
         await jobManager.StartAsync(TestContext.Current.CancellationToken);
         await jobManager.RunAsync(new JobSourceResponse
