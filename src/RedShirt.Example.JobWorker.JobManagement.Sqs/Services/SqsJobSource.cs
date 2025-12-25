@@ -94,7 +94,14 @@ internal class SqsJobSource(
              * If we're about to be no longer able to extend the in-flight time of this message,
              * then delete the message.
              *
-             * This isn't exactly an ideal solution, but it keeps the queue from being overwhelmed by a long-running job multiple times.
+             * This isn't exactly an ideal solution,
+             * but it keeps the queue from being overwhelmed by a long-running job multiple times.
+             *
+             * If this 12-hour job isn't an outlier, then you should consider using a job source other than SQS
+             * or breaking up the workload into smaller chunks.
+             * 
+             * AWSSDK does not return an exception when we try to extend beyond the 12 hour limit,
+             * so we are forced to apply our own. 
              */
 
             await sqs.DeleteMessageAsync(new DeleteMessageRequest
