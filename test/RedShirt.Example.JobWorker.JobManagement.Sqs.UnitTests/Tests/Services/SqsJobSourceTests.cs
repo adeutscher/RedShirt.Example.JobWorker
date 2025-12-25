@@ -73,7 +73,6 @@ public class SqsJobSourceTests
             new NullLogger<SqsJobSource>(), Options.Create(new SqsConfigurationModel
             {
                 QueueUrl = queueUrl,
-                BatchSize = batchSize,
                 VisibilityTimeoutSeconds = visibilityTimeoutInSeconds
             }));
 
@@ -103,7 +102,6 @@ public class SqsJobSourceTests
         var options = new SqsConfigurationModel
         {
             QueueUrl = null!,
-            BatchSize = 0,
             VisibilityTimeoutSeconds = 20
         };
 
@@ -121,7 +119,6 @@ public class SqsJobSourceTests
         {
             QueueUrl = Guid.NewGuid()
                 .ToString(),
-            BatchSize = 0,
             VisibilityTimeoutSeconds = 0
         };
 
@@ -154,7 +151,6 @@ public class SqsJobSourceTests
         {
             QueueUrl = Guid.NewGuid()
                 .ToString(),
-            BatchSize = 0,
             VisibilityTimeoutSeconds = 0
         };
 
@@ -191,7 +187,6 @@ public class SqsJobSourceTests
         {
             QueueUrl = Guid.NewGuid()
                 .ToString(),
-            BatchSize = 0,
             VisibilityTimeoutSeconds = timeoutSeconds
         };
 
@@ -238,7 +233,6 @@ public class SqsJobSourceTests
         {
             QueueUrl = Guid.NewGuid()
                 .ToString(),
-            BatchSize = 0,
             VisibilityTimeoutSeconds = timeoutSeconds
         };
 
