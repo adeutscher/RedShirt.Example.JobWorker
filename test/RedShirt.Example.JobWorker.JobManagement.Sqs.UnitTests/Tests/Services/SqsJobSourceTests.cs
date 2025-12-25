@@ -2,6 +2,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Common.Services;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
@@ -181,14 +182,15 @@ public class SqsJobSourceTests
     [InlineData(40, 40)]
     public async Task Test_HeartbeatAsync(int timeoutSeconds, int expectedVerified)
     {
-        var sqs = new Mock<IAmazonSQS>();
+        var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
         sqs
-            .Setup(s => s.ChangeMessageVisibilityAsync(It.IsAny<ChangeMessageVisibilityRequest>(), It.IsAny<CancellationToken>()))
+            .Setup(s => s.ChangeMessageVisibilityAsync(It.IsAny<ChangeMessageVisibilityRequest>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChangeMessageVisibilityResponse
             {
                 HttpStatusCode = HttpStatusCode.OK
             });
-            
+
         var config = new SqsConfigurationModel
         {
             QueueUrl = Guid.NewGuid()
@@ -201,8 +203,9 @@ public class SqsJobSourceTests
             Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
-        var job = new Mock<IJobModel>();
+        var job = new Mock<IJobModel>(MockBehavior.Strict);
         job.Setup(j => j.MessageId).Returns(messageId);
+        job.Setup(j => j.CreatedAtUtc).Returns(DateTime.UtcNow - TimeSpan.FromMinutes(5));
 
         await source.HeartbeatAsync(job.Object, TestContext.Current.CancellationToken);
 
@@ -219,6 +222,55 @@ public class SqsJobSourceTests
 
         Assert.Equal(config.QueueUrl, request.QueueUrl);
         Assert.Equal(expectedVerified, request.VisibilityTimeout);
+        Assert.Equal(messageId, request.ReceiptHandle);
+    }
+
+    [Fact]
+    public async Task Test_HeartbeatAsync_CanNoLongerHeartbeat()
+    {
+        const int timeoutSeconds = 300;
+
+        var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
+        sqs
+            .Setup(s => s.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeleteMessageResponse
+            {
+                HttpStatusCode = HttpStatusCode.OK
+            });
+
+        var config = new SqsConfigurationModel
+        {
+            QueueUrl = Guid.NewGuid()
+                .ToString(),
+            BatchSize = 0,
+            VisibilityTimeoutSeconds = timeoutSeconds
+        };
+
+        var source = new SqsJobSource(sqs.Object, null!, null!, null!, new NullLogger<SqsJobSource>(),
+            Options.Create(config));
+
+        var messageId = Guid.NewGuid().ToString();
+        var job = new Mock<IJobModel>(MockBehavior.Strict);
+        job.Setup(j => j.MessageId).Returns(messageId);
+        job
+            .Setup(j => j.CreatedAtUtc)
+            .Returns(DateTime.UtcNow - TimeSpan.FromHours(12) + TimeSpan.FromMinutes(2));
+
+        await Assert.ThrowsAsync<CanNoLongerHeartbeatException>(() =>
+            source.HeartbeatAsync(job.Object, TestContext.Current.CancellationToken));
+
+        sqs.Verify(
+            s => s.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(),
+                It.IsAny<CancellationToken>()), Times.Once);
+        sqs.Verify(
+            s => s.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(),
+                TestContext.Current.CancellationToken),
+            Times.Once);
+
+        var request = Assert.Single(sqs.Invocations).Arguments[0] as DeleteMessageRequest;
+        Assert.NotNull(request);
+
+        Assert.Equal(config.QueueUrl, request.QueueUrl);
         Assert.Equal(messageId, request.ReceiptHandle);
     }
 }

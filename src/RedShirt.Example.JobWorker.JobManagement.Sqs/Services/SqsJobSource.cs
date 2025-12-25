@@ -2,6 +2,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Common.Services;
@@ -18,6 +19,8 @@ internal class SqsJobSource(
     ILogger<SqsJobSource> logger,
     IOptions<SqsConfigurationModel> options) : IJobSource
 {
+    private const int MaximumInFlightTimeHours = 12;
+
     public Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
@@ -78,13 +81,32 @@ internal class SqsJobSource(
 
     public async Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
-        var response = await sqs.ChangeMessageVisibilityAsync(new ChangeMessageVisibilityRequest
+        var request = new ChangeMessageVisibilityRequest
         {
             QueueUrl = options.Value.QueueUrl,
             ReceiptHandle = message.MessageId,
             VisibilityTimeout = options.Value.EffectiveVisibilityTimeoutSeconds
-        }, cancellationToken);
+        };
 
-        logger.LogInformation("Heartbeat response status code: {StatusCode}", response.HttpStatusCode);
+        if (DateTime.UtcNow + TimeSpan.FromSeconds(request.VisibilityTimeout.Value) >
+            message.CreatedAtUtc + TimeSpan.FromHours(MaximumInFlightTimeHours))
+        {
+            /*
+             * If we're about to be no longer able to extend the in-flight time of this message,
+             * then delete the message.
+             *
+             * This isn't exactly an ideal solution, but it keeps the queue from being overwhelmed by a long-running job.
+             */
+
+            await sqs.DeleteMessageAsync(new DeleteMessageRequest
+            {
+                QueueUrl = options.Value.QueueUrl,
+                ReceiptHandle = message.MessageId
+            }, cancellationToken);
+
+            throw new CanNoLongerHeartbeatException();
+        }
+
+        await sqs.ChangeMessageVisibilityAsync(request, cancellationToken);
     }
 }
