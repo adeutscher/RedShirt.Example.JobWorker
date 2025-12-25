@@ -52,7 +52,7 @@ public class SqsMessageSourceTests
             });
 
         var queueUrl = Guid.NewGuid().ToString();
-        var visibilityTimeout = new Random().Next(100, 200);
+        var visibilityTimeout = Random.Shared.Next(100, 200);
         var options = new SqsConfigurationModel
         {
             QueueUrl = queueUrl,
@@ -97,7 +97,7 @@ public class SqsMessageSourceTests
             .ReturnsAsync((ReceiveMessageResponse) null!);
 
         var queueUrl = Guid.NewGuid().ToString();
-        var visibilityTimeout = new Random().Next(100, 200);
+        var visibilityTimeout = Random.Shared.Next(100, 200);
         var options = new SqsConfigurationModel
         {
             QueueUrl = queueUrl,

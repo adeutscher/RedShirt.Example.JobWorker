@@ -61,7 +61,7 @@ public class AzureQueueStorageMessageSourceTests
                 return response;
             });
 
-        var visibilityTimeout = new Random().Next(20, 59);
+        var visibilityTimeout = Random.Shared.Next(20, 59);
         var options = new AzureQueueStorageConfigurationModel
         {
             VisibilityTimeoutSeconds = visibilityTimeout
