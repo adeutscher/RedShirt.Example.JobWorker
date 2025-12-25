@@ -61,21 +61,22 @@ services:
       - localstack
     environment:
       # General
-      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
-      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_SERVICE_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: foo
+      AWS_SECRET_ACCESS_KEY: bar
       AWS_REGION: "${AWS_REGION-us-east-1}"
       # App-specific variables
       LOG_LEVEL: Trace
       JOBS__INTERNAL_RETRY_COUNT: 2
-      JOBS__MAX_IDLE_WAIT_SECONDS: 600
+      JOBS__MAX_IDLE_WAIT_SECONDS: 30
       JOBS__WORKER_THREAD_COUNT: 2
       JOBS__LOADER__ENABLED: "${JOBS__LOADER__ENABLED-0}" # Experimental
-      JOBS__LOADER__BACKLOG_SIZE: 0
+      JOBS__LOADER__BACKLOG_SIZE: 10
       ## Job Management (General)
       JOB_SOURCE__BATCH_SIZE: 10
       ## Job Management (SQS)
-      JOB_SOURCE__SQS__QUEUE_URL: "${QUEUE_URL}"
-      JOB_SOURCE__SQS__VISIBILITY_TIMEOUT_SECONDS: 900
+      JOB_SOURCE__SQS__QUEUE_URL: http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/input
+      JOB_SOURCE__SQS__VISIBILITY_TIMEOUT_SECONDS: 300
       ## Job Management (Kinesis)
       USE_KINESIS: "${USE_KINESIS-0}"
       JOB_SOURCE__KINESIS__STREAM_ARN: arn:aws:kinesis:us-east-1:000000000000:stream/input
