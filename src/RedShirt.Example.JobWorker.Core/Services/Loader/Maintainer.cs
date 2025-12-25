@@ -70,8 +70,9 @@ internal class Maintainer(
                 await jobSource.HeartbeatAsync(job.JobModel, cancellationToken);
                 job.LastHeartbeatTime = DateTime.UtcNow;
             }
-            catch (CanNoLongerHeartbeatException)
+            catch (CanNoLongerHeartbeatException e)
             {
+                logger.LogWarning(e, "Can no longer heartbeat message: {MessageId}", job.JobModel.MessageId);
                 job.FlightTimeCanBeExtended = false;
             }
 

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
@@ -159,6 +160,12 @@ internal class JobManager(
                     }
 
                     await jobSource.HeartbeatAsync(item.Job, cancellationToken);
+                }
+                catch (CanNoLongerHeartbeatException e)
+                {
+                    // Same as a general exception, but with a specific log message
+                    logger.LogWarning(e, "Can no longer heartbeat message: {MessageId}", item.Job.MessageId);
+                    envelopes.RemoveAt(i);
                 }
                 catch (Exception e)
                 {
