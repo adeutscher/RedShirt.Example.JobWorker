@@ -24,7 +24,7 @@ internal class SourceMessageSorter : ISourceMessageSorter
 
         return input
             // Prioritize significantly older messages to prevent them from potentially being stuck in memory forever. 
-            .OrderByDescending(i => i.JobModel.HoursOld())
+            .OrderByDescending(i => i.JobModel.HoursOld)
             // Will need to replace or just outright remove this ThenByDescending when adapting the template
             .ThenByDescending(i => i.JobModel.Data.SleepDurationSeconds)
             .ToList();

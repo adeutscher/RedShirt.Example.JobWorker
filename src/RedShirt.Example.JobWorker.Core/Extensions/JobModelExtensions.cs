@@ -4,8 +4,8 @@ namespace RedShirt.Example.JobWorker.Core.Extensions;
 
 internal static class JobModelExtensions
 {
-    public static int HoursOld(this IJobModel jobModel)
+    extension(IJobModel jobModel)
     {
-        return (DateTime.UtcNow - jobModel.CreatedAtUtc).Hours;
+        public int HoursOld => (DateTime.UtcNow - jobModel.CreatedAtUtc).Hours;
     }
 }
