@@ -186,6 +186,7 @@ public class JobRepositoryTests
             var currentMock = items[i];
             var job = Assert.Single(jobRepository.WatchedJobs,
                 ci => ci.JobModel.MessageId == currentMock.Object.MessageId);
+            Assert.True(job.FlightTimeCanBeExtended);
             Assert.InRange(job.LastHeartbeatTime,
                 DateTime.UtcNow - TimeSpan.FromMilliseconds(250),
                 DateTime.UtcNow + TimeSpan.FromMilliseconds(250));
@@ -243,6 +244,7 @@ public class JobRepositoryTests
             var currentMock = items[i];
             var job = Assert.Single(jobRepository.WatchedJobs,
                 ci => ci.JobModel.MessageId == currentMock.Object.MessageId);
+            Assert.True(job.FlightTimeCanBeExtended);
             Assert.InRange(job.LastHeartbeatTime,
                 DateTime.UtcNow - TimeSpan.FromMilliseconds(250),
                 DateTime.UtcNow + TimeSpan.FromMilliseconds(250));

@@ -5,6 +5,7 @@ namespace RedShirt.Example.JobWorker.Core.Models.Loader;
 
 internal interface IJobRepositoryEntry
 {
+    bool FlightTimeCanBeExtended { get; set; }
     DateTime LastHeartbeatTime { get; set; }
     IJobModel JobModel { get; }
     JobState State { get; set; }
@@ -17,6 +18,7 @@ internal class JobRepositoryEntry : IJobRepositoryEntry
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
     private Guid _lockId = Guid.Empty;
+    public required bool FlightTimeCanBeExtended { get; set; }
     public required DateTime LastHeartbeatTime { get; set; }
     public required IJobModel JobModel { get; init; }
 

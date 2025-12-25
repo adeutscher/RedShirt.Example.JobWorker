@@ -6,6 +6,7 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Common.Services;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
+using System.Net;
 
 namespace RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.UnitTests.Tests.Services;
 
@@ -175,11 +176,19 @@ public class SqsJobSourceTests
     }
 
     [Theory]
-    [InlineData(1)]
-    [InlineData(10)]
-    public async Task Test_HeartbeatAsync(int timeoutSeconds)
+    [InlineData(10, 20)]
+    [InlineData(30, 30)]
+    [InlineData(40, 40)]
+    public async Task Test_HeartbeatAsync(int timeoutSeconds, int expectedVerified)
     {
         var sqs = new Mock<IAmazonSQS>();
+        sqs
+            .Setup(s => s.ChangeMessageVisibilityAsync(It.IsAny<ChangeMessageVisibilityRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChangeMessageVisibilityResponse
+            {
+                HttpStatusCode = HttpStatusCode.OK
+            });
+            
         var config = new SqsConfigurationModel
         {
             QueueUrl = Guid.NewGuid()
@@ -209,7 +218,7 @@ public class SqsJobSourceTests
         Assert.NotNull(request);
 
         Assert.Equal(config.QueueUrl, request.QueueUrl);
-        Assert.Equal(config.VisibilityTimeoutSeconds, request.VisibilityTimeout);
+        Assert.Equal(expectedVerified, request.VisibilityTimeout);
         Assert.Equal(messageId, request.ReceiptHandle);
     }
 }

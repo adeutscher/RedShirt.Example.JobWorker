@@ -107,6 +107,7 @@ internal class JobRepository(
         {
             var job = new JobRepositoryEntry
             {
+                FlightTimeCanBeExtended = true,
                 LastHeartbeatTime = DateTime.UtcNow,
                 JobModel = jobModel,
                 State = JobState.Inactive

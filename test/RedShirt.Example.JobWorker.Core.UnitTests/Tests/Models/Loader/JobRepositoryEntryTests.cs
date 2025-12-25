@@ -14,19 +14,25 @@ public class JobRepositoryEntryTests
 
         var jre = new JobRepositoryEntry
         {
+            FlightTimeCanBeExtended = true,
             LastHeartbeatTime = default,
             JobModel = jobModel,
             State = JobState.Inactive
         };
 
+        // Set/Get Heartbeat Time
         Assert.Equal(default, jre.LastHeartbeatTime);
         var newDate = DateTime.UtcNow - TimeSpan.FromMinutes(2);
         jre.LastHeartbeatTime = newDate;
         Assert.Equal(newDate, jre.LastHeartbeatTime);
 
-        // State
+        // Set/Get State
         jre.State = JobState.Active;
         Assert.Equal(JobState.Active, jre.State);
+
+        // Set/Get FlightTimeCanBeEx
+        jre.FlightTimeCanBeExtended = false;
+        Assert.False(jre.FlightTimeCanBeExtended);
     }
 
     [Fact(Timeout = 500)]
@@ -34,6 +40,7 @@ public class JobRepositoryEntryTests
     {
         var jre = new JobRepositoryEntry
         {
+            FlightTimeCanBeExtended = true,
             LastHeartbeatTime = default,
             JobModel = null!,
             State = JobState.Inactive
@@ -57,6 +64,7 @@ public class JobRepositoryEntryTests
     {
         var jre = new JobRepositoryEntry
         {
+            FlightTimeCanBeExtended = true,
             LastHeartbeatTime = default,
             JobModel = null!,
             State = JobState.Inactive
@@ -74,6 +82,7 @@ public class JobRepositoryEntryTests
     {
         var jre = new JobRepositoryEntry
         {
+            FlightTimeCanBeExtended = true,
             LastHeartbeatTime = default,
             JobModel = null!,
             State = JobState.Inactive
