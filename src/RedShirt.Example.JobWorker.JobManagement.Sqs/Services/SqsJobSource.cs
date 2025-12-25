@@ -75,13 +75,15 @@ internal class SqsJobSource(
     public int RecommendedHeartbeatIntervalSeconds =>
         (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
-    public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public async Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
-        return sqs.ChangeMessageVisibilityAsync(new ChangeMessageVisibilityRequest
+        var response = await sqs.ChangeMessageVisibilityAsync(new ChangeMessageVisibilityRequest
         {
             QueueUrl = options.Value.QueueUrl,
             ReceiptHandle = message.MessageId,
             VisibilityTimeout = options.Value.EffectiveVisibilityTimeoutSeconds
         }, cancellationToken);
+
+        logger.LogInformation("Heartbeat response status code: {StatusCode}", response.HttpStatusCode);
     }
 }
