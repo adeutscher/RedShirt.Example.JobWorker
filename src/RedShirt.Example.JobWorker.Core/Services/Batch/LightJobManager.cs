@@ -20,13 +20,13 @@ internal class LightJobManager(ILogger<LightJobManager> logger, ISafeJobRunner s
     private uint _totalBatches;
     private ulong _totalJobs;
 
-    public async Task RunAsync(JobSourceResponse response, CancellationToken cancellationToken = default)
+    public async Task RunAsync(List<IJobModel> items, CancellationToken cancellationToken = default)
     {
         var timer = Stopwatch.StartNew();
 
-        var successfullyCompletedJobsCount = response.Items.Count;
+        var successfullyCompletedJobsCount = items.Count;
 
-        foreach (var job in response.Items)
+        foreach (var job in items)
         {
             var result = await safeJobRunner.RunSafelyAsync(job, cancellationToken);
             if (!result)
@@ -46,9 +46,9 @@ internal class LightJobManager(ILogger<LightJobManager> logger, ISafeJobRunner s
 
         timer.Stop();
         logger.LogDebug("Successfully finished {JobsSuccessful}/{JobsTotal} jobs in {ElapsedMilliseconds} ms",
-            successfullyCompletedJobsCount, response.Items.Count, timer.ElapsedMilliseconds);
+            successfullyCompletedJobsCount, items.Count, timer.ElapsedMilliseconds);
 
-        _totalJobs += (uint) response.Items.Count;
+        _totalJobs += (uint) items.Count;
         logger.LogTrace("Total Jobs: {TotalJobs} ({TotalBatches} batches)", _totalJobs, ++_totalBatches);
     }
 

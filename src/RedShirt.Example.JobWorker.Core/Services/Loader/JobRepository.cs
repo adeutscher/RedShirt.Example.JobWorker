@@ -3,7 +3,6 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Enums.Loader;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Models.Loader;
-using System.Collections.Concurrent;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Loader;
 
@@ -28,16 +27,18 @@ internal interface IJobRepository
 
 internal class JobRepository(
     IExecutionEndArbiter executionEndArbiter,
+    ISourceMessageSorter sorter,
     ILogger<JobRepository> logger,
     IOptions<JobRepository.ConfigurationModel> options)
     : IJobRepository
 {
-    private readonly ConcurrentQueue<IJobRepositoryEntry> _inactiveJobsQueue = new();
+    private readonly SemaphoreSlim _inactiveJobsSemaphore = new(1, 1);
 
     private readonly ManualResetEvent _jobsArrivedEvent = new(false);
 
     private readonly ManualResetEvent _jobsDemandEvent = new(false);
     private readonly SemaphoreSlim _watchedJobsSemaphore = new(1, 1);
+    private List<IJobRepositoryEntry> _inactiveJobs = new();
     internal List<IJobRepositoryEntry> WatchedJobs { get; } = new();
 
     public async Task<List<IJobRepositoryEntry>> GetAllInFlightJobsAsync(CancellationToken cancellationToken = default)
@@ -64,14 +65,16 @@ internal class JobRepository(
         return count;
     }
 
-    public Task<IJobRepositoryEntry?> GetNextJobAsync(CancellationToken cancellationToken = default)
+    public async Task<IJobRepositoryEntry?> GetNextJobAsync(CancellationToken cancellationToken = default)
     {
         IJobRepositoryEntry? result;
-        bool gotJob;
         do
         {
-            gotJob = _inactiveJobsQueue.TryDequeue(out result);
-            if (gotJob)
+            await _inactiveJobsSemaphore.WaitAsync(cancellationToken);
+            result = _inactiveJobs.FirstOrDefault();
+            _inactiveJobsSemaphore.Release();
+
+            if (result is not null)
             {
                 logger.LogTrace("Received job out of queue");
                 continue;
@@ -83,7 +86,7 @@ internal class JobRepository(
             if (!executionEndArbiter.ShouldKeepRunning())
             {
                 // It IS because we've been asked to stop running!
-                return Task.FromResult<IJobRepositoryEntry?>(null);
+                return null;
             }
 
             // Note that there's a demand.
@@ -94,15 +97,16 @@ internal class JobRepository(
             // The milliseconds timeout is necessary due to timing problems that came up during unit testing
             // I can't say that I'm thrilled with it, though...
             _jobsArrivedEvent.WaitOne(250);
-        } while (!gotJob);
+        } while (result is null);
 
-        return Task.FromResult(result);
+        return result;
     }
 
     public async Task LoadAsync(JobSourceResponse jobSourceResponse,
         CancellationToken cancellationToken = default)
     {
         await _watchedJobsSemaphore.WaitAsync(cancellationToken);
+        await _inactiveJobsSemaphore.WaitAsync(cancellationToken);
         foreach (var jobModel in jobSourceResponse.Items)
         {
             var job = new JobRepositoryEntry
@@ -113,12 +117,23 @@ internal class JobRepository(
                 State = JobState.Inactive
             };
 
-            _inactiveJobsQueue.Enqueue(job);
+            _inactiveJobs.Add(job); // Worry about sorting later, see below
+
             _jobsDemandEvent.Reset();
             WatchedJobs.Add(job);
         }
 
         _watchedJobsSemaphore.Release();
+
+        /*
+         * Refresh list
+         *
+         * There's probably more efficient ways to insert, but:
+         * * Needs to be compatible with Batch mode, at least for the time being.
+         * * We're assuming that we're not working with enormous datasets for our backlog size.
+         */
+        _inactiveJobs = sorter.GetSortedListOfJobs(_inactiveJobs);
+        _inactiveJobsSemaphore.Release();
 
         _jobsArrivedEvent.Set();
         _jobsArrivedEvent.Reset();

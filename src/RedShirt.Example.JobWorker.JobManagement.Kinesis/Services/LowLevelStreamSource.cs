@@ -19,7 +19,6 @@ internal interface ILowLevelStreamSource
 internal class LowLevelStreamSource(
     IAmazonKinesis kinesisClient,
     ISourceMessageConverter converter,
-    ISourceMessageSorter sorter,
     ILogger<LowLevelStreamSource> logger,
     IOptions<KinesisConfiguration> options) : ILowLevelStreamSource
 {
@@ -81,7 +80,7 @@ internal class LowLevelStreamSource(
         return new StreamSourceResponse
         {
             IteratorString = kinesisResponse.NextShardIterator,
-            Items = sorter.GetSortedListOfJobs(items),
+            Items = items,
             LastSequenceNumber = items.LastOrDefault()?.MessageId
         };
     }

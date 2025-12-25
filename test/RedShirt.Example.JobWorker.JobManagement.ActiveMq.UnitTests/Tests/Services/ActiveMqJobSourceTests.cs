@@ -25,7 +25,7 @@ public class ActiveMqJobSourceTests
             QueueName = null!
         };
 
-        var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration), null!, null!, null!,
+        var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration), null!, null!,
             new NullLogger<ActiveMqJobSource>());
 
         var jobModel = new JobModel
@@ -54,7 +54,7 @@ public class ActiveMqJobSourceTests
             QueueName = null!
         };
 
-        var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration), null!, null!, null!,
+        var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration), null!, null!,
             new NullLogger<ActiveMqJobSource>());
 
         await activeMqJobSource.AcknowledgeCompletionAsync(job.Object, true, TestContext.Current.CancellationToken);
@@ -93,10 +93,6 @@ public class ActiveMqJobSourceTests
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
-        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns<List<IJobModel>>(input => input);
-
         var bodyRetriever = new Mock<IActiveMqMessageBodyRetriever>(MockBehavior.Strict);
 
         // Setup Job Returns
@@ -108,7 +104,7 @@ public class ActiveMqJobSourceTests
         // Declare objects
 
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
-            bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
+            bodyRetriever.Object, converter.Object, new NullLogger<ActiveMqJobSource>());
 
         var jobResponse = await jobSource.GetJobsAsync(10, TestContext.Current.CancellationToken);
 
@@ -126,7 +122,6 @@ public class ActiveMqJobSourceTests
 
         Assert.Empty(bodyRetriever.Invocations);
         Assert.Empty(converter.Invocations);
-        Assert.Single(sorter.Invocations);
     }
 
     /// <summary>
@@ -160,10 +155,6 @@ public class ActiveMqJobSourceTests
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
-        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns<List<IJobModel>>(input => input);
-
         var bodyRetriever = new Mock<IActiveMqMessageBodyRetriever>(MockBehavior.Strict);
 
         // Setup Job Returns
@@ -175,7 +166,7 @@ public class ActiveMqJobSourceTests
         // Declare objects
 
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
-            bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
+            bodyRetriever.Object, converter.Object, new NullLogger<ActiveMqJobSource>());
 
         await Assert.ThrowsAsync<CouldNotLoadQueueException>(() =>
             jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken));
@@ -191,7 +182,6 @@ public class ActiveMqJobSourceTests
 
         Assert.Empty(bodyRetriever.Invocations);
         Assert.Empty(converter.Invocations);
-        Assert.Empty(sorter.Invocations);
     }
 
     /// <summary>
@@ -228,10 +218,6 @@ public class ActiveMqJobSourceTests
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
-        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns<List<IJobModel>>(input => input);
-
         var bodyRetriever = new Mock<IActiveMqMessageBodyRetriever>(MockBehavior.Strict);
 
         // Setup Job Returns
@@ -258,7 +244,7 @@ public class ActiveMqJobSourceTests
         // Declare objects
 
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
-            bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
+            bodyRetriever.Object, converter.Object, new NullLogger<ActiveMqJobSource>());
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
@@ -278,7 +264,6 @@ public class ActiveMqJobSourceTests
 
         Assert.Single(bodyRetriever.Invocations);
         Assert.Single(converter.Invocations);
-        Assert.Single(sorter.Invocations);
     }
 
     /// <summary>
@@ -315,10 +300,6 @@ public class ActiveMqJobSourceTests
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
-        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns<List<IJobModel>>(input => input);
-
         var bodyRetriever = new Mock<IActiveMqMessageBodyRetriever>(MockBehavior.Strict);
 
         // Setup Job Returns
@@ -345,7 +326,7 @@ public class ActiveMqJobSourceTests
         // Declare objects
 
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
-            bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
+            bodyRetriever.Object, converter.Object, new NullLogger<ActiveMqJobSource>());
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
@@ -365,89 +346,6 @@ public class ActiveMqJobSourceTests
 
         Assert.Single(bodyRetriever.Invocations);
         Assert.Single(converter.Invocations);
-        Assert.Single(sorter.Invocations);
-    }
-
-    /// <summary>
-    ///     Test of sorter invocation
-    /// </summary>
-    [Fact]
-    public async Task Test_GetJobs_GotJob_ConfirmSorting()
-    {
-        var queueName = Guid.NewGuid().ToString();
-
-        var configuration = new ActiveMqJobSource.ConfigurationModel
-        {
-            QueueName = queueName
-        };
-
-        var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
-
-        var queue = new Mock<IQueue>(MockBehavior.Strict);
-
-        var mockSession = new Mock<ISession>(MockBehavior.Strict);
-        mockSession.Setup(s => s.GetQueueAsync(queueName))
-            .ReturnsAsync(queue.Object);
-        mockSession.Setup(s => s.CreateConsumerAsync(queue.Object))
-            .ReturnsAsync(consumer.Object);
-
-        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.Start());
-        mockConnection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
-            .ReturnsAsync(mockSession.Object);
-
-        var activeConnectionFactory = new Mock<IActiveMqConnectionFactory>(MockBehavior.Strict);
-        activeConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockConnection.Object);
-
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-
-        var sortList = new List<IJobModel>();
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
-        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns(sortList);
-
-        var bodyRetriever = new Mock<IActiveMqMessageBodyRetriever>(MockBehavior.Strict);
-
-        // Setup Job Returns
-
-        var mockMessage = new Mock<IMessage>();
-
-        var mockChannelQueue = new Queue<IMessage>();
-        mockChannelQueue.Enqueue(mockMessage.Object);
-
-        bodyRetriever.Setup(r => r.GetMessageBody(mockMessage.Object))
-            .Returns("{}");
-
-        consumer
-            .Setup(c => c.ReceiveAsync(It.IsAny<TimeSpan>()))
-            .ReturnsAsync(() => mockChannelQueue.TryDequeue(out var job) ? job : null);
-
-        // Declare objects
-
-        var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
-            bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
-
-        var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
-        Assert.Empty(jobResponse.Items);
-
-        Assert.Empty(jobResponse.Items); // Empty because we messed with the sorter response.
-        Assert.Same(sortList, jobResponse.Items); // Should be the same list as the Mock override
-
-        Assert.Single(activeConnectionFactory.Invocations);
-        Assert.Equal(2, mockConnection.Invocations.Count);
-        mockConnection.Verify(c => c.Start(), Times.Once);
-        mockConnection.Verify(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge), Times.Once);
-        Assert.Equal(2, mockSession.Invocations.Count);
-        mockSession.Verify(s => s.GetQueueAsync(queueName), Times.Once);
-        mockSession.Verify(s => s.CreateConsumerAsync(queue.Object), Times.Once);
-
-        Assert.Single(bodyRetriever.Invocations);
-        Assert.Single(converter.Invocations);
-        Assert.Single(sorter.Invocations);
     }
 
     /// <summary>
@@ -485,10 +383,6 @@ public class ActiveMqJobSourceTests
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
-        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns<List<IJobModel>>(input => input);
-
         var bodyRetriever = new Mock<IActiveMqMessageBodyRetriever>(MockBehavior.Strict);
 
         // Setup Job Returns
@@ -508,7 +402,7 @@ public class ActiveMqJobSourceTests
         // Declare objects
 
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
-            bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
+            bodyRetriever.Object, converter.Object, new NullLogger<ActiveMqJobSource>());
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
@@ -526,7 +420,6 @@ public class ActiveMqJobSourceTests
 
         Assert.Single(bodyRetriever.Invocations);
         Assert.Empty(converter.Invocations);
-        Assert.Single(sorter.Invocations);
     }
 
     /// <summary>
@@ -563,10 +456,6 @@ public class ActiveMqJobSourceTests
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
-        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns<List<IJobModel>>(input => input);
-
         var bodyRetriever = new Mock<IActiveMqMessageBodyRetriever>(MockBehavior.Strict);
 
         // Setup Job Returns
@@ -586,7 +475,7 @@ public class ActiveMqJobSourceTests
         // Declare objects
 
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
-            bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
+            bodyRetriever.Object, converter.Object, new NullLogger<ActiveMqJobSource>());
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
@@ -604,7 +493,6 @@ public class ActiveMqJobSourceTests
 
         Assert.Single(bodyRetriever.Invocations);
         Assert.Empty(converter.Invocations);
-        Assert.Single(sorter.Invocations);
     }
 
     /// <summary>
@@ -644,10 +532,6 @@ public class ActiveMqJobSourceTests
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
-        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns<List<IJobModel>>(input => input);
-
         var bodyRetriever = new Mock<IActiveMqMessageBodyRetriever>(MockBehavior.Strict);
 
         // Setup Job Returns
@@ -686,7 +570,7 @@ public class ActiveMqJobSourceTests
         // Declare objects
 
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
-            bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
+            bodyRetriever.Object, converter.Object, new NullLogger<ActiveMqJobSource>());
 
         var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
@@ -718,8 +602,6 @@ public class ActiveMqJobSourceTests
             var i1 = i;
             converter.Verify(c => c.Convert(i1.ToString()), Times.Once);
         }
-
-        Assert.Single(sorter.Invocations);
     }
 
     /// <summary>
@@ -756,10 +638,6 @@ public class ActiveMqJobSourceTests
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
-        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns<List<IJobModel>>(input => input);
-
         var bodyRetriever = new Mock<IActiveMqMessageBodyRetriever>(MockBehavior.Strict);
 
         // Setup Job Returns
@@ -784,7 +662,7 @@ public class ActiveMqJobSourceTests
         // Declare objects
 
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
-            bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
+            bodyRetriever.Object, converter.Object, new NullLogger<ActiveMqJobSource>());
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
@@ -802,7 +680,6 @@ public class ActiveMqJobSourceTests
 
         Assert.Single(bodyRetriever.Invocations);
         Assert.Single(converter.Invocations);
-        Assert.Single(sorter.Invocations);
     }
 
     /// <summary>
@@ -840,10 +717,6 @@ public class ActiveMqJobSourceTests
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
-        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns<List<IJobModel>>(input => input);
-
         var bodyRetriever = new Mock<IActiveMqMessageBodyRetriever>(MockBehavior.Strict);
 
         // Setup Job Returns
@@ -868,7 +741,7 @@ public class ActiveMqJobSourceTests
         // Declare objects
 
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
-            bodyRetriever.Object, converter.Object, sorter.Object, new NullLogger<ActiveMqJobSource>());
+            bodyRetriever.Object, converter.Object, new NullLogger<ActiveMqJobSource>());
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
@@ -886,7 +759,6 @@ public class ActiveMqJobSourceTests
 
         Assert.Single(bodyRetriever.Invocations);
         Assert.Single(converter.Invocations);
-        Assert.Single(sorter.Invocations);
     }
 
     [Fact]
@@ -900,7 +772,7 @@ public class ActiveMqJobSourceTests
         };
 
         var jobSource = new ActiveMqJobSource(null!, Options.Create(configuration),
-            null!, null!, null!, new NullLogger<ActiveMqJobSource>());
+            null!, null!, new NullLogger<ActiveMqJobSource>());
 
         // Run. Source should be executing an empty block with no complains about all the nulls that it's been given.
         await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);

@@ -180,7 +180,7 @@ internal class JobManager(
         }
     }
 
-    public async Task RunAsync(JobSourceResponse response, CancellationToken cancellationToken = default)
+    public async Task RunAsync(List<IJobModel> items, CancellationToken cancellationToken = default)
     {
         // Clear the board
         _successfullyCompletedJobsCount = 0;
@@ -197,7 +197,7 @@ internal class JobManager(
 
         var envelopes = new List<JobEnvelope>();
 
-        foreach (var item in response.Items)
+        foreach (var item in items)
         {
             var envelope = new JobEnvelope
             {

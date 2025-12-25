@@ -7,6 +7,6 @@ namespace RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
 /// </summary>
 internal interface IJobManager
 {
-    Task RunAsync(JobSourceResponse response, CancellationToken cancellationToken = default);
+    Task RunAsync(List<IJobModel> items, CancellationToken cancellationToken = default);
     Task StartAsync(CancellationToken cancellationToken = default);
 }

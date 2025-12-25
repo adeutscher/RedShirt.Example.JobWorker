@@ -1,7 +1,8 @@
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.JobManagement.Common.Services;
+using RedShirt.Example.JobWorker.Core.Models.Batch;
+using RedShirt.Example.JobWorker.Core.Services;
 
-namespace RedShirt.Example.JobWorker.JobManagement.Common.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services;
 
 public class SourceMessageSorterTests
 {
@@ -17,12 +18,18 @@ public class SourceMessageSorterTests
         var items = new List<IJobModel>();
         for (var i = 0; i < numberOfMessages; i++)
         {
-            items.Add(new Mock<IJobModel>().Object);
+            var job = new Mock<IJobModel>();
+            var data = new Mock<IJobDataModel>();
+            job.Setup(j => j.Data).Returns(data.Object);
+            items.Add(job.Object);
         }
 
         var sorter = new SourceMessageSorter();
 
-        var output = sorter.GetSortedListOfJobs(items);
+        var output = sorter.GetSortedListOfJobs(items.Select(i => new BatchJobWrapper
+        {
+            JobModel = i
+        }).ToList());
 
         Assert.Equal(numberOfMessages, output.Count);
     }

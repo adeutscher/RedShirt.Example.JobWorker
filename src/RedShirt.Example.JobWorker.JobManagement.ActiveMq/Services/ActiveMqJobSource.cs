@@ -20,7 +20,6 @@ internal class ActiveMqJobSource : IJobSource
     private readonly IActiveMqMessageBodyRetriever _messageBodyRetriever;
     private readonly Lazy<Task<IMessageConsumer>> _messageConsumer;
     private readonly ISourceMessageConverter _messageConverter;
-    private readonly ISourceMessageSorter _messageSorter;
 
     // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
     private readonly Lazy<Task<IQueue?>> _queue;
@@ -30,13 +29,11 @@ internal class ActiveMqJobSource : IJobSource
         IOptions<ConfigurationModel> configuration,
         IActiveMqMessageBodyRetriever messageBodyRetriever,
         ISourceMessageConverter messageConverter,
-        ISourceMessageSorter messageSorter,
         ILogger<ActiveMqJobSource> logger)
     {
         _configuration = configuration;
         _messageBodyRetriever = messageBodyRetriever;
         _logger = logger;
-        _messageSorter = messageSorter;
         _messageConverter = messageConverter;
         _connection = new Lazy<Task<IConnection>>(async () =>
         {
@@ -143,7 +140,7 @@ internal class ActiveMqJobSource : IJobSource
 
         return new JobSourceResponse
         {
-            Items = _messageSorter.GetSortedListOfJobs(getJobsResponseItems)
+            Items = getJobsResponseItems
         };
     }
 

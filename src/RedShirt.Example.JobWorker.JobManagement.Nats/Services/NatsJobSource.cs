@@ -16,7 +16,6 @@ internal class NatsJobSource(
     IFetchNoWaitGetter fetchNoWaitGetter,
     IBodyRetriever bodyRetriever,
     ISourceMessageConverter converter,
-    ISourceMessageSorter sorter,
     ILogger<NatsJobSource> logger,
     IOptions<NatsJobSource.ConfigurationModel> options) : IJobSource
 {
@@ -99,7 +98,7 @@ internal class NatsJobSource(
 
         return new JobSourceResponse
         {
-            Items = sorter.GetSortedListOfJobs(getJobsResponseItems)
+            Items = getJobsResponseItems
         };
     }
 

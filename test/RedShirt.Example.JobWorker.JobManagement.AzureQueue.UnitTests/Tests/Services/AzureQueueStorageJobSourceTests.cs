@@ -73,14 +73,10 @@ public class AzureQueueStorageJobSourceTests
             .Returns((IJobDataModel?) null);
         converter.Setup(c => c.Convert(data4))
             .Returns((string _) => throw new Exception());
-        var sorter = new Mock<ISourceMessageSorter>();
-        sorter.Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns((List<IJobModel> input) => input);
 
         const int visibilityTimeoutInSeconds = 100;
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, azureMessageSource.Object, converter.Object,
-            sorter.Object,
             new NullLogger<AzureQueueStorageJobSource>(), Options.Create(new AzureQueueStorageConfigurationModel
             {
                 VisibilityTimeoutSeconds = visibilityTimeoutInSeconds
@@ -98,7 +94,6 @@ public class AzureQueueStorageJobSourceTests
         converter.Verify(c => c.Convert(data2), Times.Once);
         converter.Verify(c => c.Convert(data3), Times.Once);
         converter.Verify(c => c.Convert(data4), Times.Once);
-        sorter.Verify(a => a.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()), Times.Once);
 
         Assert.Equal(receiptHandle1, response.Items[0].MessageId);
         Assert.Same(mock1, response.Items[0].Data);
@@ -114,7 +109,7 @@ public class AzureQueueStorageJobSourceTests
             VisibilityTimeoutSeconds = 20
         };
 
-        var jobSource = new AzureQueueStorageJobSource(null!, null!, null!, null!,
+        var jobSource = new AzureQueueStorageJobSource(null!, null!, null!,
             new NullLogger<AzureQueueStorageJobSource>(), Options.Create(options));
 
         Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
@@ -136,7 +131,7 @@ public class AzureQueueStorageJobSourceTests
             VisibilityTimeoutSeconds = 0
         };
 
-        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!, null!,
+        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
             new NullLogger<AzureQueueStorageJobSource>(),
             Options.Create(config));
 
@@ -172,7 +167,7 @@ public class AzureQueueStorageJobSourceTests
             VisibilityTimeoutSeconds = 0
         };
 
-        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!, null!,
+        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
             new NullLogger<AzureQueueStorageJobSource>(),
             Options.Create(config));
 
@@ -201,7 +196,7 @@ public class AzureQueueStorageJobSourceTests
             VisibilityTimeoutSeconds = timeoutSeconds
         };
 
-        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!, null!,
+        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
             new NullLogger<AzureQueueStorageJobSource>(),
             Options.Create(config));
 
@@ -243,7 +238,7 @@ public class AzureQueueStorageJobSourceTests
             VisibilityTimeoutSeconds = timeoutSeconds
         };
 
-        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!, null!,
+        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
             new NullLogger<AzureQueueStorageJobSource>(),
             Options.Create(config));
 

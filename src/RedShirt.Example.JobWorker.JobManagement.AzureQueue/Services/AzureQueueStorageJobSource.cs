@@ -13,7 +13,6 @@ internal class AzureQueueStorageJobSource(
     IQueueConsumerClientSource clientSource,
     IAzureQueueStorageMessageSource azureQueueStorageMessageSource,
     ISourceMessageConverter converter,
-    ISourceMessageSorter sorter,
     ILogger<AzureQueueStorageJobSource> logger,
     IOptions<AzureQueueStorageConfigurationModel> options) : IJobSource
 {
@@ -68,7 +67,7 @@ internal class AzureQueueStorageJobSource(
 
         var response = new JobSourceResponse
         {
-            Items = items.Count > 0 ? sorter.GetSortedListOfJobs(items) : []
+            Items = items
         };
 
         return response;

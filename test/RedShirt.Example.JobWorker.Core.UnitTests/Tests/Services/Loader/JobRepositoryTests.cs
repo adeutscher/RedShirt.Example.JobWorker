@@ -20,7 +20,13 @@ public class JobRepositoryTests
             BacklogSize = 0
         };
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, new NullLogger<JobRepository>(),
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+            new NullLogger<JobRepository>(),
             Options.Create(options));
 
         var expectedJobs = new List<Mock<IJobModel>>();
@@ -78,7 +84,13 @@ public class JobRepositoryTests
             BacklogSize = backlogSize
         };
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, new NullLogger<JobRepository>(),
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+            new NullLogger<JobRepository>(),
             Options.Create(options));
 
         Assert.Equal(expectedEffectiveBatchSize, jobRepository.GetBacklogMaxCount());
@@ -94,7 +106,13 @@ public class JobRepositoryTests
             BacklogSize = 0
         };
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, new NullLogger<JobRepository>(),
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+            new NullLogger<JobRepository>(),
             Options.Create(options));
 
         Mock<IJobRepositoryEntry> job;
@@ -141,7 +159,13 @@ public class JobRepositoryTests
             BacklogSize = 0
         };
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, new NullLogger<JobRepository>(),
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+            new NullLogger<JobRepository>(),
             Options.Create(options));
 
         Assert.Null(await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken));
@@ -160,7 +184,13 @@ public class JobRepositoryTests
             BacklogSize = 0
         };
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, new NullLogger<JobRepository>(),
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+            new NullLogger<JobRepository>(),
             Options.Create(options));
 
         var response = new JobSourceResponse
@@ -191,6 +221,8 @@ public class JobRepositoryTests
                 DateTime.UtcNow - TimeSpan.FromMilliseconds(250),
                 DateTime.UtcNow + TimeSpan.FromMilliseconds(250));
         }
+
+        sorter.Verify(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()), Times.AtLeastOnce);
     }
 
     /// <summary>
@@ -214,7 +246,13 @@ public class JobRepositoryTests
             BacklogSize = 0
         };
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, new NullLogger<JobRepository>(),
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+            new NullLogger<JobRepository>(),
             Options.Create(options));
 
         var response = new JobSourceResponse
@@ -266,7 +304,13 @@ public class JobRepositoryTests
             BacklogSize = 0
         };
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, new NullLogger<JobRepository>(),
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+            new NullLogger<JobRepository>(),
             Options.Create(options));
 
         var job = new Mock<IJobRepositoryEntry>();
@@ -291,7 +335,13 @@ public class JobRepositoryTests
             BacklogSize = 0
         };
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, new NullLogger<JobRepository>(),
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+            new NullLogger<JobRepository>(),
             Options.Create(options));
 
         var job = new Mock<IJobRepositoryEntry>();
@@ -323,7 +373,13 @@ public class JobRepositoryTests
             BacklogSize = 0
         };
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, new NullLogger<JobRepository>(),
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+            new NullLogger<JobRepository>(),
             Options.Create(options));
 
         // Start waiting for there to be a job demand

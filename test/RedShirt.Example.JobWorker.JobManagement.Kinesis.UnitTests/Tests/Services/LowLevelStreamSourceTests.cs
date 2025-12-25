@@ -64,14 +64,11 @@ public class LowLevelStreamSourceTests
             .Returns((IJobDataModel?) null);
         converter.Setup(c => c.Convert(data4))
             .Returns((string _) => throw new Exception());
-        var sorter = new Mock<ISourceMessageSorter>();
-        sorter.Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns((List<IJobModel> input) => input);
 
         var streamArn = Guid.NewGuid().ToString();
         const int batchSize = 10;
 
-        var source = new LowLevelStreamSource(kinesis.Object, converter.Object, sorter.Object,
+        var source = new LowLevelStreamSource(kinesis.Object, converter.Object,
             new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
             {
                 StreamArn = streamArn,
@@ -96,7 +93,6 @@ public class LowLevelStreamSourceTests
         converter.Verify(c => c.Convert(data2), Times.Once);
         converter.Verify(c => c.Convert(data3), Times.Once);
         converter.Verify(c => c.Convert(data4), Times.Once);
-        sorter.Verify(a => a.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()), Times.Once);
 
         Assert.Equal(sequenceNumber1, response.Items[0].MessageId);
         Assert.Same(mock1, response.Items[0].Data);
@@ -112,12 +108,11 @@ public class LowLevelStreamSourceTests
             .Returns(() => throw new ExpiredIteratorException("A"));
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
 
         var streamArn = Guid.NewGuid().ToString();
         var batchSize = 10;
 
-        var source = new LowLevelStreamSource(kinesis.Object, converter.Object, sorter.Object,
+        var source = new LowLevelStreamSource(kinesis.Object, converter.Object,
             new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
             {
                 StreamArn = streamArn,
@@ -150,11 +145,10 @@ public class LowLevelStreamSourceTests
             .Returns(() => throw new ExpiredIteratorException("A"));
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
 
         var streamArn = Guid.NewGuid().ToString();
 
-        var source = new LowLevelStreamSource(kinesis.Object, converter.Object, sorter.Object,
+        var source = new LowLevelStreamSource(kinesis.Object, converter.Object,
             new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
             {
                 StreamArn = streamArn,

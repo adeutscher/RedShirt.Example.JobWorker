@@ -15,6 +15,7 @@ public static class ServiceCollectionExtensions
     {
         services = services
             // General
+            .AddSingleton<ISourceMessageSorter, SourceMessageSorter>()
             .AddSingleton<ISafeJobRunner, SafeJobRunner>()
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
             .Configure<SafeJobRunner.ConfigurationModel>(configuration.GetSection("Jobs"))

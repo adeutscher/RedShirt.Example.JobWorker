@@ -35,15 +35,11 @@ public class LightJobManagerTests
         jobSource.Setup(s => s.AcknowledgeCompletionAsync(job2.Object, It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .Returns(() => throw new Exception("BOOM"));
 
-        await jobManager.RunAsync(new JobSourceResponse
-        {
-            Items =
-            [
-                job1.Object,
-                job2.Object,
-                job3.Object
-            ]
-        }, TestContext.Current.CancellationToken);
+        await jobManager.RunAsync([
+            job1.Object,
+            job2.Object,
+            job3.Object
+        ], TestContext.Current.CancellationToken);
 
         Assert.Equal(3, safeJobRunner.Invocations.Count);
         safeJobRunner.Verify(r => r.RunSafelyAsync(job1.Object, TestContext.Current.CancellationToken), Times.Once);

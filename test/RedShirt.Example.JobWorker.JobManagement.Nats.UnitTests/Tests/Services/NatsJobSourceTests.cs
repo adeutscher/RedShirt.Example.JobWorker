@@ -28,7 +28,7 @@ public class NatsJobSourceTests
             StreamName = null!
         };
 
-        var natsJobSource = new NatsJobSource(null!, null!, null!, null!, null!,
+        var natsJobSource = new NatsJobSource(null!, null!, null!, null!,
             new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
         var jobModel = new JobModel
@@ -57,7 +57,7 @@ public class NatsJobSourceTests
             StreamName = null!
         };
 
-        var natsJobSource = new NatsJobSource(null!, null!, null!, null!, null!,
+        var natsJobSource = new NatsJobSource(null!, null!, null!, null!,
             new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
         await natsJobSource.AcknowledgeCompletionAsync(job.Object, true, TestContext.Current.CancellationToken);
@@ -94,10 +94,6 @@ public class NatsJobSourceTests
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
-        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns<List<IJobModel>>(input => input);
-
         // Setup Job Returns
 
         mockGetter
@@ -108,7 +104,7 @@ public class NatsJobSourceTests
         // Declare objects
 
         var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object, mockBodyRetriever.Object,
-            converter.Object, sorter.Object, new NullLogger<NatsJobSource>(), Options.Create(configuration));
+            converter.Object, new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
@@ -126,7 +122,6 @@ public class NatsJobSourceTests
 
         Assert.Empty(mockBodyRetriever.Invocations);
         Assert.Empty(converter.Invocations);
-        Assert.Single(sorter.Invocations);
     }
 
     /// <summary>
@@ -163,10 +158,6 @@ public class NatsJobSourceTests
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
-        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns<List<IJobModel>>(input => input);
-
         // Setup Job Returns
 
         var messageId = Guid.NewGuid().ToString();
@@ -191,7 +182,7 @@ public class NatsJobSourceTests
         // Declare objects
 
         var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object, mockBodyRetriever.Object,
-            converter.Object, sorter.Object, new NullLogger<NatsJobSource>(), Options.Create(configuration));
+            converter.Object, new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
         var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
@@ -217,7 +208,6 @@ public class NatsJobSourceTests
 
         Assert.Single(mockBodyRetriever.Invocations);
         Assert.Single(converter.Invocations);
-        Assert.Single(sorter.Invocations);
     }
 
     /// <summary>
@@ -254,10 +244,6 @@ public class NatsJobSourceTests
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
-        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns<List<IJobModel>>(input => input);
-
         // Setup Job Returns
 
         var messageId = Guid.NewGuid().ToString();
@@ -280,7 +266,7 @@ public class NatsJobSourceTests
         // Declare objects
 
         var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object, mockBodyRetriever.Object,
-            converter.Object, sorter.Object, new NullLogger<NatsJobSource>(), Options.Create(configuration));
+            converter.Object, new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
         var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
@@ -304,7 +290,6 @@ public class NatsJobSourceTests
 
         Assert.Single(mockBodyRetriever.Invocations);
         Assert.Single(converter.Invocations);
-        Assert.Single(sorter.Invocations);
 
         mockMessage.Verify(m => m.AckAsync(It.IsAny<AckOpts?>(), TestContext.Current.CancellationToken), Times.Once);
     }
@@ -343,10 +328,6 @@ public class NatsJobSourceTests
 
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
-        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
-        sorter.Setup(obj => obj.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns<List<IJobModel>>(input => input);
-
         // Setup Job Returns
 
         var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>>();
@@ -377,7 +358,7 @@ public class NatsJobSourceTests
         // Declare objects
 
         var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object, mockBodyRetriever.Object,
-            converter.Object, sorter.Object, new NullLogger<NatsJobSource>(), Options.Create(configuration));
+            converter.Object, new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
         var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
@@ -406,7 +387,6 @@ public class NatsJobSourceTests
 
         Assert.Equal(expectedBatchSize, mockBodyRetriever.Invocations.Count);
         Assert.Equal(expectedBatchSize, converter.Invocations.Count);
-        Assert.Single(sorter.Invocations);
     }
 
     [Fact]
@@ -420,7 +400,7 @@ public class NatsJobSourceTests
         };
 
         var jobSource = new NatsJobSource(null!, null!,
-            null!, null!, null!, new NullLogger<NatsJobSource>(), Options.Create(configuration));
+            null!, null!, new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
         // Run. Source should be executing an empty block with no complains about all the nulls that it's been given.
         await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);

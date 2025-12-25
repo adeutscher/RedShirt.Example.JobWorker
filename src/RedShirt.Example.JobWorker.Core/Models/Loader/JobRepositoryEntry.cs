@@ -3,11 +3,10 @@ using RedShirt.Example.JobWorker.Core.Exceptions.Loader;
 
 namespace RedShirt.Example.JobWorker.Core.Models.Loader;
 
-internal interface IJobRepositoryEntry
+internal interface IJobRepositoryEntry : ISortableJobWrapper
 {
     bool FlightTimeCanBeExtended { get; set; }
     DateTime LastHeartbeatTime { get; set; }
-    IJobModel JobModel { get; }
     JobState State { get; set; }
     Task<Guid> AcquireLockAsync(CancellationToken cancellationToken = default);
     Task ReleaseLockAsync(Guid lockId, CancellationToken cancellationToken = default);

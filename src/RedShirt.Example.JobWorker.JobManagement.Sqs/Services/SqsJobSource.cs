@@ -15,7 +15,6 @@ internal class SqsJobSource(
     IAmazonSQS sqs,
     ISqsMessageSource sqsMessageSource,
     ISourceMessageConverter converter,
-    ISourceMessageSorter sorter,
     ILogger<SqsJobSource> logger,
     IOptions<SqsConfigurationModel> options) : IJobSource
 {
@@ -70,7 +69,7 @@ internal class SqsJobSource(
 
         var response = new JobSourceResponse
         {
-            Items = items.Count > 0 ? sorter.GetSortedListOfJobs(items) : []
+            Items = items
         };
 
         return response;
@@ -95,7 +94,7 @@ internal class SqsJobSource(
              * If we're about to be no longer able to extend the in-flight time of this message,
              * then delete the message.
              *
-             * This isn't exactly an ideal solution, but it keeps the queue from being overwhelmed by a long-running job.
+             * This isn't exactly an ideal solution, but it keeps the queue from being overwhelmed by a long-running job multiple times.
              */
 
             await sqs.DeleteMessageAsync(new DeleteMessageRequest

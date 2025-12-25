@@ -19,17 +19,14 @@ internal class RabbitMqJobSource : IJobSource
     private readonly Lazy<Task<IConnection>> _connection;
     private readonly ILogger<RabbitMqJobSource> _logger;
     private readonly ISourceMessageConverter _messageConverter;
-    private readonly ISourceMessageSorter _messageSorter;
 
     public RabbitMqJobSource(IRabbitMqConnectionFactory connectionFactory,
         IOptions<ConfigurationModel> configuration,
         ISourceMessageConverter messageConverter,
-        ISourceMessageSorter messageSorter,
         ILogger<RabbitMqJobSource> logger)
     {
         _configuration = configuration;
         _logger = logger;
-        _messageSorter = messageSorter;
         _messageConverter = messageConverter;
         _connection = new Lazy<Task<IConnection>>(() => connectionFactory.GetConnectionAsync());
         _channel = new Lazy<Task<IChannel>>(async () =>
@@ -102,7 +99,7 @@ internal class RabbitMqJobSource : IJobSource
 
         return new JobSourceResponse
         {
-            Items = _messageSorter.GetSortedListOfJobs(getJobsResponseItems)
+            Items = getJobsResponseItems
         };
     }
 

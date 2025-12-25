@@ -8,7 +8,6 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddCommonJobManagement(this IServiceCollection services)
     {
         return services
-            .AddSingleton<ISourceMessageSorter, SourceMessageSorter>()
             .AddSingleton<ISourceMessageConverter, SourceMessageConverter>();
     }
 }

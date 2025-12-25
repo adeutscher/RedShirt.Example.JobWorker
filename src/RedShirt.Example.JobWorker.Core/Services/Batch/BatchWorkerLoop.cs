@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Polly;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Exceptions;
+using RedShirt.Example.JobWorker.Core.Models.Batch;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
 
@@ -26,6 +27,7 @@ internal class BatchWorkerLoop(
     IExecutionEndArbiter executionEndArbiter,
     IJobManager jobManager,
     IJobSource jobSource,
+    ISourceMessageSorter sorter,
     ILogger<BatchWorkerLoop> logger,
     IOptions<JobSourceConfigurationModel> jobSourceOptions,
     IOptions<LoopOptionsConfigurationModel> loopOptions) : IBatchWorkerLoop
@@ -55,7 +57,12 @@ internal class BatchWorkerLoop(
                             throw new NoJobException();
                         }
 
-                        await jobManager.RunAsync(jobResponse, cancellationToken);
+                        var sortedItems = sorter
+                            .GetSortedListOfJobs(jobResponse.Items.Select(i => new BatchJobWrapper
+                            {
+                                JobModel = i
+                            }).ToList()).Select(j => j.JobModel).ToList();
+                        await jobManager.RunAsync(sortedItems, cancellationToken);
                     });
             }
         }

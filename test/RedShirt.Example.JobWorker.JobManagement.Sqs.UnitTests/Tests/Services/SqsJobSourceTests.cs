@@ -64,15 +64,12 @@ public class SqsJobSourceTests
             .Returns((IJobDataModel?) null);
         converter.Setup(c => c.Convert(data4))
             .Returns((string _) => throw new Exception());
-        var sorter = new Mock<ISourceMessageSorter>();
-        sorter.Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()))
-            .Returns((List<IJobModel> input) => input);
 
         var queueUrl = Guid.NewGuid().ToString();
 
         const int visibilityTimeoutInSeconds = 100;
 
-        var source = new SqsJobSource(sqs.Object, sqsMessageSource.Object, converter.Object, sorter.Object,
+        var source = new SqsJobSource(sqs.Object, sqsMessageSource.Object, converter.Object,
             new NullLogger<SqsJobSource>(), Options.Create(new SqsConfigurationModel
             {
                 QueueUrl = queueUrl,
@@ -93,7 +90,6 @@ public class SqsJobSourceTests
         converter.Verify(c => c.Convert(data2), Times.Once);
         converter.Verify(c => c.Convert(data3), Times.Once);
         converter.Verify(c => c.Convert(data4), Times.Once);
-        sorter.Verify(a => a.GetSortedListOfJobs(It.IsAny<List<IJobModel>>()), Times.Once);
 
         Assert.Equal(receiptHandle1, response.Items[0].MessageId);
         Assert.Same(mock1, response.Items[0].Data);
@@ -111,7 +107,7 @@ public class SqsJobSourceTests
             VisibilityTimeoutSeconds = 20
         };
 
-        var jobSource = new SqsJobSource(null!, null!, null!, null!, new NullLogger<SqsJobSource>(),
+        var jobSource = new SqsJobSource(null!, null!, null!, new NullLogger<SqsJobSource>(),
             Options.Create(options));
 
         Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
@@ -129,7 +125,7 @@ public class SqsJobSourceTests
             VisibilityTimeoutSeconds = 0
         };
 
-        var source = new SqsJobSource(sqs.Object, null!, null!, null!, new NullLogger<SqsJobSource>(),
+        var source = new SqsJobSource(sqs.Object, null!, null!, new NullLogger<SqsJobSource>(),
             Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
@@ -162,7 +158,7 @@ public class SqsJobSourceTests
             VisibilityTimeoutSeconds = 0
         };
 
-        var source = new SqsJobSource(sqs.Object, null!, null!, null!, new NullLogger<SqsJobSource>(),
+        var source = new SqsJobSource(sqs.Object, null!, null!, new NullLogger<SqsJobSource>(),
             Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
@@ -199,7 +195,7 @@ public class SqsJobSourceTests
             VisibilityTimeoutSeconds = timeoutSeconds
         };
 
-        var source = new SqsJobSource(sqs.Object, null!, null!, null!, new NullLogger<SqsJobSource>(),
+        var source = new SqsJobSource(sqs.Object, null!, null!, new NullLogger<SqsJobSource>(),
             Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
@@ -246,7 +242,7 @@ public class SqsJobSourceTests
             VisibilityTimeoutSeconds = timeoutSeconds
         };
 
-        var source = new SqsJobSource(sqs.Object, null!, null!, null!, new NullLogger<SqsJobSource>(),
+        var source = new SqsJobSource(sqs.Object, null!, null!, new NullLogger<SqsJobSource>(),
             Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();

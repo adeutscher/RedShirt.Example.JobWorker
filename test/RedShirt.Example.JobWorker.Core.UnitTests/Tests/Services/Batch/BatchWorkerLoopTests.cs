@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Models.Batch;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.Batch;
@@ -30,6 +31,10 @@ public class BatchWorkerLoopTests
             .Returns(() => arbiterQueue.TryDequeue(out _));
         var jobManager = new Mock<IJobManager>();
         var jobSource = new Mock<IJobSource>();
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<BatchJobWrapper>>()))
+            .Returns((List<BatchJobWrapper> input) => input);
 
         var jobSourceResponse = new JobSourceResponse
         {
@@ -40,7 +45,7 @@ public class BatchWorkerLoopTests
         };
         jobSource.Setup(j => j.GetJobsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(jobSourceResponse);
-        var loop = new BatchWorkerLoop(endArbiter.Object, jobManager.Object, jobSource.Object,
+        var loop = new BatchWorkerLoop(endArbiter.Object, jobManager.Object, jobSource.Object, sorter.Object,
             new NullLogger<BatchWorkerLoop>(),
             Options.Create(sourceOptions), Options.Create(new LoopOptionsConfigurationModel
             {
@@ -49,8 +54,7 @@ public class BatchWorkerLoopTests
 
         await loop.RunAsync(TestContext.Current.CancellationToken);
 
-        jobManager.Verify(j => j.RunAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()), Times.Once);
-        jobManager.Verify(j => j.RunAsync(jobSourceResponse, TestContext.Current.CancellationToken), Times.Once);
+        jobManager.Verify(j => j.RunAsync(It.IsAny<List<IJobModel>>(), It.IsAny<CancellationToken>()), Times.Once);
 
         jobSource.Verify(j => j.GetJobsAsync(sourceOptions.EffectiveBatchSize, TestContext.Current.CancellationToken),
             Times.Once);
@@ -71,6 +75,12 @@ public class BatchWorkerLoopTests
         var endArbiter = new Mock<IExecutionEndArbiter>();
         endArbiter.Setup(e => e.ShouldKeepRunning())
             .Returns(() => arbiterQueue.TryDequeue(out _));
+
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<BatchJobWrapper>>()))
+            .Returns((List<BatchJobWrapper> input) => input);
+
         var jobManager = new Mock<IJobManager>();
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource.Setup(j => j.GetJobsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -78,7 +88,7 @@ public class BatchWorkerLoopTests
             {
                 Items = []
             });
-        var loop = new BatchWorkerLoop(endArbiter.Object, jobManager.Object, jobSource.Object,
+        var loop = new BatchWorkerLoop(endArbiter.Object, jobManager.Object, jobSource.Object, sorter.Object,
             new NullLogger<BatchWorkerLoop>(),
             Options.Create(sourceOptions), Options.Create(new LoopOptionsConfigurationModel
             {
@@ -87,7 +97,7 @@ public class BatchWorkerLoopTests
 
         await loop.RunAsync(TestContext.Current.CancellationToken);
 
-        jobManager.Verify(j => j.RunAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()), Times.Never);
+        jobManager.Verify(j => j.RunAsync(It.IsAny<List<IJobModel>>(), It.IsAny<CancellationToken>()), Times.Never);
 
         jobSource.Verify(j => j.GetJobsAsync(sourceOptions.BatchSize, TestContext.Current.CancellationToken),
             Times.Exactly(2));
