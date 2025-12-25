@@ -41,6 +41,7 @@ public class KinesisShardListerTests
         var lister = new KinesisShardLister(kinesis.Object, Options.Create(new KinesisConfiguration
         {
             StreamArn = streamArn,
+            RoundRobinShards = false,
             ShuffleShards = false
         }));
 
@@ -61,6 +62,119 @@ public class KinesisShardListerTests
             a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.NextToken == "NEXT"),
                 TestContext.Current.CancellationToken),
             Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task Test_ListShards_Empty()
+    {
+        var kinesis = new Mock<IAmazonKinesis>();
+
+        kinesis.Setup(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ListShardsRequest _, CancellationToken _) => new ListShardsResponse {Shards = []});
+
+        var streamArn = Guid.NewGuid().ToString();
+        var lister = new KinesisShardLister(kinesis.Object, Options.Create(new KinesisConfiguration
+        {
+            StreamArn = streamArn,
+            RoundRobinShards = false,
+            ShuffleShards = false
+        }));
+
+        var output = await lister.GetListOfShardsAsync(TestContext.Current.CancellationToken);
+        Assert.Empty(output);
+
+        kinesis.Verify(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), It.IsAny<CancellationToken>()),
+            Times.Exactly(1));
+        kinesis.Verify(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), TestContext.Current.CancellationToken),
+            Times.Exactly(1));
+        kinesis.Verify(
+            a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.StreamARN == streamArn),
+                TestContext.Current.CancellationToken),
+            Times.Exactly(1));
+        kinesis.Verify(
+            a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.NextToken == "NEXT"),
+                TestContext.Current.CancellationToken),
+            Times.Exactly(0));
+    }
+
+    [Fact]
+    public async Task Test_ListShards_RoundRobin()
+    {
+        var kinesis = new Mock<IAmazonKinesis>();
+        var queue = new Queue<string>();
+
+        void ResetQueue()
+        {
+            queue.Enqueue("foo");
+            queue.Enqueue("bar");
+            queue.Enqueue("baz");
+        }
+
+        ResetQueue();
+
+        kinesis.Setup(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ListShardsRequest _, CancellationToken _) =>
+            {
+                var haveNextToken = queue.TryDequeue(out var shardId);
+                var response = new ListShardsResponse
+                {
+                    NextToken = haveNextToken ? "NEXT" : null,
+                    Shards = []
+                };
+
+                if (haveNextToken)
+                {
+                    response.Shards.Add(new Shard
+                    {
+                        ShardId = shardId
+                    });
+                }
+
+                return response;
+            });
+
+        var streamArn = Guid.NewGuid().ToString();
+        var lister = new KinesisShardLister(kinesis.Object, Options.Create(new KinesisConfiguration
+        {
+            StreamArn = streamArn,
+            RoundRobinShards = true,
+            ShuffleShards = false
+        }));
+
+        var roundRobinCheckSet = new HashSet<string>();
+        var output = await lister.GetListOfShardsAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(3, output.Count);
+        Assert.Contains("foo", output);
+        Assert.Contains("bar", output);
+        Assert.Contains("baz", output);
+        Assert.True(roundRobinCheckSet.Add(output[0]));
+        var firstFirstItem = output[0];
+
+        kinesis.Verify(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), It.IsAny<CancellationToken>()),
+            Times.Exactly(4));
+        kinesis.Verify(a => a.ListShardsAsync(It.IsAny<ListShardsRequest>(), TestContext.Current.CancellationToken),
+            Times.Exactly(4));
+        kinesis.Verify(
+            a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.StreamARN == streamArn),
+                TestContext.Current.CancellationToken),
+            Times.Exactly(4));
+        kinesis.Verify(
+            a => a.ListShardsAsync(It.Is<ListShardsRequest>(r => r.NextToken == "NEXT"),
+                TestContext.Current.CancellationToken),
+            Times.Exactly(3));
+
+        /* Test round-robin-ness with follow-up invocations */
+        ResetQueue();
+        output = await lister.GetListOfShardsAsync(TestContext.Current.CancellationToken);
+        Assert.True(roundRobinCheckSet.Add(output[0]));
+        ResetQueue();
+        output = await lister.GetListOfShardsAsync(TestContext.Current.CancellationToken);
+        Assert.True(roundRobinCheckSet.Add(output[0]));
+        // This fourth one is special because we only loaded 3 shards in. Should be a repeat of the first time
+        ResetQueue();
+        output = await lister.GetListOfShardsAsync(TestContext.Current.CancellationToken);
+        Assert.False(roundRobinCheckSet.Add(output[0]));
+        Assert.Equal(firstFirstItem, output[0]);
     }
 
     /// <summary>
@@ -111,6 +225,7 @@ public class KinesisShardListerTests
         var lister = new KinesisShardLister(kinesis.Object, Options.Create(new KinesisConfiguration
         {
             StreamArn = streamArn,
+            RoundRobinShards = false,
             ShuffleShards = doShuffle
         }));
 

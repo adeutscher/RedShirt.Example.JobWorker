@@ -18,6 +18,7 @@ public class CheckpointStorageTests
         {
             StreamArn = Guid.NewGuid()
                 .ToString(),
+            RoundRobinShards = false,
             ShuffleShards = false
         };
 
@@ -66,6 +67,7 @@ public class CheckpointStorageTests
         var options = new KinesisConfiguration
         {
             StreamArn = Guid.NewGuid().ToString(),
+            RoundRobinShards = false,
             ShuffleShards = false
         };
 
@@ -115,6 +117,7 @@ public class CheckpointStorageTests
         var options = new KinesisConfiguration
         {
             StreamArn = Guid.NewGuid().ToString(),
+            RoundRobinShards = false,
             ShuffleShards = false
         };
 
@@ -146,6 +149,7 @@ public class CheckpointStorageTests
         var options = new KinesisConfiguration
         {
             StreamArn = Guid.NewGuid().ToString(),
+            RoundRobinShards = false,
             ShuffleShards = false
         };
 
@@ -171,6 +175,7 @@ public class CheckpointStorageTests
         var options = new KinesisConfiguration
         {
             StreamArn = Guid.NewGuid().ToString(),
+            RoundRobinShards = false,
             ShuffleShards = false
         };
 

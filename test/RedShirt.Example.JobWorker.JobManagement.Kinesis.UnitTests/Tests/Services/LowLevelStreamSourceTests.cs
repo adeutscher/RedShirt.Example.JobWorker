@@ -72,6 +72,7 @@ public class LowLevelStreamSourceTests
             new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
             {
                 StreamArn = streamArn,
+                RoundRobinShards = false,
                 ShuffleShards = false
             }));
 
@@ -116,6 +117,7 @@ public class LowLevelStreamSourceTests
             new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
             {
                 StreamArn = streamArn,
+                RoundRobinShards = false,
                 ShuffleShards = false
             }));
 
@@ -152,6 +154,7 @@ public class LowLevelStreamSourceTests
             new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
             {
                 StreamArn = streamArn,
+                RoundRobinShards = false,
                 ShuffleShards = false
             }));
 
