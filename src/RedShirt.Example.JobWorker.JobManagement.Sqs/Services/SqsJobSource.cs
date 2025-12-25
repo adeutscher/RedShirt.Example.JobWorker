@@ -53,6 +53,7 @@ internal class SqsJobSource(
                 var data = new JobModel
                 {
                     MessageId = message.ReceiptHandle,
+                    CreatedAtUtc = DateTime.UtcNow,
                     Data = @object
                 };
 

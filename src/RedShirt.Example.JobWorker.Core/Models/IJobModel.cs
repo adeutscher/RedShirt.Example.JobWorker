@@ -6,5 +6,6 @@ namespace RedShirt.Example.JobWorker.Core.Models;
 public interface IJobModel
 {
     string MessageId { get; }
+    DateTime CreatedAtUtc { get; }
     IJobDataModel Data { get; }
 }

@@ -86,6 +86,7 @@ internal class NatsJobSource(
             {
                 Message = msg,
                 MessageId = msg.Subject,
+                CreatedAtUtc = DateTime.UtcNow,
                 Data = convertedMessage
             });
         }

@@ -32,6 +32,7 @@ public class ActiveMqJobSourceTests
         {
             Message = message.Object,
             MessageId = "moot",
+            CreatedAtUtc = DateTime.UtcNow,
             Data = null!
         };
 

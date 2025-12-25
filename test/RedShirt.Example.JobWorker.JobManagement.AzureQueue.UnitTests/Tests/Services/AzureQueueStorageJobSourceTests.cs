@@ -144,6 +144,7 @@ public class AzureQueueStorageJobSourceTests
         var job = new AzureJobModel
         {
             Message = innerMessage.Object,
+            CreatedAtUtc = DateTime.UtcNow,
             Data = null!
         };
 
@@ -208,6 +209,7 @@ public class AzureQueueStorageJobSourceTests
         var job = new AzureJobModel
         {
             Message = innerMessage.Object,
+            CreatedAtUtc = DateTime.UtcNow,
             Data = null!
         };
 

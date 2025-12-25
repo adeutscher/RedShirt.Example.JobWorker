@@ -66,6 +66,7 @@ internal class LowLevelStreamSource(
                 var data = new JobModel
                 {
                     MessageId = item.SequenceNumber,
+                    CreatedAtUtc = DateTime.UtcNow,
                     Data = @object
                 };
 

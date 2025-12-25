@@ -35,6 +35,7 @@ public class NatsJobSourceTests
         {
             Message = message.Object,
             MessageId = "moot",
+            CreatedAtUtc = DateTime.UtcNow,
             Data = null!
         };
 

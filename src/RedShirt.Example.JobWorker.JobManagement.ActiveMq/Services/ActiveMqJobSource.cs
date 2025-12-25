@@ -136,6 +136,7 @@ internal class ActiveMqJobSource : IJobSource
             {
                 Message = result,
                 MessageId = result.NMSMessageId, // Not really used by this framework, but why not
+                CreatedAtUtc = DateTime.UtcNow,
                 Data = convertedMessage
             });
         }

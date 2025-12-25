@@ -54,6 +54,7 @@ internal class AzureQueueStorageJobSource(
                 var data = new AzureJobModel
                 {
                     Message = message,
+                    CreatedAtUtc = DateTime.UtcNow,
                     Data = @object
                 };
 

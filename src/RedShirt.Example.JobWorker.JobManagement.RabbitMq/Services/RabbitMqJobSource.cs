@@ -95,6 +95,7 @@ internal class RabbitMqJobSource : IJobSource
             getJobsResponseItems.Add(new JobModel
             {
                 MessageId = result.DeliveryTag.ToString(),
+                CreatedAtUtc = DateTime.UtcNow,
                 Data = convertedMessage
             });
         }
