@@ -30,7 +30,8 @@ For configuration examples, see the `worker` section of the `test/local/docker-c
 while the original "Batch" mode is the default. To enable "Loader" mode, either:
 
 * Set the `JOBS__LOADER__ENABLED` environment variable to `1`.
-* Adjust the logic in `Core` project's `Extensions/ServiceCollectionExtensions.cs` (as part of initializing this
+* Adjust the logic in `RedShirt.Example.JobWorker.qCore` project's `Extensions/ServiceCollectionExtensions.cs` (as part
+  of initializing this
   template)
 
 # Initialisation
@@ -43,13 +44,12 @@ Recommended steps when using this as a template:
     bash init-repo.sh New.Namespace.Here
     ```
 
-2. In the `Core` project, update the `IJobDataModel` interface to fit your needs for your project.
-3. In the `Implementation.JobManagement.Common` project, update the `JobDataModel` implementation of `IJobDataModel` to
-   reflect your changes to the interface.
-4. In the `Implementation.JobManagement.Common` project, update `SourceMessageConverter` and `SourceMessageSorter` to
+2. In the `RedShirt.Example.JobWorker.Core` project, update `IJobDataModel` interface and `JobDataModel` implementation
+   to reflect the need of your project.
+3. In the `RedShirt.Example.JobWorker.Core` project, update `SourceMessageConverter` and `SourceMessageSorter` to
    fit your needs for your project.
-5. Update the `Core.Logic` project to handle `IJobDataModel` jobs as needed by your project.
-6. Select a message source type and remove the projects for the sources that you are not using.
+4. Update the `RedShirt.Example.JobWorker.Core.Logic` project to handle `IJobDataModel` jobs as needed by your project.
+5. Select a message source type and remove the projects for the sources that you are not using.
 
 # Testing
 

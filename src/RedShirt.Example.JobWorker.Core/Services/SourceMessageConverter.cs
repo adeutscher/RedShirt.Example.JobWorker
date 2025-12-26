@@ -1,8 +1,7 @@
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.JobManagement.Common.Models;
 using System.Text.Json;
 
-namespace RedShirt.Example.JobWorker.JobManagement.Common.Services;
+namespace RedShirt.Example.JobWorker.Core.Services;
 
 /// <summary>
 ///     Convert from raw string data into a job model.

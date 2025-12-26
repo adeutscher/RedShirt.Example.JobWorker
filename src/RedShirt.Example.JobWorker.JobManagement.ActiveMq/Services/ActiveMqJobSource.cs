@@ -2,11 +2,11 @@ using Apache.NMS;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Models;
-using RedShirt.Example.JobWorker.JobManagement.Common.Services;
 
 namespace RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services;
 
@@ -90,8 +90,8 @@ internal class ActiveMqJobSource : IJobSource
             var result = await consumer.ReceiveAsync(TimeSpan.FromMilliseconds(100));
 
             if (result is null)
-            {
                 // Nothing more to grab at the moment.
+            {
                 break;
             }
 

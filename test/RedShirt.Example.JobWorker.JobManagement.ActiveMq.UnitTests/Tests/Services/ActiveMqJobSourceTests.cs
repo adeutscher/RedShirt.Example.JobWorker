@@ -2,11 +2,11 @@ using Apache.NMS;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services;
-using RedShirt.Example.JobWorker.JobManagement.Common.Services;
 
 namespace RedShirt.Example.JobWorker.JobManagement.ActiveMq.UnitTests.Tests.Services;
 

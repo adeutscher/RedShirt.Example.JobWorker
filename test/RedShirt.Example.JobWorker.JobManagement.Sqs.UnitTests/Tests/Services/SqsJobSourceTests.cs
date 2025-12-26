@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.JobManagement.Common.Services;
+using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
 using System.Net;
@@ -13,104 +13,6 @@ namespace RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.UnitTests.
 
 public class SqsJobSourceTests
 {
-    [Fact]
-    public async Task TestGetJobsAsync()
-    {
-        const int batchSize = 10;
-
-        var receiptHandle1 = Guid.NewGuid().ToString();
-        var data1 = Guid.NewGuid().ToString();
-        var mock1 = new Mock<IJobDataModel>().Object;
-        var receiptHandle2 = Guid.NewGuid().ToString();
-        var data2 = Guid.NewGuid().ToString();
-        var mock2 = new Mock<IJobDataModel>().Object;
-
-        var data3 = Guid.NewGuid().ToString();
-        var data4 = Guid.NewGuid().ToString();
-
-        var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
-        var sqsMessageSource = new Mock<ISqsMessageSource>(MockBehavior.Strict);
-        sqsMessageSource.Setup(a => a.GetMessagesAsync(batchSize, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(() =>
-            [
-                new Message
-                {
-                    ReceiptHandle = receiptHandle1,
-                    Body = data1
-                },
-                new Message
-                {
-                    ReceiptHandle = receiptHandle2,
-                    Body = data2
-                },
-                new Message
-                {
-                    ReceiptHandle = Guid.NewGuid().ToString(), // moot
-                    Body = data3
-                },
-                new Message
-                {
-                    ReceiptHandle = Guid.NewGuid().ToString(), // moot
-                    Body = data4
-                }
-            ]);
-
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(data1))
-            .Returns(mock1);
-        converter.Setup(c => c.Convert(data2))
-            .Returns(mock2);
-        converter.Setup(c => c.Convert(data3))
-            .Returns((IJobDataModel?) null);
-        converter.Setup(c => c.Convert(data4))
-            .Returns((string _) => throw new Exception());
-
-        var queueUrl = Guid.NewGuid().ToString();
-
-        const int visibilityTimeoutInSeconds = 100;
-
-        var source = new SqsJobSource(sqs.Object, sqsMessageSource.Object, converter.Object,
-            new NullLogger<SqsJobSource>(), Options.Create(new SqsConfigurationModel
-            {
-                QueueUrl = queueUrl,
-                VisibilityTimeoutSeconds = visibilityTimeoutInSeconds
-            }));
-
-        using var cts = new CancellationTokenSource();
-        var response = await source.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
-        Assert.Equal(2, response.Items.Count);
-
-        sqs.Verify(a => a.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-        sqsMessageSource.Verify(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
-        sqsMessageSource.Verify(a => a.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken), Times.Once);
-
-        converter.Verify(c => c.Convert(data1), Times.Once);
-        converter.Verify(c => c.Convert(data2), Times.Once);
-        converter.Verify(c => c.Convert(data3), Times.Once);
-        converter.Verify(c => c.Convert(data4), Times.Once);
-
-        Assert.Equal(receiptHandle1, response.Items[0].MessageId);
-        Assert.Same(mock1, response.Items[0].Data);
-        Assert.Equal(receiptHandle2, response.Items[1].MessageId);
-        Assert.Same(mock2, response.Items[1].Data);
-    }
-
-    [Fact]
-    public void TestGetRecommendedHeartbeatInterval()
-    {
-        var options = new SqsConfigurationModel
-        {
-            QueueUrl = null!,
-            VisibilityTimeoutSeconds = 20
-        };
-
-        var jobSource = new SqsJobSource(null!, null!, null!, new NullLogger<SqsJobSource>(),
-            Options.Create(options));
-
-        Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
-    }
-
     [Fact]
     public async Task Test_AcknowledgeAsync()
     {
@@ -262,5 +164,103 @@ public class SqsJobSourceTests
 
         Assert.Equal(config.QueueUrl, request.QueueUrl);
         Assert.Equal(messageId, request.ReceiptHandle);
+    }
+
+    [Fact]
+    public async Task TestGetJobsAsync()
+    {
+        const int batchSize = 10;
+
+        var receiptHandle1 = Guid.NewGuid().ToString();
+        var data1 = Guid.NewGuid().ToString();
+        var mock1 = new Mock<IJobDataModel>().Object;
+        var receiptHandle2 = Guid.NewGuid().ToString();
+        var data2 = Guid.NewGuid().ToString();
+        var mock2 = new Mock<IJobDataModel>().Object;
+
+        var data3 = Guid.NewGuid().ToString();
+        var data4 = Guid.NewGuid().ToString();
+
+        var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
+        var sqsMessageSource = new Mock<ISqsMessageSource>(MockBehavior.Strict);
+        sqsMessageSource.Setup(a => a.GetMessagesAsync(batchSize, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            [
+                new Message
+                {
+                    ReceiptHandle = receiptHandle1,
+                    Body = data1
+                },
+                new Message
+                {
+                    ReceiptHandle = receiptHandle2,
+                    Body = data2
+                },
+                new Message
+                {
+                    ReceiptHandle = Guid.NewGuid().ToString(), // moot
+                    Body = data3
+                },
+                new Message
+                {
+                    ReceiptHandle = Guid.NewGuid().ToString(), // moot
+                    Body = data4
+                }
+            ]);
+
+        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
+        converter.Setup(c => c.Convert(data1))
+            .Returns(mock1);
+        converter.Setup(c => c.Convert(data2))
+            .Returns(mock2);
+        converter.Setup(c => c.Convert(data3))
+            .Returns((IJobDataModel?) null);
+        converter.Setup(c => c.Convert(data4))
+            .Returns((string _) => throw new Exception());
+
+        var queueUrl = Guid.NewGuid().ToString();
+
+        const int visibilityTimeoutInSeconds = 100;
+
+        var source = new SqsJobSource(sqs.Object, sqsMessageSource.Object, converter.Object,
+            new NullLogger<SqsJobSource>(), Options.Create(new SqsConfigurationModel
+            {
+                QueueUrl = queueUrl,
+                VisibilityTimeoutSeconds = visibilityTimeoutInSeconds
+            }));
+
+        using var cts = new CancellationTokenSource();
+        var response = await source.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
+        Assert.Equal(2, response.Items.Count);
+
+        sqs.Verify(a => a.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        sqsMessageSource.Verify(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
+        sqsMessageSource.Verify(a => a.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken), Times.Once);
+
+        converter.Verify(c => c.Convert(data1), Times.Once);
+        converter.Verify(c => c.Convert(data2), Times.Once);
+        converter.Verify(c => c.Convert(data3), Times.Once);
+        converter.Verify(c => c.Convert(data4), Times.Once);
+
+        Assert.Equal(receiptHandle1, response.Items[0].MessageId);
+        Assert.Same(mock1, response.Items[0].Data);
+        Assert.Equal(receiptHandle2, response.Items[1].MessageId);
+        Assert.Same(mock2, response.Items[1].Data);
+    }
+
+    [Fact]
+    public void TestGetRecommendedHeartbeatInterval()
+    {
+        var options = new SqsConfigurationModel
+        {
+            QueueUrl = null!,
+            VisibilityTimeoutSeconds = 20
+        };
+
+        var jobSource = new SqsJobSource(null!, null!, null!, new NullLogger<SqsJobSource>(),
+            Options.Create(options));
+
+        Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
     }
 }

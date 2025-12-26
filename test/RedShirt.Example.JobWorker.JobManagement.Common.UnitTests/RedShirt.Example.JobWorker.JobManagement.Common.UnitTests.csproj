@@ -26,7 +26,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\RedShirt.Example.JobWorker.JobManagement.Common\RedShirt.Example.JobWorker.JobManagement.Common.csproj"/>
+        <Folder Include="Tests\Services\"/>
     </ItemGroup>
 
 </Project>

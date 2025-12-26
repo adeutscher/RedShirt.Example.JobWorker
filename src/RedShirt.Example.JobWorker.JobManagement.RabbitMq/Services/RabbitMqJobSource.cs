@@ -2,8 +2,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.JobManagement.Common.Services;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using System.Text;
@@ -57,8 +57,8 @@ internal class RabbitMqJobSource : IJobSource
             var result = await channel.BasicGetAsync(_configuration.Value.QueueName, false, cancellationToken);
 
             if (result is null)
-            {
                 // Nothing more to grab at the moment.
+            {
                 break;
             }
 

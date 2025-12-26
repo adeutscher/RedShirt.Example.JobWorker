@@ -4,8 +4,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.JobManagement.Common.Services;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Models;
 
@@ -99,9 +99,9 @@ internal class SqsJobSource(
              *
              * If this 12-hour job isn't an outlier, then you should consider using a job source other than SQS
              * or breaking up the workload into smaller chunks.
-             * 
+             *
              * AWSSDK does not return an exception when we try to extend beyond the 12 hour limit,
-             * so we are forced to apply our own. 
+             * so we are forced to apply our own.
              */
 
             await sqs.DeleteMessageAsync(new DeleteMessageRequest

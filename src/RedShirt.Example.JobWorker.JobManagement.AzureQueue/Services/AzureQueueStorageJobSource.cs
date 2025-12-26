@@ -1,11 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Models;
-using RedShirt.Example.JobWorker.JobManagement.Common.Services;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services;
 
@@ -20,8 +20,8 @@ internal class AzureQueueStorageJobSource(
         CancellationToken cancellationToken = default)
     {
         if (message is not AzureJobModel messageAsAzureJobModel)
-        {
             // For consideration: Throw some kind of exception?
+        {
             return;
         }
 
@@ -79,8 +79,8 @@ internal class AzureQueueStorageJobSource(
     public async Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
         if (message is not AzureJobModel messageAsAzureJobModel)
-        {
             // For consideration: Throw some kind of exception?
+        {
             return;
         }
 

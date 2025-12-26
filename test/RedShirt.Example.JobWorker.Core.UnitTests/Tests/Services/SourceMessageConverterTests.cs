@@ -1,5 +1,5 @@
-using RedShirt.Example.JobWorker.JobManagement.Common.Models;
-using RedShirt.Example.JobWorker.JobManagement.Common.Services;
+using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services;
 using System.Text.Json;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Common.UnitTests.Tests.Services;

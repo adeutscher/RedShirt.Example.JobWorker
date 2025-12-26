@@ -7,11 +7,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Common\RedShirt.Example.JobWorker.JobManagement.Common.csproj"/>
+        <PackageReference Include="NATS.Net" Version="2.7.0"/>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="NATS.Net" Version="2.7.0"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Core\RedShirt.Example.JobWorker.Core.csproj"/>
     </ItemGroup>
 
 </Project>

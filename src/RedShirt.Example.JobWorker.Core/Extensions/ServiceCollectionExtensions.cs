@@ -15,6 +15,7 @@ public static class ServiceCollectionExtensions
     {
         services = services
             // General
+            .AddSingleton<ISourceMessageConverter, SourceMessageConverter>()
             .AddSingleton<ISourceMessageSorter, SourceMessageSorter>()
             .AddSingleton<ISafeJobRunner, SafeJobRunner>()
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
@@ -26,8 +27,8 @@ public static class ServiceCollectionExtensions
         var useLoaderModeRaw = configuration.GetValue("Jobs:Loader:Enabled", "0");
 
         if (int.TryParse(useLoaderModeRaw, out var useLoaderMode) && useLoaderMode == 1)
-        {
             // Loader Mode (Experimental)
+        {
             services = services
                 .AddSingleton<IHandler, LoaderHandler>()
                 .AddSingleton<ILoaderExecutionEndArbiter, LoaderExecutionEndArbiter>()
@@ -39,8 +40,8 @@ public static class ServiceCollectionExtensions
                 .AddSingleton<IJobLoader, JobLoader>();
         }
         else
-        {
             // Batch Mode
+        {
             services = services
                 .AddSingleton<IHandler, BatchHandler>()
                 .AddSingleton<IJobManager, JobManager>()

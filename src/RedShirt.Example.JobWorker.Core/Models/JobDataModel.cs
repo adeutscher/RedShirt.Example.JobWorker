@@ -7,3 +7,8 @@ public interface IJobDataModel
 {
     int SleepDurationSeconds { get; }
 }
+
+internal class JobDataModel : IJobDataModel
+{
+    public required int SleepDurationSeconds { get; init; }
+}
