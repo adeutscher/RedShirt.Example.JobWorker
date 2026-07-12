@@ -1,14 +1,24 @@
 
 # Usage
 
+## General
+
+The scripts below assume that certain Python modules are installed in your environment.
+
+Run the following to install the assumed modules:
+
+```
+pip install --user boto3 awscli awslocal stomp
+```
+
 ## SQS
 
 To initialize SQS and queue sample messages:
 
-1. Bring up localstack:
+1. Bring up ministack:
 
 ```
-docker compose up -d localstack
+docker compose up -d ministack
 ```
 
 2. Run the `make-local-resources.sh` script:
@@ -43,10 +53,10 @@ export USE_RABBITMQ=0
 
 To initialize Kinesis and queue sample messages:
 
-1. Bring up localstack and Redis:
+1. Bring up ministack and Redis:
 
     ```
-    docker compose up -d localstack redis
+    docker compose up -d ministack redis
     ```
 
 2. Run the `make-local-resources.sh` script:
@@ -83,10 +93,10 @@ RabbitMQ takes a few more steps to set up than the other input sources.
 
 To initialize RabbitMQ and queue messages:
 
-1. Bring up localstack:
+1. Bring up ministack:
 
     ```
-    docker compose up -d localstack
+    docker compose up -d ministack
     ```
 
 2. Run the `make-local-resources.sh` script:
@@ -137,10 +147,10 @@ ActiveMQ Artemis takes a few more steps to set up than the other input sources.
 
 To initialize RabbitMQ and queue messages:
 
-1. Bring up localstack:
+1. Bring up ministack:
 
     ```
-    docker compose up -d localstack
+    docker compose up -d ministack
     ```
 
 2. Run the `make-local-resources.sh` script:
@@ -215,10 +225,10 @@ To install the `nats` command:
 
 ### Testing Messages
 
-1. Bring up localstack:
+1. Bring up ministack:
 
     ```
-    docker compose up -d localstack
+    docker compose up -d ministack
     ```
 
 2. Run the `make-local-resources.sh` script:

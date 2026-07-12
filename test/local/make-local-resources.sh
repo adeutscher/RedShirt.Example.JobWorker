@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export AWS_REGION=us-east-1
+export AWS_DEFAULT_REGION=us-east-1
 
 # SQS
 awslocal sqs create-queue --queue-name input

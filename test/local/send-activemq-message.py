@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import json
-import stomp # pip install stomp.py
+import stomp  # pip install stomp.py
 import sys
 
 # Connection configuration
