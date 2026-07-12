@@ -18,6 +18,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<ISourceMessageConverter, SourceMessageConverter>()
             .AddSingleton<ISourceMessageSorter, SourceMessageSorter>()
             .AddSingleton<ISafeJobRunner, SafeJobRunner>()
+            .AddSingleton<ISleepService, SleepService>()
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
             .Configure<SafeJobRunner.ConfigurationModel>(configuration.GetSection("Jobs"))
             .Configure<JobSourceConfigurationModel>(configuration.GetSection("JobSource"))

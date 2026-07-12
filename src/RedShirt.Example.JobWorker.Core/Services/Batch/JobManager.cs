@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
@@ -105,7 +106,14 @@ internal class JobManager(
         try
         {
             item.Result = result;
-            await jobSource.AcknowledgeCompletionAsync(item.Job, result, cancellationToken);
+            await Policy.Handle<Exception>()
+                .RetryAsync(Globals.AcknowledgementRetryCount,
+                    async (e, instanceCount) =>
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)), cancellationToken);
+                    }
+                )
+                .ExecuteAsync(() => jobSource.AcknowledgeCompletionAsync(item.Job, result, cancellationToken));
         }
         catch (Exception e)
         {

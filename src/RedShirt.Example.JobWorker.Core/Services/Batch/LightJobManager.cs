@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Polly;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
@@ -36,7 +37,14 @@ internal class LightJobManager(ILogger<LightJobManager> logger, ISafeJobRunner s
 
             try
             {
-                await jobSource.AcknowledgeCompletionAsync(job, result, cancellationToken);
+                await Policy.Handle<Exception>()
+                    .RetryAsync(Globals.AcknowledgementRetryCount,
+                        async (e, instanceCount) =>
+                        {
+                            await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)), cancellationToken);
+                        }
+                    )
+                    .ExecuteAsync(() => jobSource.AcknowledgeCompletionAsync(job, result, cancellationToken));
             }
             catch (Exception e)
             {

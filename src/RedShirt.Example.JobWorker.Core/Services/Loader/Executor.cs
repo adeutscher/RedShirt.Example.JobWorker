@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Polly;
 using RedShirt.Example.JobWorker.Core.Enums.Loader;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 
@@ -17,6 +18,7 @@ internal class Executor(
     IJobSource jobSource,
     IJobRepository jobRepository,
     ISafeJobRunner safeJobRunner,
+    ISleepService sleepService,
     ILogger<Executor> logger) : IExecutor
 {
     public async Task RunAsync(int id, CancellationToken cancellationToken = default)
@@ -50,7 +52,23 @@ internal class Executor(
             await job.ReleaseLockAsync(lockId, cancellationToken);
 
             await jobRepository.RemoveJobAsync(job, cancellationToken);
-            await jobSource.AcknowledgeCompletionAsync(job.JobModel, success, cancellationToken);
+
+            try
+            {
+                await Policy.Handle<Exception>()
+                    .RetryAsync(Globals.AcknowledgementRetryCount,
+                        async (e, instanceCount) =>
+                        {
+                            await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)),
+                                cancellationToken);
+                        }
+                    )
+                    .ExecuteAsync(() => jobSource.AcknowledgeCompletionAsync(job.JobModel, success, cancellationToken));
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "Job acknowledge failed");
+            }
         }
 
         logger.LogTrace("Ending job executor {Id}", id);
