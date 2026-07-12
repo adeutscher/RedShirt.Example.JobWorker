@@ -40,7 +40,20 @@ internal class RabbitMqJobSource : IJobSource
         CancellationToken cancellationToken = default)
     {
         var channel = await _channel.Value;
-        await channel.BasicAckAsync(ulong.Parse(message.MessageId), false, cancellationToken);
+        try
+        {
+            await channel.BasicAckAsync(ulong.Parse(message.MessageId), false, cancellationToken);
+        }
+        catch (ObjectDisposedException)
+        {
+            /*
+             * An ObjectDispostException implies the closure of the connection underlying
+             * the channel that this message originated from.
+             *
+             * Not considered to be actionable, let the exception pass.
+             * The message represented by this message ID already fell back into the queue when the connection died.
+             */
+        }
     }
 
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
