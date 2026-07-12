@@ -4,7 +4,7 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 namespace RedShirt.Example.JobWorker.Core.Services.Loader;
 
 /// <summary>
-///     The heartbeat check exists to abstract date calculations, making reading/testing the Maintainer simpler.
+///     The abstracted heartbeat checks exist to make reading/testing the code of the Maintainer implementation simpler.
 /// </summary>
 internal interface IHeartbeatCalculator
 {

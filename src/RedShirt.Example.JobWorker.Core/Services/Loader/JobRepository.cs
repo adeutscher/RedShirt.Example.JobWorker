@@ -169,7 +169,7 @@ internal class JobRepository(
     {
         await _watchedJobsSemaphore.WaitAsync(cancellationToken);
 
-        // Note for future: Possibly need to acquire lock first? On the other hand, I'm only reading...
+        // Note for future: Possibly need to review use of lock? Caution is good, but on the other hand I'm only reading...
         var count = WatchedJobs.Count(job => job.State == JobState.Inactive);
 
         _watchedJobsSemaphore.Release();

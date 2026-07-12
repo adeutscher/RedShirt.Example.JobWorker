@@ -5,7 +5,7 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 namespace RedShirt.Example.JobWorker.Core.Services.Loader;
 
 /// <summary>
-///     The Executor is responsible for pulling and acting on jobs from the repository.
+///     The Executor is responsible for pulling and acting on jobs from the in-memory repository.
 /// </summary>
 internal interface IExecutor
 {

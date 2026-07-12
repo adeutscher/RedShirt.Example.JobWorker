@@ -30,7 +30,7 @@ For configuration examples, see the `worker` section of the `test/local/docker-c
 while the original "Batch" mode is the default. To enable "Loader" mode, either:
 
 * Set the `JOBS__LOADER__ENABLED` environment variable to `1`.
-* Adjust the logic in `RedShirt.Example.JobWorker.qCore` project's `Extensions/ServiceCollectionExtensions.cs` (as part
+* Adjust the logic in `RedShirt.Example.JobWorker.Core` project's `Extensions/ServiceCollectionExtensions.cs` (as part
   of initializing this
   template)
 

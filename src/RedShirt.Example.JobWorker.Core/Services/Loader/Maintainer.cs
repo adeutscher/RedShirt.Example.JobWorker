@@ -6,6 +6,9 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Loader;
 
+/// <summary>
+/// The maintainer is responsible for making sure that messages checked out from the job source remain 'in flight'.
+/// </summary>
 internal interface IMaintainer
 {
     Task RunAsync(CancellationToken cancellationToken = default);

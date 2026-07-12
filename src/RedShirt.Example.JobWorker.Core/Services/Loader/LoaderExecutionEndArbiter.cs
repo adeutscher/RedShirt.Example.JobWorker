@@ -2,6 +2,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.Loader;
 
 /// <summary>
 ///     Dictates if the app should continue running.
+///     Used by Maintainer implementation.
 ///     Extends the functionality of the base IExecutionEndArbiter by accessing the job repository.
 ///     Written as a test-friendly alternative to `while(true){}`
 /// </summary>
