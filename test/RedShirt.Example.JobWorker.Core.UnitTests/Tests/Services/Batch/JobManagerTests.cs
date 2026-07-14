@@ -37,7 +37,10 @@ public class JobManagerTests
             .Returns((IJobModel _, bool _, CancellationToken _) => throw new Exception("BOOM"));
         jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
 
+        var sleepService = new Mock<ISleepService>();
+
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
+            sleepService.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new ThreadConfigurationModel
@@ -57,7 +60,7 @@ public class JobManagerTests
         jobSource.Verify(s => s.HeartbeatAsync(job.Object, It.IsAny<CancellationToken>()), Times.AtLeast(2));
 
         jobSource.Verify(s => s.AcknowledgeCompletionAsync(job.Object, It.IsAny<bool>(), It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.AtLeast(2));
     }
 
     /// <summary>
@@ -85,7 +88,10 @@ public class JobManagerTests
             .Returns((IJobModel _, CancellationToken _) => throw new Exception("BOOM"));
         jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
 
+        var sleepService = new Mock<ISleepService>();
+
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
+            sleepService.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new ThreadConfigurationModel
@@ -130,7 +136,10 @@ public class JobManagerTests
             .Returns((IJobModel _, CancellationToken _) => throw new CanNoLongerHeartbeatException());
         jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
 
+        var sleepService = new Mock<ISleepService>();
+
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
+            sleepService.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new ThreadConfigurationModel
@@ -171,7 +180,11 @@ public class JobManagerTests
             });
         var jobSource = new Mock<IJobSource>();
         jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
+
+        var sleepService = new Mock<ISleepService>();
+
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
+            sleepService.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new ThreadConfigurationModel
@@ -227,7 +240,10 @@ public class JobManagerTests
         var jobSource = new Mock<IJobSource>();
         jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
 
+        var sleepService = new Mock<ISleepService>();
+
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
+            sleepService.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new ThreadConfigurationModel
@@ -266,7 +282,10 @@ public class JobManagerTests
         var jobSource = new Mock<IJobSource>();
         jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
 
+        var sleepService = new Mock<ISleepService>();
+
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
+            sleepService.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new ThreadConfigurationModel
@@ -309,7 +328,10 @@ public class JobManagerTests
         var jobSource = new Mock<IJobSource>();
         jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(10);
 
+        var sleepService = new Mock<ISleepService>();
+
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
+            sleepService.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new ThreadConfigurationModel
@@ -341,7 +363,10 @@ public class JobManagerTests
         var jobSource = new Mock<IJobSource>();
         jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(0);
 
+        var sleepService = new Mock<ISleepService>();
+
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
+            sleepService.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new ThreadConfigurationModel
@@ -381,7 +406,10 @@ public class JobManagerTests
         var jobSource = new Mock<IJobSource>();
         jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(0);
 
+        var sleepService = new Mock<ISleepService>();
+
         var jobManager = new JobManager(executionEndArbiter.Object, safeRunner.Object, jobSource.Object,
+            sleepService.Object,
             new NullLogger<JobManager>(),
             Options.Create(
                 new ThreadConfigurationModel

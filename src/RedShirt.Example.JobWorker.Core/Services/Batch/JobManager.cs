@@ -23,6 +23,7 @@ internal class JobManager(
     IExecutionEndArbiter executionEndArbiter,
     ISafeJobRunner safeJobRunner,
     IJobSource jobSource,
+    ISleepService sleepService,
     ILogger<JobManager> logger,
     IOptions<ThreadConfigurationModel> options) : IJobManager
 {
@@ -110,7 +111,8 @@ internal class JobManager(
                 .RetryAsync(Globals.AcknowledgementRetryCount,
                     async (e, instanceCount) =>
                     {
-                        await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)), cancellationToken);
+                        await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)),
+                            cancellationToken);
                     }
                 )
                 .ExecuteAsync(() => jobSource.AcknowledgeCompletionAsync(item.Job, result, cancellationToken));

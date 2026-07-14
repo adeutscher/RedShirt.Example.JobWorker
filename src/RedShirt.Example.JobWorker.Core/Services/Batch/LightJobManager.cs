@@ -15,7 +15,11 @@ namespace RedShirt.Example.JobWorker.Core.Services.Batch;
 /// <param name="logger"></param>
 /// <param name="safeJobRunner"></param>
 /// <param name="jobSource"></param>
-internal class LightJobManager(ILogger<LightJobManager> logger, ISafeJobRunner safeJobRunner, IJobSource jobSource)
+internal class LightJobManager(
+    ILogger<LightJobManager> logger,
+    ISafeJobRunner safeJobRunner,
+    IJobSource jobSource,
+    ISleepService sleepService)
     : IJobManager
 {
     private uint _totalBatches;
@@ -41,7 +45,8 @@ internal class LightJobManager(ILogger<LightJobManager> logger, ISafeJobRunner s
                     .RetryAsync(Globals.AcknowledgementRetryCount,
                         async (e, instanceCount) =>
                         {
-                            await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)), cancellationToken);
+                            await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)),
+                                cancellationToken);
                         }
                     )
                     .ExecuteAsync(() => jobSource.AcknowledgeCompletionAsync(job, result, cancellationToken));

@@ -17,8 +17,10 @@ public class LightJobManagerTests
 
         var safeJobRunner = new Mock<ISafeJobRunner>(MockBehavior.Strict);
         var jobSource = new Mock<IJobSource>();
+        var sleepService = new Mock<ISleepService>();
 
-        var jobManager = new LightJobManager(new NullLogger<LightJobManager>(), safeJobRunner.Object, jobSource.Object);
+        var jobManager = new LightJobManager(new NullLogger<LightJobManager>(), safeJobRunner.Object, jobSource.Object,
+            sleepService.Object);
 
         safeJobRunner
             .Setup(s => s.RunSafelyAsync(job1.Object, It.IsAny<CancellationToken>()))
@@ -31,9 +33,6 @@ public class LightJobManagerTests
         safeJobRunner
             .Setup(s => s.RunSafelyAsync(job3.Object, It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
-
-        jobSource.Setup(s => s.AcknowledgeCompletionAsync(job2.Object, It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .Returns(() => throw new Exception("BOOM"));
 
         await jobManager.RunAsync([
             job1.Object,
@@ -56,10 +55,69 @@ public class LightJobManagerTests
     }
 
     [Fact]
+    public async Task Test_Run_ExceptionRetry()
+    {
+        var job1 = new Mock<IJobModel>();
+
+        var safeJobRunner = new Mock<ISafeJobRunner>(MockBehavior.Strict);
+        var jobSource = new Mock<IJobSource>();
+        var sleepService = new Mock<ISleepService>();
+
+        var jobManager = new LightJobManager(new NullLogger<LightJobManager>(), safeJobRunner.Object, jobSource.Object,
+            sleepService.Object);
+
+        safeJobRunner
+            .Setup(s => s.RunSafelyAsync(job1.Object, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        jobSource.Setup(s => s.AcknowledgeCompletionAsync(job1.Object, It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .Returns(() => throw new Exception("BOOM"));
+
+        await jobManager.RunAsync([
+            job1.Object
+        ], TestContext.Current.CancellationToken);
+
+        Assert.Single(safeJobRunner.Invocations);
+        safeJobRunner.Verify(r => r.RunSafelyAsync(job1.Object, TestContext.Current.CancellationToken), Times.Once);
+
+        Assert.True(jobSource.Invocations.Count >= 2);
+        jobSource.Verify(s => s.AcknowledgeCompletionAsync(job1.Object, true, TestContext.Current.CancellationToken),
+            Times.AtLeast(2));
+    }
+
+    [Fact]
+    public async Task Test_Run_Single()
+    {
+        var job1 = new Mock<IJobModel>();
+
+        var safeJobRunner = new Mock<ISafeJobRunner>(MockBehavior.Strict);
+        var jobSource = new Mock<IJobSource>();
+        var sleepService = new Mock<ISleepService>();
+
+        var jobManager = new LightJobManager(new NullLogger<LightJobManager>(), safeJobRunner.Object, jobSource.Object,
+            sleepService.Object);
+
+        safeJobRunner
+            .Setup(s => s.RunSafelyAsync(job1.Object, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        await jobManager.RunAsync([
+            job1.Object
+        ], TestContext.Current.CancellationToken);
+
+        Assert.Single(safeJobRunner.Invocations);
+        safeJobRunner.Verify(r => r.RunSafelyAsync(job1.Object, TestContext.Current.CancellationToken), Times.Once);
+
+        Assert.Single(jobSource.Invocations);
+        jobSource.Verify(s => s.AcknowledgeCompletionAsync(job1.Object, true, TestContext.Current.CancellationToken),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task Test_Start()
     {
         // All nulls shouldn't matter, implementation of Start should be empty
-        var jobManager = new LightJobManager(null!, null!, null!);
+        var jobManager = new LightJobManager(null!, null!, null!, null!);
         await jobManager.StartAsync(TestContext.Current.CancellationToken);
         Assert.Equal(1, 1); // Satisfy Sonar checks
     }
