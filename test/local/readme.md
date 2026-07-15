@@ -39,6 +39,7 @@ docker compose up -d ministack
 export USE_ACTIVEMQ=0
 export USE_KINESIS=0
 export USE_AZURE_QUEUE_STORAGE=0
+export USE_AZURE_SERVICE_BUS=0
 export USE_NATS=0
 export USE_RABBITMQ=0
 ```
@@ -77,6 +78,7 @@ To initialize Kinesis and queue sample messages:
     export USE_ACTIVEMQ=0
     export USE_KINESIS=1
     export USE_AZURE_QUEUE_STORAGE=0
+    export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
     export USE_RABBITMQ=0
     ```
@@ -131,6 +133,7 @@ To initialize RabbitMQ and queue messages:
     export USE_RABBITMQ=0
     export USE_KINESIS=0
     export USE_AZURE_QUEUE_STORAGE=0
+    export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
     export USE_RABBITMQ=1
     ```
@@ -203,6 +206,7 @@ To initialize RabbitMQ and queue messages:
     export USE_ACTIVEMQ=1
     export USE_KINESIS=0
     export USE_AZURE_QUEUE_STORAGE=0
+    export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
     export USE_RABBITMQ=0
     ```
@@ -263,6 +267,7 @@ To install the `nats` command:
     export USE_NATS=1
     export USE_ACTIVEMQ=0
     export USE_AZURE_QUEUE_STORAGE=0
+    export USE_AZURE_SERVICE_BUS=0
     export USE_KINESIS=0
     export USE_RABBITMQ=0
     ```
@@ -287,13 +292,12 @@ For more information on using Visual Studio Code to interact with `azurite`, see
 
 VSCode automatically knows how to point to your local `azurite` server after the service is started.
 
-
 ### Testing Messages
 
 1. Bring up `azureite`:
 
     ```
-    docker compose up -d `azurite`
+    docker compose up -d azurite
     ```
 
 2. In VSCode, go to the Azure tab.
@@ -312,6 +316,7 @@ VSCode automatically knows how to point to your local `azurite` server after the
 
     ```
     export USE_AZURE_QUEUE_STORAGE=1
+    export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
     export USE_ACTIVEMQ=0
     export USE_KINESIS=0
@@ -319,6 +324,65 @@ VSCode automatically knows how to point to your local `azurite` server after the
     ```
 
 7. Bring up the worker:
+
+    ```
+    docker compose up worker
+    ```
+
+## Azure Service Bus
+
+Testing `Azure Service Bus` will require the `azure.servicebus` python module to be installed:
+
+```
+pip install azure.servicebus
+```
+
+### Testing Messages
+
+1. Set a value for the `LOCAL_MSSQL_SA_PASSWORD` environment environment variable to be used by the local SQL Server container that we will be spinning up (to set this for long-term, place it in your home directory's `~/.bashrc` file) (password must be at least 8 characters and contain a number and special character):
+
+    ```
+    export LOCAL_MSSQL_SA_PASSWORD="ExamplePassword1@"
+    ```
+
+2. Bring up `azure-service-bus-mssql`, the database back-end used by the service bus emulator:
+
+    ```
+    docker compose up -d azure-service-bus-mssql
+    ```
+
+3. The service bus emulator depends on a configuration file located at `config/azure-service-bus/service-bus-config.json`. Make sure that the container can read it with `chmod`:
+
+    ```
+    chmod o+r config/azure-service-bus/service-bus-config.json
+    ```
+
+4. Bring up `azure-service-bus-emulator`:
+
+    ```
+    docker compose up -d azure-service-bus-emulator
+    ```
+
+5. Give the service bus emulator a moment to start up (the amount of time to wait is controlled by the `SQL_WAIT_INTERVAL` variable in the `docker-compose.yaml` file).
+
+6. The configuration file defined for the service bus emulator defines a queue named `test-queue`. To send to this queue, you can use the provided python script to send a job that will tell the worker to sleep for the specified number of seconds:
+
+    ```
+    ./send-azure-service-bus-job.py 12
+    ```
+
+7. Before starting the worker, make sure that the `USE_AZURE_SERVICE_BUS` is set to `1` and that other `USE_` environment variables are not set to `1`:
+
+    ```
+    export USE_AZURE_QUEUE_STORAGE=0
+    export USE_AZURE_SERVICE_BUS=1
+    export USE_NATS=0
+    export USE_ACTIVEMQ=0
+    export USE_KINESIS=0
+    export USE_RABBITMQ=0
+    ```
+
+8. Bring up the worker:
 
     ```
     docker compose up worker

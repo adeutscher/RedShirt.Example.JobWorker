@@ -5,6 +5,7 @@ using RedShirt.Example.JobWorker.Core.Logic.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.ConfigurationStorage.Ssm.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.CredentialStorage.Ssm.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Extensions;
@@ -30,6 +31,7 @@ public static class ServiceCollectionExtensions
         var useKinesisRaw = configuration.GetValue("UseKinesis", "0");
         var useActiveMqRaw = configuration.GetValue("UseActiveMq", "0");
         var useAzureQueueStorageRaw = configuration.GetValue("UseAzureQueueStorage", "0");
+        var useAzureServiceBusRaw = configuration.GetValue("UseAzureServiceBus", "0");
         var useNatsRaw = configuration.GetValue("UseNats", "0");
         var useRabbitMqRaw = configuration.GetValue("UseRabbitMq", "0");
 
@@ -43,6 +45,11 @@ public static class ServiceCollectionExtensions
         {
             services = services
                 .AddAzureQueueStorageJobManagement(configuration);
+        }
+        else if (int.TryParse(useAzureServiceBusRaw, out var useAzureServiceBus) && useAzureServiceBus == 1)
+        {
+            services = services
+                .AddAzureServiceBusJobManagement(configuration);
         }
         else if (int.TryParse(useRabbitMqRaw, out var useRabbitMq) && useRabbitMq == 1)
         {

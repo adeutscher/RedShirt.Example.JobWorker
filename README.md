@@ -11,6 +11,7 @@ Repo features:
     * [Amazon Kinesis](https://aws.amazon.com/kinesis/data-streams/)
     * [Apache ActiveMQ Artemis](https://artemis.apache.org/components/artemis/)
     * [Azure Queue Storage](https://learn.microsoft.com/en-us/azure/storage/queues/storage-queues-introduction)
+    * [Azure Service Bus](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview)
     * [NATS](https://nats.io/)
     * [RabbitMQ](https://www.rabbitmq.com/)
 
