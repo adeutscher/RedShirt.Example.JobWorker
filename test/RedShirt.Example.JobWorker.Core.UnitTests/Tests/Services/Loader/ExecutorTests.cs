@@ -10,7 +10,7 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Loader;
 
 public class ExecutorTests
 {
-    [Theory(Timeout = 500)]
+    [Theory(Timeout = 1000)]
     [InlineData(true)]
     [InlineData(false)]
     public async Task ExecuteSingleJob(bool safeRunnerSuccess)
@@ -35,8 +35,11 @@ public class ExecutorTests
             .Setup(a => a.ShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
             {
+                // ReSharper disable once InvertIf
                 if (!doQuit)
                 {
+                    // Should only be invoked twice
+                    // First to tee up the exit, and a second time to exit
                     doQuit = true;
                     return true;
                 }

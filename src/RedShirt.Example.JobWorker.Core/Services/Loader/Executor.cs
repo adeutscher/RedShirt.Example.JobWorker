@@ -24,6 +24,14 @@ internal class Executor(
     public async Task RunAsync(int id, CancellationToken cancellationToken = default)
     {
         logger.LogTrace("Starting job executor {Id}", id);
+        var acknowledgementRetryPolicy = Policy.Handle<Exception>()
+            .RetryAsync(Globals.AcknowledgementRetryCount,
+                async (e, instanceCount) =>
+                {
+                    await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)),
+                        cancellationToken);
+                }
+            );
 
         while (await executionEndArbiter.ShouldKeepRunningAsync(cancellationToken))
         {
@@ -55,14 +63,7 @@ internal class Executor(
 
             try
             {
-                await Policy.Handle<Exception>()
-                    .RetryAsync(Globals.AcknowledgementRetryCount,
-                        async (e, instanceCount) =>
-                        {
-                            await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)),
-                                cancellationToken);
-                        }
-                    )
+                await acknowledgementRetryPolicy
                     .ExecuteAsync(() => jobSource.AcknowledgeCompletionAsync(job.JobModel, success, cancellationToken));
             }
             catch (Exception e)
