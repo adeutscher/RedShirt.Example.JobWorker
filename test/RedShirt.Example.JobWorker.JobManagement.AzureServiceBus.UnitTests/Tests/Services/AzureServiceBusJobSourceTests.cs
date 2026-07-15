@@ -207,9 +207,9 @@ public class AzureServiceBusJobSourceTests
 
         client.Verify(
             s => s.AbandonMessageAsync(It.IsAny<IServiceBusMessageContainer>(), It.IsAny<CancellationToken>()),
-            Times.Never);
+            Times.Once);
         client.Verify(s => s.AbandonMessageAsync(innerMessage.Object, TestContext.Current.CancellationToken),
-            Times.Never);
+            Times.Once);
     }
 
     [Theory]
