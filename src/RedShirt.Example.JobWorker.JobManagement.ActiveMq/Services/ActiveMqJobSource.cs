@@ -78,6 +78,8 @@ internal class ActiveMqJobSource : IJobSource
 
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
+        batchSize = Math.Max(1, batchSize);
+
         _logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from ActiveMQ Queue: {QueueName}",
             batchSize, _configuration.Value.QueueName);
 

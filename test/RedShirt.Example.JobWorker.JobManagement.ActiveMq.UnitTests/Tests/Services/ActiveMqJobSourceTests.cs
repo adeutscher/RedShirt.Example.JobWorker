@@ -328,7 +328,7 @@ public class ActiveMqJobSourceTests
         var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
             bodyRetriever.Object, converter.Object, new NullLogger<ActiveMqJobSource>());
 
-        var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
+        var jobResponse = await jobSource.GetJobsAsync(0, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);

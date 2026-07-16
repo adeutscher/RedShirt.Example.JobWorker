@@ -20,7 +20,7 @@ internal class FetchNoWaitGetter : IFetchNoWaitGetter
         NatsJSFetchOpts opts, CancellationToken cancellationToken = default)
     {
         // Note: FetchNoWaitAsync is discouraged if not used with a back-off like Core's WorkerLoop does
-        return (IAsyncEnumerable<INatsJSMsg<NatsMemoryOwner<byte>>>) ((NatsJSConsumer) consumer)
+        return ((NatsJSConsumer) consumer)
             .FetchNoWaitAsync<NatsMemoryOwner<byte>>(opts,
                 cancellationToken: cancellationToken);
     }
