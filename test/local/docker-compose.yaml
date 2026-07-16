@@ -160,9 +160,6 @@ services:
       # The below option generates a token for Key Vault auth with obviously bogus values
       # Using obviously-bogus token that would only work on a local testing server is the only way that I can justify the blanket SSL trust that goes with it
       JOB_SOURCE__AZURE_KEY_VAULT__GENERATE_LOCAL_TESTING_TOKEN: true
-      AAZURE_TENANT_ID: "00000000-0000-0000-0000-000000000000"
-      AAZURE_CLIENT_ID:  "devstoreaccount1"
-      AAZURE_CLIENT_SECRET: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
       ## Job Management (Azure Queue Storage)
       USE_AZURE_QUEUE_STORAGE: "${USE_AZURE_QUEUE_STORAGE-0}"
       JOB_SOURCE__AZURE_QUEUE_STORAGE__URI: https://not-used-in-local-testing
