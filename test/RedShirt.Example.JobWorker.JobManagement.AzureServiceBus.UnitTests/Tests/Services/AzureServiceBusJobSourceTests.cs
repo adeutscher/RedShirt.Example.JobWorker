@@ -29,8 +29,8 @@ public class AzureServiceBusJobSourceTests
         var client = new Mock<IServiceBusClientWrapper>();
         var source = new Mock<IBusReceiverClientSource>();
         source
-            .Setup(s => s.GetQueueClient())
-            .Returns(client.Object);
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
 
         var bodyRetriever = new Mock<IAzureServiceBusBodyStringRetriever>();
 
@@ -107,8 +107,8 @@ public class AzureServiceBusJobSourceTests
         var client = new Mock<IServiceBusClientWrapper>();
         var source = new Mock<IBusReceiverClientSource>();
         source
-            .Setup(s => s.GetQueueClient())
-            .Returns(client.Object);
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
 
         var bodyRetriever = new Mock<IAzureServiceBusBodyStringRetriever>();
 
@@ -146,7 +146,7 @@ public class AzureServiceBusJobSourceTests
 
         converter.Verify(c => c.Convert(It.IsAny<string>()), Times.Never);
 
-        source.Verify(s => s.GetQueueClient(), Times.Once);
+        source.Verify(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Once);
         client.Verify(
             c => c.DeadLetterMessageAsync(message1.Object, It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<CancellationToken>()), Times.Once);
@@ -176,8 +176,8 @@ public class AzureServiceBusJobSourceTests
         var client = new Mock<IServiceBusClientWrapper>();
         var source = new Mock<IBusReceiverClientSource>();
         source
-            .Setup(s => s.GetQueueClient())
-            .Returns(client.Object);
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
 
         var config = new AzureServiceBusConfigurationModel
         {
@@ -220,8 +220,8 @@ public class AzureServiceBusJobSourceTests
         var client = new Mock<IServiceBusClientWrapper>();
         var source = new Mock<IBusReceiverClientSource>();
         source
-            .Setup(s => s.GetQueueClient())
-            .Returns(client.Object);
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
 
         var config = new AzureServiceBusConfigurationModel
         {
@@ -248,8 +248,8 @@ public class AzureServiceBusJobSourceTests
         var client = new Mock<IServiceBusClientWrapper>();
         var source = new Mock<IBusReceiverClientSource>();
         source
-            .Setup(s => s.GetQueueClient())
-            .Returns(client.Object);
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
 
         var config = new AzureServiceBusConfigurationModel
         {
@@ -287,8 +287,8 @@ public class AzureServiceBusJobSourceTests
         var client = new Mock<IServiceBusClientWrapper>();
         var source = new Mock<IBusReceiverClientSource>();
         source
-            .Setup(s => s.GetQueueClient())
-            .Returns(client.Object);
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
 
         var config = new AzureServiceBusConfigurationModel
         {
@@ -321,13 +321,11 @@ public class AzureServiceBusJobSourceTests
     [Fact]
     public async Task Test_HeartbeatAsync_OffModel()
     {
-        var timeoutSeconds = 123; // moot
-
         var client = new Mock<IServiceBusClientWrapper>();
         var source = new Mock<IBusReceiverClientSource>();
         source
-            .Setup(s => s.GetQueueClient())
-            .Returns(client.Object);
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
 
         var config = new AzureServiceBusConfigurationModel
         {

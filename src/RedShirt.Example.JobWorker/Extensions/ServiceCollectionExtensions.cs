@@ -4,6 +4,7 @@ using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Logic.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.ConfigurationStorage.Ssm.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
@@ -44,11 +45,13 @@ public static class ServiceCollectionExtensions
         else if (int.TryParse(useAzureQueueStorageRaw, out var useAzureQueueStorage) && useAzureQueueStorage == 1)
         {
             services = services
+                .AddAzureKeyVaultSupportForJobManagement(configuration)
                 .AddAzureQueueStorageJobManagement(configuration);
         }
         else if (int.TryParse(useAzureServiceBusRaw, out var useAzureServiceBus) && useAzureServiceBus == 1)
         {
             services = services
+                .AddAzureKeyVaultSupportForJobManagement(configuration)
                 .AddAzureServiceBusJobManagement(configuration);
         }
         else if (int.TryParse(useRabbitMqRaw, out var useRabbitMq) && useRabbitMq == 1)

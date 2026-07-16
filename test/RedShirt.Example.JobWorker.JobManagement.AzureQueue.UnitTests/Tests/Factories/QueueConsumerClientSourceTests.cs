@@ -9,22 +9,22 @@ public class QueueConsumerClientSourceTests
     public void Test_Get()
     {
         var factory = new Mock<IQueueConsumerClientFactory>();
-        factory.Setup(f => f.GetQueueClient())
-            .Returns(new Mock<IQueueConsumerClientWrapper>().Object);
+        factory.Setup(f => f.GetQueueClientAsync())
+            .ReturnsAsync(new Mock<IQueueConsumerClientWrapper>().Object);
 
         var source = new QueueConsumerClientSource(factory.Object);
         // Not called off the bat
-        factory.Verify(f => f.GetQueueClient(), Times.Never);
+        factory.Verify(f => f.GetQueueClientAsync(), Times.Never);
 
-        var client = source.GetQueueClient();
+        var client = source.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client);
-        factory.Verify(f => f.GetQueueClient(), Times.Once);
+        factory.Verify(f => f.GetQueueClientAsync(), Times.Once);
 
-        var client2 = source.GetQueueClient();
+        var client2 = source.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client2);
         Assert.Same(client, client2);
 
         // Still only once
-        factory.Verify(f => f.GetQueueClient(), Times.Once);
+        factory.Verify(f => f.GetQueueClientAsync(), Times.Once);
     }
 }

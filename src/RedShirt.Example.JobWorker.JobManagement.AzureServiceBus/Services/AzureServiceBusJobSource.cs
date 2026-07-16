@@ -26,7 +26,7 @@ internal class AzureServiceBusJobSource(
             return;
         }
 
-        var client = clientSource.GetQueueClient();
+        var client = await clientSource.GetQueueClientAsync();
 
         if (success)
         {
@@ -66,7 +66,7 @@ internal class AzureServiceBusJobSource(
                  */
 
                 // Send the message to the dead-letter so that it cannot keep gumming up the message bus
-                var client = clientSource.GetQueueClient();
+                var client = await clientSource.GetQueueClientAsync(cancellationToken);
                 await client.DeadLetterMessageAsync(receivedMessage, "Body parsing error",
                     e.Message + " " + e.StackTrace, cancellationToken);
 
@@ -118,7 +118,7 @@ internal class AzureServiceBusJobSource(
             return;
         }
 
-        var client = clientSource.GetQueueClient();
+        var client = await clientSource.GetQueueClientAsync(cancellationToken);
         await client.RenewMessageLockAsync(messageAsAzureJobModel.Message, cancellationToken);
     }
 }

@@ -1,19 +1,22 @@
 using Azure.Identity;
 using Azure.Storage.Queues;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
 
 internal interface IQueueConsumerClientFactory
 {
-    IQueueConsumerClientWrapper GetQueueClient();
+    Task<IQueueConsumerClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default);
 }
 
-internal class QueueConsumerClientFactory(IOptions<QueueConsumerClientFactory.ConfigurationModel> options)
+internal class QueueConsumerClientFactory(
+    IAzureKeyVaultClientSource keyVaultClientSource,
+    IOptions<QueueConsumerClientFactory.ConfigurationModel> options)
     : IQueueConsumerClientFactory
 {
-    public IQueueConsumerClientWrapper GetQueueClient()
+    public async Task<IQueueConsumerClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default)
     {
         QueueClient innerClient;
 
@@ -22,10 +25,13 @@ internal class QueueConsumerClientFactory(IOptions<QueueConsumerClientFactory.Co
          */
 
         // ReSharper disable once ConvertIfStatementToConditionalTernaryExpression
-        if (!string.IsNullOrWhiteSpace(options.Value.ConnectionString)
+        if (!string.IsNullOrWhiteSpace(options.Value.ConnectionStringPath)
             && !string.IsNullOrWhiteSpace(options.Value.QueueName))
         {
-            innerClient = new QueueClient(options.Value.ConnectionString, options.Value.QueueName);
+            var keyVaultClient = keyVaultClientSource.GetKeyVaultClient();
+            var connectionString =
+                await keyVaultClient.GetSecretAsync(options.Value.ConnectionStringPath, cancellationToken);
+            innerClient = new QueueClient(connectionString, options.Value.QueueName);
         }
         else
         {
@@ -38,7 +44,7 @@ internal class QueueConsumerClientFactory(IOptions<QueueConsumerClientFactory.Co
     public sealed class ConfigurationModel
     {
         public required string Uri { get; init; }
-        public required string? ConnectionString { get; init; }
+        public required string? ConnectionStringPath { get; init; }
         public required string? QueueName { get; init; }
     }
 }

@@ -18,7 +18,7 @@ internal class AzureQueueStorageMessageSource(
 
     private async Task<List<IQueueMessageModel>> GetAsync(int batchSize, CancellationToken cancellationToken = default)
     {
-        var client = clientSource.GetQueueClient();
+        var client = await clientSource.GetQueueClientAsync(cancellationToken);
         return await client.GetMessagesAsync(batchSize,
             TimeSpan.FromSeconds(options.Value.EffectiveVisibilityTimeoutSeconds), cancellationToken);
     }

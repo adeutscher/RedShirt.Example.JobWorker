@@ -68,6 +68,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests", "test\RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests\RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.csproj", "{7E784137-4513-476B-8028-E186CEDFC93E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.JobManagement.AzureKeyVault", "src\RedShirt.Example.JobWorker.JobManagement.AzureKeyVault\RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.csproj", "{DBCF704F-92C9-400D-A9C7-7AF487FD7A8D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.UnitTests", "test\RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.UnitTests\RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.UnitTests.csproj", "{A3801B8A-724B-450E-9393-966319DB3D5E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -103,6 +107,8 @@ Global
 		{6934DEE9-82DB-46E4-BDDD-A83206E67D23} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
 		{E48CC468-5EFE-4E45-AB66-0C798A0611E7} = {0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}
 		{7E784137-4513-476B-8028-E186CEDFC93E} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
+		{DBCF704F-92C9-400D-A9C7-7AF487FD7A8D} = {0623BF6B-E7DD-4DE0-A794-16C9A39B02EC}
+		{A3801B8A-724B-450E-9393-966319DB3D5E} = {A19E3CC6-A81D-4B43-9E46-40329127E637}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{81C22C57-1441-4DC0-9953-47434B802572}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -221,5 +227,13 @@ Global
 		{7E784137-4513-476B-8028-E186CEDFC93E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7E784137-4513-476B-8028-E186CEDFC93E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7E784137-4513-476B-8028-E186CEDFC93E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DBCF704F-92C9-400D-A9C7-7AF487FD7A8D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DBCF704F-92C9-400D-A9C7-7AF487FD7A8D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DBCF704F-92C9-400D-A9C7-7AF487FD7A8D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DBCF704F-92C9-400D-A9C7-7AF487FD7A8D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3801B8A-724B-450E-9393-966319DB3D5E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3801B8A-724B-450E-9393-966319DB3D5E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3801B8A-724B-450E-9393-966319DB3D5E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3801B8A-724B-450E-9393-966319DB3D5E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

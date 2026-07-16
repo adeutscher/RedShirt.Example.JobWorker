@@ -32,8 +32,8 @@ public class AzureQueueStorageMessageSourceTests
         var client = new Mock<IQueueConsumerClientWrapper>();
         var source = new Mock<IQueueConsumerClientSource>();
         source
-            .Setup(s => s.GetQueueClient())
-            .Returns(client.Object);
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
 
         client
             .Setup(c => c.GetMessagesAsync(It.IsAny<int>(), It.IsAny<TimeSpan>(),

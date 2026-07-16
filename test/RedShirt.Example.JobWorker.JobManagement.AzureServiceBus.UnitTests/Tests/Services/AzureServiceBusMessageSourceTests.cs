@@ -33,8 +33,8 @@ public class AzureServiceBusMessageSourceTests
         var client = new Mock<IServiceBusClientWrapper>();
         var source = new Mock<IBusReceiverClientSource>();
         source
-            .Setup(s => s.GetQueueClient())
-            .Returns(client.Object);
+            .Setup(s => s.GetQueueClientAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync(client.Object);
 
         client
             .Setup(c => c.GetMessagesAsync(It.IsAny<int>(), TestContext.Current.CancellationToken))
@@ -48,7 +48,7 @@ public class AzureServiceBusMessageSourceTests
 
                 for (var i = 0; i < callbackBatchSize; i++)
                 {
-                    if (!queue.TryDequeue(out var messageBody))
+                    if (!queue.TryDequeue(out var _))
                     {
                         break;
                     }

@@ -1,6 +1,7 @@
 using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
@@ -8,13 +9,15 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 
 internal interface IBusReceiverClientFactory
 {
-    IServiceBusClientWrapper GetQueueClient();
+    Task<IServiceBusClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default);
 }
 
-internal class BusReceiverClientFactory(IOptions<BusReceiverClientFactory.ConfigurationModel> options)
+internal class BusReceiverClientFactory(
+    IAzureKeyVaultClientSource keyVaultClientSource,
+    IOptions<BusReceiverClientFactory.ConfigurationModel> options)
     : IBusReceiverClientFactory
 {
-    public IServiceBusClientWrapper GetQueueClient()
+    public async Task<IServiceBusClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default)
     {
         ServiceBusClient innerClient;
 
@@ -22,9 +25,12 @@ internal class BusReceiverClientFactory(IOptions<BusReceiverClientFactory.Config
          * Connection via Connection String and connection via Uri/Namespace seems to be mutually exclusive.
          */
 
-        if (!string.IsNullOrWhiteSpace(options.Value.ConnectionString))
+        if (!string.IsNullOrWhiteSpace(options.Value.ConnectionStringPath))
         {
-            innerClient = new ServiceBusClient(options.Value.ConnectionString);
+            var keyVaultClient = keyVaultClientSource.GetKeyVaultClient();
+            var connectionString =
+                await keyVaultClient.GetSecretAsync(options.Value.ConnectionStringPath, cancellationToken);
+            innerClient = new ServiceBusClient(connectionString);
         }
         else if (!string.IsNullOrWhiteSpace(options.Value.FullyQualifiedNamespace))
         {
@@ -41,7 +47,7 @@ internal class BusReceiverClientFactory(IOptions<BusReceiverClientFactory.Config
     public sealed class ConfigurationModel
     {
         public required string FullyQualifiedNamespace { get; init; }
-        public required string? ConnectionString { get; init; }
+        public required string? ConnectionStringPath { get; init; }
         public required string QueueName { get; init; }
     }
 }

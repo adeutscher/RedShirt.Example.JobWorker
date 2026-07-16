@@ -18,7 +18,7 @@ internal class AzureServiceBusMessageSource(
     private async Task<List<IServiceBusMessageContainer>> GetAsync(int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var client = clientSource.GetQueueClient();
+        var client = await clientSource.GetQueueClientAsync(cancellationToken);
         var rawMessages = await client.GetMessagesAsync(batchSize, cancellationToken);
         return rawMessages.ToList();
     }

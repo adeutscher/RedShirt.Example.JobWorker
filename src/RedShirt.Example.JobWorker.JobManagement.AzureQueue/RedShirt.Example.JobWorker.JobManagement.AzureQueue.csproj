@@ -7,12 +7,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Azure.Identity" Version="1.21.0" />
-        <PackageReference Include="Azure.Storage.Queues" Version="12.27.1" />
+        <PackageReference Include="Azure.Identity" Version="1.21.0"/>
+        <PackageReference Include="Azure.Storage.Queues" Version="12.27.1"/>
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Core\RedShirt.Example.JobWorker.Core.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.AzureKeyVault\RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.csproj"/>
     </ItemGroup>
 
 </Project>

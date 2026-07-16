@@ -13,142 +13,6 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.Tests.Se
 public class AzureQueueStorageJobSourceTests
 {
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Test_AcknowledgeAsync(bool success)
-    {
-        var client = new Mock<IQueueConsumerClientWrapper>();
-        var source = new Mock<IQueueConsumerClientSource>();
-        source
-            .Setup(s => s.GetQueueClient())
-            .Returns(client.Object);
-
-        var config = new AzureQueueStorageConfigurationModel
-        {
-            VisibilityTimeoutSeconds = 0
-        };
-
-        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
-            new NullLogger<AzureQueueStorageJobSource>(),
-            Options.Create(config));
-
-        var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
-        var job = new AzureJobModel
-        {
-            Message = innerMessage.Object,
-            CreatedAtUtc = DateTime.UtcNow,
-            Data = null!
-        };
-
-        await jobSource.AcknowledgeCompletionAsync(job, success, TestContext.Current.CancellationToken);
-
-        client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),
-            Times.Once);
-        client.Verify(s => s.DeleteMessageAsync(innerMessage.Object, TestContext.Current.CancellationToken),
-            Times.Once);
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Test_AcknowledgeAsync_OffModel(bool success)
-    {
-        var client = new Mock<IQueueConsumerClientWrapper>();
-        var source = new Mock<IQueueConsumerClientSource>();
-        source
-            .Setup(s => s.GetQueueClient())
-            .Returns(client.Object);
-
-        var config = new AzureQueueStorageConfigurationModel
-        {
-            VisibilityTimeoutSeconds = 0
-        };
-
-        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
-            new NullLogger<AzureQueueStorageJobSource>(),
-            Options.Create(config));
-
-        var job = new Mock<IJobModel>();
-
-        await jobSource.AcknowledgeCompletionAsync(job.Object, success, TestContext.Current.CancellationToken);
-
-        client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
-
-    [Theory]
-    [InlineData(1)]
-    [InlineData(10)]
-    [InlineData(30)]
-    public async Task Test_HeartbeatAsync(int timeoutSeconds)
-    {
-        var client = new Mock<IQueueConsumerClientWrapper>();
-        var source = new Mock<IQueueConsumerClientSource>();
-        source
-            .Setup(s => s.GetQueueClient())
-            .Returns(client.Object);
-
-        var config = new AzureQueueStorageConfigurationModel
-        {
-            VisibilityTimeoutSeconds = timeoutSeconds
-        };
-
-        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
-            new NullLogger<AzureQueueStorageJobSource>(),
-            Options.Create(config));
-
-        var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
-        var job = new AzureJobModel
-        {
-            Message = innerMessage.Object,
-            CreatedAtUtc = DateTime.UtcNow,
-            Data = null!
-        };
-
-        await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken);
-
-        client.Verify(
-            c => c.SetMessageVisibilityTimeoutAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<TimeSpan>(),
-                It.IsAny<CancellationToken>()), Times.Once);
-        client.Verify(
-            c => c.SetMessageVisibilityTimeoutAsync(innerMessage.Object, It.IsAny<TimeSpan>(),
-                TestContext.Current.CancellationToken), Times.Once);
-        client.Verify(
-            c => c.SetMessageVisibilityTimeoutAsync(innerMessage.Object,
-                It.Is<TimeSpan>(ts => ts.Seconds == config.EffectiveVisibilityTimeoutSeconds),
-                TestContext.Current.CancellationToken), Times.Once);
-    }
-
-    [Fact]
-    public async Task Test_HeartbeatAsync_OffModel()
-    {
-        var timeoutSeconds = 123; // moot
-
-        var client = new Mock<IQueueConsumerClientWrapper>();
-        var source = new Mock<IQueueConsumerClientSource>();
-        source
-            .Setup(s => s.GetQueueClient())
-            .Returns(client.Object);
-
-        var config = new AzureQueueStorageConfigurationModel
-        {
-            VisibilityTimeoutSeconds = timeoutSeconds
-        };
-
-        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
-            new NullLogger<AzureQueueStorageJobSource>(),
-            Options.Create(config));
-
-        var job = new Mock<IJobModel>();
-
-        await jobSource.HeartbeatAsync(job.Object, TestContext.Current.CancellationToken);
-
-        client.Verify(
-            c => c.SetMessageVisibilityTimeoutAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<TimeSpan>(),
-                It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Theory]
     [InlineData(2)]
     [InlineData(5)]
     [InlineData(10)]
@@ -167,8 +31,8 @@ public class AzureQueueStorageJobSourceTests
         var client = new Mock<IQueueConsumerClientWrapper>();
         var source = new Mock<IQueueConsumerClientSource>();
         source
-            .Setup(s => s.GetQueueClient())
-            .Returns(client.Object);
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
 
         var azureMessageSource = new Mock<IAzureQueueStorageMessageSource>(MockBehavior.Strict);
         azureMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -249,6 +113,142 @@ public class AzureQueueStorageJobSourceTests
             new NullLogger<AzureQueueStorageJobSource>(), Options.Create(options));
 
         Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Test_AcknowledgeAsync(bool success)
+    {
+        var client = new Mock<IQueueConsumerClientWrapper>();
+        var source = new Mock<IQueueConsumerClientSource>();
+        source
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var config = new AzureQueueStorageConfigurationModel
+        {
+            VisibilityTimeoutSeconds = 0
+        };
+
+        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
+            new NullLogger<AzureQueueStorageJobSource>(),
+            Options.Create(config));
+
+        var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
+        var job = new AzureJobModel
+        {
+            Message = innerMessage.Object,
+            CreatedAtUtc = DateTime.UtcNow,
+            Data = null!
+        };
+
+        await jobSource.AcknowledgeCompletionAsync(job, success, TestContext.Current.CancellationToken);
+
+        client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        client.Verify(s => s.DeleteMessageAsync(innerMessage.Object, TestContext.Current.CancellationToken),
+            Times.Once);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Test_AcknowledgeAsync_OffModel(bool success)
+    {
+        var client = new Mock<IQueueConsumerClientWrapper>();
+        var source = new Mock<IQueueConsumerClientSource>();
+        source
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var config = new AzureQueueStorageConfigurationModel
+        {
+            VisibilityTimeoutSeconds = 0
+        };
+
+        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
+            new NullLogger<AzureQueueStorageJobSource>(),
+            Options.Create(config));
+
+        var job = new Mock<IJobModel>();
+
+        await jobSource.AcknowledgeCompletionAsync(job.Object, success, TestContext.Current.CancellationToken);
+
+        client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(10)]
+    [InlineData(30)]
+    public async Task Test_HeartbeatAsync(int timeoutSeconds)
+    {
+        var client = new Mock<IQueueConsumerClientWrapper>();
+        var source = new Mock<IQueueConsumerClientSource>();
+        source
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var config = new AzureQueueStorageConfigurationModel
+        {
+            VisibilityTimeoutSeconds = timeoutSeconds
+        };
+
+        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
+            new NullLogger<AzureQueueStorageJobSource>(),
+            Options.Create(config));
+
+        var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
+        var job = new AzureJobModel
+        {
+            Message = innerMessage.Object,
+            CreatedAtUtc = DateTime.UtcNow,
+            Data = null!
+        };
+
+        await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken);
+
+        client.Verify(
+            c => c.SetMessageVisibilityTimeoutAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(
+            c => c.SetMessageVisibilityTimeoutAsync(innerMessage.Object, It.IsAny<TimeSpan>(),
+                TestContext.Current.CancellationToken), Times.Once);
+        client.Verify(
+            c => c.SetMessageVisibilityTimeoutAsync(innerMessage.Object,
+                It.Is<TimeSpan>(ts => ts.Seconds == config.EffectiveVisibilityTimeoutSeconds),
+                TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Fact]
+    public async Task Test_HeartbeatAsync_OffModel()
+    {
+        var timeoutSeconds = 123; // moot
+
+        var client = new Mock<IQueueConsumerClientWrapper>();
+        var source = new Mock<IQueueConsumerClientSource>();
+        source
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var config = new AzureQueueStorageConfigurationModel
+        {
+            VisibilityTimeoutSeconds = timeoutSeconds
+        };
+
+        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
+            new NullLogger<AzureQueueStorageJobSource>(),
+            Options.Create(config));
+
+        var job = new Mock<IJobModel>();
+
+        await jobSource.HeartbeatAsync(job.Object, TestContext.Current.CancellationToken);
+
+        client.Verify(
+            c => c.SetMessageVisibilityTimeoutAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private sealed class BasicMessageModel : IQueueMessageModel

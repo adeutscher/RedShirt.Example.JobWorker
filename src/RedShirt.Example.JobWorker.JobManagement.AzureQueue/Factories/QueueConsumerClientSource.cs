@@ -4,14 +4,14 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
 
 internal interface IQueueConsumerClientSource
 {
-    IQueueConsumerClientWrapper GetQueueClient();
+    Task<IQueueConsumerClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default);
 }
 
 internal class QueueConsumerClientSource(IQueueConsumerClientFactory factory) : IQueueConsumerClientSource
 {
-    private readonly Lazy<IQueueConsumerClientWrapper> _queueClient = new(factory.GetQueueClient);
+    private readonly Lazy<Task<IQueueConsumerClientWrapper>> _queueClient = new(() => factory.GetQueueClientAsync());
 
-    public IQueueConsumerClientWrapper GetQueueClient()
+    public Task<IQueueConsumerClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default)
     {
         return _queueClient.Value;
     }

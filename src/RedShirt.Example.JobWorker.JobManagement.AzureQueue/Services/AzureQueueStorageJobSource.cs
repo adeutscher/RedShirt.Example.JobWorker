@@ -25,7 +25,7 @@ internal class AzureQueueStorageJobSource(
             return;
         }
 
-        var client = clientSource.GetQueueClient();
+        var client = await clientSource.GetQueueClientAsync(cancellationToken);
 
         // Azure Queue Storage requires an application-defined mechanism for handling "poison" messages
         // For lack of that, in this template we will treat it like ActiveMQ/RabbitMQ and delete the message.
@@ -84,7 +84,7 @@ internal class AzureQueueStorageJobSource(
             return;
         }
 
-        var client = clientSource.GetQueueClient();
+        var client = await clientSource.GetQueueClientAsync(cancellationToken);
         await client.SetMessageVisibilityTimeoutAsync(messageAsAzureJobModel.Message,
             TimeSpan.FromSeconds(options.Value.EffectiveVisibilityTimeoutSeconds), cancellationToken);
     }

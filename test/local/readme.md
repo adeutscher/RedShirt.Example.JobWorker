@@ -8,7 +8,7 @@ The scripts below assume that certain Python modules are installed in your envir
 Run the following to install the assumed modules:
 
 ```
-pip install --user boto3 awscli awslocal stomp.py
+pip install --user boto3 awscli awslocal stomp.py azure.servicebus azure.identity azure.keyvault
 ```
 
 ## SQS
@@ -288,31 +288,55 @@ Testing `Azure Queue Storage` will require:
 
 For more information on using Visual Studio Code to interact with `azurite`, see [here](https://rajeevpentyala.com/2025/08/16/azurite-build-azure-queues-and-functions-locally-with-c/)
 
+Testing `Azure Queue Storage` will require the various Azure-related python module to be installed:
+
+```
+pip install azure.identity azure.keyvault
+```
+
 ### VSCode Configuration
 
 VSCode automatically knows how to point to your local `azurite` server after the service is started.
 
 ### Testing Messages
 
-1. Bring up `azureite`:
+1. Run `generate-azure-key-vault-cert.sh` to generate the certificate files necessary for the Azure Key Vault Emulator to work.
+
+    ```
+    ./generate-azure-key-vault-cert.sh
+    ```
+
+2. Bring up `azure-key-vault-emulator`, which shall be holding the connection string for Azure Queue Storage:
+
+    ```
+    docker compose up -d azure-key-vault-emulator
+    ```
+
+3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage and Azure Service Bus in the Azure Key Vault emulator:
+
+    ```
+    ./set-azure-key-vault-secrets.py
+    ```
+
+4. Bring up `azureite`:
 
     ```
     docker compose up -d azurite
     ```
 
-2. In VSCode, go to the Azure tab.
+5. In VSCode, go to the Azure tab.
 
-3. Look down in the `Workspace` section
+6. Look down in the `Workspace` section
 
-4. Create the `test-azure-queue` queue.
+7. Create the `test-azure-queue` queue.
 
-5. Azure Storage Explorer should allow you to access the storage account for Azurite's `devstoreaccount1` without any configuration. After selecting the `test-azure-queue` queue, you can add a message to the queue. Please note that Storage Explorer's Add menu **stores the message as a Base64-encoded string by default**. So far, this seems to be unique to Storage Explorer. Because of this, **this template does not go out of its way to account for Base64**. However, but you may wish to consider it if you are adapting this into an application that uses Azure Queue Storage. Any messages added via Storage Explorer should be stored as **Plain UTF-8**. Message format.
+8. Azure Storage Explorer should allow you to access the storage account for Azurite's `devstoreaccount1` without any configuration. After selecting the `test-azure-queue` queue, you can add a message to the queue. Please note that Storage Explorer's Add menu **stores the message as a Base64-encoded string by default**. So far, this seems to be unique to Storage Explorer. Because of this, **this template does not go out of its way to account for Base64**. However, but you may wish to consider it if you are adapting this into an application that uses Azure Queue Storage. Any messages added via Storage Explorer should be stored as **Plain UTF-8**. Message format.
 
     ```
     {"SleepDurationSeconds": 12}
     ```
 
-6. Before starting the worker, make sure that the `USE_AZURE_QUEUE_STORAGE` is set to `1` and that other `USE_` environment variables are not set to `1`:
+9. Before starting the worker, make sure that the `USE_AZURE_QUEUE_STORAGE` is set to `1` and that other `USE_` environment variables are not set to `1`:
 
     ```
     export USE_AZURE_QUEUE_STORAGE=1
@@ -323,7 +347,7 @@ VSCode automatically knows how to point to your local `azurite` server after the
     export USE_RABBITMQ=0
     ```
 
-7. Bring up the worker:
+10. Bring up the worker:
 
     ```
     docker compose up worker
@@ -331,47 +355,65 @@ VSCode automatically knows how to point to your local `azurite` server after the
 
 ## Azure Service Bus
 
-Testing `Azure Service Bus` will require the `azure.servicebus` python module to be installed:
+Testing `Azure Service Bus` will require the various Azure-related python module to be installed:
 
 ```
-pip install azure.servicebus
+pip install azure.servicebus azure.identity azure.keyvault
 ```
 
 ### Testing Messages
 
-1. Set a value for the `LOCAL_MSSQL_SA_PASSWORD` environment environment variable to be used by the local SQL Server container that we will be spinning up (to set this for long-term, place it in your home directory's `~/.bashrc` file) (password must be at least 8 characters and contain a number and special character):
+1. Run `generate-azure-key-vault-cert.sh` to generate the certificate files necessary for the Azure Key Vault Emulator to work.
+
+    ```
+    ./generate-azure-key-vault-cert.sh
+    ```
+
+2. Bring up `azure-key-vault-emulator`, which shall be holding the connection string for Azure Service Bus:
+
+    ```
+    docker compose up -d azure-key-vault-emulator
+    ```
+
+3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage and Azure Service Bus in the Azure Key Vault emulator:
+
+    ```
+    ./set-azure-key-vault-secrets.py
+    ```
+
+4. Set a value for the `LOCAL_MSSQL_SA_PASSWORD` environment environment variable to be used by the local SQL Server container that we will be spinning up (to set this for long-term, place it in your home directory's `~/.bashrc` file) (password must be at least 8 characters and contain a number and special character):
 
     ```
     export LOCAL_MSSQL_SA_PASSWORD="ExamplePassword1@"
     ```
 
-2. Bring up `azure-service-bus-mssql`, the database back-end used by the service bus emulator:
+5. Bring up `azure-service-bus-mssql`, the database back-end used by the service bus emulator:
 
     ```
     docker compose up -d azure-service-bus-mssql
     ```
 
-3. The service bus emulator depends on a configuration file located at `config/azure-service-bus/service-bus-config.json`. Make sure that the container can read it with `chmod`:
+6. The service bus emulator depends on a configuration file located at `config/azure-service-bus/service-bus-config.json`. Make sure that the container can read it with `chmod`:
 
     ```
     chmod o+r config/azure-service-bus/service-bus-config.json
     ```
 
-4. Bring up `azure-service-bus-emulator`:
+7. Bring up `azure-service-bus-emulator`:
 
     ```
     docker compose up -d azure-service-bus-emulator
     ```
 
-5. Give the service bus emulator a moment to start up (the amount of time to wait is controlled by the `SQL_WAIT_INTERVAL` variable in the `docker-compose.yaml` file).
+8. Give the service bus emulator a moment to start up (the amount of time to wait is controlled by the `SQL_WAIT_INTERVAL` variable in the `docker-compose.yaml` file).
 
-6. The configuration file defined for the service bus emulator defines a queue named `test-queue`. To send to this queue, you can use the provided python script to send a job that will tell the worker to sleep for the specified number of seconds:
+9. The configuration file defined for the service bus emulator defines a queue named `test-queue`. To send to this queue, you can use the provided python script to send a job that will tell the worker to sleep for the specified number of seconds:
 
     ```
     ./send-azure-service-bus-job.py 12
     ```
 
-7. Before starting the worker, make sure that the `USE_AZURE_SERVICE_BUS` is set to `1` and that other `USE_` environment variables are not set to `1`:
+10. Before starting the worker, make sure that the `USE_AZURE_SERVICE_BUS` is set to `1` and that other `USE_` environment variables are not set to `1`:
 
     ```
     export USE_AZURE_QUEUE_STORAGE=0
@@ -382,7 +424,7 @@ pip install azure.servicebus
     export USE_RABBITMQ=0
     ```
 
-8. Bring up the worker:
+11. Bring up the worker:
 
     ```
     docker compose up worker

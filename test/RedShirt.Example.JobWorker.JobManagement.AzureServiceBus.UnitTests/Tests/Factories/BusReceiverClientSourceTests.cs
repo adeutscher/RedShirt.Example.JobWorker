@@ -9,22 +9,22 @@ public class BusReceiverClientSourceTests
     public void Test_Get()
     {
         var factory = new Mock<IBusReceiverClientFactory>();
-        factory.Setup(f => f.GetQueueClient())
-            .Returns(new Mock<IServiceBusClientWrapper>().Object);
+        factory.Setup(f => f.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Mock<IServiceBusClientWrapper>().Object);
 
         var source = new BusReceiverClientSource(factory.Object);
         // Not called off the bat
-        factory.Verify(f => f.GetQueueClient(), Times.Never);
+        factory.Verify(f => f.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Never);
 
-        var client = source.GetQueueClient();
+        var client = source.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client);
-        factory.Verify(f => f.GetQueueClient(), Times.Once);
+        factory.Verify(f => f.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Once);
 
-        var client2 = source.GetQueueClient();
+        var client2 = source.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client2);
         Assert.Same(client, client2);
 
         // Still only once
-        factory.Verify(f => f.GetQueueClient(), Times.Once);
+        factory.Verify(f => f.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

@@ -4,14 +4,14 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 
 internal interface IBusReceiverClientSource
 {
-    IServiceBusClientWrapper GetQueueClient();
+    Task<IServiceBusClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default);
 }
 
 internal class BusReceiverClientSource(IBusReceiverClientFactory factory) : IBusReceiverClientSource
 {
-    private readonly Lazy<IServiceBusClientWrapper> _queueClient = new(factory.GetQueueClient);
+    private readonly Lazy<Task<IServiceBusClientWrapper>> _queueClient = new(() => factory.GetQueueClientAsync());
 
-    public IServiceBusClientWrapper GetQueueClient()
+    public Task<IServiceBusClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default)
     {
         return _queueClient.Value;
     }

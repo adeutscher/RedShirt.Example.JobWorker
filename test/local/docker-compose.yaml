@@ -45,6 +45,31 @@ services:
       timeout: 5s
       retries: 5
 
+  azure-key-vault-emulator1:
+    image: basistheory/azure-keyvault-emulator:latest
+    ports:
+      - 5001:5001
+      - 5000:5000
+    volumes:
+      - ./config/azure-key-vault:/https:ro
+    environment:
+      - ASPNETCORE_URLS=https://+:5001;http://+:5000
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/emulator.local.pfx
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=YourSecurePassword
+
+  azure-key-vault-emulator:
+    image: jamesgoulddev/azure-keyvault-emulator:latest
+    container_name: azure-key-vault-emulator.vault.azure.net
+    ports:
+      - "4997:4997"
+    volumes:
+      - ./config/azure-key-vault:/https:ro
+    environment:
+      - ASPNETCORE_URLS=https://+:4997
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/emulator.local.pfx
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=YourSecurePassword
+      - AZURE_TENANT_ID=00000000-0000-0000-0000-000000000000
+
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite:latest
     container_name: azurite
@@ -129,19 +154,28 @@ services:
       JOB_SOURCE__NATS__USER_PATH: /nats/user
       JOB_SOURCE__NATS__PASSWORD_PATH: /nats/password
       JOB_SOURCE__NATS__STREAM_NAME: TestStream
+      ## Jog Management (Azure Key Vault, used by both Azure Queue Storage and Azure Service Bus)
+      JOB_SOURCE__AZURE_KEY_VAULT__KEY_VAULT_URL: https://azure-key-vault-emulator.vault.azure.net:4997
+      # Tell the worker to generate a syntactically valid auth token for James Gould's key vault emulator
+      # The below option generates a token for Key Vault auth with obviously bogus values
+      # Using obviously-bogus token that would only work on a local testing server is the only way that I can justify the blanket SSL trust that goes with it
+      JOB_SOURCE__AZURE_KEY_VAULT__GENERATE_LOCAL_TESTING_TOKEN: true
+      AAZURE_TENANT_ID: "00000000-0000-0000-0000-000000000000"
+      AAZURE_CLIENT_ID:  "devstoreaccount1"
+      AAZURE_CLIENT_SECRET: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
       ## Job Management (Azure Queue Storage)
       USE_AZURE_QUEUE_STORAGE: "${USE_AZURE_QUEUE_STORAGE-0}"
       JOB_SOURCE__AZURE_QUEUE_STORAGE__URI: https://not-used-in-local-testing
       ### Connection string (using default credentials)
       ### https://learn.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string
-      JOB_SOURCE__AZURE_QUEUE_STORAGE__CONNECTION_STRING: "QueueEndpoint=http://azurite:10001/devstoreaccount1;DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;"
+      JOB_SOURCE__AZURE_QUEUE_STORAGE__CONNECTION_STRING_PATH: "azure-queue-storage-connection-string"
       JOB_SOURCE__AZURE_QUEUE_STORAGE__QUEUE_NAME: test-azure-queue
       JOB_SOURCE__AZURE_QUEUE_STORAGE__VISIBILITY_TIMEOUT_SECONDS: 300
       ## Job Management (Azure Service Bus)
       USE_AZURE_SERVICE_BUS: "${USE_AZURE_SERVICE_BUS-0}"
       JOB_SOURCE__AZURE_SERVICE_BUS__MAX_MESSAGES_PER_REQUEST: 100
       JOB_SOURCE__AZURE_SERVICE_BUS__VISIBILITY_TIMEOUT_SECONDS: 60
-      JOB_SOURCE__AZURE_SERVICE_BUS__CONNECTION_STRING: "Endpoint=sb://azure-service-bus-emulator;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+      JOB_SOURCE__AZURE_SERVICE_BUS__CONNECTION_STRING_PATH: "azure-service-bus-connection-string"
       JOB_SOURCE__AZURE_SERVICE_BUS__FULLY_QUALIFIED_NAMESPACE: "not.used.for.local.testing"
       JOB_SOURCE__AZURE_SERVICE_BUS__QUEUE_NAME: "test-queue"
 
