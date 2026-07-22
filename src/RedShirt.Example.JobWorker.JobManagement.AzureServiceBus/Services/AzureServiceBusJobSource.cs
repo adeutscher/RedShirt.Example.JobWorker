@@ -74,6 +74,19 @@ internal class AzureServiceBusJobSource(
                 continue;
             }
 
+            if (string.IsNullOrWhiteSpace(messageBody))
+            {
+                // Avoiding unhandled hung message
+
+                // Send the message to the dead-letter so that it cannot keep gumming up the message bus
+                var client = await clientSource.GetQueueClientAsync(cancellationToken);
+                await client.DeadLetterMessageAsync(receivedMessage, "Empty body",
+                    "Empty body", cancellationToken);
+
+                // Proceed to next message
+                continue;
+            }
+
             try
             {
                 logger.LogTrace("Raw Azure Service Bus message: {MessageBody}", messageBody);
@@ -81,6 +94,12 @@ internal class AzureServiceBusJobSource(
                 var @object = converter.Convert(messageBody);
                 if (@object is null)
                 {
+                    // Assume a deterministic conversion failure
+                    var client = await clientSource.GetQueueClientAsync(cancellationToken);
+                    await client.DeadLetterMessageAsync(receivedMessage, "Conversion failure",
+                        "Conversion failure", cancellationToken);
+
+                    // Proceed to next message
                     continue;
                 }
 

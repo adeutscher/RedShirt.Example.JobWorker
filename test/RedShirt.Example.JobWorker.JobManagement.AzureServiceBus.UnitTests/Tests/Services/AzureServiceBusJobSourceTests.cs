@@ -155,6 +155,181 @@ public class AzureServiceBusJobSourceTests
                 TestContext.Current.CancellationToken), Times.Once);
     }
 
+    [Theory]
+    [InlineData(2)]
+    [InlineData(5)]
+    [InlineData(10)]
+    public async Task TestGetJobsAsync_GotEmptyBody(int batchSize)
+    {
+        var client = new Mock<IServiceBusClientWrapper>();
+        var source = new Mock<IBusReceiverClientSource>();
+        source
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var bodyRetriever = new Mock<IAzureServiceBusBodyStringRetriever>();
+
+        var message1 = new Mock<IServiceBusMessageContainer>();
+        bodyRetriever.Setup(m => m.GetBody(message1.Object))
+            .Returns(() => string.Empty);
+
+        var azureMessageSource = new Mock<IAzureServiceBusMessageSource>(MockBehavior.Strict);
+        azureMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            [
+                message1.Object
+            ]);
+
+        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
+
+        var jobSource = new AzureServiceBusJobSource(source.Object, azureMessageSource.Object, converter.Object,
+            bodyRetriever.Object,
+            new NullLogger<AzureServiceBusJobSource>(), Options.Create(new AzureServiceBusConfigurationModel
+            {
+                VisibilityTimeoutSeconds = 0,
+                MaxMessagesPerRequest = 0
+            }));
+
+        using var cts = new CancellationTokenSource();
+        var response = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
+        Assert.Empty(response.Items);
+
+        client.Verify(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        azureMessageSource.Verify(a => a.GetMessagesAsync(batchSize, It.IsAny<CancellationToken>()), Times.Once);
+
+        bodyRetriever.Verify(r => r.GetBody(It.IsAny<IServiceBusMessageContainer>()), Times.Once);
+        bodyRetriever.Verify(r => r.GetBody(message1.Object), Times.Once);
+
+        converter.Verify(c => c.Convert(It.IsAny<string>()), Times.Never);
+
+        source.Verify(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(
+            c => c.DeadLetterMessageAsync(message1.Object, It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(
+            c => c.DeadLetterMessageAsync(message1.Object, It.IsAny<string>(), It.IsAny<string>(),
+                TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(5)]
+    [InlineData(10)]
+    public async Task TestGetJobsAsync_GotNullBody(int batchSize)
+    {
+        var client = new Mock<IServiceBusClientWrapper>();
+        var source = new Mock<IBusReceiverClientSource>();
+        source
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var bodyRetriever = new Mock<IAzureServiceBusBodyStringRetriever>();
+
+        var message1 = new Mock<IServiceBusMessageContainer>();
+        bodyRetriever.Setup(m => m.GetBody(message1.Object))
+            .Returns(() => null!);
+
+        var azureMessageSource = new Mock<IAzureServiceBusMessageSource>(MockBehavior.Strict);
+        azureMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            [
+                message1.Object
+            ]);
+
+        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
+
+        var jobSource = new AzureServiceBusJobSource(source.Object, azureMessageSource.Object, converter.Object,
+            bodyRetriever.Object,
+            new NullLogger<AzureServiceBusJobSource>(), Options.Create(new AzureServiceBusConfigurationModel
+            {
+                VisibilityTimeoutSeconds = 0,
+                MaxMessagesPerRequest = 0
+            }));
+
+        using var cts = new CancellationTokenSource();
+        var response = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
+        Assert.Empty(response.Items);
+
+        client.Verify(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        azureMessageSource.Verify(a => a.GetMessagesAsync(batchSize, It.IsAny<CancellationToken>()), Times.Once);
+
+        bodyRetriever.Verify(r => r.GetBody(It.IsAny<IServiceBusMessageContainer>()), Times.Once);
+        bodyRetriever.Verify(r => r.GetBody(message1.Object), Times.Once);
+
+        converter.Verify(c => c.Convert(It.IsAny<string>()), Times.Never);
+
+        source.Verify(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(
+            c => c.DeadLetterMessageAsync(message1.Object, It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(
+            c => c.DeadLetterMessageAsync(message1.Object, It.IsAny<string>(), It.IsAny<string>(),
+                TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(5)]
+    [InlineData(10)]
+    public async Task TestGetJobsAsync_GotNullConversion(int batchSize)
+    {
+        var client = new Mock<IServiceBusClientWrapper>();
+        var source = new Mock<IBusReceiverClientSource>();
+        source
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var bodyRetriever = new Mock<IAzureServiceBusBodyStringRetriever>();
+
+        var message1 = new Mock<IServiceBusMessageContainer>();
+        bodyRetriever.Setup(m => m.GetBody(message1.Object))
+            .Returns(() => "foo");
+
+        var azureMessageSource = new Mock<IAzureServiceBusMessageSource>(MockBehavior.Strict);
+        azureMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            [
+                message1.Object
+            ]);
+
+        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
+        converter
+            .Setup(c => c.Convert(It.IsAny<string>()))
+            .Returns(() => null);
+
+        var jobSource = new AzureServiceBusJobSource(source.Object, azureMessageSource.Object, converter.Object,
+            bodyRetriever.Object,
+            new NullLogger<AzureServiceBusJobSource>(), Options.Create(new AzureServiceBusConfigurationModel
+            {
+                VisibilityTimeoutSeconds = 0,
+                MaxMessagesPerRequest = 0
+            }));
+
+        using var cts = new CancellationTokenSource();
+        var response = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
+        Assert.Empty(response.Items);
+
+        client.Verify(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        azureMessageSource.Verify(a => a.GetMessagesAsync(batchSize, It.IsAny<CancellationToken>()), Times.Once);
+
+        bodyRetriever.Verify(r => r.GetBody(It.IsAny<IServiceBusMessageContainer>()), Times.Once);
+        bodyRetriever.Verify(r => r.GetBody(message1.Object), Times.Once);
+
+        converter.Verify(c => c.Convert(It.IsAny<string>()), Times.Once);
+        converter.Verify(c => c.Convert("foo"), Times.Once);
+
+        source.Verify(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(
+            c => c.DeadLetterMessageAsync(message1.Object, It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(
+            c => c.DeadLetterMessageAsync(message1.Object, It.IsAny<string>(), It.IsAny<string>(),
+                TestContext.Current.CancellationToken), Times.Once);
+    }
+
     [Fact]
     public void TestGetRecommendedHeartbeatInterval()
     {
