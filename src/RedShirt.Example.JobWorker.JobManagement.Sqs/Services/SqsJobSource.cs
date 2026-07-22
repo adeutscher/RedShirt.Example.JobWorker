@@ -18,6 +18,12 @@ internal class SqsJobSource(
     ILogger<SqsJobSource> logger,
     IOptions<SqsConfigurationModel> options) : IJobSource
 {
+    /// <summary>
+    ///     Representation of SQS system's hard limit on maximum visibility timeout allowed for any message in the queue.
+    ///     This is a hard limit built into the job source, and we keep track of it in order to manage it as best as we can.
+    ///     I cannot stress enough that if you can foresee your individual job workloads exceeding 12 hours, then perhaps SQS
+    ///     is just the wrong choice of message broker for your use case.
+    /// </summary>
     private const int MaximumInFlightTimeHours = 12;
 
     public Task AcknowledgeCompletionAsync(IJobModel message, bool success,
@@ -91,17 +97,14 @@ internal class SqsJobSource(
             message.CreatedAtUtc + TimeSpan.FromHours(MaximumInFlightTimeHours))
         {
             /*
-             * If we're about to be no longer able to extend the in-flight time of this message,
-             * then delete the message.
+             * If we're about to be no longer able to extend the in-flight time of this message, then delete the message.
+             * To confirm, SQS has a built-in hard limit wherein a message cannot be kept in flight for more than 12 hours.
              *
-             * This isn't exactly an ideal solution,
-             * but it keeps the queue from being overwhelmed by a long-running job multiple times.
+             * This is far from an ideal solution, but it keeps the queue from being overwhelmed by a long-running job multiple times.
              *
-             * If this 12-hour job isn't an outlier, then you should consider using a job source other than SQS
-             * or breaking up the workload into smaller chunks.
+             * If this 12-hour job isn't an outlier, then you should strongly consider using a job source other than SQS or breaking up the workload into smaller chunks.
              *
-             * AWSSDK does not return an exception when we try to extend beyond the 12 hour limit,
-             * so we are forced to apply our own.
+             * AWSSDK does not return an exception when we try to extend beyond the 12-hour limit, so we are forced to apply our own.
              */
 
             await sqs.DeleteMessageAsync(new DeleteMessageRequest
