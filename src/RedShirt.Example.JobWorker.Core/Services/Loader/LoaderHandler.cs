@@ -41,6 +41,7 @@ internal class LoaderHandler(
         if (jobSource.RecommendedHeartbeatIntervalSeconds > 0)
         {
             // No point in starting up the maintainer if the job source implementation does not need heartbeats.
+            // If RecommendedHeartbeatIntervalSeconds==0, then long jobs rely on underlying message broker library to keep jobs 'in flight'. 
             tasks.Add(Task.Run(() => maintainer.RunAsync(cancellationToken), cancellationToken));
         }
 
