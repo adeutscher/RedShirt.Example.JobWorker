@@ -22,11 +22,12 @@ internal interface IJobRepository
 
     Task RemoveJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default);
 
-    Task WaitForJobDemandAsync(CancellationToken cancellationToken = default);
+    Task<bool> WaitForJobDemandAsync(TimeSpan waitDuration, CancellationToken cancellationToken = default);
 }
 
 internal class JobRepository(
     IExecutionEndArbiter executionEndArbiter,
+    IJobLoaderStateService jobLoaderStateService,
     ISourceMessageSorter sorter,
     ILogger<JobRepository> logger,
     IOptions<JobRepository.ConfigurationModel> options)
@@ -101,9 +102,17 @@ internal class JobRepository(
             // Queue is currently empty
 
             // Is it because we've been asked to stop running?
-            if (!executionEndArbiter.ShouldKeepRunning())
+            if (
+                // Note: Using the raw IExecutionEndArbiter because we want to avoid a circular dependency
+                !executionEndArbiter.ShouldKeepRunning()
+                // Confirm that the job loader thread has finished and will not be loading any more jobs
+                && jobLoaderStateService.IsLoaderFinished()
+                // Confirm that there are no more jobs in the background.
+                // This was already implied by the overall method structure, but now that the loader is finished we want to guarantee it 
+                && await GetInactiveJobCountAsync(cancellationToken) == 0)
             {
                 // It IS because we've been asked to stop running!
+                // We have also confirmed that the job loader is fully finished, and no more jobs are incoming 
                 return null;
             }
 
@@ -172,10 +181,9 @@ internal class JobRepository(
         _watchedJobsSemaphore.Release();
     }
 
-    public Task WaitForJobDemandAsync(CancellationToken cancellationToken = default)
+    public Task<bool> WaitForJobDemandAsync(TimeSpan waitDuration, CancellationToken cancellationToken = default)
     {
-        _jobsDemandEvent.WaitOne();
-        return Task.CompletedTask;
+        return Task.FromResult(_jobsDemandEvent.WaitOne(waitDuration));
     }
 
     public int GetBacklogMaxCount()

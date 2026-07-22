@@ -25,6 +25,10 @@ public class JobLoaderTests
                 return arbiterInvocationsRemaining > 0;
             });
 
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
+        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         jobRepository
             .Setup(r => r.LoadAsync(It.IsAny<JobSourceResponse>(), TestContext.Current.CancellationToken))
@@ -67,10 +71,14 @@ public class JobLoaderTests
             BatchSize = configuredBatchSize
         };
 
-        var loader = new JobLoader(executionEndArbiter.Object, jobRepository.Object, jobSource.Object,
+        var loader = new JobLoader(jobLoaderStateService.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object,
             new NullLogger<JobLoader>(), Options.Create(loopOptions), Options.Create(jobSourceOptions));
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
+
+        jobLoaderStateService.Verify(s => s.ReportLoaderStart(), Times.Once);
+        jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Once);
 
         jobRepository.Verify(r => r.LoadAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()),
             Times.Once);
@@ -87,6 +95,10 @@ public class JobLoaderTests
     [InlineData(4, 3)]
     public async Task TestLoadJobsWithFullBacklog(int backlogSize, int configuredBatchSize)
     {
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
+        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+
         var arbiterInvocationsRemaining = 5;
         var executionEndArbiter = new Mock<IExecutionEndArbiter>();
         executionEndArbiter
@@ -119,10 +131,14 @@ public class JobLoaderTests
             BatchSize = configuredBatchSize
         };
 
-        var loader = new JobLoader(executionEndArbiter.Object, jobRepository.Object, jobSource.Object,
+        var loader = new JobLoader(jobLoaderStateService.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object,
             new NullLogger<JobLoader>(), Options.Create(loopOptions), Options.Create(jobSourceOptions));
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
+
+        jobLoaderStateService.Verify(s => s.ReportLoaderStart(), Times.Once);
+        jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Once);
 
         jobRepository.Verify(r => r.LoadAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -133,7 +149,11 @@ public class JobLoaderTests
     [InlineData(2, 2)]
     public async Task TestLoadJobsWithNoBacklog(int configuredBatchSize, int expectedGetJobsBatchSize)
     {
-        var backlogSize = 0;
+        const int backlogSize = 0;
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
+        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
 
         var arbiterInvocationsRemaining = 5;
         var executionEndArbiter = new Mock<IExecutionEndArbiter>();
@@ -191,13 +211,80 @@ public class JobLoaderTests
             BatchSize = configuredBatchSize
         };
 
-        var loader = new JobLoader(executionEndArbiter.Object, jobRepository.Object, jobSource.Object,
+        var loader = new JobLoader(jobLoaderStateService.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object,
             new NullLogger<JobLoader>(), Options.Create(loopOptions), Options.Create(jobSourceOptions));
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
+        jobLoaderStateService.Verify(s => s.ReportLoaderStart(), Times.Once);
+        jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Once);
+
         jobRepository.Verify(r => r.LoadAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()),
             Times.Once);
         jobRepository.Verify(r => r.LoadAsync(response, TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    /// <summary>
+    ///     Verify that a job loader waiting for downstream demand will periodically check to confirm that the application
+    ///     should still be running.
+    /// </summary>
+    [Fact(Timeout = 1500)]
+    public async Task TestLoadJobsWithNoBacklog_EmptyResult()
+    {
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
+        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+
+        var arbiterInvocationsRemaining = 5;
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter
+            .Setup(a => a.ShouldKeepRunning())
+            .Returns(() =>
+            {
+                arbiterInvocationsRemaining--;
+                return arbiterInvocationsRemaining > 0;
+            });
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        jobRepository
+            .Setup(r => r.LoadAsync(It.IsAny<JobSourceResponse>(), TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+        jobRepository
+            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync(1); // 1 active job
+        jobRepository
+            .Setup(r => r.GetBacklogMaxCount())
+            .Returns(0);
+        jobRepository
+            .Setup(r => r.WaitForJobDemandAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => false);
+
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+
+        var loopOptions = new LoopOptionsConfigurationModel
+        {
+            MaxIdleWaitSeconds = 1
+        };
+
+        var jobSourceOptions = new JobSourceConfigurationModel
+        {
+            BatchSize = -1
+        };
+
+        var loader = new JobLoader(jobLoaderStateService.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object,
+            new NullLogger<JobLoader>(), Options.Create(loopOptions), Options.Create(jobSourceOptions));
+
+        await loader.RunAsync(TestContext.Current.CancellationToken);
+
+        jobLoaderStateService.Verify(s => s.ReportLoaderStart(), Times.Once);
+        jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Once);
+
+        jobRepository.Verify(r => r.LoadAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        jobRepository
+            .Verify(r => r.WaitForJobDemandAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
+                Times.AtLeast(2));
     }
 }

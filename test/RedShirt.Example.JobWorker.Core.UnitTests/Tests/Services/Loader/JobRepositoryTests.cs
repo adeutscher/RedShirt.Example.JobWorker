@@ -5,6 +5,7 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Models.Loader;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Loader;
+using System.Diagnostics;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Loader;
 
@@ -14,6 +15,8 @@ public class JobRepositoryTests
     public async Task TestGetAllInFlightJobsAsync()
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -25,7 +28,10 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
             new NullLogger<JobRepository>(),
             Options.Create(options));
 
@@ -79,6 +85,8 @@ public class JobRepositoryTests
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
 
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+
         var options = new JobRepository.ConfigurationModel
         {
             BacklogSize = backlogSize
@@ -89,7 +97,10 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
             new NullLogger<JobRepository>(),
             Options.Create(options));
 
@@ -101,6 +112,8 @@ public class JobRepositoryTests
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
 
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+
         var options = new JobRepository.ConfigurationModel
         {
             BacklogSize = 0
@@ -111,7 +124,9 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object, sorter.Object,
             new NullLogger<JobRepository>(),
             Options.Create(options));
 
@@ -154,6 +169,11 @@ public class JobRepositoryTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false);
 
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        jobLoaderStateService
+            .Setup(s => s.IsLoaderFinished())
+            .Returns(true);
+
         var options = new JobRepository.ConfigurationModel
         {
             BacklogSize = 0
@@ -164,11 +184,16 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
             new NullLogger<JobRepository>(),
             Options.Create(options));
 
         Assert.Null(await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken));
+
+        jobLoaderStateService.Verify(s => s.IsLoaderFinished(), Times.Once);
     }
 
     [Theory(Timeout = 500)]
@@ -179,6 +204,8 @@ public class JobRepositoryTests
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>();
 
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+
         var options = new JobRepository.ConfigurationModel
         {
             BacklogSize = 0
@@ -189,7 +216,10 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
             new NullLogger<JobRepository>(),
             Options.Create(options));
 
@@ -241,6 +271,8 @@ public class JobRepositoryTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(true);
 
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+
         var options = new JobRepository.ConfigurationModel
         {
             BacklogSize = 0
@@ -251,7 +283,10 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
             new NullLogger<JobRepository>(),
             Options.Create(options));
 
@@ -312,6 +347,11 @@ public class JobRepositoryTests
             // ReSharper disable once AccessToModifiedClosure
             .Returns(() => !readyToEnd);
 
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        jobLoaderStateService
+            .Setup(s => s.IsLoaderFinished())
+            .Returns(true);
+
         var options = new JobRepository.ConfigurationModel
         {
             BacklogSize = 0
@@ -322,7 +362,10 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
             new NullLogger<JobRepository>(),
             Options.Create(options));
 
@@ -392,6 +435,8 @@ public class JobRepositoryTests
             Assert.Contains(currentJob.JobModel.MessageId, jobIdentifiersTracked);
             Assert.True(jobIdentifiersRetrieved.Add(currentJob.JobModel.MessageId));
         }
+
+        jobLoaderStateService.Verify(s => s.IsLoaderFinished(), Times.Once);
     }
 
     /// <summary>
@@ -410,6 +455,8 @@ public class JobRepositoryTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(true);
 
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+
         var options = new JobRepository.ConfigurationModel
         {
             BacklogSize = 0
@@ -420,7 +467,10 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
             new NullLogger<JobRepository>(),
             Options.Create(options));
 
@@ -469,6 +519,8 @@ public class JobRepositoryTests
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
 
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+
         var options = new JobRepository.ConfigurationModel
         {
             BacklogSize = 0
@@ -479,7 +531,10 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
             new NullLogger<JobRepository>(),
             Options.Create(options));
 
@@ -500,6 +555,8 @@ public class JobRepositoryTests
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
 
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+
         var options = new JobRepository.ConfigurationModel
         {
             BacklogSize = 0
@@ -510,7 +567,10 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
             new NullLogger<JobRepository>(),
             Options.Create(options));
 
@@ -530,13 +590,15 @@ public class JobRepositoryTests
         Assert.Equal(1, await jobRepository.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken));
     }
 
-    [Fact]
-    public async Task TestWaitForDemand()
+    [Fact(Timeout = 1000)]
+    public async Task TestWaitForDemand_False()
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>();
         executionEndArbiter
             .Setup(a => a.ShouldKeepRunning())
             .Returns(true);
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -548,18 +610,64 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
-        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
             new NullLogger<JobRepository>(),
             Options.Create(options));
 
         // Start waiting for there to be a job demand
-        var demandTask = Task.Run(() => jobRepository.WaitForJobDemandAsync(TestContext.Current.CancellationToken),
+        var stopwatch = Stopwatch.StartNew();
+        // The Task.Run wrapper is a bit silly for this particular test, but it keeps things more consistent with similar tests
+        var demandTask = Task.Run(
+            () => jobRepository.WaitForJobDemandAsync(TimeSpan.FromMilliseconds(250),
+                TestContext.Current.CancellationToken),
+            TestContext.Current.CancellationToken);
+        var demandResult = await demandTask;
+        stopwatch.Stop();
+        Assert.False(demandResult);
+
+        // Confirm that things took a moment to run
+        Assert.True(stopwatch.ElapsedMilliseconds > 150);
+    }
+
+    [Fact]
+    public async Task TestWaitForDemand_True()
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter
+            .Setup(a => a.ShouldKeepRunning())
+            .Returns(true);
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+
+        var options = new JobRepository.ConfigurationModel
+        {
+            BacklogSize = 0
+        };
+
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
+            new NullLogger<JobRepository>(),
+            Options.Create(options));
+
+        // Start waiting for there to be a job demand
+        var demandTask = Task.Run(
+            () => jobRepository.WaitForJobDemandAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken),
             TestContext.Current.CancellationToken);
 
         // Demand a job. We don't care about this one finishing
-        var _ = Task.Run(() => jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken));
+        _ = Task.Run(() => jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken));
 
-        await demandTask;
-        Assert.True(true); // Satisfy Sonar. The true assert is this test not timing out.
+        var demandResult = await demandTask;
+        Assert.True(demandResult);
     }
 }

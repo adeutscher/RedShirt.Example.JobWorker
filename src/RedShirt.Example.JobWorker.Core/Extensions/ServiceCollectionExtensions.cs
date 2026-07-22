@@ -38,7 +38,8 @@ public static class ServiceCollectionExtensions
                 .Configure<JobRepository.ConfigurationModel>(configuration.GetSection("Jobs:Loader"))
                 .AddSingleton<IMaintainer, Maintainer>()
                 .AddSingleton<IHeartbeatCalculator, HeartbeatCalculator>()
-                .AddSingleton<IJobLoader, JobLoader>();
+                .AddSingleton<IJobLoader, JobLoader>()
+                .AddSingleton<IJobLoaderStateService, JobLoaderStateService>();
         }
         else
             // Batch Mode
