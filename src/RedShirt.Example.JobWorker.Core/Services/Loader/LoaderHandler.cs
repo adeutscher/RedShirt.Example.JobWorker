@@ -22,7 +22,7 @@ internal class LoaderHandler(
     IOptions<ThreadConfigurationModel> threadOptions)
     : IHandler
 {
-    public Task HandleAsync(CancellationToken cancellationToken = default)
+    public async Task HandleAsync(CancellationToken cancellationToken = default)
     {
         var tasks = new List<Task>
         {
@@ -46,8 +46,9 @@ internal class LoaderHandler(
         }
 
         // Wait for all to finish (all implementations of worker interfaces should be referencing IExecutionEndArbiter or ILoaderExecutionEndArbiter)
-        Task.WaitAll(tasks.ToArray(), cancellationToken);
-
-        return Task.CompletedTask;
+        foreach (var task in tasks)
+        {
+            await task;
+        }
     }
 }

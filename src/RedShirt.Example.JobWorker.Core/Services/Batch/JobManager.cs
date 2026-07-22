@@ -84,7 +84,8 @@ internal class JobManager(
 
                 var task1 = UpdateJobCountsAsync(result, cancellationToken);
                 var task2 = AcknowledgeCompletionAsync(item, result, cancellationToken);
-                Task.WaitAll([task1, task2], cancellationToken);
+                await task1;
+                await task2;
             }
 
             await _completedWorkersCountSemaphore.WaitAsync(cancellationToken);
