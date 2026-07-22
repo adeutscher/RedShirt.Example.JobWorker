@@ -7,7 +7,7 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 namespace RedShirt.Example.JobWorker.Core.Services.Loader;
 
 /// <summary>
-/// The maintainer is responsible for making sure that messages checked out from the job source remain 'in flight'.
+///     The maintainer is responsible for making sure that messages checked out from the job source remain 'in flight'.
 /// </summary>
 internal interface IMaintainer
 {
@@ -16,7 +16,7 @@ internal interface IMaintainer
 
 internal class Maintainer(
     IHeartbeatCalculator heartbeatCalculator,
-    ILoaderExecutionEndArbiter executionEndArbiter,
+    ILoaderExecutionEndArbiter loaderExecutionEndArbiter,
     IJobRepository jobRepository,
     IJobSource jobSource,
     ILogger<Maintainer> logger) : IMaintainer
@@ -113,7 +113,7 @@ internal class Maintainer(
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        while (await executionEndArbiter.ShouldKeepRunningAsync(cancellationToken))
+        while (await loaderExecutionEndArbiter.MaintainerShouldKeepRunningAsync(cancellationToken))
         {
             var jobs = await jobRepository.GetAllInFlightJobsAsync(cancellationToken);
 

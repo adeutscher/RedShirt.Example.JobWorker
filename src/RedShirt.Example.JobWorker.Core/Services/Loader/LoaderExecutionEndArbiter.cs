@@ -8,14 +8,23 @@ namespace RedShirt.Example.JobWorker.Core.Services.Loader;
 /// </summary>
 internal interface ILoaderExecutionEndArbiter
 {
-    Task<bool> ShouldKeepRunningAsync(CancellationToken cancellationToken = default);
+    Task<bool> ExecutorsShouldKeepRunningAsync(CancellationToken cancellationToken = default);
+    Task<bool> MaintainerShouldKeepRunningAsync(CancellationToken cancellationToken = default);
 }
 
 internal class LoaderExecutionEndArbiter(IExecutionEndArbiter executionEndArbiter, IJobRepository jobRepository)
     : ILoaderExecutionEndArbiter
 {
-    public async Task<bool> ShouldKeepRunningAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> MaintainerShouldKeepRunningAsync(CancellationToken cancellationToken = default)
     {
+        return executionEndArbiter.ShouldKeepRunning()
+               || await jobRepository.GetInactiveJobCountAsync(cancellationToken) > 0
+               || await jobRepository.GetWatchedJobsCountAsync(cancellationToken) > 0;
+    }
+
+    public async Task<bool> ExecutorsShouldKeepRunningAsync(CancellationToken cancellationToken = default)
+    {
+        // The executor doesn't care about other executors currently processing jobs, so ignoring the watched jobs count.
         return executionEndArbiter.ShouldKeepRunning()
                || await jobRepository.GetInactiveJobCountAsync(cancellationToken) > 0;
     }

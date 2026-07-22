@@ -32,7 +32,7 @@ public class ExecutorTests
         var doQuit = false;
         var executionEndArbiter = new Mock<ILoaderExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ShouldKeepRunningAsync(TestContext.Current.CancellationToken))
+            .Setup(a => a.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
             {
                 // ReSharper disable once InvertIf
@@ -75,9 +75,9 @@ public class ExecutorTests
                 TestContext.Current.CancellationToken), Times.Once);
         Assert.Empty(sleepService.Invocations);
 
-        jobRepositoryEntry.Verify(j => j.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Exactly(2));
+        jobRepositoryEntry.Verify(j => j.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
         jobRepositoryEntry.Verify(j => j.ReleaseLockAsync(It.IsAny<Guid>(), TestContext.Current.CancellationToken),
-            Times.Exactly(2));
+            Times.Once);
     }
 
     [Theory(Timeout = 500)]
@@ -102,7 +102,7 @@ public class ExecutorTests
         var doQuit = false;
         var executionEndArbiter = new Mock<ILoaderExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ShouldKeepRunningAsync(TestContext.Current.CancellationToken))
+            .Setup(a => a.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
             {
                 if (!doQuit)
@@ -142,9 +142,9 @@ public class ExecutorTests
         Assert.NotEmpty(sleepService.Invocations);
         Assert.True(sleepService.Invocations.Count < 10);
 
-        jobRepositoryEntry.Verify(j => j.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Exactly(2));
+        jobRepositoryEntry.Verify(j => j.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
         jobRepositoryEntry.Verify(j => j.ReleaseLockAsync(It.IsAny<Guid>(), TestContext.Current.CancellationToken),
-            Times.Exactly(2));
+            Times.Once);
     }
 
     [Fact(Timeout = 500)]
@@ -153,7 +153,7 @@ public class ExecutorTests
         var doQuit = false;
         var executionEndArbiter = new Mock<ILoaderExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ShouldKeepRunningAsync(TestContext.Current.CancellationToken))
+            .Setup(a => a.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
             {
                 if (doQuit)

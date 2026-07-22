@@ -53,7 +53,7 @@ public class MaintainerTests
         var doQuit = false;
         var executionEndArbiter = new Mock<ILoaderExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ShouldKeepRunningAsync(TestContext.Current.CancellationToken))
+            .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
             {
                 if (doQuit)
@@ -110,7 +110,7 @@ public class MaintainerTests
         var doQuit = false;
         var executionEndArbiter = new Mock<ILoaderExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ShouldKeepRunningAsync(TestContext.Current.CancellationToken))
+            .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
             {
                 if (doQuit)
@@ -176,7 +176,7 @@ public class MaintainerTests
         var doQuit = false;
         var executionEndArbiter = new Mock<ILoaderExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ShouldKeepRunningAsync(TestContext.Current.CancellationToken))
+            .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
             {
                 if (doQuit)
@@ -252,7 +252,7 @@ public class MaintainerTests
         var doQuit = false;
         var executionEndArbiter = new Mock<ILoaderExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ShouldKeepRunningAsync(TestContext.Current.CancellationToken))
+            .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
             {
                 if (doQuit)
@@ -326,7 +326,7 @@ public class MaintainerTests
         var doQuit = false;
         var executionEndArbiter = new Mock<ILoaderExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ShouldKeepRunningAsync(TestContext.Current.CancellationToken))
+            .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
             {
                 if (doQuit)
@@ -397,7 +397,7 @@ public class MaintainerTests
         var doQuit = false;
         var executionEndArbiter = new Mock<ILoaderExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ShouldKeepRunningAsync(TestContext.Current.CancellationToken))
+            .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
             {
                 if (doQuit)
@@ -468,7 +468,7 @@ public class MaintainerTests
         var doQuit = false;
         var executionEndArbiter = new Mock<ILoaderExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ShouldKeepRunningAsync(TestContext.Current.CancellationToken))
+            .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
             {
                 if (doQuit)
@@ -568,7 +568,7 @@ public class MaintainerTests
         var doQuit = false;
         var executionEndArbiter = new Mock<ILoaderExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ShouldKeepRunningAsync(TestContext.Current.CancellationToken))
+            .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
             {
                 if (doQuit)

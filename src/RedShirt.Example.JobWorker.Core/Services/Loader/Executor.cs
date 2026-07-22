@@ -14,7 +14,7 @@ internal interface IExecutor
 }
 
 internal class Executor(
-    ILoaderExecutionEndArbiter executionEndArbiter,
+    ILoaderExecutionEndArbiter loaderExecutionEndArbiter,
     IJobSource jobSource,
     IJobRepository jobRepository,
     ISafeJobRunner safeJobRunner,
@@ -33,7 +33,7 @@ internal class Executor(
                 }
             );
 
-        while (await executionEndArbiter.ShouldKeepRunningAsync(cancellationToken))
+        while (await loaderExecutionEndArbiter.ExecutorsShouldKeepRunningAsync(cancellationToken))
         {
             logger.LogTrace("Executor {Id} is seeking a message", id);
             var job = await jobRepository.GetNextJobAsync(cancellationToken);
@@ -46,15 +46,11 @@ internal class Executor(
 
             logger.LogTrace("Executor {Id} received message {MessageId}", id, job.JobModel.MessageId);
 
-            var lockId = await job.AcquireLockAsync(cancellationToken);
-            job.State = JobState.Active;
-            await job.ReleaseLockAsync(lockId, cancellationToken);
-
             var success = await safeJobRunner.RunSafelyAsync(job.JobModel, cancellationToken);
             logger.LogTrace("Executor {Id} finished processing message {MessageId}. Success: {Success}", id,
                 job.JobModel.MessageId, success);
 
-            lockId = await job.AcquireLockAsync(cancellationToken);
+            var lockId = await job.AcquireLockAsync(cancellationToken);
             logger.LogTrace("Executor {Id} acquired lock to mark as Complete", id);
             job.State = JobState.Complete;
             await job.ReleaseLockAsync(lockId, cancellationToken);

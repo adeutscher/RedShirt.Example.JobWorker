@@ -38,7 +38,14 @@ internal class JobRepository(
 
     private readonly ManualResetEvent _jobsDemandEvent = new(false);
     private readonly SemaphoreSlim _watchedJobsSemaphore = new(1, 1);
+
+    /// <summary>
+    ///     Inactive potential jobs
+    ///     Reminder: This is currently a list instead of a queue because it needs to be sorted in a manner that is consistent
+    ///     with the Batch approach
+    /// </summary>
     private List<IJobRepositoryEntry> _inactiveJobs = new();
+
     internal List<IJobRepositoryEntry> WatchedJobs { get; } = new();
 
     public async Task<List<IJobRepositoryEntry>> GetAllInFlightJobsAsync(CancellationToken cancellationToken = default)
@@ -72,11 +79,22 @@ internal class JobRepository(
         {
             await _inactiveJobsSemaphore.WaitAsync(cancellationToken);
             result = _inactiveJobs.FirstOrDefault();
+            if (result is not null)
+            {
+                _inactiveJobs.RemoveAt(0);
+            }
+
             _inactiveJobsSemaphore.Release();
 
             if (result is not null)
             {
                 logger.LogTrace("Received job out of queue");
+
+                var lockId = await result.AcquireLockAsync(cancellationToken);
+                result.State = JobState.Active;
+                await result.ReleaseLockAsync(lockId, cancellationToken);
+
+                // Continue out of loop iteration to abort via do-while condition
                 continue;
             }
 

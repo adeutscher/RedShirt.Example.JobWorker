@@ -260,19 +260,109 @@ public class JobRepositoryTests
             Items = []
         };
 
-        var items = new List<Mock<IJobModel>>();
+        var mockJobs = new List<Mock<IJobModel>>();
 
         for (var i = 0; i < responseSize; i++)
         {
             var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
             currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
-            items.Add(currentItem);
+            mockJobs.Add(currentItem);
             response.Items.Add(currentItem.Object);
         }
 
         // Notably doing this BEFORE loading in jobs
         // Also intentionally not awaiting it just yet
         var getJobTask = Task.Run(() => jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken));
+
+        await jobRepository.LoadAsync(response, TestContext.Current.CancellationToken);
+
+        Assert.Equal(responseSize, jobRepository.WatchedJobs.Count);
+        for (var i = 0; i < responseSize; i++)
+        {
+            var currentMock = mockJobs[i];
+            var job = Assert.Single(jobRepository.WatchedJobs,
+                ci => ci.JobModel.MessageId == currentMock.Object.MessageId);
+            Assert.True(job.FlightTimeCanBeExtended);
+            Assert.InRange(job.LastHeartbeatTime,
+                DateTime.UtcNow - TimeSpan.FromMilliseconds(250),
+                DateTime.UtcNow + TimeSpan.FromMilliseconds(250));
+        }
+
+        var gottenJob = await getJobTask;
+        Assert.NotNull(gottenJob);
+        // Matches at least one
+        Assert.Contains(mockJobs, i => i.Object.MessageId == gottenJob.JobModel.MessageId);
+    }
+
+    /// <summary>
+    ///     Verify that receiving jobs from the repository actually removes said jobs from consideration for follow-up.
+    ///     Made in response to verify fix of a logic problem advised by Cursor
+    /// </summary>
+    /// <param name="responseSize"></param>
+    [Theory(Timeout = 1000)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task TestLoadJobsAndWaitForJob_UntilEmpty(int responseSize)
+    {
+        var readyToEnd = false;
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter
+            .Setup(a => a.ShouldKeepRunning())
+            // ReSharper disable once AccessToModifiedClosure
+            .Returns(() => !readyToEnd);
+
+        var options = new JobRepository.ConfigurationModel
+        {
+            BacklogSize = 0
+        };
+
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+            new NullLogger<JobRepository>(),
+            Options.Create(options));
+
+        var response = new JobSourceResponse
+        {
+            Items = []
+        };
+
+        var items = new List<Mock<IJobModel>>();
+        var jobIdentifiersTracked = new HashSet<string>();
+
+        for (var i = 0; i < responseSize; i++)
+        {
+            var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
+            var currentId = Guid.NewGuid().ToString();
+            currentItem.Setup(ci => ci.MessageId).Returns(currentId);
+            jobIdentifiersTracked.Add(currentId);
+            items.Add(currentItem);
+            response.Items.Add(currentItem.Object);
+        }
+
+        // Compile a list of retrieved jobs
+        // Notably doing this BEFORE loading in jobs
+        // Also intentionally not awaiting it just yet
+        var retrievedJobsTask = Task.Run(async () =>
+        {
+            var jobs = new List<IJobRepositoryEntry>();
+
+            IJobRepositoryEntry? currentJob;
+            do
+            {
+                currentJob = await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken);
+                if (currentJob is not null)
+                {
+                    jobs.Add(currentJob);
+                }
+            } while (currentJob is not null);
+
+            return jobs;
+        });
 
         await jobRepository.LoadAsync(response, TestContext.Current.CancellationToken);
 
@@ -288,10 +378,90 @@ public class JobRepositoryTests
                 DateTime.UtcNow + TimeSpan.FromMilliseconds(250));
         }
 
-        var gottenJob = await getJobTask;
+        await Task.Delay(TimeSpan.FromMilliseconds(250), TestContext.Current.CancellationToken);
+        readyToEnd = true;
+        var retrievedJobs = await retrievedJobsTask;
+        Assert.NotNull(retrievedJobs);
+        Assert.NotEmpty(retrievedJobs);
+
+        var jobIdentifiersRetrieved = new HashSet<string>();
+
+        for (var i = 0; i < responseSize; i++)
+        {
+            var currentJob = retrievedJobs[i]; // shorthand
+            Assert.Contains(currentJob.JobModel.MessageId, jobIdentifiersTracked);
+            Assert.True(jobIdentifiersRetrieved.Add(currentJob.JobModel.MessageId));
+        }
+    }
+
+    /// <summary>
+    ///     Confirm that LoadJobs sends at least one JobsArrived event that can be picked up by.
+    ///     Expansion of TestLoadJobs
+    /// </summary>
+    /// <param name="responseSize"></param>
+    [Theory(Timeout = 1000)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task TestLoadJobsAndWaitForJob_VerifySetToActive(int responseSize)
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter
+            .Setup(a => a.ShouldKeepRunning())
+            .Returns(true);
+
+        var options = new JobRepository.ConfigurationModel
+        {
+            BacklogSize = 0
+        };
+
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(executionEndArbiter.Object, sorter.Object,
+            new NullLogger<JobRepository>(),
+            Options.Create(options));
+
+        var response = new JobSourceResponse
+        {
+            Items = []
+        };
+
+        var mockJobs = new List<Mock<IJobModel>>();
+
+        for (var i = 0; i < responseSize; i++)
+        {
+            var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
+            currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
+            mockJobs.Add(currentItem);
+            response.Items.Add(currentItem.Object);
+        }
+
+        await jobRepository.LoadAsync(response, TestContext.Current.CancellationToken);
+
+        Assert.Equal(responseSize, jobRepository.WatchedJobs.Count);
+        for (var i = 0; i < responseSize; i++)
+        {
+            var currentMock = mockJobs[i];
+            var job = Assert.Single(jobRepository.WatchedJobs,
+                ci => ci.JobModel.MessageId == currentMock.Object.MessageId);
+            Assert.True(job.FlightTimeCanBeExtended);
+            Assert.True(job.State == JobState.Inactive);
+            Assert.InRange(job.LastHeartbeatTime,
+                DateTime.UtcNow - TimeSpan.FromMilliseconds(250),
+                DateTime.UtcNow + TimeSpan.FromMilliseconds(250));
+        }
+
+        // Unlike the mainline test, call GetNextJob afterwards (doing so because we wanted to be 100% sure that WatchedJobs was checked before retrieving any jobs)
+        var gottenJob = await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(gottenJob);
         // Matches at least one
-        Assert.Contains(items, i => i.Object.MessageId == gottenJob.JobModel.MessageId);
+        Assert.Contains(mockJobs, i => i.Object.MessageId == gottenJob.JobModel.MessageId);
+
+        // After having grabbed a job, look at WatchedJobs again. One of them should have been flipped to Active
+        Assert.Single(jobRepository.WatchedJobs, wj => wj.State == JobState.Active);
     }
 
     [Fact(Timeout = 500)]
