@@ -79,13 +79,12 @@ internal class JobRepository(
         do
         {
             await _inactiveJobsSemaphore.WaitAsync(cancellationToken);
+            await _watchedJobsSemaphore.WaitAsync(cancellationToken);
             result = _inactiveJobs.FirstOrDefault();
             if (result is not null)
             {
                 _inactiveJobs.RemoveAt(0);
             }
-
-            _inactiveJobsSemaphore.Release();
 
             if (result is not null)
             {
@@ -95,9 +94,15 @@ internal class JobRepository(
                 result.State = JobState.Active;
                 await result.ReleaseLockAsync(lockId, cancellationToken);
 
+                _inactiveJobsSemaphore.Release();
+                _watchedJobsSemaphore.Release();
+
                 // Continue out of loop iteration to abort via do-while condition
                 continue;
             }
+
+            _inactiveJobsSemaphore.Release();
+            _watchedJobsSemaphore.Release();
 
             // Queue is currently empty
 
