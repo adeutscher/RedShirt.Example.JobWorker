@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Factories;
+using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Services;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Extensions;
 
@@ -13,6 +14,7 @@ public static class ServiceCollectionExtensions
             .Configure<AzureKeyVaultClientFactory.ConfigurationModel>(
                 configuration.GetSection("JobSource:AzureKeyVault"))
             .AddSingleton<IAzureKeyVaultClientFactory, AzureKeyVaultClientFactory>()
-            .AddSingleton<IAzureKeyVaultClientSource, AzureKeyVaultClientSource>();
+            .AddSingleton<IAzureKeyVaultClientSource, AzureKeyVaultClientSource>()
+            .AddSingleton<IAzureKeyVaultService, AzureKeyVaultService>();
     }
 }

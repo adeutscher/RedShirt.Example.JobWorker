@@ -2,7 +2,7 @@ using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Clients;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Factories;
 
-public interface IAzureKeyVaultClientSource
+internal interface IAzureKeyVaultClientSource
 {
     IAzureKeyVaultClientWrapper GetKeyVaultClient();
 }

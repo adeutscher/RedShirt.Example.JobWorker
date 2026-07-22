@@ -1,7 +1,7 @@
 using Azure.Identity;
 using Azure.Storage.Queues;
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Factories;
+using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Services;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
@@ -12,7 +12,7 @@ internal interface IQueueConsumerClientFactory
 }
 
 internal class QueueConsumerClientFactory(
-    IAzureKeyVaultClientSource keyVaultClientSource,
+    IAzureKeyVaultService azureKeyVaultService,
     IOptions<QueueConsumerClientFactory.ConfigurationModel> options)
     : IQueueConsumerClientFactory
 {
@@ -28,9 +28,8 @@ internal class QueueConsumerClientFactory(
         if (!string.IsNullOrWhiteSpace(options.Value.ConnectionStringPath)
             && !string.IsNullOrWhiteSpace(options.Value.QueueName))
         {
-            var keyVaultClient = keyVaultClientSource.GetKeyVaultClient();
             var connectionString =
-                await keyVaultClient.GetSecretAsync(options.Value.ConnectionStringPath, cancellationToken);
+                await azureKeyVaultService.GetSecretAsync(options.Value.ConnectionStringPath, cancellationToken);
             innerClient = new QueueClient(connectionString, options.Value.QueueName);
         }
         else
