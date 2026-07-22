@@ -12,8 +12,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.100.4" />
-        <PackageReference Include="AWSSDK.SQS" Version="4.0.100.4" />
+        <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.100.5" />
+        <PackageReference Include="AWSSDK.SQS" Version="4.0.100.5" />
     </ItemGroup>
 
 </Project>
