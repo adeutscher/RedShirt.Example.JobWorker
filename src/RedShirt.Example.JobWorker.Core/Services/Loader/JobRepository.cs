@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Enums.Loader;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Models.Loader;
+using RedShirt.Example.JobWorker.Core.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Loader;
 
@@ -35,9 +36,9 @@ internal class JobRepository(
 {
     private readonly SemaphoreSlim _inactiveJobsSemaphore = new(1, 1);
 
-    private readonly ManualResetEvent _jobsArrivedEvent = new(false);
+    private readonly AsyncManualResetEvent _jobsArrivedEvent = new();
 
-    private readonly ManualResetEvent _jobsDemandEvent = new(false);
+    private readonly AsyncManualResetEvent _jobsDemandEvent = new();
     private readonly SemaphoreSlim _watchedJobsSemaphore = new(1, 1);
 
     /// <summary>
@@ -128,7 +129,7 @@ internal class JobRepository(
             // Wait for jobs to arrive
             // The milliseconds timeout is necessary due to timing problems that came up during unit testing
             // I can't say that I'm thrilled with it, though...
-            _jobsArrivedEvent.WaitOne(250);
+            await _jobsArrivedEvent.WaitAsync(TimeSpan.FromMilliseconds(250), cancellationToken);
         } while (result is null);
 
         return result;
@@ -174,21 +175,25 @@ internal class JobRepository(
     public async Task RemoveJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default)
     {
         await _watchedJobsSemaphore.WaitAsync(cancellationToken);
-
-        WatchedJobs.Remove(job);
-
-        if (WatchedJobs.Count == 0)
+        try
         {
-            // Avoid possible race condition in JobLoader
-            _jobsDemandEvent.Set();
-        }
+            WatchedJobs.Remove(job);
 
-        _watchedJobsSemaphore.Release();
+            if (WatchedJobs.Count == 0)
+            {
+                // Avoid possible race condition in JobLoader
+                _jobsDemandEvent.Set();
+            }
+        }
+        finally
+        {
+            _watchedJobsSemaphore.Release();
+        }
     }
 
     public Task<bool> WaitForJobDemandAsync(TimeSpan waitDuration, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(_jobsDemandEvent.WaitOne(waitDuration));
+        return _jobsDemandEvent.WaitAsync(waitDuration, cancellationToken);
     }
 
     public int GetBacklogMaxCount()
@@ -200,12 +205,16 @@ internal class JobRepository(
     {
         await _watchedJobsSemaphore.WaitAsync(cancellationToken);
 
-        // Note for future: Possibly need to review use of lock? Caution is good, but on the other hand I'm only reading...
-        var count = WatchedJobs.Count(job => job.State == JobState.Inactive);
+        try
+        {
+            var count = WatchedJobs.Count(job => job.State == JobState.Inactive);
 
-        _watchedJobsSemaphore.Release();
-
-        return count;
+            return count;
+        }
+        finally
+        {
+            _watchedJobsSemaphore.Release();
+        }
     }
 
     internal sealed class ConfigurationModel

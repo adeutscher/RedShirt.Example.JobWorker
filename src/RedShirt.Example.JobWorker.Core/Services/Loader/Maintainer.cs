@@ -41,51 +41,53 @@ internal class Maintainer(
             // Make sure that we are currently the only thing manipulating this job item.
             var lockId = await job.AcquireLockAsync(cancellationToken);
 
-            if (!job.FlightTimeCanBeExtended)
-            {
-                // Job's flight time cannot be extended further
-                await job.ReleaseLockAsync(lockId, cancellationToken);
-                continue;
-            }
-
-            if (job.State == JobState.Complete)
-            {
-                // Job was completed since it was retrieved. Ignore completely.
-                await job.ReleaseLockAsync(lockId, cancellationToken);
-                continue;
-            }
-
-            if (!heartbeatCalculator.IsReadyForHeartbeat(job))
-            {
-                // Job was refreshed recently
-                var timeToNextHeartbeat1 = heartbeatCalculator.TimeUntilNextHeartbeat(job);
-                timeToWait = !timeToWait.HasValue || timeToNextHeartbeat1 < timeToWait
-                    ? timeToNextHeartbeat1
-                    : timeToWait;
-
-                await job.ReleaseLockAsync(lockId, cancellationToken);
-                continue;
-            }
-
-            logger.LogTrace("Sending heartbeat for message: {MessageId}", job.JobModel.MessageId);
             try
             {
-                await jobSource.HeartbeatAsync(job.JobModel, cancellationToken);
-                job.LastHeartbeatTime = DateTime.UtcNow;
+                if (!job.FlightTimeCanBeExtended)
+                {
+                    // Job's flight time cannot be extended further
+                    continue;
+                }
+
+                if (job.State == JobState.Complete)
+                {
+                    // Job was completed since it was retrieved. Ignore completely.
+                    continue;
+                }
+
+                if (!heartbeatCalculator.IsReadyForHeartbeat(job))
+                {
+                    // Job was refreshed recently
+                    var timeToNextHeartbeat1 = heartbeatCalculator.TimeUntilNextHeartbeat(job);
+                    timeToWait = !timeToWait.HasValue || timeToNextHeartbeat1 < timeToWait
+                        ? timeToNextHeartbeat1
+                        : timeToWait;
+
+                    continue;
+                }
+
+                logger.LogTrace("Sending heartbeat for message: {MessageId}", job.JobModel.MessageId);
+                try
+                {
+                    await jobSource.HeartbeatAsync(job.JobModel, cancellationToken);
+                    job.LastHeartbeatTime = DateTime.UtcNow;
+                }
+                catch (CanNoLongerHeartbeatException e)
+                {
+                    logger.LogWarning(e, "Can no longer heartbeat message: {MessageId}", job.JobModel.MessageId);
+                    job.FlightTimeCanBeExtended = false;
+                }
+
+                var timeToNextHeartbeat = heartbeatCalculator.TimeUntilNextHeartbeat(job);
+
+                timeToWait = !timeToWait.HasValue || timeToNextHeartbeat < timeToWait
+                    ? timeToNextHeartbeat
+                    : timeToWait;
             }
-            catch (CanNoLongerHeartbeatException e)
+            finally
             {
-                logger.LogWarning(e, "Can no longer heartbeat message: {MessageId}", job.JobModel.MessageId);
-                job.FlightTimeCanBeExtended = false;
+                await job.ReleaseLockAsync(lockId, cancellationToken);
             }
-
-            var timeToNextHeartbeat = heartbeatCalculator.TimeUntilNextHeartbeat(job);
-
-            await job.ReleaseLockAsync(lockId, cancellationToken);
-
-            timeToWait = !timeToWait.HasValue || timeToNextHeartbeat < timeToWait
-                ? timeToNextHeartbeat
-                : timeToWait;
         }
 
         // Fallback, possibly because all jobs became complete after they were fetched?

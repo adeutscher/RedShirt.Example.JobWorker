@@ -6,6 +6,6 @@ internal static class JobModelExtensions
 {
     extension(IJobModel jobModel)
     {
-        public int HoursOld => (DateTime.UtcNow - jobModel.CreatedAtUtc).Hours;
+        public int HoursOld => (int) Math.Round((DateTime.UtcNow - jobModel.CreatedAtUtc).TotalHours);
     }
 }

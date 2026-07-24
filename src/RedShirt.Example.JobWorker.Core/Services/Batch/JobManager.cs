@@ -6,6 +6,7 @@ using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
+using RedShirt.Example.JobWorker.Core.Utility;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
@@ -32,11 +33,11 @@ internal class JobManager(
 
     private readonly ConcurrentQueue<JobEnvelope> _queue = new();
 
-    private readonly ManualResetEvent _readyToReceiveJobsWaitHandle = new(false);
+    private readonly AsyncManualResetEvent _readyToReceiveJobsWaitHandle = new();
     private readonly SemaphoreSlim _startSemaphore = new(1, 1);
-    private readonly AutoResetEvent _workerCompleteEvent = new(false);
+    private readonly AsyncAutoResetEvent _workerCompleteEvent = new();
 
-    private readonly List<WaitHandle> _workerWaitHandles = new();
+    private readonly List<AsyncManualResetEvent> _workerWaitHandles = new();
     private int _completedJobsCount;
 
     private int _completedWorkersCount;
@@ -49,7 +50,7 @@ internal class JobManager(
 
     private async Task RunWorkerAsync(CancellationToken cancellationToken = default)
     {
-        var waitHandler = new ManualResetEvent(false);
+        var waitHandler = new AsyncManualResetEvent();
 
         await _startSemaphore.WaitAsync(cancellationToken);
         try
@@ -64,7 +65,11 @@ internal class JobManager(
         while (executionEndArbiter.ShouldKeepRunning())
         {
             waitHandler.Set();
-            _readyToReceiveJobsWaitHandle.WaitOne();
+            // Keep trying to avoid lost events
+            while (!await _readyToReceiveJobsWaitHandle.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken))
+            {
+                ;
+            }
 
             while (true)
             {
@@ -110,7 +115,7 @@ internal class JobManager(
             item.Result = result;
             await Policy.Handle<Exception>()
                 .RetryAsync(Globals.AcknowledgementRetryCount,
-                    async (e, instanceCount) =>
+                    async (_, instanceCount) =>
                     {
                         await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)),
                             cancellationToken);
@@ -146,13 +151,14 @@ internal class JobManager(
         }
     }
 
-    private async Task HeartbeatMonitorAsync(AutoResetEvent bootstrapEvent, ManualResetEvent resetEvent,
+    private async Task HeartbeatMonitorAsync(AsyncAutoResetEvent bootstrapEvent, AsyncManualResetEvent resetEvent,
         List<JobEnvelope> envelopes, CancellationToken cancellationToken = default)
     {
         while (envelopes.Count > 0)
         {
             bootstrapEvent.Set();
-            if (resetEvent.WaitOne(TimeSpan.FromSeconds(jobSource.RecommendedHeartbeatIntervalSeconds)))
+            if (await resetEvent.WaitAsync(TimeSpan.FromSeconds(jobSource.RecommendedHeartbeatIntervalSeconds),
+                    cancellationToken))
             {
                 return;
             }
@@ -202,7 +208,7 @@ internal class JobManager(
         // Queue jobs
         _isLoadingJobs = true;
 
-        WaitHandle.WaitAll(_workerWaitHandles.ToArray());
+        await Task.WhenAll(_workerWaitHandles.Select(e => e.WaitAsync(cancellationToken)));
 
         _readyToReceiveJobsWaitHandle.Set();
 
@@ -222,42 +228,25 @@ internal class JobManager(
         _isLoadingJobs = false;
         _readyToReceiveJobsWaitHandle.Reset();
 
-        var heartbeatDoneEvent = new ManualResetEvent(false);
+        var heartbeatDoneEvent = new AsyncManualResetEvent();
 
         // Monitor heartbeats
-
-        /*
-        This must be done in Task.Run because the
-        ManualResetEvent.WaitOne call inside blocks
-        the entire thread.
-
-        This can be observed in unit tests with
-        JobManagerTests.Test_RunJobAsync_Basic_Heartbeat_OneJob_Long,
-        which was added specifically to test this situation.
-
-        If run without Task.Run, then the test will fail by way of
-        time out because of the blocked thread.
-
-        More subtly, JobManagerTests.Test_RunJobAsync_Basic_Heartbeat_OneJob
-        would take over 3 seconds if Task.Run were not used. A clean run
-        should take ~2.5 seconds.
-         */
         Task? heartbeatTask = null;
         if (jobSource.RecommendedHeartbeatIntervalSeconds > 0)
         {
-            var bootstrapEvent = new AutoResetEvent(false);
+            var bootstrapEvent = new AsyncAutoResetEvent();
             heartbeatTask =
                 Task.Run(
                     () => HeartbeatMonitorAsync(bootstrapEvent, heartbeatDoneEvent, envelopes,
                         cancellationToken), cancellationToken);
-            bootstrapEvent.WaitOne(TimeSpan.FromSeconds(5));
+            await bootstrapEvent.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
         }
 
         // Wait for completion
 
         while (true)
         {
-            _workerCompleteEvent.WaitOne(TimeSpan.FromSeconds(1));
+            await _workerCompleteEvent.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken);
             if (_completedWorkersCount == options.Value.EffectiveWorkerThreadCount)
             {
                 break;
