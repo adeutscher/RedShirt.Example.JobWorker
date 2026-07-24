@@ -69,8 +69,8 @@ internal class HighLevelStreamSource(
 
             if (!currentIterationLock.IsAcquired)
             {
-                // If cannot get lock, then continue
-                // Already in use by another worker
+                // If the worker cannot get a lock, then continue
+                // Already in use by another instance of this worker
                 continue;
             }
 

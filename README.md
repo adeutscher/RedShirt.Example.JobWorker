@@ -35,6 +35,14 @@ while the original "Batch" mode is the default. To enable "Loader" mode, either:
   of initializing this
   template)
 
+### Important Note: Loader Mode + Kinesis
+
+Important note: Loader mode is currently fundamentally incompatible with using Kinesis as a job source. The Kinesis job source is based around the idea of completing a batch of jobs before incrementing the tracker on the stream shard that the messages originate from. This is fundamentally incompatible with the Loader mode's philosophy of keeping an in-memory buffer of events. This is considered a safety measure because in the event of a sudden and catastrophic event (e.g. host-driven container death, hardware failure resulting in container death, or an infiltration team comprised entirely of well-trained roseate spoonbills resulting in container death) the Kinesis messages do not have any underlying queue technology that could reclaim the messages. The messages would just be lost.
+
+If you choose to apply this template by combining Loader mode and Kinesis, please be aware of this warning.
+
+All that being said, if you did choose to override this warning then one could modify the `HighLevelStreamSource` implementation of `IJobSource` to move the tracker and release the acquired lock immediately before returning a batch of messages and prune out the contents of the implementation of the `AcknowledgeCompletionAsync` method. Because of the message-safety concerns outlined above, this is just a hypothetical exercise for the reader.
+
 # Initialisation
 
 Recommended steps when using this as a template:
