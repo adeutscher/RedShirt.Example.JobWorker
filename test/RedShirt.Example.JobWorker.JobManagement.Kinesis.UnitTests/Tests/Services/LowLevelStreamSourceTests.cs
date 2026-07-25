@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 using System.Text;
 using Record = Amazon.Kinesis.Model.Record;
@@ -76,7 +77,9 @@ public class LowLevelStreamSourceTests
                 ShuffleShards = false
             }));
 
-        var response = await source.GetJobsAsync(batchSize, "foo", TestContext.Current.CancellationToken);
+        var response = await source.GetJobsAsync(batchSize, "foo-shard", "foo-iterator",
+            TestContext.Current.CancellationToken);
+        Assert.All(response.Items, r => Assert.Equal("foo-shard", (r as KinesisJobModel)!.ShardId));
         Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
         Assert.Equal(2, response.Items.Count);
 
@@ -87,7 +90,7 @@ public class LowLevelStreamSourceTests
                 It.Is<GetRecordsRequest>(r =>
                     r.StreamARN == streamArn
                     && r.Limit == batchSize
-                    && r.ShardIterator == "foo"),
+                    && r.ShardIterator == "foo-iterator"),
                 TestContext.Current.CancellationToken), Times.Once);
 
         converter.Verify(c => c.Convert(data1), Times.Once);
@@ -121,7 +124,9 @@ public class LowLevelStreamSourceTests
                 ShuffleShards = false
             }));
 
-        var response = await source.GetJobsAsync(batchSize, "foo", TestContext.Current.CancellationToken);
+        var response = await source.GetJobsAsync(batchSize, "foo-shard", "foo-iterator",
+            TestContext.Current.CancellationToken);
+        Assert.All(response.Items, r => Assert.Equal("foo-shard", (r as KinesisJobModel)!.ShardId));
         Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
         Assert.Empty(response.Items);
 
@@ -132,7 +137,7 @@ public class LowLevelStreamSourceTests
                 It.Is<GetRecordsRequest>(r =>
                     r.StreamARN == streamArn
                     && r.Limit == batchSize
-                    && r.ShardIterator == "foo"),
+                    && r.ShardIterator == "foo-iterator"),
                 TestContext.Current.CancellationToken), Times.Once);
     }
 
@@ -158,7 +163,9 @@ public class LowLevelStreamSourceTests
                 ShuffleShards = false
             }));
 
-        var response = await source.GetJobsAsync(batchSize, "foo", TestContext.Current.CancellationToken);
+        var response = await source.GetJobsAsync(batchSize, "foo-shard", "foo-iterator",
+            TestContext.Current.CancellationToken);
+        Assert.All(response.Items, r => Assert.Equal("foo-shard", (r as KinesisJobModel)!.ShardId));
         Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
         Assert.Empty(response.Items);
 
@@ -169,7 +176,7 @@ public class LowLevelStreamSourceTests
                 It.Is<GetRecordsRequest>(r =>
                     r.StreamARN == streamArn
                     && r.Limit == batchSize
-                    && r.ShardIterator == "foo"),
+                    && r.ShardIterator == "foo-iterator"),
                 TestContext.Current.CancellationToken), Times.Once);
     }
 }

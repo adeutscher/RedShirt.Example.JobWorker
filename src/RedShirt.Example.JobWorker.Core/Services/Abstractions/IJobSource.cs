@@ -14,7 +14,17 @@ public interface IJobSource
     /// </summary>
     public int RecommendedHeartbeatIntervalSeconds { get; }
 
+    /// <summary>
+    ///     Acknowledge attempted processing of a job record.
+    ///     This method is to be called regardless of whether the job record was successfully processed or not.
+    ///     What is done on success or failure is dependent on the mechanics of the underlying message source.
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="success"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
     Task AcknowledgeCompletionAsync(IJobModel message, bool success, CancellationToken cancellationToken = default);
+
     Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default);
     Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default);
 }

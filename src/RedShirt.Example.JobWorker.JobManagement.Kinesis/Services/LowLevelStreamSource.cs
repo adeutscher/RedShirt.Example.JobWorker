@@ -12,7 +12,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 
 internal interface ILowLevelStreamSource
 {
-    Task<StreamSourceResponse> GetJobsAsync(int batchSize, string iteratorString,
+    Task<StreamSourceResponse> GetJobsAsync(int batchSize, string shardName, string iteratorString,
         CancellationToken cancellationToken = default);
 }
 
@@ -22,7 +22,7 @@ internal class LowLevelStreamSource(
     ILogger<LowLevelStreamSource> logger,
     IOptions<KinesisConfiguration> options) : ILowLevelStreamSource
 {
-    public async Task<StreamSourceResponse> GetJobsAsync(int batchSize, string iteratorString,
+    public async Task<StreamSourceResponse> GetJobsAsync(int batchSize, string shardName, string iteratorString,
         CancellationToken cancellationToken = default)
     {
         GetRecordsResponse kinesisResponse;
@@ -38,6 +38,8 @@ internal class LowLevelStreamSource(
         }
         catch (ExpiredIteratorException)
         {
+            // Not an event worth worrying about
+            // Just skip over this shard for the moment and loop around to it in another invocation
             return new StreamSourceResponse
             {
                 IteratorString = string.Empty,
@@ -48,9 +50,14 @@ internal class LowLevelStreamSource(
 
         var items = new List<IJobModel>();
 
+        string? lastSequenceNumber = null;
+
         foreach (var item in kinesisResponse.Records)
         {
             var body = Encoding.UTF8.GetString(item.Data.ToArray());
+            // Update last sequence number.
+            // Can only do this because the result of GetRecordsAsync is in the correct order raw from the shard. 
+            lastSequenceNumber = item.SequenceNumber;
 
             try
             {
@@ -62,8 +69,9 @@ internal class LowLevelStreamSource(
                     continue;
                 }
 
-                var data = new JobModel
+                var data = new KinesisJobModel
                 {
+                    ShardId = shardName,
                     MessageId = item.SequenceNumber,
                     CreatedAtUtc = DateTime.UtcNow,
                     Data = @object
@@ -81,7 +89,7 @@ internal class LowLevelStreamSource(
         {
             IteratorString = kinesisResponse.NextShardIterator,
             Items = items,
-            LastSequenceNumber = items.LastOrDefault()?.MessageId
+            LastSequenceNumber = lastSequenceNumber
         };
     }
 }
