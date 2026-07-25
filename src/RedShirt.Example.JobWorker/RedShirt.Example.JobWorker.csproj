@@ -8,9 +8,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.10" />
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
-        <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.10" />
+        <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.10"/>
         <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0"/>
         <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1"/>
     </ItemGroup>
@@ -18,14 +18,14 @@
     <ItemGroup>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Core.Logic\RedShirt.Example.JobWorker.Core.Logic.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Core\RedShirt.Example.JobWorker.Core.csproj"/>
-        <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.ActiveMq.ConfigurationStorage.Ssm\RedShirt.Example.JobWorker.JobManagement.ActiveMq.ConfigurationStorage.Ssm.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager\RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager\RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.SecretManagers.Core\RedShirt.Example.JobWorker.Common.SecretManagers.Core.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.ActiveMq\RedShirt.Example.JobWorker.JobManagement.ActiveMq.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.AzureQueue\RedShirt.Example.JobWorker.JobManagement.AzureQueue.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.AzureServiceBus\RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Kinesis\RedShirt.Example.JobWorker.JobManagement.Kinesis.csproj"/>
-        <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Nats.CredentialStorage.Ssm\RedShirt.Example.JobWorker.JobManagement.Nats.CredentialStorage.Ssm.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Nats\RedShirt.Example.JobWorker.JobManagement.Nats.csproj"/>
-        <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.RabbitMq.ConfigurationStorage.Ssm\RedShirt.Example.JobWorker.JobManagement.RabbitMq.ConfigurationStorage.Ssm.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.RabbitMq\RedShirt.Example.JobWorker.JobManagement.RabbitMq.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Sqs\RedShirt.Example.JobWorker.JobManagement.Sqs.csproj"/>
     </ItemGroup>

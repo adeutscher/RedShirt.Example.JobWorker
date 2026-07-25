@@ -1,5 +1,5 @@
-using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Clients;
-using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Factories;
+using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Clients;
+using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Factories;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.UnitTests.Tests.Factories;
 

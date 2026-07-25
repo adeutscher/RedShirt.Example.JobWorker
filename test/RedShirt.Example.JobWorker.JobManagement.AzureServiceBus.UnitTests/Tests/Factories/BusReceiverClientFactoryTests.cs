@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Services;
+using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
@@ -17,24 +17,24 @@ public class BusReceiverClientFactoryTests
             FullyQualifiedNamespace = "baz"
         };
 
-        var keyVaultService = new Mock<IAzureKeyVaultService>();
-        keyVaultService
-            .Setup(c => c.GetSecretAsync("foo", TestContext.Current.CancellationToken))
+        var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
+        secrets
+            .Setup(c => c.GetSecretAsync("foo", null, false, TestContext.Current.CancellationToken))
             // Using connection string suggestion from local testing's service bus emulator
             .ReturnsAsync(
                 "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;");
 
-        var factory = new BusReceiverClientFactory(keyVaultService.Object, Options.Create(config));
+        var factory = new BusReceiverClientFactory(secrets.Object, Options.Create(config));
 
         var client = await factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client);
 
-        Assert.True(client is ServiceBusClientWrapper);
-        var clientWrapperImplementation = client as ServiceBusClientWrapper;
-        Assert.NotNull(clientWrapperImplementation);
+        Assert.IsType<ServiceBusClientWrapper>(client);
+        var clientWrapperImplementation = (ServiceBusClientWrapper) client;
         Assert.NotNull(clientWrapperImplementation.Client);
 
-        keyVaultService.Verify(c => c.GetSecretAsync("foo", TestContext.Current.CancellationToken), Times.Once);
+        secrets.Verify(c => c.GetSecretAsync("foo", null, false, TestContext.Current.CancellationToken), Times.Once);
+        secrets.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -47,18 +47,17 @@ public class BusReceiverClientFactoryTests
             FullyQualifiedNamespace = "bar"
         };
 
-        var keyVaultService = new Mock<IAzureKeyVaultService>();
+        var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
 
-        var factory = new BusReceiverClientFactory(keyVaultService.Object, Options.Create(config));
+        var factory = new BusReceiverClientFactory(secrets.Object, Options.Create(config));
 
         var client = await factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client);
 
-        Assert.True(client is ServiceBusClientWrapper);
-        var clientWrapperImplementation = client as ServiceBusClientWrapper;
-        Assert.NotNull(clientWrapperImplementation);
+        Assert.IsType<ServiceBusClientWrapper>(client);
+        var clientWrapperImplementation = (ServiceBusClientWrapper) client;
         Assert.NotNull(clientWrapperImplementation.Client);
 
-        Assert.Empty(keyVaultService.Invocations);
+        secrets.VerifyNoOtherCalls();
     }
 }

@@ -1,6 +1,6 @@
 using Azure;
 using Azure.Security.KeyVault.Secrets;
-using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Clients;
+using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Clients;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.UnitTests.Tests;
 

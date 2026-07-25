@@ -1,7 +1,7 @@
 using Azure.Core;
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Clients;
-using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Factories;
+using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Clients;
+using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Factories;
 using System.Reflection;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.UnitTests.Tests.Factories;

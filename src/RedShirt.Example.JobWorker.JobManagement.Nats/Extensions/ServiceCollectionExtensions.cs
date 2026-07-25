@@ -18,6 +18,8 @@ public static class ServiceCollectionExtensions
                 .Configure<NatsJobSource.ConfigurationModel>(configuration.GetSection("JobSource:NATS"))
                 .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>()
                 // Supporting
+                .Configure<NatsCredentialSource.ConfigurationModel>(configuration.GetSection("JobSource:NATS"))
+                .AddSingleton<INatsCredentialSource, NatsCredentialSource>()
                 .AddSingleton<IFetchNoWaitGetter, FetchNoWaitGetter>()
                 .AddSingleton<IBodyRetriever, BodyRetriever>()
                 .AddSingleton<INatsJetStreamContextFactory, NatsJetStreamContextFactory>()

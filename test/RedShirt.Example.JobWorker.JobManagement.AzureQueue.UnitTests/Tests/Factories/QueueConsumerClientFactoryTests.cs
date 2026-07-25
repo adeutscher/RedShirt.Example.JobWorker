@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Services;
+using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.Tests.Factories;
@@ -7,7 +7,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.Tests.Fa
 public class QueueConsumerClientFactoryTests
 {
     [Fact]
-    public void ShouldCreateQueueClient_ConnectionString()
+    public async Task ShouldCreateQueueClient_ConnectionString()
     {
         var config = new QueueConsumerClientFactory.ConfigurationModel
         {
@@ -16,23 +16,26 @@ public class QueueConsumerClientFactoryTests
             QueueName = "bar"
         };
 
-        var keyVaultService = new Mock<IAzureKeyVaultService>();
-        keyVaultService
-            .Setup(c => c.GetSecretAsync("foo", TestContext.Current.CancellationToken))
-            .ReturnsAsync("bar");
+        // Minimal connection string accepted by Azure.Storage.Queues QueueClient
+        const string connectionString =
+            "DefaultEndpointsProtocol=https;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;QueueEndpoint=https://127.0.0.1:10001/devstoreaccount1;";
 
-        var factory = new QueueConsumerClientFactory(keyVaultService.Object, Options.Create(config));
+        var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
+        secrets
+            .Setup(c => c.GetSecretAsync("foo", null, false, TestContext.Current.CancellationToken))
+            .ReturnsAsync(connectionString);
 
-        var client = factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
+        var factory = new QueueConsumerClientFactory(secrets.Object, Options.Create(config));
+
+        var client = await factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client);
 
-        keyVaultService.Verify(c => c.GetSecretAsync(It.IsAny<string>(), TestContext.Current.CancellationToken),
-            Times.Once);
-        keyVaultService.Verify(c => c.GetSecretAsync("foo", TestContext.Current.CancellationToken), Times.Once);
+        secrets.Verify(c => c.GetSecretAsync("foo", null, false, TestContext.Current.CancellationToken), Times.Once);
+        secrets.VerifyNoOtherCalls();
     }
 
     [Fact]
-    public void ShouldCreateQueueClient_Uri()
+    public async Task ShouldCreateQueueClient_Uri()
     {
         var config = new QueueConsumerClientFactory.ConfigurationModel
         {
@@ -41,12 +44,12 @@ public class QueueConsumerClientFactoryTests
             QueueName = null
         };
 
-        var keyVaultService = new Mock<IAzureKeyVaultService>();
-        var factory = new QueueConsumerClientFactory(keyVaultService.Object, Options.Create(config));
+        var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
+        var factory = new QueueConsumerClientFactory(secrets.Object, Options.Create(config));
 
-        var client = factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
+        var client = await factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client);
 
-        Assert.Empty(keyVaultService.Invocations);
+        secrets.VerifyNoOtherCalls();
     }
 }

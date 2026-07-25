@@ -120,6 +120,14 @@ services:
       JOBS__WORKER_THREAD_COUNT: 2
       JOBS__LOADER__ENABLED: "${JOBS__LOADER__ENABLED-0}" # Experimental
       JOBS__LOADER__BACKLOG_SIZE: 10
+      ## Common Secret Management Library (Cache)
+      COMMON__SECRETS__CACHE__FORCE_COOLDOWN_SECONDS: 60
+      ## Common Secret Management Library (Azure Key Vault)
+      COMMON__SECRETS__AZURE_KEY_VAULT__KEY_VAULT_URL: https://azure-key-vault-emulator.vault.azure.net:4997
+      # Tell the worker to generate a syntactically valid auth token for James Gould's key vault emulator
+      # The below option generates a token for Key Vault auth with obviously bogus values
+      # Using an obviously-bogus token that would only work on a local testing server is the only way that I can justify the blanket SSL trust that goes with it
+      COMMON__SECRETS__AZURE_KEY_VAULT__GENERATE_LOCAL_TESTING_TOKEN: true
       ## Job Management (General)
       JOB_SOURCE__BATCH_SIZE: 10
       ## Job Management (SQS)
@@ -157,11 +165,6 @@ services:
       JOB_SOURCE__NATS__PASSWORD_PATH: /nats/password
       JOB_SOURCE__NATS__STREAM_NAME: TestStream
       ## Jog Management (Azure Key Vault, used by both Azure Queue Storage and Azure Service Bus)
-      JOB_SOURCE__AZURE_KEY_VAULT__KEY_VAULT_URL: https://azure-key-vault-emulator.vault.azure.net:4997
-      # Tell the worker to generate a syntactically valid auth token for James Gould's key vault emulator
-      # The below option generates a token for Key Vault auth with obviously bogus values
-      # Using obviously-bogus token that would only work on a local testing server is the only way that I can justify the blanket SSL trust that goes with it
-      JOB_SOURCE__AZURE_KEY_VAULT__GENERATE_LOCAL_TESTING_TOKEN: true
       ## Job Management (Azure Queue Storage)
       USE_AZURE_QUEUE_STORAGE: "${USE_AZURE_QUEUE_STORAGE-0}"
       JOB_SOURCE__AZURE_QUEUE_STORAGE__URI: https://not-used-in-local-testing

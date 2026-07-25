@@ -14,7 +14,7 @@ public class NatsJetStreamContextFactoryTests
         var username = Guid.NewGuid().ToString();
         var password = Guid.NewGuid().ToString();
 
-        var credentialsSource = new Mock<INatsCredentialSource>();
+        var credentialsSource = new Mock<INatsCredentialSource>(MockBehavior.Strict);
         credentialsSource
             .Setup(s => s.GetCredentialsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(new NatsCredentialModel
@@ -40,5 +40,6 @@ public class NatsJetStreamContextFactoryTests
         Assert.Equal(password, context.Connection.Opts.AuthOpts.Password);
 
         credentialsSource.Verify(s => s.GetCredentialsAsync(TestContext.Current.CancellationToken), Times.Once);
+        credentialsSource.VerifyNoOtherCalls();
     }
 }

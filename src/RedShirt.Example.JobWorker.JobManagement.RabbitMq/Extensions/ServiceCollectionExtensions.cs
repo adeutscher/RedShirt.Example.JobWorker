@@ -17,6 +17,9 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>()
             // Supporting
             .Configure<RabbitMqJobSource.ConfigurationModel>(configuration.GetSection("JobSource:RabbitMq"))
+            .Configure<RabbitMqServerConfigurationSource.ConfigurationModel>(
+                configuration.GetSection("JobSource:RabbitMq"))
+            .AddSingleton<IRabbitMqServerConfigurationSource, RabbitMqServerConfigurationSource>()
             .AddSingleton<IInnerRabbitMqConnectionFactory, InnerRabbitMqConnectionFactory>()
             .AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();
     }

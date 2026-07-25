@@ -1,7 +1,7 @@
 using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Services;
+using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
@@ -13,7 +13,7 @@ internal interface IBusReceiverClientFactory
 }
 
 internal class BusReceiverClientFactory(
-    IAzureKeyVaultService azureKeyVaultService,
+    ISecretManagerCacheService secretManagerService,
     IOptions<BusReceiverClientFactory.ConfigurationModel> options)
     : IBusReceiverClientFactory
 {
@@ -28,7 +28,7 @@ internal class BusReceiverClientFactory(
         if (!string.IsNullOrWhiteSpace(options.Value.ConnectionStringPath))
         {
             var connectionString =
-                await azureKeyVaultService.GetSecretAsync(options.Value.ConnectionStringPath, cancellationToken);
+                await secretManagerService.GetSecretAsync(options.Value.ConnectionStringPath, cancellationToken: cancellationToken);
             innerClient = new ServiceBusClient(connectionString);
         }
         else if (!string.IsNullOrWhiteSpace(options.Value.FullyQualifiedNamespace))

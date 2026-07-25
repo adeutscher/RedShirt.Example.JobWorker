@@ -1,16 +1,15 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.Extensions;
+using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Extensions;
+using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Logic.Extensions;
-using RedShirt.Example.JobWorker.JobManagement.ActiveMq.ConfigurationStorage.Ssm.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Extensions;
-using RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
-using RedShirt.Example.JobWorker.JobManagement.Nats.CredentialStorage.Ssm.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Extensions;
-using RedShirt.Example.JobWorker.JobManagement.RabbitMq.ConfigurationStorage.Ssm.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Extensions;
 
@@ -39,32 +38,37 @@ public static class ServiceCollectionExtensions
         if (int.TryParse(useNatsRaw, out var useNats) && useNats == 1)
         {
             services = services
-                .AddNatsJobManagement(configuration)
-                .AddNatsCredentialsSsmStorage(configuration);
+                .AddSecretManagerCore(configuration)
+                .AddSecretManagerSsm(configuration)
+                .AddNatsJobManagement(configuration);
         }
         else if (int.TryParse(useAzureQueueStorageRaw, out var useAzureQueueStorage) && useAzureQueueStorage == 1)
         {
             services = services
-                .AddAzureKeyVaultSupportForJobManagement(configuration)
+                .AddSecretManagerCore(configuration)
+                .AddSecretManagerAzureKeyVault(configuration)
                 .AddAzureQueueStorageJobManagement(configuration);
         }
         else if (int.TryParse(useAzureServiceBusRaw, out var useAzureServiceBus) && useAzureServiceBus == 1)
         {
             services = services
-                .AddAzureKeyVaultSupportForJobManagement(configuration)
+                .AddSecretManagerCore(configuration)
+                .AddSecretManagerAzureKeyVault(configuration)
                 .AddAzureServiceBusJobManagement(configuration);
         }
         else if (int.TryParse(useRabbitMqRaw, out var useRabbitMq) && useRabbitMq == 1)
         {
             services = services
-                .AddRabbitMqJobManagement(configuration)
-                .AddRabbitMqConfigurationSsmStorage(configuration);
+                .AddSecretManagerCore(configuration)
+                .AddSecretManagerSsm(configuration)
+                .AddRabbitMqJobManagement(configuration);
         }
         else if (int.TryParse(useActiveMqRaw, out var useActiveMq) && useActiveMq == 1)
         {
             services = services
-                .AddActiveMqJobManagement(configuration)
-                .AddActiveMqConfigurationSsmStorage(configuration);
+                .AddSecretManagerCore(configuration)
+                .AddSecretManagerSsm(configuration)
+                .AddActiveMqJobManagement(configuration);
         }
         else if (int.TryParse(useKinesisRaw, out var useKinesis) && useKinesis == 1)
         {
