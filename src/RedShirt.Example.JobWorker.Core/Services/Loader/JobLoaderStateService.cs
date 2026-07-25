@@ -7,7 +7,7 @@ public interface IJobLoaderStateService
     void ReportLoaderStop();
 }
 
-public class JobLoaderStateService : IJobLoaderStateService
+internal class JobLoaderStateService : IJobLoaderStateService
 {
     private readonly Lock _lock = new();
     private bool _isFinished;

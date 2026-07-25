@@ -4,7 +4,7 @@ using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 
 namespace RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.Services;
 
-public class SsmSecretManagerService(IAmazonSimpleSystemsManagement ssm) : ISecretManagerService
+internal class SsmSecretManagerService(IAmazonSimpleSystemsManagement ssm) : ISecretManagerService
 {
     /// <summary>
     ///     AWS GetParameters allows at most 10 names per request.
