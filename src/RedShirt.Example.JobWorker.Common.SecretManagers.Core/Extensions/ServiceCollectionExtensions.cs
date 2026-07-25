@@ -7,7 +7,7 @@ namespace RedShirt.Example.JobWorker.Common.SecretManagers.Core.Extensions;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Add common services and abstractions for pulling information from a secret manager.
+    ///     Add common services and abstractions for pulling information from a secret manager.
     /// </summary>
     /// <param name="services"></param>
     /// <param name="configuration"></param>

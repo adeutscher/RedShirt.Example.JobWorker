@@ -6,16 +6,6 @@ namespace RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests.Tests.Utility;
 public class SqsMessageAttributeRetrieverTests
 {
     [Fact]
-    public void TryGetApproximateFirstReceiveUtc_WhenAttributesNull_ReturnsNull()
-    {
-        var message = new Message {Attributes = null!};
-
-        var result = SqsMessageAttributeRetriever.TryGetApproximateFirstReceiveUtc(message);
-
-        Assert.Null(result);
-    }
-
-    [Fact]
     public void TryGetApproximateFirstReceiveUtc_WhenAttributeMissing_ReturnsNull()
     {
         var message = new Message
@@ -72,6 +62,16 @@ public class SqsMessageAttributeRetrieverTests
     }
 
     [Fact]
+    public void TryGetApproximateFirstReceiveUtc_WhenAttributesNull_ReturnsNull()
+    {
+        var message = new Message {Attributes = null!};
+
+        var result = SqsMessageAttributeRetriever.TryGetApproximateFirstReceiveUtc(message);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
     public void TryGetApproximateFirstReceiveUtc_WhenEpochIsZero_ReturnsUnixEpoch()
     {
         var message = new Message
@@ -85,16 +85,6 @@ public class SqsMessageAttributeRetrieverTests
         var result = SqsMessageAttributeRetriever.TryGetApproximateFirstReceiveUtc(message);
 
         Assert.Equal(DateTimeOffset.UnixEpoch.UtcDateTime, result);
-    }
-
-    [Fact]
-    public void TryGetApproximateReceiveCount_WhenAttributesNull_ReturnsNull()
-    {
-        var message = new Message {Attributes = null!};
-
-        var result = SqsMessageAttributeRetriever.TryGetApproximateReceiveCount(message);
-
-        Assert.Null(result);
     }
 
     [Fact]
@@ -151,6 +141,16 @@ public class SqsMessageAttributeRetrieverTests
         var result = SqsMessageAttributeRetriever.TryGetApproximateReceiveCount(message);
 
         Assert.Equal(receiveCount, result);
+    }
+
+    [Fact]
+    public void TryGetApproximateReceiveCount_WhenAttributesNull_ReturnsNull()
+    {
+        var message = new Message {Attributes = null!};
+
+        var result = SqsMessageAttributeRetriever.TryGetApproximateReceiveCount(message);
+
+        Assert.Null(result);
     }
 
     [Fact]

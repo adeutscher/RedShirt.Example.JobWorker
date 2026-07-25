@@ -29,7 +29,8 @@ internal class QueueConsumerClientFactory(
             && !string.IsNullOrWhiteSpace(options.Value.QueueName))
         {
             var connectionString =
-                await secretManagerCacheService.GetSecretAsync(options.Value.ConnectionStringPath, cancellationToken: cancellationToken);
+                await secretManagerCacheService.GetSecretAsync(options.Value.ConnectionStringPath,
+                    cancellationToken: cancellationToken);
             innerClient = new QueueClient(connectionString, options.Value.QueueName);
         }
         else

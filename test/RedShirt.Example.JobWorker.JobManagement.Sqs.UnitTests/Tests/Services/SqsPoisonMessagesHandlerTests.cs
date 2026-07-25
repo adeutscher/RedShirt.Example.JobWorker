@@ -9,6 +9,24 @@ namespace RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests.Tests.Services;
 
 public class SqsPoisonMessagesHandlerTests
 {
+    private static SqsPoisonMessagesHandler CreateHandler(Mock<IAmazonSQS> sqs, SqsConfigurationModel config)
+    {
+        return new SqsPoisonMessagesHandler(sqs.Object, Options.Create(config));
+    }
+
+    private static Message CreateMessage(int receiveCount, string? receiptHandle = null)
+    {
+        return new Message
+        {
+            MessageId = Guid.NewGuid().ToString(),
+            ReceiptHandle = receiptHandle ?? Guid.NewGuid().ToString(),
+            Attributes = new Dictionary<string, string>
+            {
+                [SqsConstants.AttributeApproximateReceiveCount] = receiveCount.ToString()
+            }
+        };
+    }
+
     [Fact]
     public async Task WhenDlqEnabled_DoesNotDelete()
     {
@@ -22,29 +40,7 @@ public class SqsPoisonMessagesHandlerTests
             MaximumReceives = 1
         });
 
-        var message = CreateMessage(receiveCount: 100);
-
-        await handler.AttemptPoisonMessageEnforcementAsync(message, TestContext.Current.CancellationToken);
-
-        Assert.Empty(sqs.Invocations);
-    }
-
-    [Theory]
-    [InlineData(1, 5)]
-    [InlineData(4, 5)]
-    [InlineData(0, 1)]
-    public async Task WhenReceiveCountBelowMaximum_DoesNotDelete(int receiveCount, int maximumReceives)
-    {
-        var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
-        var handler = CreateHandler(sqs, new SqsConfigurationModel
-        {
-            QueueUrl = Guid.NewGuid().ToString(),
-            VisibilityTimeoutSeconds = 30,
-            DlqEnabled = false,
-            MaximumReceives = maximumReceives
-        });
-
-        var message = CreateMessage(receiveCount: receiveCount);
+        var message = CreateMessage(100);
 
         await handler.AttemptPoisonMessageEnforcementAsync(message, TestContext.Current.CancellationToken);
 
@@ -76,7 +72,7 @@ public class SqsPoisonMessagesHandlerTests
         });
 
         var receiptHandle = Guid.NewGuid().ToString();
-        var message = CreateMessage(receiveCount: receiveCount, receiptHandle: receiptHandle);
+        var message = CreateMessage(receiveCount, receiptHandle);
 
         await handler.AttemptPoisonMessageEnforcementAsync(message, TestContext.Current.CancellationToken);
 
@@ -143,21 +139,25 @@ public class SqsPoisonMessagesHandlerTests
         Assert.Empty(sqs.Invocations);
     }
 
-    private static SqsPoisonMessagesHandler CreateHandler(Mock<IAmazonSQS> sqs, SqsConfigurationModel config)
+    [Theory]
+    [InlineData(1, 5)]
+    [InlineData(4, 5)]
+    [InlineData(0, 1)]
+    public async Task WhenReceiveCountBelowMaximum_DoesNotDelete(int receiveCount, int maximumReceives)
     {
-        return new SqsPoisonMessagesHandler(sqs.Object, Options.Create(config));
-    }
-
-    private static Message CreateMessage(int receiveCount, string? receiptHandle = null)
-    {
-        return new Message
+        var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
+        var handler = CreateHandler(sqs, new SqsConfigurationModel
         {
-            MessageId = Guid.NewGuid().ToString(),
-            ReceiptHandle = receiptHandle ?? Guid.NewGuid().ToString(),
-            Attributes = new Dictionary<string, string>
-            {
-                [SqsConstants.AttributeApproximateReceiveCount] = receiveCount.ToString()
-            }
-        };
+            QueueUrl = Guid.NewGuid().ToString(),
+            VisibilityTimeoutSeconds = 30,
+            DlqEnabled = false,
+            MaximumReceives = maximumReceives
+        });
+
+        var message = CreateMessage(receiveCount);
+
+        await handler.AttemptPoisonMessageEnforcementAsync(message, TestContext.Current.CancellationToken);
+
+        Assert.Empty(sqs.Invocations);
     }
 }

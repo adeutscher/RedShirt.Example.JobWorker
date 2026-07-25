@@ -5,97 +5,6 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Utility;
 
 public class AsyncManualResetEventTests
 {
-    [Fact(Timeout = 1000)]
-    public async Task Test_WaitAsync_InitiallySet_ReturnsTrueImmediately()
-    {
-        var evt = new AsyncManualResetEvent(true);
-
-        var sw = Stopwatch.StartNew();
-        var result = await evt.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
-        sw.Stop();
-
-        Assert.True(result);
-        Assert.True(sw.ElapsedMilliseconds < 250);
-    }
-
-    [Fact(Timeout = 1000)]
-    public async Task Test_WaitAsync_InitiallyUnset_ZeroTimeout_ReturnsFalse()
-    {
-        var evt = new AsyncManualResetEvent();
-
-        var result = await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken);
-
-        Assert.False(result);
-    }
-
-    [Fact(Timeout = 1000)]
-    public async Task Test_WaitAsync_AfterSet_ReturnsTrueWithoutBlocking()
-    {
-        var evt = new AsyncManualResetEvent();
-        evt.Set();
-
-        var result = await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken);
-
-        Assert.True(result);
-    }
-
-    [Fact(Timeout = 1000)]
-    public async Task Test_WaitAsync_Timeout_ReturnsFalse()
-    {
-        var evt = new AsyncManualResetEvent();
-
-        var sw = Stopwatch.StartNew();
-        var result = await evt.WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
-        sw.Stop();
-
-        Assert.False(result);
-        Assert.InRange(sw.ElapsedMilliseconds, 50, 500);
-    }
-
-    [Fact(Timeout = 1000)]
-    public async Task Test_WaitAsync_UnblocksWhenSet()
-    {
-        var evt = new AsyncManualResetEvent();
-
-        var waitTask = evt.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
-
-        await Task.Delay(50, TestContext.Current.CancellationToken);
-        Assert.False(waitTask.IsCompleted);
-
-        evt.Set();
-
-        Assert.True(await waitTask);
-    }
-
-    [Fact(Timeout = 2000)]
-    public async Task Test_WaitAsync_Set_WakesAllWaiters()
-    {
-        var evt = new AsyncManualResetEvent();
-
-        var waiters = Enumerable.Range(0, 8)
-            .Select(_ => evt.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken))
-            .ToArray();
-
-        await Task.Delay(50, TestContext.Current.CancellationToken);
-        Assert.All(waiters, t => Assert.False(t.IsCompleted));
-
-        evt.Set();
-
-        var results = await Task.WhenAll(waiters);
-        Assert.All(results, Assert.True);
-    }
-
-    [Fact(Timeout = 1000)]
-    public async Task Test_Reset_AfterSet_BlocksSubsequentWaiters()
-    {
-        var evt = new AsyncManualResetEvent(true);
-        evt.Reset();
-
-        var result = await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken);
-
-        Assert.False(result);
-    }
-
     [Fact(Timeout = 2000)]
     public async Task Test_Pulse_SetThenReset_WakesCurrentWaiters_BlocksNewOnes()
     {
@@ -120,14 +29,14 @@ public class AsyncManualResetEventTests
     }
 
     [Fact(Timeout = 1000)]
-    public async Task Test_Set_WhenAlreadySet_RemainsSignaled()
+    public async Task Test_Reset_AfterSet_BlocksSubsequentWaiters()
     {
         var evt = new AsyncManualResetEvent(true);
+        evt.Reset();
 
-        evt.Set();
-        evt.Set();
+        var result = await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken);
 
-        Assert.True(await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken));
+        Assert.False(result);
     }
 
     [Fact(Timeout = 1000)]
@@ -142,14 +51,40 @@ public class AsyncManualResetEventTests
     }
 
     [Fact(Timeout = 1000)]
-    public async Task Test_WaitAsync_StickySet_AllowsRepeatedWaits()
+    public async Task Test_Set_WhenAlreadySet_RemainsSignaled()
+    {
+        var evt = new AsyncManualResetEvent(true);
+
+        evt.Set();
+        evt.Set();
+
+        Assert.True(await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken));
+    }
+
+    [Fact(Timeout = 1000)]
+    public async Task Test_WaitAsync_AfterSet_ReturnsTrueWithoutBlocking()
     {
         var evt = new AsyncManualResetEvent();
         evt.Set();
 
-        Assert.True(await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken));
-        Assert.True(await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken));
-        Assert.True(await evt.WaitAsync(TimeSpan.FromMilliseconds(10), TestContext.Current.CancellationToken));
+        var result = await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken);
+
+        Assert.True(result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Test_WaitAsync_CancellationTokenOnly_UnblocksWhenSet()
+    {
+        var evt = new AsyncManualResetEvent();
+
+        var waitTask = evt.WaitAsync(TestContext.Current.CancellationToken);
+
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.False(waitTask.IsCompleted);
+
+        evt.Set();
+
+        Assert.True(await waitTask);
     }
 
     [Fact(Timeout = 1000)]
@@ -205,12 +140,77 @@ public class AsyncManualResetEventTests
         Assert.True(await waitTask);
     }
 
-    [Fact(Timeout = 2000)]
-    public async Task Test_WaitAsync_CancellationTokenOnly_UnblocksWhenSet()
+    [Fact(Timeout = 1000)]
+    public async Task Test_WaitAsync_InitiallySet_ReturnsTrueImmediately()
+    {
+        var evt = new AsyncManualResetEvent(true);
+
+        var sw = Stopwatch.StartNew();
+        var result = await evt.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        sw.Stop();
+
+        Assert.True(result);
+        Assert.True(sw.ElapsedMilliseconds < 250);
+    }
+
+    [Fact(Timeout = 1000)]
+    public async Task Test_WaitAsync_InitiallyUnset_ZeroTimeout_ReturnsFalse()
     {
         var evt = new AsyncManualResetEvent();
 
-        var waitTask = evt.WaitAsync(TestContext.Current.CancellationToken);
+        var result = await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken);
+
+        Assert.False(result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Test_WaitAsync_Set_WakesAllWaiters()
+    {
+        var evt = new AsyncManualResetEvent();
+
+        var waiters = Enumerable.Range(0, 8)
+            .Select(_ => evt.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken))
+            .ToArray();
+
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.All(waiters, t => Assert.False(t.IsCompleted));
+
+        evt.Set();
+
+        var results = await Task.WhenAll(waiters);
+        Assert.All(results, Assert.True);
+    }
+
+    [Fact(Timeout = 1000)]
+    public async Task Test_WaitAsync_StickySet_AllowsRepeatedWaits()
+    {
+        var evt = new AsyncManualResetEvent();
+        evt.Set();
+
+        Assert.True(await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken));
+        Assert.True(await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken));
+        Assert.True(await evt.WaitAsync(TimeSpan.FromMilliseconds(10), TestContext.Current.CancellationToken));
+    }
+
+    [Fact(Timeout = 1000)]
+    public async Task Test_WaitAsync_Timeout_ReturnsFalse()
+    {
+        var evt = new AsyncManualResetEvent();
+
+        var sw = Stopwatch.StartNew();
+        var result = await evt.WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
+        sw.Stop();
+
+        Assert.False(result);
+        Assert.InRange(sw.ElapsedMilliseconds, 50, 500);
+    }
+
+    [Fact(Timeout = 1000)]
+    public async Task Test_WaitAsync_UnblocksWhenSet()
+    {
+        var evt = new AsyncManualResetEvent();
+
+        var waitTask = evt.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
         await Task.Delay(50, TestContext.Current.CancellationToken);
         Assert.False(waitTask.IsCompleted);

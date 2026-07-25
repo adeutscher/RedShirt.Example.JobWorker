@@ -50,7 +50,9 @@ work (subject to any idempotency system the template implementation's work proce
 
 Loader mode is designed to asynchronously poll for messages. This means that a single job worker instance using Loader
 mode could potentially place a claim on all available shards on a Kinesis stream. This would limit potential for scaling
-the stream consumer. The Kinesis job source might fundamentally be a better fit for the "Batch" mode message sourcing for which it was originally designed. This noteworthiness could be a case for "Batch" mode to be refactored to have more distinction between class roles rather than entirely replaced in the future.
+the stream consumer. The Kinesis job source might fundamentally be a better fit for the "Batch" mode message sourcing
+for which it was originally designed. This noteworthiness could be a case for "Batch" mode to be refactored to have more
+distinction between class roles rather than entirely replaced in the future.
 
 If you choose to apply this template by combining Loader mode and Kinesis, please be aware of this warning.
 

@@ -11,7 +11,8 @@ internal class AzureKeyVaultService(IAzureKeyVaultClientSource clientSource) : I
         return source.GetSecretAsync(key, cancellationToken);
     }
 
-    public async Task<Dictionary<string, string>> GetSecretsAsync(List<string> keys, CancellationToken cancellationToken = default)
+    public async Task<Dictionary<string, string>> GetSecretsAsync(List<string> keys,
+        CancellationToken cancellationToken = default)
     {
         var items = new Dictionary<string, string>();
         var source = clientSource.GetKeyVaultClient();
@@ -21,7 +22,7 @@ internal class AzureKeyVaultService(IAzureKeyVaultClientSource clientSource) : I
         {
             items.Add(key, await source.GetSecretAsync(key, cancellationToken));
         }
-        
+
         return items;
     }
 }

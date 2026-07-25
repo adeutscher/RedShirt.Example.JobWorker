@@ -9,9 +9,9 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tes
 public class AzureServiceBusBodyStringRetrieverTests
 {
     [Fact]
-    public void GetBody_ReturnsMessageBodyAsString()
+    public void GetBody_PreservesUtf8Content()
     {
-        const string bodyText = "Hello World!";
+        const string bodyText = "こんにちは 🌍";
         var receivedMessage = ServiceBusModelFactory.ServiceBusReceivedMessage(BinaryData.FromString(bodyText));
         var container = new Mock<IServiceBusMessageContainer>();
         container.SetupGet(c => c.Message).Returns(receivedMessage);
@@ -21,7 +21,6 @@ public class AzureServiceBusBodyStringRetrieverTests
         var body = retriever.GetBody(container.Object);
 
         Assert.Equal(bodyText, body);
-        container.VerifyGet(c => c.Message, Times.Once);
     }
 
     [Fact]
@@ -39,9 +38,9 @@ public class AzureServiceBusBodyStringRetrieverTests
     }
 
     [Fact]
-    public void GetBody_PreservesUtf8Content()
+    public void GetBody_ReturnsMessageBodyAsString()
     {
-        const string bodyText = "こんにちは 🌍";
+        const string bodyText = "Hello World!";
         var receivedMessage = ServiceBusModelFactory.ServiceBusReceivedMessage(BinaryData.FromString(bodyText));
         var container = new Mock<IServiceBusMessageContainer>();
         container.SetupGet(c => c.Message).Returns(receivedMessage);
@@ -51,5 +50,6 @@ public class AzureServiceBusBodyStringRetrieverTests
         var body = retriever.GetBody(container.Object);
 
         Assert.Equal(bodyText, body);
+        container.VerifyGet(c => c.Message, Times.Once);
     }
 }

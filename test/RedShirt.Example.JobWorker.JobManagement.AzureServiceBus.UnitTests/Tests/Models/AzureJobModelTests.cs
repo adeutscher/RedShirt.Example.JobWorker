@@ -7,22 +7,16 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tes
 public class AzureJobModelTests
 {
     [Fact]
-    public void Properties_RoundTripAssignedValues()
+    public void ImplementsIJobModel()
     {
-        var message = new Mock<IServiceBusMessageContainer>();
-        var data = new Mock<IJobDataModel>();
-        var createdAt = DateTime.UtcNow.AddMinutes(-5);
-
         var job = new AzureJobModel
         {
-            Message = message.Object,
-            CreatedAtUtc = createdAt,
-            Data = data.Object
+            Message = new Mock<IServiceBusMessageContainer>().Object,
+            CreatedAtUtc = DateTime.UtcNow,
+            Data = new Mock<IJobDataModel>().Object
         };
 
-        Assert.Same(message.Object, job.Message);
-        Assert.Equal(createdAt, job.CreatedAtUtc);
-        Assert.Same(data.Object, job.Data);
+        Assert.IsAssignableFrom<IJobModel>(job);
     }
 
     [Fact]
@@ -30,8 +24,8 @@ public class AzureJobModelTests
     {
         const string messageId = "service-bus-message-123";
         var receivedMessage = ServiceBusModelFactory.ServiceBusReceivedMessage(
-            body: BinaryData.FromString("body"),
-            messageId: messageId);
+            BinaryData.FromString("body"),
+            messageId);
         var message = new Mock<IServiceBusMessageContainer>();
         message.SetupGet(m => m.Message).Returns(receivedMessage);
 
@@ -49,7 +43,7 @@ public class AzureJobModelTests
     public void MessageId_ReturnsUnknownWhenInnerMessageIsNull()
     {
         var message = new Mock<IServiceBusMessageContainer>();
-        message.SetupGet(m => m.Message).Returns((ServiceBusReceivedMessage?)null);
+        message.SetupGet(m => m.Message).Returns((ServiceBusReceivedMessage?) null);
 
         var job = new AzureJobModel
         {
@@ -62,15 +56,21 @@ public class AzureJobModelTests
     }
 
     [Fact]
-    public void ImplementsIJobModel()
+    public void Properties_RoundTripAssignedValues()
     {
+        var message = new Mock<IServiceBusMessageContainer>();
+        var data = new Mock<IJobDataModel>();
+        var createdAt = DateTime.UtcNow.AddMinutes(-5);
+
         var job = new AzureJobModel
         {
-            Message = new Mock<IServiceBusMessageContainer>().Object,
-            CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object
+            Message = message.Object,
+            CreatedAtUtc = createdAt,
+            Data = data.Object
         };
 
-        Assert.IsAssignableFrom<IJobModel>(job);
+        Assert.Same(message.Object, job.Message);
+        Assert.Equal(createdAt, job.CreatedAtUtc);
+        Assert.Same(data.Object, job.Data);
     }
 }

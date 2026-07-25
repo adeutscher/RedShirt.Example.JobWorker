@@ -28,7 +28,8 @@ internal class BusReceiverClientFactory(
         if (!string.IsNullOrWhiteSpace(options.Value.ConnectionStringPath))
         {
             var connectionString =
-                await secretManagerService.GetSecretAsync(options.Value.ConnectionStringPath, cancellationToken: cancellationToken);
+                await secretManagerService.GetSecretAsync(options.Value.ConnectionStringPath,
+                    cancellationToken: cancellationToken);
             innerClient = new ServiceBusClient(connectionString);
         }
         else if (!string.IsNullOrWhiteSpace(options.Value.FullyQualifiedNamespace))

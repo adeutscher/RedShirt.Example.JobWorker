@@ -22,7 +22,8 @@ public class SsmSecretManagerService(IAmazonSimpleSystemsManagement ssm) : ISecr
         return response.Parameter.Value;
     }
 
-    public async Task<Dictionary<string, string>> GetSecretsAsync(List<string> keys, CancellationToken cancellationToken = default)
+    public async Task<Dictionary<string, string>> GetSecretsAsync(List<string> keys,
+        CancellationToken cancellationToken = default)
     {
         var result = new Dictionary<string, string>();
         var remaining = keys.Distinct().ToList();
