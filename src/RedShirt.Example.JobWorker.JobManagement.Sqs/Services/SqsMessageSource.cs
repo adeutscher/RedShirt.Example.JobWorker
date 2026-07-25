@@ -16,11 +16,21 @@ internal class SqsMessageSource(IAmazonSQS sqs, IOptions<SqsConfigurationModel> 
 
     private async Task<List<Message>> GetAsync(int batchSize, CancellationToken cancellationToken = default)
     {
+        /*
+         * Deliberately short-polling for messages.
+         * Long-polling could technically return more messages.
+         * But on the other hand, it could cause delays in processing the messages that we have actually received.
+         */
         var response = await sqs.ReceiveMessageAsync(new ReceiveMessageRequest
         {
             QueueUrl = options.Value.QueueUrl,
             MaxNumberOfMessages = batchSize,
-            VisibilityTimeout = options.Value.EffectiveVisibilityTimeoutSeconds
+            VisibilityTimeout = options.Value.EffectiveVisibilityTimeoutSeconds,
+            MessageSystemAttributeNames =
+            [
+                SqsConstants.AttributeApproximateFirstReceiveTimestamp,
+                SqsConstants.AttributeApproximateReceiveCount
+            ]
         }, cancellationToken);
 
         return response?.Messages ?? [];

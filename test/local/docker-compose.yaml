@@ -125,6 +125,8 @@ services:
       ## Job Management (SQS)
       JOB_SOURCE__SQS__QUEUE_URL: http://localhost:4566/000000000000/input
       JOB_SOURCE__SQS__VISIBILITY_TIMEOUT_SECONDS: 300
+      JOB_SOURCE__SQS__DLQ_ENABLED: false
+      JOB_SOURCE__SQS__MAXIMUM_RECEIVES: 3
       ## Job Management (Kinesis)
       USE_KINESIS: "${USE_KINESIS-0}"
       JOB_SOURCE__KINESIS__STREAM_ARN: arn:aws:kinesis:us-east-1:000000000000:stream/input

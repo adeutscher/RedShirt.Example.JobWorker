@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
 
-namespace RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests.Tests.Services;
 
 public class SqsMessageSourceTests
 {
@@ -56,7 +56,9 @@ public class SqsMessageSourceTests
         var options = new SqsConfigurationModel
         {
             QueueUrl = queueUrl,
-            VisibilityTimeoutSeconds = visibilityTimeout
+            VisibilityTimeoutSeconds = visibilityTimeout,
+            DlqEnabled = true,
+            MaximumReceives = 1
         };
 
         var messageSource = new SqsMessageSource(sqs.Object, Options.Create(options));
@@ -101,7 +103,9 @@ public class SqsMessageSourceTests
         var options = new SqsConfigurationModel
         {
             QueueUrl = queueUrl,
-            VisibilityTimeoutSeconds = visibilityTimeout
+            VisibilityTimeoutSeconds = visibilityTimeout,
+            DlqEnabled = true,
+            MaximumReceives = 1
         };
 
         var messageSource = new SqsMessageSource(sqs.Object, Options.Create(options));

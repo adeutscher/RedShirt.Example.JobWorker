@@ -8,7 +8,10 @@ internal class NoReactionFailureHandler : IJobFailureHandler
     public Task HandleFailureAsync(IJobModel jobModel, Exception exception,
         CancellationToken cancellationToken = default)
     {
-        // No action, leave error handling to DLQ settings on SQS queue
+        /*
+         * No action within this handler.
+         * If the DLQ is not considered to be configured for the SQS queue, then the job source's acknowledgement method will attempt to handle poison messages.
+         */
         return Task.CompletedTask;
     }
 }

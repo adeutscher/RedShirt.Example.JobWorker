@@ -1,6 +1,6 @@
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
 
-namespace RedShirt.Example.JobWorker.Implementation.JobManagement.Sqs.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests.Tests.Services;
 
 public class NoReactionFailureHandlerTests
 {

@@ -8,6 +8,7 @@ using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Models;
+using RedShirt.Example.JobWorker.JobManagement.Sqs.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
 
@@ -15,29 +16,29 @@ internal class SqsJobSource(
     IAmazonSQS sqs,
     ISqsMessageSource sqsMessageSource,
     ISourceMessageConverter converter,
+    ISqsPoisonMessagesHandler poisonMessagesHandler,
     ILogger<SqsJobSource> logger,
     IOptions<SqsConfigurationModel> options) : IJobSource
 {
-    /// <summary>
-    ///     Representation of SQS system's hard limit on maximum visibility timeout allowed for any message in the queue.
-    ///     This is a hard limit built into the job source, and we keep track of it in order to manage it as best as we can.
-    ///     I cannot stress enough that if you can foresee your individual job workloads exceeding 12 hours, then perhaps SQS
-    ///     is just the wrong choice of message broker for your use case.
-    /// </summary>
-    private const int MaximumInFlightTimeHours = 12;
-
-    public Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
-        if (!success)
+        if (message is not SqsJobModel sqsJobModel)
         {
-            return Task.CompletedTask;
+            // Message did not originate from this job source, ignore
+            return;
         }
 
-        return sqs.DeleteMessageAsync(new DeleteMessageRequest
+        if (!success)
+        {
+            await poisonMessagesHandler.AttemptPoisonMessageEnforcementAsync(sqsJobModel.RawMessage, cancellationToken);
+            return;
+        }
+
+        await sqs.DeleteMessageAsync(new DeleteMessageRequest
         {
             QueueUrl = options.Value.QueueUrl,
-            ReceiptHandle = message.MessageId
+            ReceiptHandle = sqsJobModel.RawMessage.ReceiptHandle
         }, cancellationToken);
     }
 
@@ -55,14 +56,27 @@ internal class SqsJobSource(
                 var @object = converter.Convert(message.Body);
                 if (@object is null)
                 {
+                    await poisonMessagesHandler.AttemptPoisonMessageEnforcementAsync(message, cancellationToken);
+
                     continue;
                 }
 
-                var data = new JobModel
+                var data = new SqsJobModel
                 {
-                    MessageId = message.ReceiptHandle,
-                    CreatedAtUtc = DateTime.UtcNow,
-                    Data = @object
+                    MessageId = message.MessageId,
+                    /*
+                     * Documentation and AI summaries for SQS emphasize that the message's 12-hour in-flight limit
+                     * is marked based off of the "*first* receive", as indicated by the ApproximateFirstReceiveUtc property.
+                     *
+                     * I think that this is weird and counter-productive.
+                     * So Amazon is saying that if a message is first received and then processes for a decent amount of time before failing and then falling back into the queue that subsequent receives have even less time?
+                     * If that is how SQS is designed then so be it, but it just feels like an unnecessary extra reason to consider an entirely different message broker than SQS for workloads that legitimately run long.
+                     * I don't know, I just wanted to get my grievances out somewhere.
+                     */
+                    CreatedAtUtc = SqsMessageAttributeRetriever.TryGetApproximateFirstReceiveUtc(message) ??
+                                   DateTime.UtcNow,
+                    Data = @object,
+                    RawMessage = message
                 };
 
                 items.Add(data);
@@ -70,6 +84,8 @@ internal class SqsJobSource(
             catch (Exception e)
             {
                 logger.LogWarning(e, "Error parsing SQS message: {MessageBody}", message.Body);
+
+                await poisonMessagesHandler.AttemptPoisonMessageEnforcementAsync(message, cancellationToken);
             }
         }
 
@@ -86,15 +102,21 @@ internal class SqsJobSource(
 
     public async Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
+        if (message is not SqsJobModel sqsJobModel)
+        {
+            // Message did not originate from this job source, ignore
+            return;
+        }
+
         var request = new ChangeMessageVisibilityRequest
         {
             QueueUrl = options.Value.QueueUrl,
-            ReceiptHandle = message.MessageId,
+            ReceiptHandle = sqsJobModel.RawMessage.ReceiptHandle,
             VisibilityTimeout = options.Value.EffectiveVisibilityTimeoutSeconds
         };
 
         if (DateTime.UtcNow + TimeSpan.FromSeconds(request.VisibilityTimeout.Value) >
-            message.CreatedAtUtc + TimeSpan.FromHours(MaximumInFlightTimeHours))
+            message.CreatedAtUtc + TimeSpan.FromSeconds(SqsConfigurationModel.MaximumVisibilityTimeoutAmountSeconds))
         {
             /*
              * If we're about to be no longer able to extend the in-flight time of this message, then delete the message.
@@ -102,7 +124,7 @@ internal class SqsJobSource(
              *
              * This is far from an ideal solution, but it keeps the queue from being overwhelmed by a long-running job multiple times.
              *
-             * If this 12-hour job isn't an outlier, then you should strongly consider using a job source other than SQS or breaking up the workload into smaller chunks.
+             * If this 12-hour job isn't an outlier, then you should strongly consider using a message broker other than SQS or breaking up the workload into smaller chunks.
              *
              * AWSSDK does not return an exception when we try to extend beyond the 12-hour limit, so we are forced to apply our own.
              */
@@ -110,7 +132,7 @@ internal class SqsJobSource(
             await sqs.DeleteMessageAsync(new DeleteMessageRequest
             {
                 QueueUrl = options.Value.QueueUrl,
-                ReceiptHandle = message.MessageId
+                ReceiptHandle = sqsJobModel.RawMessage.ReceiptHandle
             }, cancellationToken);
 
             throw new CanNoLongerHeartbeatException();
