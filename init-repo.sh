@@ -29,8 +29,8 @@ while read -r f; do
   rename_project "${f}"
 done <<< "$(find . -type d -name "${NAMESPACE_OLD}*")"
 
-mv "${NAMESPACE_OLD}.sln" "${NAMESPACE_NEW}.sln"
+mv "${NAMESPACE_OLD}.slnx" "${NAMESPACE_NEW}.slnx"
 
 while read -r f; do
   sed -i "s/${NAMESPACE_OLD}/${NAMESPACE_NEW}/g" "${f}"
-done <<< "$(find . -name "*.cs" -o -name '*.csproj' -o -name '*.md' -o -name '*.sln' -o -name '*.sh' -o -name 'Dockerfile')"
+done <<< "$(find . -name "*.cs" -o -name '*.csproj' -o -name '*.md' -o -name '*.slnx' -o -name '*.sh' -o -name 'Dockerfile')"
