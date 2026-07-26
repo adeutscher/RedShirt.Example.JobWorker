@@ -1,4 +1,4 @@
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]
-[assembly: InternalsVisibleTo("RedShirt.Example.JobWorker.JobManagement.AzureKeyVault.UnitTests")]
+[assembly: InternalsVisibleTo("RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.UnitTests")]
