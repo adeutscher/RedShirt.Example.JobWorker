@@ -17,6 +17,96 @@ Repo features:
     * [RabbitMQ](https://www.rabbitmq.com/)
 * Documentation for local testing
 
+# KAFKA BRANCH (WIP)
+
+Hello! If you're reading this section of the README, then one of the following is true:
+
+* You're in the `feat/kafka` branch. Welcome!
+* You're in the `develop` branch, but I was a goof and forgot to remove this message before I merged in. Oops.
+
+These are my end-of-first-session notes for my Kafka branch.
+
+Basic testing of Kafka is going alright. Happy-path execution is working locally. A few Cursor-isms to clean up (this was also an experiment in AI-assisted development), but nothing too terrible.
+
+However, there are problems around scaling that I haven't quite solved yet.
+
+The details:
+
+* Like Kinesis, Kafka operates as more of a message stream than a granular message broker.
+* Like a Kinesis, Kafka topics are partitioned (Kinesis calls them shards, Kafka calls them partitions)
+    * Since the focus of this section is Kafka, I will refer to the divisions of streams/topics as partitions from this
+      point onwards for the sake of consistency.
+* My emphasis on granular is in reference is significant:
+    * A message broker like SQS or Azure Service Bus can acknowledge an individual message from anywhere within a batch
+      of messages without batting an eye.
+    * A stream like Kafka or Kinesis operates by marking work as complete up to a point in the partition. Everything
+      before that point is considered to be processed.
+* Kinesis implementation notes:
+    * For Kinesis, this application lists the available partitions and cycles through them looking for messages.
+    * A retrieval of Kinesis messages will be all from one partition.
+        * As a consequence, when a batch of Kinesis messages finishes it is really easy to say "update the tracker on
+          this partition to the position (sequence number) of the latest message received in the batch"
+    * A distributed lock defined in this application ensures ownership of a partition while through partitions and
+      places a distributed lock on a given partition while it is processing.
+* Kafka is another beast:
+    * A Kafka consumer's normal Consume method doesn't have the option to specify a partition, so Consume returns
+      whichever message that the Kafka server deigns to dispense
+        * There is an equivalent option to list through partitions, but it's more explicitly under the 'admin' domain
+          within Kafka
+    * Ownership of a partition is assigned on a "rebalance" or "join", which is to say when:
+        * A worker has joined or left the group
+        * A worker is considered dead by the Kafka server (according to timeout/heartbeat/poll settings on the Kafka
+          server)
+        * A topic partition count changes
+    * Therefore, it's possible on a re-balance that a job-worker instance could lose access to a partition while a
+      message is "in-flight"-ish (to borrow phrasing from SQS) through no fault of that job-worker instance.
+        * If a job-worker instance's Kafka client attempts to Commit a message on a partition that it does not own, then
+          a KafkaException will be thrown.
+        * This would also mean more repeated work when the usurping job-worker instance received another instance of the
+          message from the previous bullet point
+    * The underlying `Confluent.Kafka` package does not have any built-in idempotency to avoid repeating work on
+      retries.
+        * Cursor advises that this needs some flavour of application logic (e.g. track processed message ids) and/or
+          transactions (`TransactionalId` + `SendOffsetsToTransaction`). It closed that statement to pretty bluntly say
+          that "there’s no config that auto-wraps a handler with idempotent processing."
+    * On top of all this new technical stuff that I'm learning with Kafka, there's a more familiar problem: Without the
+      ability to control which partition we pull from (without explicitly admin-y powers), we cannot currently pull from
+      more than 1 batch at a time
+        * Translation: It's the original Kinesis' session-handling problem, only it's even trickier. Might warrant
+          another warning around use with Loader-mode job loading.
+            * Instead of bringing down the entire house like the old Kinesis implementation, I think I'd just return
+              another flavour of `ReasonToWaitException` instead.
+
+So, to sum up that mountain of exposition: Kafka messages are at a higher risk of replays than other systems
+
+So, to think around a solution:
+
+* Mitigating this would need some sort of idempotency tracking in the Core job-handling framework
+    * A prerequisite for this would be a follow-up to make sure that we're using some nice and consistent message IDs
+      from 8 job source implementations (including Kafka)
+        * I've definitely been a bit loosey-goosey with my use of message IDs in the past (e.g. until recently the SQS "
+          MessageId" was in fact the receipt handle)
+    * This idempotency system would also need to use a distributed lock system to avoid parallel execution.
+        * Not the end of the world on that front, we'd just need to move the Redis-based locks in Kinesis to be in a
+          more general location
+    * This idempotency system would ALSO need a cache system to track recent job completions
+        * And THAT requirement would imply that a system that picks up a previously-lost message also need some sort of
+          separate Monitor thread on which in-flight messages are periodically checked against the cache/distributed
+          lock to see if the original instance finished
+            * I have some experience with this from another project, but:
+                * Even if I still had access to the source code from that other project, I wouldn't be allowed to use it
+                  as a direct reference
+                * I didn't get a chance to fully test the other project's version of this before I lost access to the
+                  source code
+    * To make the implementation/use of the idempotency system more usable, I also need firm ground to place it on.
+        * Translation: I should revisit my implementation of Batch mode to have better separation of roles (`JobManager`
+          is largely unchanged from the original version of this template, and it has 3+ responsibilities that are all
+          separate classes in Loader mode).
+
+So, yeah. Before implementing Kafka in a way that I'd feel comfortable with, I would need to an idempotency system that
+I feel comfortable with. Before the idempotency system, I should also revisit the implementation of Batch mode message
+processing.
+
 # Configuration
 
 For configuration examples, see the `worker` section of the `test/local/docker-compose.yaml` file.

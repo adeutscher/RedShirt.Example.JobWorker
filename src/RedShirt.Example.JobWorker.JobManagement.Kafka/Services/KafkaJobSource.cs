@@ -45,7 +45,7 @@ internal class KafkaJobSource(
             if (trackerSession.IsComplete)
             {
                 var consumer = consumerSource.GetConsumer();
-                consumer.Commit(trackerSession.LastMessage);
+                consumer.Commit(trackerSession.Messages);
                 Sessions.Remove(trackerSession);
             }
         }
@@ -107,7 +107,7 @@ internal class KafkaJobSource(
         if (skippedMessages.Count > 0 && skippedMessages.Count == messageSourceResponse.Messages.Count)
         {
             // Skipped every single message (ouch)
-            consumerSource.GetConsumer().Commit(messageSourceResponse.LastMessage);
+            consumerSource.GetConsumer().Commit(skippedMessages);
             return new JobSourceResponse
             {
                 Items = []

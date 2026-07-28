@@ -17,6 +17,7 @@ internal class KafkaConsumerFactory(IOptions<KafkaConsumerFactory.ConfigurationM
         {
             BootstrapServers = options.Value.BootstrapServers,
             GroupId = options.Value.GroupId,
+            // KafkaJobSource is responsible for performing commits
             EnableAutoCommit = false,
             AutoOffsetReset = AutoOffsetReset.Earliest
         };

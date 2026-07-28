@@ -4,7 +4,6 @@ namespace RedShirt.Example.JobWorker.JobManagement.Kafka.Models;
 
 internal interface IKafkaMessageContainer
 {
-    public ConsumeResult<string, string>? Result { get; init; }
     string? Key { get; }
     string? Value { get; }
     string Topic { get; }
