@@ -73,6 +73,8 @@ public static class ServiceCollectionExtensions
         else if (int.TryParse(useKinesisRaw, out var useKinesis) && useKinesis == 1)
         {
             services = services
+                .AddSecretManagerCore(configuration)
+                .AddSecretManagerSsm(configuration)
                 .AddKinesisJobManagement(configuration);
         }
         else

@@ -9,8 +9,10 @@ public class RedisLockerTests
     public async Task LockerTest_False()
     {
         var db = new Mock<IDatabase>();
-        var source = new Mock<IRedisConnectionSource>();
-        source.Setup(s => s.GetDatabase()).Returns(db.Object);
+        var source = new Mock<IRedisConnectionCacheService>();
+        source
+            .Setup(s => s.GetDatabaseAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync(db.Object);
 
         var locker = new RedisLocker(source.Object);
         var @lock = await locker.GetLockAsync("abc", TestContext.Current.CancellationToken);

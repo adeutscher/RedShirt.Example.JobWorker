@@ -8,11 +8,12 @@ internal interface IShortTermIteratorStorage
     Task SetAsync(string key, string? value, CancellationToken cancellationToken = default);
 }
 
-internal class RedisShortTermIteratorStorage(IRedisConnectionSource redisConnectionSource) : IShortTermIteratorStorage
+internal class RedisShortTermIteratorStorage(IRedisConnectionCacheService redisConnectionCacheService)
+    : IShortTermIteratorStorage
 {
     public async Task<string?> GetAsync(string key, CancellationToken cancellationToken = default)
     {
-        var redis = redisConnectionSource.GetDatabase();
+        var redis = await redisConnectionCacheService.GetDatabaseAsync(cancellationToken);
 
         var value = await redis.StringGetAsync(KeyHelper.GetCheckpointKey(key));
         // ReSharper disable once ConvertIfStatementToReturnStatement
@@ -24,16 +25,17 @@ internal class RedisShortTermIteratorStorage(IRedisConnectionSource redisConnect
         return value.ToString();
     }
 
-    public Task SetAsync(string key, string? value, CancellationToken cancellationToken = default)
+    public async Task SetAsync(string key, string? value, CancellationToken cancellationToken = default)
     {
-        var db = redisConnectionSource.GetDatabase();
-        // ReSharper disable once ConvertIfStatementToReturnStatement
+        var db = await redisConnectionCacheService.GetDatabaseAsync(cancellationToken);
+
         if (string.IsNullOrEmpty(value))
         {
-            return db.StringGetDeleteAsync(KeyHelper.GetCheckpointKey(key));
+            await db.StringGetDeleteAsync(KeyHelper.GetCheckpointKey(key));
+            return;
         }
 
-        return db.StringSetAsync(KeyHelper.GetCheckpointKey(key), value,
+        await db.StringSetAsync(KeyHelper.GetCheckpointKey(key), value,
             TimeSpan.FromMinutes(5) - TimeSpan.FromSeconds(5));
     }
 }

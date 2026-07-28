@@ -4,11 +4,11 @@ using RedShirt.Example.JobWorker.JobManagement.Kinesis.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 
-internal class RedisLocker(IRedisConnectionSource redisConnectionSource) : IAbstractedLocker
+internal class RedisLocker(IRedisConnectionCacheService redisConnectionCacheService) : IAbstractedLocker
 {
     public async Task<IAbstractedLock> GetLockAsync(string lockName, CancellationToken cancellationToken = default)
     {
-        var redis = redisConnectionSource.GetDatabase();
+        var redis = await redisConnectionCacheService.GetDatabaseAsync(cancellationToken);
         var redisLock = new RedisDistributedLock(KeyHelper.GetLockKey(lockName), redis);
         return new DistributedLock(await redisLock.TryAcquireAsync(cancellationToken: cancellationToken));
     }

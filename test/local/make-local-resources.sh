@@ -15,6 +15,7 @@ awslocal dynamodb create-table --table-name checkpoint \
         --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
 awslocal dynamodb update-time-to-live --table-name checkpoint \
                 --time-to-live-specification Enabled=true,AttributeName=ExpirationTime
+awslocal ssm put-parameter --overwrite --type String --name /job-source/kinesis/redis --value "redis:6379"
 
 # RabbitMQ
 

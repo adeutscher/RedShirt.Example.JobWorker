@@ -1,0 +1,44 @@
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Factories;
+using StackExchange.Redis;
+
+namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
+
+/// <summary>
+///     Caching layer to keep multiple invokers/invocations using the same Redis connection.
+/// </summary>
+internal interface IRedisConnectionCacheService
+{
+    Task<IDatabase> GetDatabaseAsync(CancellationToken cancellationToken = default);
+}
+
+internal class RedisConnectionCacheService(IRedisConnectionFactory redisConnectionFactory)
+    : IRedisConnectionCacheService
+{
+    private readonly SemaphoreSlim _lock = new(1, 1);
+    private volatile IConnectionMultiplexer? _connectionMultiplexer;
+
+    public async Task<IDatabase> GetDatabaseAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var existing = _connectionMultiplexer;
+        if (existing is not null)
+        {
+            return existing.GetDatabase();
+        }
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            // Resharper was complaining about atomicity, but it's a wee bit moot when we're doing this in a semaphore lock. 
+            // ReSharper disable once NonAtomicCompoundOperator
+            _connectionMultiplexer ??= await redisConnectionFactory.GetConnectionAsync(cancellationToken);
+
+            return _connectionMultiplexer.GetDatabase();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+}
