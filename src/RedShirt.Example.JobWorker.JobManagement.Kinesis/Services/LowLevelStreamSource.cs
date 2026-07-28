@@ -66,6 +66,7 @@ internal class LowLevelStreamSource(
                 var @object = converter.Convert(body);
                 if (@object is null)
                 {
+                    // TODO: At the moment, nulls during the parsing results in the message being ignored. Putting a pin in this issue until later, as it suggests a need for a dedicated revisit of handling bad messages for streams. Not great, but currently consistent with Kafka 
                     continue;
                 }
 
@@ -82,6 +83,7 @@ internal class LowLevelStreamSource(
             catch (Exception e)
             {
                 logger.LogWarning(e, "Error parsing Kinesis message: {MessageBody}", body);
+                // TODO: At the moment, exceptions during the parsing results in the message being ignored. Putting a pin in this issue until later, as it suggests a need for a dedicated revisit of handling bad messages for streams. Not great, but currently consistent with Kafka
             }
         }
 

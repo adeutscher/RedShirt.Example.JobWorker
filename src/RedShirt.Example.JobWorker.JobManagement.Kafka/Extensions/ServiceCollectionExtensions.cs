@@ -13,7 +13,6 @@ public static class ServiceCollectionExtensions
     {
         return services
             .AddSingleton<IJobSource, KafkaJobSource>()
-            .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>()
             .Configure<KafkaConsumerFactory.ConfigurationModel>(configuration.GetSection("JobSource:Kafka"))
             .AddSingleton<IKafkaConsumerFactory, KafkaConsumerFactory>()
             .AddSingleton<IKafkaConsumerSource, KafkaConsumerSource>()

@@ -9,6 +9,7 @@ using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Extensions;
@@ -82,7 +83,8 @@ public static class ServiceCollectionExtensions
         else if (int.TryParse(useKafkaRaw, out var useKafka) && useKafka == 1)
         {
             services = services
-                .AddKafkaJobManagement(configuration);
+                .AddKafkaJobManagement(configuration)
+                .AddKafkaSqsFailureHandling(configuration);
         }
         else
         {

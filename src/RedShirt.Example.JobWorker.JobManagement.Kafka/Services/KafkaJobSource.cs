@@ -4,7 +4,6 @@ using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Models;
-using RedShirt.Example.JobWorker.JobManagement.Kafka.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.Services;
 
@@ -46,7 +45,7 @@ internal class KafkaJobSource(
             if (trackerSession.IsComplete)
             {
                 var consumer = consumerSource.GetConsumer();
-                consumer.Commit(trackerSession.Messages);
+                consumer.Commit(trackerSession.LastMessage);
                 Sessions.Remove(trackerSession);
             }
         }
@@ -58,12 +57,12 @@ internal class KafkaJobSource(
 
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
-        var messages = await kafkaMessageSource.GetMessagesAsync(batchSize, cancellationToken);
+        var messageSourceResponse = await kafkaMessageSource.GetMessagesAsync(batchSize, cancellationToken);
         var items = new List<IJobModel>();
         var sessionMessages = new List<IKafkaMessageContainer>();
         var skippedMessages = new List<IKafkaMessageContainer>();
 
-        foreach (var receivedMessage in messages)
+        foreach (var receivedMessage in messageSourceResponse.Messages)
         {
             var messageBody = receivedMessage.Value;
 
@@ -83,7 +82,7 @@ internal class KafkaJobSource(
                 {
                     logger.LogWarning("Kafka message conversion returned null for {MessageId}; skipping",
                         receivedMessage.MessageId);
-                    skippedMessages.Add(receivedMessage);
+                    // TODO: At the moment, null results during the parsing results in the message being ignored. Putting a pin in this issue until later, as it suggests a need for a dedicated revisit of handling bad messages for streams. Not great, but consistent with Kinesis
                     continue;
                 }
 
@@ -100,21 +99,28 @@ internal class KafkaJobSource(
             catch (Exception e)
             {
                 logger.LogWarning(e, "Error parsing Kafka message: {MessageBody}", messageBody);
+                // TODO: At the moment, exceptions during the parsing results in the message being ignored. Putting a pin in this issue until later, as it suggests a need for a dedicated revisit of handling bad messages for streams. Not great, but consistent with Kinesis
                 skippedMessages.Add(receivedMessage);
             }
         }
 
-        if (skippedMessages.Count > 0)
+        if (skippedMessages.Count > 0 && skippedMessages.Count == messageSourceResponse.Messages.Count)
         {
-            consumerSource.GetConsumer().Commit(skippedMessages);
+            // Skipped every single message (ouch)
+            consumerSource.GetConsumer().Commit(messageSourceResponse.LastMessage);
+            return new JobSourceResponse
+            {
+                Items = []
+            };
         }
 
-        if (sessionMessages.Count > 0)
+        // ReSharper disable once InvertIf
+        if (messageSourceResponse.LastMessage is not null && sessionMessages.Count > 0)
         {
             await _sessionsSemaphore.WaitAsync(cancellationToken);
             try
             {
-                Sessions.Add(new KafkaTrackerSession(sessionMessages));
+                Sessions.Add(new KafkaTrackerSession(sessionMessages, messageSourceResponse.LastMessage));
             }
             finally
             {
@@ -133,7 +139,7 @@ internal class KafkaJobSource(
     public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
         /*
-         * Not necessary. Consumer group heartbeats are managed by librdkafka for the IConsumer lifetime.
+         * Not necessary. Consumer group heartbeats are managed by underlying Kafka library for the IConsumer lifetime.
          */
         return Task.CompletedTask;
     }

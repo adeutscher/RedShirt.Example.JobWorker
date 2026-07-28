@@ -25,6 +25,7 @@
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.AzureQueue\RedShirt.Example.JobWorker.JobManagement.AzureQueue.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.AzureServiceBus\RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Kafka\RedShirt.Example.JobWorker.JobManagement.Kafka.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs\RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Kinesis\RedShirt.Example.JobWorker.JobManagement.Kinesis.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.Nats\RedShirt.Example.JobWorker.JobManagement.Nats.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.JobManagement.RabbitMq\RedShirt.Example.JobWorker.JobManagement.RabbitMq.csproj"/>
