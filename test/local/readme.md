@@ -8,7 +8,7 @@ The scripts below assume that certain Python modules are installed in your envir
 Run the following to install the assumed modules:
 
 ```
-pip install --user boto3 awscli awslocal stomp.py azure.servicebus azure.identity azure.keyvault
+pip install --user boto3 awscli awslocal stomp.py azure.servicebus azure.identity azure.keyvault kafka-python
 ```
 
 ## SQS
@@ -38,6 +38,7 @@ docker compose up -d ministack
 ```
 export USE_ACTIVEMQ=0
 export USE_KINESIS=0
+export USE_KAFKA=0
 export USE_AZURE_QUEUE_STORAGE=0
 export USE_AZURE_SERVICE_BUS=0
 export USE_NATS=0
@@ -77,6 +78,47 @@ To initialize Kinesis and queue sample messages:
     ```
     export USE_ACTIVEMQ=0
     export USE_KINESIS=1
+    export USE_KAFKA=0
+    export USE_AZURE_QUEUE_STORAGE=0
+    export USE_AZURE_SERVICE_BUS=0
+    export USE_NATS=0
+    export USE_RABBITMQ=0
+    ```
+
+5. Bring up the worker:
+
+    ```
+    docker compose up worker
+    ```
+
+## Kafka
+
+To initialize Kafka and queue sample messages:
+
+1. Bring up ministack and Kafka:
+
+    ```
+    docker compose up -d ministack kafka
+    ```
+
+2. Run the `make-local-resources.sh` script (creates the SQS queue used for Kafka job failures):
+
+    ```
+    ./make-local-resources.sh
+    ```
+
+3. Use the `put-kafka-job.py` script (requires the `kafka-python` module) to publish a message to the `jobs` topic. Specify the number of seconds the worker should sleep for in the first argument:
+
+    ```
+    ./put-kafka-job.py 12
+    ```
+
+4. Before starting the worker, make sure that `USE_KAFKA` is set to `1` and that other `USE_` environment variables are not set to `1`:
+
+    ```
+    export USE_KAFKA=1
+    export USE_ACTIVEMQ=0
+    export USE_KINESIS=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
@@ -132,6 +174,7 @@ To initialize RabbitMQ and queue messages:
     ```
     export USE_RABBITMQ=0
     export USE_KINESIS=0
+    export USE_KAFKA=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
@@ -205,6 +248,7 @@ To initialize RabbitMQ and queue messages:
     ```
     export USE_ACTIVEMQ=1
     export USE_KINESIS=0
+    export USE_KAFKA=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
@@ -266,6 +310,7 @@ To install the `nats` command:
     ```
     export USE_NATS=1
     export USE_ACTIVEMQ=0
+    export USE_KAFKA=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
     export USE_KINESIS=0
@@ -342,6 +387,7 @@ VSCode automatically knows how to point to your local `azurite` server after the
     export USE_AZURE_QUEUE_STORAGE=1
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
+    export USE_KAFKA=0
     export USE_ACTIVEMQ=0
     export USE_KINESIS=0
     export USE_RABBITMQ=0
@@ -419,6 +465,7 @@ pip install azure.servicebus azure.identity azure.keyvault
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=1
     export USE_NATS=0
+    export USE_KAFKA=0
     export USE_ACTIVEMQ=0
     export USE_KINESIS=0
     export USE_RABBITMQ=0
