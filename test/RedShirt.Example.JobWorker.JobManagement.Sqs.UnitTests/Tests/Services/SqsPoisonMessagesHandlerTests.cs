@@ -36,7 +36,7 @@ public class SqsPoisonMessagesHandlerTests
         {
             QueueUrl = queueUrl,
             VisibilityTimeoutSeconds = 30,
-            DlqEnabled = true,
+            DlqNotEnabled = false,
             MaximumReceives = 1
         });
 
@@ -67,7 +67,7 @@ public class SqsPoisonMessagesHandlerTests
         {
             QueueUrl = queueUrl,
             VisibilityTimeoutSeconds = 30,
-            DlqEnabled = false,
+            DlqNotEnabled = true,
             MaximumReceives = maximumReceives
         });
 
@@ -96,7 +96,7 @@ public class SqsPoisonMessagesHandlerTests
         {
             QueueUrl = Guid.NewGuid().ToString(),
             VisibilityTimeoutSeconds = 30,
-            DlqEnabled = false,
+            DlqNotEnabled = true,
             MaximumReceives = 1
         });
 
@@ -120,7 +120,7 @@ public class SqsPoisonMessagesHandlerTests
         {
             QueueUrl = Guid.NewGuid().ToString(),
             VisibilityTimeoutSeconds = 30,
-            DlqEnabled = false,
+            DlqNotEnabled = true,
             MaximumReceives = 1
         });
 
@@ -150,7 +150,7 @@ public class SqsPoisonMessagesHandlerTests
         {
             QueueUrl = Guid.NewGuid().ToString(),
             VisibilityTimeoutSeconds = 30,
-            DlqEnabled = false,
+            DlqNotEnabled = true,
             MaximumReceives = maximumReceives
         });
 

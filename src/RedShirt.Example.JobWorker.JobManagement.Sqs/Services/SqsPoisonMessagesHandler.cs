@@ -18,7 +18,7 @@ internal class SqsPoisonMessagesHandler(IAmazonSQS sqs, IOptions<SqsConfiguratio
     public async Task AttemptPoisonMessageEnforcementAsync(Message message,
         CancellationToken cancellationToken = default)
     {
-        if (options.Value.DlqEnabled)
+        if (!options.Value.DlqNotEnabled)
         {
             // If the DLQ is enabled, then leave poison message handling to the configuration of the SQS queue
             return;

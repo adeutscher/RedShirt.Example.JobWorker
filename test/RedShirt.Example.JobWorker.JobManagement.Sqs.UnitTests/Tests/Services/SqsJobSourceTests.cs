@@ -15,13 +15,13 @@ namespace RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests.Tests.Services;
 public class SqsJobSourceTests
 {
     private static SqsConfigurationModel CreateConfig(string? queueUrl = null, int visibilityTimeoutSeconds = 0,
-        bool dlqEnabled = true, int maximumReceives = 1)
+        bool dlqNotEnabled = false, int maximumReceives = 1)
     {
         return new SqsConfigurationModel
         {
             QueueUrl = queueUrl ?? Guid.NewGuid().ToString(),
             VisibilityTimeoutSeconds = visibilityTimeoutSeconds,
-            DlqEnabled = dlqEnabled,
+            DlqNotEnabled = dlqNotEnabled,
             MaximumReceives = maximumReceives
         };
     }
