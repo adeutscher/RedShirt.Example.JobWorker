@@ -39,10 +39,16 @@ internal class RabbitMqJobSource : IJobSource
     public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
+        if (message is not RabbitMqJobModel rabbitMqJobModel)
+        {
+            // Message did not originate from RabbitMQ, return
+            return;
+        }
+
         var channel = await _channel.Value;
         try
         {
-            await channel.BasicAckAsync(ulong.Parse(message.MessageId), false, cancellationToken);
+            await channel.BasicAckAsync(rabbitMqJobModel.DeliveryTag, false, cancellationToken);
         }
         catch (ObjectDisposedException)
         {
@@ -102,9 +108,11 @@ internal class RabbitMqJobSource : IJobSource
             }
 
             // Got a message, add it to return set.
-            getJobsResponseItems.Add(new JobModel
+            getJobsResponseItems.Add(new RabbitMqJobModel
             {
-                MessageId = result.DeliveryTag.ToString(),
+                MessageId = result.BasicProperties.MessageId ?? "UNKNOWN",
+                IdempotencyId = result.BasicProperties.MessageId,
+                DeliveryTag = result.DeliveryTag,
                 CreatedAtUtc = DateTime.UtcNow,
                 Data = convertedMessage
             });
@@ -123,6 +131,7 @@ internal class RabbitMqJobSource : IJobSource
         /*
          * Not necessary. Heartbeats are managed by the persistence of the IConnection object.
          * See: https://www.rabbitmq.com/client-libraries/dotnet-api-guide
+         * Since it is not necessary to do any thinking, then it is also not necessary to check that the provided IJobModel is even a RabbitMqJobModel.
          */
         return Task.CompletedTask;
     }

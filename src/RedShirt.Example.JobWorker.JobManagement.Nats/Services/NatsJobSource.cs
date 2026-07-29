@@ -84,7 +84,7 @@ internal class NatsJobSource(
             getJobsResponseItems.Add(new JobModel
             {
                 Message = msg,
-                MessageId = msg.Subject,
+                MessageId = msg.Metadata?.Sequence.Stream.ToString() ?? "UNKNOWN",
                 CreatedAtUtc = DateTime.UtcNow,
                 Data = convertedMessage
             });

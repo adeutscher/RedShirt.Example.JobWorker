@@ -159,9 +159,17 @@ public class NatsJobSourceTests
 
         // Setup Job Returns
 
-        var messageId = Guid.NewGuid().ToString();
+        var streamSequence = (ulong) Random.Shared.NextInt64(1, long.MaxValue);
+        var messageId = streamSequence.ToString();
         var mockMessage = new Mock<INatsJSMsg<NatsMemoryOwner<byte>>>();
-        mockMessage.Setup(m => m.Subject).Returns(messageId);
+        mockMessage.Setup(m => m.Metadata).Returns(new NatsJSMsgMetadata(
+            new NatsJSSequencePair(streamSequence, 1),
+            1,
+            0,
+            DateTimeOffset.UtcNow,
+            queueName,
+            "c1",
+            string.Empty));
 
         var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>> {mockMessage.Object};
 
@@ -245,9 +253,7 @@ public class NatsJobSourceTests
 
         // Setup Job Returns
 
-        var messageId = Guid.NewGuid().ToString();
         var mockMessage = new Mock<INatsJSMsg<NatsMemoryOwner<byte>>>();
-        mockMessage.Setup(m => m.Subject).Returns(messageId);
 
         var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>> {mockMessage.Object};
 
@@ -294,6 +300,66 @@ public class NatsJobSourceTests
     }
 
     /// <summary>
+    ///     MessageId falls back to UNKNOWN when JetStream metadata is missing.
+    /// </summary>
+    [Fact]
+    public async Task Test_GetJobs_GotJob_MessageIdUnknownWhenMetadataMissing()
+    {
+        var queueName = Guid.NewGuid().ToString();
+
+        var configuration = new NatsJobSource.ConfigurationModel
+        {
+            StreamName = queueName
+        };
+
+        var mockBodyRetriever = new Mock<IBodyRetriever>(MockBehavior.Strict);
+
+        var mockGetter = new Mock<IFetchNoWaitGetter>();
+
+        var mockConsumer = new Mock<INatsJSConsumer>(MockBehavior.Strict);
+
+        var mockContext = new Mock<INatsJSContext>(MockBehavior.Strict);
+        mockContext
+            .Setup(c => c.CreateOrUpdateConsumerAsync(It.IsAny<string>(), It.IsAny<ConsumerConfig>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockConsumer.Object);
+
+        var mockContextFactory = new Mock<INatsJetStreamContextFactory>(MockBehavior.Strict);
+        mockContextFactory
+            .Setup(f => f.CreateNatsJetStreamContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockContext.Object);
+
+        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
+
+        var mockMessage = new Mock<INatsJSMsg<NatsMemoryOwner<byte>>>();
+        mockMessage.Setup(m => m.Metadata).Returns((NatsJSMsgMetadata?) null);
+
+        var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>> {mockMessage.Object};
+
+        var jobDataModel = new Mock<IJobDataModel>();
+
+        mockBodyRetriever.Setup(br => br.GetMessageBody(mockMessage.Object))
+            .Returns("{___}");
+
+        converter.Setup(c => c.Convert("{___}"))
+            .Returns(jobDataModel.Object);
+
+        mockGetter
+            .Setup(c => c.FetchNoWaitAsync(mockConsumer.Object, It.IsAny<NatsJSFetchOpts>(),
+                TestContext.Current.CancellationToken))
+            .Returns(() => mockData.ToAsyncEnumerable());
+
+        var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object, mockBodyRetriever.Object,
+            converter.Object, new NullLogger<NatsJobSource>(), Options.Create(configuration));
+
+        var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
+
+        var returnedJobItem = Assert.Single(jobResponse.Items);
+        Assert.Equal("UNKNOWN", returnedJobItem.MessageId);
+        Assert.Same(jobDataModel.Object, returnedJobItem.Data);
+    }
+
+    /// <summary>
     ///     Test of getting multiple jobs
     /// </summary>
     [Theory]
@@ -334,10 +400,18 @@ public class NatsJobSourceTests
 
         for (var i = 0; i < expectedBatchSize; i++)
         {
-            var messageId = Guid.NewGuid().ToString();
+            var streamSequence = (ulong) (i + 1);
+            var messageId = streamSequence.ToString();
             messageIds.Add(messageId);
             var mockMessage = new Mock<INatsJSMsg<NatsMemoryOwner<byte>>>();
-            mockMessage.Setup(m => m.Subject).Returns(messageId);
+            mockMessage.Setup(m => m.Metadata).Returns(new NatsJSMsgMetadata(
+                new NatsJSSequencePair(streamSequence, (ulong) (i + 1)),
+                1,
+                0,
+                DateTimeOffset.UtcNow,
+                queueName,
+                "c1",
+                string.Empty));
             mockData.Add(mockMessage.Object);
 
             var jobDataModel = new Mock<IJobDataModel>();

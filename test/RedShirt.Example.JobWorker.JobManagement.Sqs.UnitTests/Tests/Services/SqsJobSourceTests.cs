@@ -351,6 +351,7 @@ public class SqsJobSourceTests
     private class OutsideContextJobModel : IJobModel
     {
         public required string MessageId { get; init; }
+        public string? IdempotencyId => MessageId;
         public required DateTime CreatedAtUtc { get; init; }
         public required IJobDataModel Data { get; init; }
     }
