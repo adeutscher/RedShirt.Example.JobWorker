@@ -36,8 +36,7 @@ public static class ServiceCollectionExtensions
 
         /*
          * Template note:
-         *      When adapting this template you'll want to pick one message source
-         *      and prune away the other ones.
+         *      When adapting this template, you will want to pick one message source and prune away the rest.
          */
         var useKinesisRaw = configuration.GetValue("UseKinesis", "0");
         var useActiveMqRaw = configuration.GetValue("UseActiveMq", "0");
