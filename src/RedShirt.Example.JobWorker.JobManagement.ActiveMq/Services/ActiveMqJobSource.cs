@@ -149,12 +149,12 @@ internal class ActiveMqJobSource : IJobSource
         };
     }
 
-    public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public Task<bool> HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
         /*
          * Not necessary. Heartbeats are managed by the persistence of the IMessage object.
          */
-        return Task.CompletedTask;
+        return Task.FromResult(true);
     }
 
     public sealed class ConfigurationModel

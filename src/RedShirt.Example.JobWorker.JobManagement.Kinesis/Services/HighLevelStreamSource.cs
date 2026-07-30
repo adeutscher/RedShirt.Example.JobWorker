@@ -155,10 +155,10 @@ internal class HighLevelStreamSource(
         };
     }
 
-    public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public Task<bool> HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
         // This source does not do heartbeats
-        return Task.CompletedTask;
+        return Task.FromResult(true);
     }
 
     /// <summary>

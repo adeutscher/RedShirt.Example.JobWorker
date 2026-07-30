@@ -400,7 +400,8 @@ public class HighLevelStreamSourceTests
     {
         var streamSource = CreateStreamSource();
 
-        await streamSource.HeartbeatAsync(CreateKinesisJob("shard-a"), TestContext.Current.CancellationToken);
+        Assert.True(await streamSource.HeartbeatAsync(CreateKinesisJob("shard-a"),
+            TestContext.Current.CancellationToken));
 
         Assert.Empty(streamSource.Sessions);
     }

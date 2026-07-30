@@ -102,12 +102,12 @@ internal class SqsJobSource(
     public int RecommendedHeartbeatIntervalSeconds =>
         (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
-    public async Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public async Task<bool> HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
         if (message is not SqsJobModel sqsJobModel)
         {
             // Message did not originate from this job source, ignore
-            return;
+            return false;
         }
 
         var request = new ChangeMessageVisibilityRequest
@@ -141,5 +141,6 @@ internal class SqsJobSource(
         }
 
         await sqs.ChangeMessageVisibilityAsync(request, cancellationToken);
+        return true;
     }
 }

@@ -131,15 +131,16 @@ internal class AzureServiceBusJobSource(
     public int RecommendedHeartbeatIntervalSeconds =>
         (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
-    public async Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public async Task<bool> HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
         if (message is not AzureJobModel messageAsAzureJobModel)
             // For consideration: Throw some kind of exception?
         {
-            return;
+            return false;
         }
 
         var client = await clientSource.GetQueueClientAsync(cancellationToken);
         await client.RenewMessageLockAsync(messageAsAzureJobModel.Message, cancellationToken);
+        return true;
     }
 }

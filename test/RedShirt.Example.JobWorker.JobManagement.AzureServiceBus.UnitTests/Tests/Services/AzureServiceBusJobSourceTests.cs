@@ -484,7 +484,7 @@ public class AzureServiceBusJobSourceTests
             Data = null!
         };
 
-        await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken);
+        Assert.True(await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken));
 
         client.Verify(
             c => c.RenewMessageLockAsync(It.IsAny<IServiceBusMessageContainer>(),
@@ -515,7 +515,7 @@ public class AzureServiceBusJobSourceTests
 
         var job = new Mock<IJobModel>();
 
-        await jobSource.HeartbeatAsync(job.Object, TestContext.Current.CancellationToken);
+        Assert.False(await jobSource.HeartbeatAsync(job.Object, TestContext.Current.CancellationToken));
 
         client.Verify(
             c => c.RenewMessageLockAsync(It.IsAny<IServiceBusMessageContainer>(),

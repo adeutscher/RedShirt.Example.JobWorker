@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Polly;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
@@ -38,6 +39,17 @@ internal class Maintainer(
     {
         TimeSpan? timeToWait = null;
 
+        var retryPolicy = Policy
+            .Handle<Exception>(e => e is not CanNoLongerHeartbeatException)
+            .RetryAsync(Globals.HeartbeatRetryCount,
+                async (e, instanceCount) =>
+                {
+                    // Unfortunately, cannot have a common policy declaration AND our cancellationToken.
+                    // I chose to have the common policy declaration.
+                    await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)), cancellationToken);
+                }
+            );
+
         foreach (var job in jobs)
         {
             // Make sure that we are currently the only thing manipulating this job item.
@@ -71,11 +83,21 @@ internal class Maintainer(
                 logger.LogTrace("Sending heartbeat for message: {MessageId}", job.JobModel.MessageId);
                 try
                 {
-                    await jobSource.HeartbeatAsync(job.JobModel, cancellationToken);
-                    job.LastHeartbeatTime = DateTime.UtcNow;
+                    if (await retryPolicy.ExecuteAsync(() => jobSource.HeartbeatAsync(job.JobModel, cancellationToken)))
+                    {
+                        job.LastHeartbeatTime = DateTime.UtcNow;
+                    }
+                    else
+                    {
+                        logger.LogWarning("Heartbeat could not be completed for message: {MessageId}",
+                            job.JobModel.MessageId);
+                        // Assume that if heartbeating failed this time around, then the message will be REALLY expired by the time the next loop iteration comes around.
+                        await job.SetIfFlightTimeCanBeExtendedAsync(false, cancellationToken);
+                    }
                 }
                 catch (CanNoLongerHeartbeatException e)
                 {
+                    // Different log message.
                     logger.LogWarning(e, "Can no longer heartbeat message: {MessageId}", job.JobModel.MessageId);
                     await job.SetIfFlightTimeCanBeExtendedAsync(false, cancellationToken);
                 }

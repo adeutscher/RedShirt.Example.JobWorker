@@ -546,10 +546,7 @@ public class RabbitMqJobSourceTests
             null!, new NullLogger<RabbitMqJobSource>());
 
         // Run. Source should be executing an empty block with no complains about all the nulls that it's been given.
-        await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.True(true); // Satisfy Sonar requirements
+        Assert.True(await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken));
     }
 
     public sealed class LandmineException : Exception;

@@ -265,7 +265,7 @@ public class SqsJobSourceTests
             Data = null!
         };
 
-        await source.HeartbeatAsync(job, TestContext.Current.CancellationToken);
+        Assert.True(await source.HeartbeatAsync(job, TestContext.Current.CancellationToken));
 
         sqs.Verify(
             s => s.ChangeMessageVisibilityAsync(It.IsAny<ChangeMessageVisibilityRequest>(),
@@ -347,7 +347,7 @@ public class SqsJobSourceTests
             Data = new Mock<IJobDataModel>().Object
         };
 
-        await source.HeartbeatAsync(job, TestContext.Current.CancellationToken);
+        Assert.False(await source.HeartbeatAsync(job, TestContext.Current.CancellationToken));
 
         Assert.Empty(sqs.Invocations);
     }

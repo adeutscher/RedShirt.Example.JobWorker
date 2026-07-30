@@ -105,9 +105,9 @@ internal class NatsJobSource(
         };
     }
 
-    public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public Task<bool> HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
-        return Task.CompletedTask;
+        return Task.FromResult(true);
     }
 
     public sealed class ConfigurationModel

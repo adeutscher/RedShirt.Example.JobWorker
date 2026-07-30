@@ -209,7 +209,7 @@ public class AzureQueueStorageJobSourceTests
             Data = null!
         };
 
-        await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken);
+        Assert.True(await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken));
 
         client.Verify(
             c => c.SetMessageVisibilityTimeoutAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<TimeSpan>(),
@@ -245,7 +245,7 @@ public class AzureQueueStorageJobSourceTests
 
         var job = new Mock<IJobModel>();
 
-        await jobSource.HeartbeatAsync(job.Object, TestContext.Current.CancellationToken);
+        Assert.False(await jobSource.HeartbeatAsync(job.Object, TestContext.Current.CancellationToken));
 
         client.Verify(
             c => c.SetMessageVisibilityTimeoutAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<TimeSpan>(),

@@ -140,14 +140,14 @@ internal class RabbitMqJobSource : IJobSource
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
-    public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public Task<bool> HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
         /*
          * Not necessary. Heartbeats are managed by the persistence of the IConnection object.
          * See: https://www.rabbitmq.com/client-libraries/dotnet-api-guide
          * Since it is not necessary to do any thinking, then it is also not necessary to check that the provided IJobModel is even a RabbitMqJobModel.
          */
-        return Task.CompletedTask;
+        return Task.FromResult(true);
     }
 
     public sealed class ConfigurationModel
