@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Models;
@@ -141,25 +140,26 @@ public class SqsJobSourceTests
         Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
     }
 
-    [Fact]
-    public async Task Test_AcknowledgeAsync_IncompatibleMessage()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Test_AcknowledgeAsync_IncompatibleMessage(bool success)
     {
-        var sqs = new Mock<IAmazonSQS>();
-        var poisonMessageHandler = new Mock<ISqsPoisonMessagesHandler>();
+        var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
+        var poisonMessageHandler = new Mock<ISqsPoisonMessagesHandler>(MockBehavior.Strict);
         var config = CreateConfig();
 
         var source = new SqsJobSource(sqs.Object, null!, null!, poisonMessageHandler.Object,
             new NullLogger<SqsJobSource>(), Options.Create(config));
 
-        var messageId = Guid.NewGuid().ToString();
         var job = new OutsideContextJobModel
         {
-            MessageId = messageId,
+            MessageId = Guid.NewGuid().ToString(),
             CreatedAtUtc = DateTime.UtcNow,
             Data = new Mock<IJobDataModel>().Object
         };
 
-        await source.AcknowledgeCompletionAsync(job, true, TestContext.Current.CancellationToken);
+        await source.AcknowledgeCompletionAsync(job, success, TestContext.Current.CancellationToken);
 
         Assert.Empty(sqs.Invocations);
         Assert.Empty(poisonMessageHandler.Invocations);
@@ -332,23 +332,66 @@ public class SqsJobSourceTests
     }
 
     [Fact]
-    public void Test_OutsideContextJobModel()
+    public async Task Test_HeartbeatAsync_IncompatibleMessage()
     {
-        var messageId = Guid.NewGuid().ToString();
-        var date = DateTime.UtcNow - TimeSpan.FromDays(1);
-        var data = new Mock<IJobDataModel>(MockBehavior.Strict);
+        var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
+        var config = CreateConfig(visibilityTimeoutSeconds: 30);
 
-        var model = new OutsideContextJobModel
+        var source = new SqsJobSource(sqs.Object, null!, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
+            new NullLogger<SqsJobSource>(), Options.Create(config));
+
+        var job = new OutsideContextJobModel
         {
-            MessageId = messageId,
-            CreatedAtUtc = date,
-            Data = data.Object
+            MessageId = Guid.NewGuid().ToString(),
+            CreatedAtUtc = DateTime.UtcNow,
+            Data = new Mock<IJobDataModel>().Object
         };
-        Assert.Equal(messageId, model.MessageId);
-        Assert.Equal(date, model.CreatedAtUtc);
-        Assert.Equal(data.Object, model.Data);
+
+        await source.HeartbeatAsync(job, TestContext.Current.CancellationToken);
+
+        Assert.Empty(sqs.Invocations);
     }
 
+    public class OutsideContextJobModelTests
+    {
+        [Fact]
+        public void ImplementsIJobModel()
+        {
+            var model = new OutsideContextJobModel
+            {
+                MessageId = Guid.NewGuid().ToString(),
+                CreatedAtUtc = DateTime.UtcNow,
+                Data = new Mock<IJobDataModel>().Object
+            };
+
+            Assert.IsAssignableFrom<IJobModel>(model);
+        }
+
+        [Fact]
+        public void Properties_RoundTripAssignedValues()
+        {
+            var messageId = Guid.NewGuid().ToString();
+            var date = DateTime.UtcNow - TimeSpan.FromDays(1);
+            var data = new Mock<IJobDataModel>(MockBehavior.Strict);
+
+            var model = new OutsideContextJobModel
+            {
+                MessageId = messageId,
+                CreatedAtUtc = date,
+                Data = data.Object
+            };
+
+            Assert.Equal(messageId, model.MessageId);
+            Assert.Equal(messageId, model.IdempotencyId);
+            Assert.Equal(date, model.CreatedAtUtc);
+            Assert.Same(data.Object, model.Data);
+        }
+    }
+
+    /// <summary>
+    ///     Stand-in IJobModel that is not an <see cref="SqsJobModel" />, used to exercise
+    ///     SqsJobSource paths that ignore messages from outside this job source.
+    /// </summary>
     private class OutsideContextJobModel : IJobModel
     {
         public required string MessageId { get; init; }

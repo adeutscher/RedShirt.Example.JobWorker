@@ -36,37 +36,6 @@ public class AzureKeyVaultServiceTests
     public class GetSecretsAsync
     {
         [Fact]
-        public async Task ReturnsSecretValuesForEachKey()
-        {
-            var keyA = Guid.NewGuid().ToString("N");
-            var keyB = Guid.NewGuid().ToString("N");
-            var valueA = Guid.NewGuid().ToString("N");
-            var valueB = Guid.NewGuid().ToString("N");
-
-            var client = new Mock<IAzureKeyVaultClientWrapper>(MockBehavior.Strict);
-            client.Setup(c => c.GetSecretAsync(keyA, TestContext.Current.CancellationToken))
-                .ReturnsAsync(valueA);
-            client.Setup(c => c.GetSecretAsync(keyB, TestContext.Current.CancellationToken))
-                .ReturnsAsync(valueB);
-
-            var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
-            source.Setup(s => s.GetKeyVaultClient()).Returns(client.Object);
-
-            var service = new AzureKeyVaultService(source.Object);
-
-            var result = await service.GetSecretsAsync([keyA, keyB], TestContext.Current.CancellationToken);
-
-            Assert.Equal(2, result.Count);
-            Assert.Equal(valueA, result[keyA]);
-            Assert.Equal(valueB, result[keyB]);
-            source.Verify(s => s.GetKeyVaultClient(), Times.Once);
-            client.Verify(c => c.GetSecretAsync(keyA, TestContext.Current.CancellationToken), Times.Once);
-            client.Verify(c => c.GetSecretAsync(keyB, TestContext.Current.CancellationToken), Times.Once);
-            source.VerifyNoOtherCalls();
-            client.VerifyNoOtherCalls();
-        }
-
-        [Fact]
         public async Task DeduplicatesKeysBeforeCallingClient()
         {
             var key = Guid.NewGuid().ToString("N");
@@ -103,6 +72,37 @@ public class AzureKeyVaultServiceTests
 
             Assert.Empty(result);
             source.Verify(s => s.GetKeyVaultClient(), Times.Once);
+            source.VerifyNoOtherCalls();
+            client.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public async Task ReturnsSecretValuesForEachKey()
+        {
+            var keyA = Guid.NewGuid().ToString("N");
+            var keyB = Guid.NewGuid().ToString("N");
+            var valueA = Guid.NewGuid().ToString("N");
+            var valueB = Guid.NewGuid().ToString("N");
+
+            var client = new Mock<IAzureKeyVaultClientWrapper>(MockBehavior.Strict);
+            client.Setup(c => c.GetSecretAsync(keyA, TestContext.Current.CancellationToken))
+                .ReturnsAsync(valueA);
+            client.Setup(c => c.GetSecretAsync(keyB, TestContext.Current.CancellationToken))
+                .ReturnsAsync(valueB);
+
+            var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
+            source.Setup(s => s.GetKeyVaultClient()).Returns(client.Object);
+
+            var service = new AzureKeyVaultService(source.Object);
+
+            var result = await service.GetSecretsAsync([keyA, keyB], TestContext.Current.CancellationToken);
+
+            Assert.Equal(2, result.Count);
+            Assert.Equal(valueA, result[keyA]);
+            Assert.Equal(valueB, result[keyB]);
+            source.Verify(s => s.GetKeyVaultClient(), Times.Once);
+            client.Verify(c => c.GetSecretAsync(keyA, TestContext.Current.CancellationToken), Times.Once);
+            client.Verify(c => c.GetSecretAsync(keyB, TestContext.Current.CancellationToken), Times.Once);
             source.VerifyNoOtherCalls();
             client.VerifyNoOtherCalls();
         }

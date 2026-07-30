@@ -13,7 +13,7 @@ public class ServiceCollectionExtensionsTests
     public void AddSecretManagerAzureKeyVault_RegistersExpectedSingletons()
     {
         const string vaultUrl = "https://test.vault.azure.net/";
-        
+
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -33,8 +33,9 @@ public class ServiceCollectionExtensionsTests
         Assert.Same(
             provider.GetRequiredService<ISecretManagerService>(),
             provider.GetRequiredService<ISecretManagerService>());
-        
-        var retrievedConfiguration = provider.GetRequiredService<IOptions<AzureKeyVaultClientFactory.ConfigurationModel>>();
+
+        var retrievedConfiguration =
+            provider.GetRequiredService<IOptions<AzureKeyVaultClientFactory.ConfigurationModel>>();
         Assert.NotNull(retrievedConfiguration);
         Assert.Equal(vaultUrl, retrievedConfiguration.Value.KeyVaultUrl);
     }
