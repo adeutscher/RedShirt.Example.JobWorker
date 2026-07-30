@@ -23,10 +23,10 @@ To initialize SQS and queue sample messages:
 docker compose up -d ministack
 ```
 
-2. Run the `make-local-resources.sh` script:
+2. Run the `make-local-aws-resources.sh` script:
 
 ```
-./make-local-resources.sh
+./make-local-aws-resources.sh
 ```
 
 3. Use the `send-sqs-message.py` script to send a message into SQS. Specify the number of seconds the worker should sleep for in the first argument:
@@ -62,10 +62,10 @@ To initialize Kinesis and queue sample messages:
     docker compose up -d ministack redis
     ```
 
-2. Run the `make-local-resources.sh` script:
+2. Run the `make-local-aws-resources.sh` script:
 
     ```
-    ./make-local-resources.sh
+    ./make-local-aws-resources.sh
     ```
 
 3. Use the `send-sqs-message.py` script to send a message into SQS. Specify the number of seconds the worker should sleep for in the first argument:
@@ -103,10 +103,10 @@ To initialize RabbitMQ and queue messages:
     docker compose up -d ministack
     ```
 
-2. Run the `make-local-resources.sh` script:
+2. Run the `make-local-aws-resources.sh` script:
 
     ```
-    ./make-local-resources.sh
+    ./make-local-aws-resources.sh
     ```
 
 3. Bring up RabbitMQ:
@@ -158,10 +158,10 @@ To initialize RabbitMQ and queue messages:
     docker compose up -d ministack
     ```
 
-2. Run the `make-local-resources.sh` script:
+2. Run the `make-local-aws-resources.sh` script:
 
     ```
-    ./make-local-resources.sh
+    ./make-local-aws-resources.sh
     ```
 
 3. Bring up ActiveMQ:
@@ -241,10 +241,10 @@ To install the `nats` command:
     docker compose up -d ministack
     ```
 
-2. Run the `make-local-resources.sh` script:
+2. Run the `make-local-aws-resources.sh` script:
 
     ```
-    ./make-local-resources.sh
+    ./make-local-aws-resources.sh
     ```
 3. Bring up NATS:
 

@@ -21,8 +21,17 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection ConfigureWorker(this IServiceCollection services, IConfigurationRoot configuration)
     {
         services = services
+            // A secret manager is required for idempotency support
+            .AddSecretManagerCore(configuration)
+            // This general template assumes SSM by default as it's easier to local test with.
+            // Azure Service Bus and Azure Queue Storage implementations below will override this with Key Vault
+            // If you wish to switch default handling to a different secret manager, then you should change the below line. 
+            .AddSecretManagerSsm(configuration)
+            // Distributed Services
             .AddDistributedServices(configuration)
+            // Core job handling
             .AddCoreJobManagement(configuration)
+            // Implementation logic
             .AddCoreLogic(configuration);
 
         /*
@@ -40,21 +49,17 @@ public static class ServiceCollectionExtensions
         if (int.TryParse(useNatsRaw, out var useNats) && useNats == 1)
         {
             services = services
-                .AddSecretManagerCore(configuration)
-                .AddSecretManagerSsm(configuration)
                 .AddNatsJobManagement(configuration);
         }
         else if (int.TryParse(useAzureQueueStorageRaw, out var useAzureQueueStorage) && useAzureQueueStorage == 1)
         {
             services = services
-                .AddSecretManagerCore(configuration)
                 .AddSecretManagerAzureKeyVault(configuration)
                 .AddAzureQueueStorageJobManagement(configuration);
         }
         else if (int.TryParse(useAzureServiceBusRaw, out var useAzureServiceBus) && useAzureServiceBus == 1)
         {
             services = services
-                .AddSecretManagerCore(configuration)
                 .AddSecretManagerAzureKeyVault(configuration)
                 .AddAzureServiceBusJobManagement(configuration);
         }
@@ -62,21 +67,18 @@ public static class ServiceCollectionExtensions
         {
             services = services
                 .AddSecretManagerCore(configuration)
-                .AddSecretManagerSsm(configuration)
                 .AddRabbitMqJobManagement(configuration);
         }
         else if (int.TryParse(useActiveMqRaw, out var useActiveMq) && useActiveMq == 1)
         {
             services = services
                 .AddSecretManagerCore(configuration)
-                .AddSecretManagerSsm(configuration)
                 .AddActiveMqJobManagement(configuration);
         }
         else if (int.TryParse(useKinesisRaw, out var useKinesis) && useKinesis == 1)
         {
             services = services
                 .AddSecretManagerCore(configuration)
-                .AddSecretManagerSsm(configuration)
                 .AddKinesisJobManagement(configuration);
         }
         else

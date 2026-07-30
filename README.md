@@ -72,7 +72,43 @@ Below are the recommended steps for using this as a template:
    `SourceMessageSorter` to fit your needs of your project.
 4. Update the `Core.Logic` project's implementation of the `IJobLogicRunner` interface to handle `IJobDataModel` jobs as
    needed by your project.
-5. Select a message source type and prune the implementation projects for the sources that you are not using.
+5. Select a message source type and prune the implementation projects for the sources that you are not using. This will
+   involve changing the dependency injection setup in the root `RedShirt.Example.JobWorker` project's
+   `Extensions/ServiceCollectionExtensions.cs` file.
+    * The dependency injection setup in the root project assumes that the general template will be pruned down.
+    * The dependency injection setup in the root project assumes that the chosen Secret Manager is SSM unless the chosen
+      job source is explicitly Azure-based (see below for more details).
+
+## Secret Managers
+
+This general template has support for using a secret manager service. The services within the template interact with the
+secret manager through the `ISecretManagerService` or `ISecretManagerCacheService` interfaces.
+`ISecretManagerCacheService` maintains an in-memory cache of secrets in order to avoid overwhelming the secret manager
+server by accident.
+
+At the moment, there are two available implementations of `ISecretManagerService`:
+
+* Amazon SSM Parameter Store
+* Azure Key Vault
+
+The Core library of this general template indirectly makes use of `ISecretManagerService`, requiring it to be configured
+in dependency injection by default. This general template assumes that the chosen secret manager implementation is SSM.
+The exception to this is if the chosen job source is either Azure Queue Storage or Azure Service Bus job sources, which
+configures Azure Key Vault as the secret manager. The Azure-based job sources use Key vault with the assumption that
+mixing
+major cloud platforms would be unusual.
+
+Please keep this in mind when adapting this template for your specific application.
+
+The following job source implementations (read: pretty much all of them) rely on a Secret Manager as part of their
+operations:
+
+* NATS
+* RabbitMQ
+* ActiveMQ
+* Azure Queue Storage
+* Azure Service Bus
+* AWS Kinesis (indirectly)
 
 ## Notes on Implementing Kinesis
 
