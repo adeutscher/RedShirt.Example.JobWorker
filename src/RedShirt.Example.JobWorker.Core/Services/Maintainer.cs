@@ -78,6 +78,10 @@ internal class Maintainer(
                 logger.LogTrace("Sending heartbeat for message: {MessageId}", job.JobModel.MessageId);
                 try
                 {
+                    /*
+                     * For the moment, deliberately choosing not to catch unexpected exceptions.
+                     */
+
                     if (await retryPolicy.ExecuteAsync(() => jobSource.HeartbeatAsync(job.JobModel, cancellationToken)))
                     {
                         job.LastHeartbeatTime = DateTime.UtcNow;
