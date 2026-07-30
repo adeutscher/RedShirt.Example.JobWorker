@@ -123,7 +123,7 @@ To initialize RabbitMQ and queue messages:
 
 7. Create a new queue named `RabbitQueue`. Leave all other options at default.
 
-8. Rather than cook up a new script for inserting messages, we will be using the Web GUI to submit messages for the moment. To insert a message into the queue, select `RabbitQueue` from the queue list and open the 'Publish message' section. Example of a message JSON:
+8. Rather than cook up a new script for inserting messages, we will be using the Web GUI to submit messages for the moment. To insert a message into the queue, select `RabbitQueue` from the queue list and open the 'Publish message' section. Example of a message JSON payload:
 
     ```
     {"SleepDurationSeconds": 12}
