@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IMaintainer, Maintainer>()
             .AddSingleton<IHeartbeatCalculator, HeartbeatCalculator>()
             .AddSingleton<ISafeJobRunner, SafeJobRunner>()
+            .AddSingleton<ISafeJobAcknowledgementService, SafeJobAcknowledgementService>()
             .AddSingleton<ISleepService, SleepService>()
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
             .AddSingleton<IJobRepository, JobRepository>()
