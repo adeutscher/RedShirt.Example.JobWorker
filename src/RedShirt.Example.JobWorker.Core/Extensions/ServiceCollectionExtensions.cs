@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 
@@ -32,6 +33,10 @@ public static class ServiceCollectionExtensions
             .Configure<JobSourceConfigurationModel>(configuration.GetSection("JobSource"))
             .Configure<LoopOptionsConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .Configure<ThreadConfigurationModel>(configuration.GetSection(ConfigSectionName))
+            // Idempotency
+            .AddSingleton<IIdempotencyMonitor, IdempotencyMonitor>()
+            .AddSingleton<IIdempotencyExecutionService, IdempotencyExecutionService>()
+            .Configure<IdempotencyConfigurationModel>(configuration.GetSection($"{ConfigSectionName}:Idempotency"))
             // Source Messages
             .AddSingleton<ISourceMessageConverter, SourceMessageConverter>()
             .AddSingleton<ISourceMessageSorter, SourceMessageSorter>();

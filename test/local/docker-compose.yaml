@@ -120,6 +120,10 @@ services:
       JOBS__WORKER_THREAD_COUNT: 2
       JOBS__BACKLOG_SIZE: 10
       JOBS__USE_LOADER_MODE: "${JOBS__USE_LOADER_MODE:-false}"
+      JOBS__IDEMPOTENCY__ENABLED: true
+      JOBS__IDEMPOTENCY__RESULT_CACHE_DURATION_SECONDS: 300
+      JOBS__IDEMPOTENCY__MONITOR_INTERVAL_SECONDS: 30
+      JOBS__IDEMPOTENCY__IDEMPOTENCY_IDS_CAN_REPEAT: false
       ## Common Distributed Execution Support Cache Options (Safety Layer Settings)
       COMMON__CACHE__SAFE_CACHE__DISGRACE_PERIOD_SECONDS: 60
       ## Common Distributed Execution Support Options (Redis)
