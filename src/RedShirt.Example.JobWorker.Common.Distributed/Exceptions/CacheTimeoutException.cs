@@ -7,6 +7,7 @@ public class CacheTimeoutException : CacheException
     /// </summary>
     /// <param name="innerException"></param>
     public CacheTimeoutException(Exception innerException)
+        : base(innerException.Message, innerException)
     {
     }
 }
