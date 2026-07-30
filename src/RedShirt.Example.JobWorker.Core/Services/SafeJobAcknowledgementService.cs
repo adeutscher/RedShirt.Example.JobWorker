@@ -25,7 +25,8 @@ internal class SafeJobAcknowledgementService(
     ///     Retry policy for acknowledgements
     ///     For the moment, deliberately choosing not to catch globally catch unplanned exceptions.
     ///     Unplanned exceptions should absolutely bring down the house, as they indicate a fundamental error with the job
-    ///     source implementation or possibly an unaccounted-for permission issue in the underlying message source.
+    ///     source implementation or possibly an unaccounted-for permission issue in the profile/credentials used with the
+    ///     underlying message source.
     /// </summary>
     private readonly AsyncRetryPolicy<bool> _acknowledgementRetryPolicy = Policy<bool>
         .Handle<JobSourceAcknowledgementException>(e => e.IsTransient)

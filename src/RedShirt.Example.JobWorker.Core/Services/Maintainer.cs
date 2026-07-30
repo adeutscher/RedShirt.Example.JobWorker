@@ -81,7 +81,9 @@ internal class Maintainer(
 
                 /*
                  * For the moment, deliberately choosing not to catch globally catch unplanned exceptions.
-                 * Unplanned exceptions should absolutely bring down the house, as they indicate a fundamental error with the job source implementation or possibly an unaccounted-for permission issue in the underlying message source.
+                 * Unplanned exceptions should absolutely bring down the house,
+                 *  as they suggest a fundamental error with the job source implementation
+                 * or an unaccounted-for permission configuration issue with the underlying message source.
                  */
 
                 var heartbeatResult = false;
