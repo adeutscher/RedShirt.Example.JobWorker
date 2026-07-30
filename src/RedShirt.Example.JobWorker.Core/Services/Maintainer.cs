@@ -24,6 +24,8 @@ internal class Maintainer(
     ILogger<Maintainer> logger,
     ISleepService sleepService) : IMaintainer
 {
+    private const int MinimumTimeToWaitMilliseconds = 500;
+
     /// <summary>
     ///     Minor centralization of a log message
     /// </summary>
@@ -116,7 +118,7 @@ internal class Maintainer(
         // Fallback, possibly because all jobs became complete after they were fetched?
         timeToWait ??= TimeSpan.FromSeconds(jobSource.RecommendedHeartbeatIntervalSeconds);
 
-        if (timeToWait.Value.TotalMilliseconds < 500)
+        if (timeToWait.Value.TotalMilliseconds < MinimumTimeToWaitMilliseconds)
         {
             /*
              * Rounding up to 500ms to avoid possible inching to the next heartbeat check because
@@ -130,7 +132,7 @@ internal class Maintainer(
              * heartbeat time should not be configured tightly enough for that to be a problem.
              */
 
-            timeToWait = TimeSpan.FromMilliseconds(500);
+            timeToWait = TimeSpan.FromMilliseconds(MinimumTimeToWaitMilliseconds);
         }
 
         return timeToWait.Value;
