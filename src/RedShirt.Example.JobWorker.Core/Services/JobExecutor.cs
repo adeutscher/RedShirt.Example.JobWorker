@@ -31,8 +31,6 @@ internal class JobExecutor(
     private async Task ActOnJobAsync(int executorId, IJobRepositoryEntry job,
         CancellationToken cancellationToken = default)
     {
-        logger.LogTrace("Executor {Id} received message {MessageId}", executorId, job.JobModel.MessageId);
-
         var cachedIdempotentResult =
             await idempotencyExecutionService.GetCachedResultAsync(job.JobModel, cancellationToken);
         if (cachedIdempotentResult == true)
@@ -85,6 +83,8 @@ internal class JobExecutor(
 
             try
             {
+                logger.LogTrace("Executor {Id} received message {MessageId}", executorId, job.JobModel.MessageId);
+
                 if (!idempotencyLock.IsAcquired)
                 {
                     /*
@@ -94,6 +94,9 @@ internal class JobExecutor(
                      *
                      * Another process will follow up on the blocked jobs.
                      */
+                    logger.LogTrace(
+                        "Executor {Id} was unable to obtain a lock on message {MessageId} , deferring to idempotency monitor",
+                        executorId, job.JobModel.MessageId);
                     await job.SetStateAsync(JobState.BlockedByIdempotency, cancellationToken);
                     continue;
                 }

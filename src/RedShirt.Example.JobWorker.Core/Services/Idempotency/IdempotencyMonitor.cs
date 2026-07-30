@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Models;
@@ -20,7 +21,8 @@ internal class IdempotencyMonitor(
     IIdempotencyExecutionService idempotencyExecutionService,
     ISafeJobAcknowledgementService safeJobAcknowledgementService,
     ISleepService sleepService,
-    IOptions<IdempotencyConfigurationModel> options) : IIdempotencyMonitor
+    IOptions<IdempotencyConfigurationModel> options,
+    ILogger<IdempotencyMonitor> logger) : IIdempotencyMonitor
 {
     private async Task CheckBlockedJobsAsync(CancellationToken cancellationToken = default)
     {
@@ -56,14 +58,27 @@ internal class IdempotencyMonitor(
                 else
                 {
                     // Cached result is true. We are attempting to retry.
-                    await safeJobAcknowledgementService.AcknowledgeSafelyAsync(blockedJob, cachedResult.Value,
+                    var acknowledgeResult = await safeJobAcknowledgementService.AcknowledgeSafelyAsync(blockedJob,
+                        cachedResult.Value,
                         cancellationToken);
                     /*
                      * If the acknowledgment was successful, then the message is complete and can be removed from the repository.
-                     * If the acknowledgment was unsuccessful, then this job repository instance has lost custody of the in-flight message.
+                     * If the acknowledgment was unsuccessful, then this job repository instance is no longer the authoratative checkout of the in-flight message.
                      *
-                     * In either of these cases, there's nothing more that we can do with this entry in-memory. Remove from repository.
+                     * In either of these cases, there's not much more that we can do with this entry in-memory. Removing from repository.
                      */
+                    logger.LogTrace(
+                        "Idempotency Monitor has attempted to acknowledge message {MessageId} . Success: {Success}",
+                        blockedJob.JobModel.MessageId, acknowledgeResult);
+                    if (acknowledgeResult)
+                    {
+                        // Above comment aside, if acknowledgement was successful then call SetResult once more.
+                        // If messageIds are configured to be considered unique, then current implementation shall
+                        //  set cached value to null to attempt to free up cache resources faster
+                        await idempotencyExecutionService.SetResultInCacheAsync(blockedJob.JobModel, cachedResult.Value,
+                            acknowledgeResult, cancellationToken);
+                    }
+
                     await jobRepository.RemoveJobAsync(blockedJob, cancellationToken);
                 }
             }
