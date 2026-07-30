@@ -30,7 +30,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\src\RedShirt.Example.JobWorker.Common.Distributed\RedShirt.Example.JobWorker.Common.Distributed.csproj" />
+        <ProjectReference Include="..\..\src\RedShirt.Example.JobWorker.Common.Distributed\RedShirt.Example.JobWorker.Common.Distributed.csproj"/>
     </ItemGroup>
 
 </Project>

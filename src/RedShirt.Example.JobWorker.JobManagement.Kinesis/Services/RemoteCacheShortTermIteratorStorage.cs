@@ -1,4 +1,3 @@
-using RedShirt.Example.JobWorker.Common.Distributed.Services;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Utility;
 
@@ -20,7 +19,7 @@ internal class RemoteCacheShortTermIteratorStorage(IRemoteCacheService remoteCac
 
     public Task SetAsync(string key, string? value, CancellationToken cancellationToken = default)
     {
-        return remoteCacheService.SetStringAsync(key, value, TimeSpan.FromMinutes(5) - TimeSpan.FromSeconds(5),
-            cancellationToken);
+        return remoteCacheService.SetStringAsync(KeyHelper.GetCheckpointKey(key), value,
+            TimeSpan.FromMinutes(5) - TimeSpan.FromSeconds(5), cancellationToken);
     }
 }

@@ -1,123 +1,96 @@
-using RedShirt.Example.JobWorker.Common.Distributed.Services;
+using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
-using StackExchange.Redis;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Services;
 
 public class RemoteCacheShortTermIteratorStorageTests
 {
+    private static readonly TimeSpan ExpectedExpiry = TimeSpan.FromMinutes(5) - TimeSpan.FromSeconds(5);
+
     [Fact]
     public async Task Test_Get_WithNoResult()
     {
-        var database = new Mock<IDatabase>(MockBehavior.Strict);
-        var connectionSource = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
-        connectionSource.Setup(src => src.GetDatabaseAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(database.Object);
+        var remoteCache = new Mock<IRemoteCacheService>(MockBehavior.Strict);
 
         var key = Guid.NewGuid().ToString();
         string? value = null;
 
-        database.Setup(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
+        remoteCache.Setup(c => c.GetStringAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(value);
 
-        var storage = new RemoteCacheShortTermIteratorStorage(connectionSource.Object);
+        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object);
         var storedValue = await storage.GetAsync(key, TestContext.Current.CancellationToken);
 
         Assert.Equal(value, storedValue);
 
-        Assert.Single(connectionSource.Invocations);
-        connectionSource.Verify(s => s.GetDatabaseAsync(TestContext.Current.CancellationToken), Times.Once);
-
-        Assert.Single(database.Invocations);
-        database.Verify(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()), Times.Once);
-        database.Verify(
-            d => d.StringGetAsync(It.Is<RedisKey>(r => r.ToString().Contains(key)), It.IsAny<CommandFlags>()),
+        Assert.Single(remoteCache.Invocations);
+        remoteCache.Verify(
+            c => c.GetStringAsync(It.Is<string>(k => k.Contains(key)), TestContext.Current.CancellationToken),
             Times.Once);
     }
 
     [Fact]
     public async Task Test_Get_WithResult()
     {
-        var database = new Mock<IDatabase>(MockBehavior.Strict);
-        var connectionSource = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
-        connectionSource.Setup(src => src.GetDatabaseAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(database.Object);
+        var remoteCache = new Mock<IRemoteCacheService>(MockBehavior.Strict);
 
         var key = Guid.NewGuid().ToString();
         var value = Guid.NewGuid().ToString();
 
-        database.Setup(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
+        remoteCache.Setup(c => c.GetStringAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(value);
 
-        var storage = new RemoteCacheShortTermIteratorStorage(connectionSource.Object);
+        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object);
         var storedValue = await storage.GetAsync(key, TestContext.Current.CancellationToken);
 
         Assert.Equal(value, storedValue);
 
-        Assert.Single(connectionSource.Invocations);
-        connectionSource.Verify(s => s.GetDatabaseAsync(TestContext.Current.CancellationToken), Times.Once);
-
-        Assert.Single(database.Invocations);
-        database.Verify(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()), Times.Once);
-        database.Verify(
-            d => d.StringGetAsync(It.Is<RedisKey>(r => r.ToString().Contains(key)), It.IsAny<CommandFlags>()),
+        Assert.Single(remoteCache.Invocations);
+        remoteCache.Verify(
+            c => c.GetStringAsync(It.Is<string>(k => k.Contains(key)), TestContext.Current.CancellationToken),
             Times.Once);
     }
 
     [Fact]
     public async Task Test_Set()
     {
-        var database = new Mock<IDatabase>();
-        var connectionSource = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
-        connectionSource.Setup(src => src.GetDatabaseAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(database.Object);
+        var remoteCache = new Mock<IRemoteCacheService>(MockBehavior.Strict);
+        remoteCache.Setup(c => c.SetStringAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var key = Guid.NewGuid().ToString();
         var value = Guid.NewGuid().ToString();
 
-        var storage = new RemoteCacheShortTermIteratorStorage(connectionSource.Object);
+        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object);
         await storage.SetAsync(key, value, TestContext.Current.CancellationToken);
 
-        Assert.Single(database.Invocations);
-        Assert.Single(connectionSource.Invocations);
-        connectionSource.Verify(s => s.GetDatabaseAsync(TestContext.Current.CancellationToken), Times.Once);
-        database.Verify(d =>
-            d.StringSetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<Expiration>(),
-                It.IsAny<ValueCondition>(), It.IsAny<CommandFlags>()), Times.Once);
-        database.Verify(d =>
-            d.StringSetAsync(It.Is<RedisKey>(r => r.ToString().Contains(key)),
-                It.Is<RedisValue>(r => r.ToString() == value), It.IsAny<Expiration>(), It.IsAny<ValueCondition>(),
-                It.IsAny<CommandFlags>()), Times.Once);
+        Assert.Single(remoteCache.Invocations);
+        remoteCache.Verify(
+            c => c.SetStringAsync(It.Is<string>(k => k.Contains(key)), value, ExpectedExpiry,
+                TestContext.Current.CancellationToken), Times.Once);
     }
 
     /// <summary>
-    ///     Setting a null value to the key should be interpreted as a delete operation.
+    ///     Setting a null value to the key should still be delegated to the remote cache service.
     /// </summary>
     [Fact]
-    public async Task Test_Set_Delete()
+    public async Task Test_Set_Null()
     {
-        var database = new Mock<IDatabase>();
-        var connectionSource = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
-        connectionSource.Setup(src => src.GetDatabaseAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(database.Object);
+        var remoteCache = new Mock<IRemoteCacheService>(MockBehavior.Strict);
+        remoteCache.Setup(c => c.SetStringAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var key = Guid.NewGuid().ToString();
         string? value = null;
 
-        var storage = new RemoteCacheShortTermIteratorStorage(connectionSource.Object);
+        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object);
         await storage.SetAsync(key, value, TestContext.Current.CancellationToken);
 
-        Assert.Single(connectionSource.Invocations);
-        connectionSource.Verify(s => s.GetDatabaseAsync(TestContext.Current.CancellationToken), Times.Once);
-
-        Assert.Single(database.Invocations);
-        database.Verify(d =>
-            d.StringGetDeleteAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()), Times.Once);
-        database.Verify(d =>
-                d.StringGetDeleteAsync(It.Is<RedisKey>(r => r.ToString().Contains(key)), It.IsAny<CommandFlags>()),
-            Times.Once);
-
-        Assert.Single(connectionSource.Invocations);
-        connectionSource.Verify(s => s.GetDatabaseAsync(TestContext.Current.CancellationToken), Times.Once);
+        Assert.Single(remoteCache.Invocations);
+        remoteCache.Verify(
+            c => c.SetStringAsync(It.Is<string>(k => k.Contains(key)), null, ExpectedExpiry,
+                TestContext.Current.CancellationToken), Times.Once);
     }
 }

@@ -4,6 +4,10 @@ using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
 
+/// <summary>
+///     Redis-based locking through the DistributedLock.Redis package.
+/// </summary>
+/// <param name="redisConnectionCacheService"></param>
 internal class RedisLockService(IRedisConnectionCacheService redisConnectionCacheService) : IAbstractedLockService
 {
     public async Task<IAbstractedLock> GetLockAsync(string lockName, CancellationToken cancellationToken = default)

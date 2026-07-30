@@ -3,7 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Common.Distributed.Factories;
 using RedShirt.Example.JobWorker.Common.Distributed.Services;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
-using IRedisConnectionCacheService = RedShirt.Example.JobWorker.Common.Distributed.Services.IRedisConnectionCacheService;
+using IRedisConnectionCacheService =
+    RedShirt.Example.JobWorker.Common.Distributed.Services.IRedisConnectionCacheService;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.Extensions;
 
@@ -19,7 +20,11 @@ public static class ServiceCollectionExtensions
         IConfigurationRoot configuration)
     {
         return services
-            .Configure<RedisConnectionFactory.ConfigurationModel>(configuration.GetSection("JobSource:Kinesis:Redis"))
+            // Implementation-agnostic services
+            .Configure<SafeRemoteCacheService.ConfigurationModel>(configuration.GetSection("Common:Cache:SafeCache"))
+            .AddSingleton<ISafeRemoteCacheService, SafeRemoteCacheService>()
+            // Redis-based
+            .Configure<RedisConnectionFactory.ConfigurationModel>(configuration.GetSection("Common:Cache:Redis"))
             .AddSingleton<IRedisConnectionFactory, RedisConnectionFactory>()
             .AddSingleton<IRedisConnectionCacheService, RedisConnectionCacheService>()
             .AddSingleton<IAbstractedLockService, RedisLockService>();

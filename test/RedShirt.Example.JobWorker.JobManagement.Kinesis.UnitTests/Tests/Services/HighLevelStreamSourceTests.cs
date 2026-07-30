@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
-using RedShirt.Example.JobWorker.Common.Distributed.Services;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;

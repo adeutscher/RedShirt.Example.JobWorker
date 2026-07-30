@@ -4,7 +4,7 @@ using StackExchange.Redis;
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
 
 /// <summary>
-///     Caching layer to keep multiple invokers/invocations using the same Redis connection.
+///     Internal caching layer to keep multiple invokers/invocations using the same Redis connection.
 /// </summary>
 internal interface IRedisConnectionCacheService
 {

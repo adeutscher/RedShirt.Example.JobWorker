@@ -1,22 +1,22 @@
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 
 /// <summary>
-///     Abstraction over a remote string cache. Implementations may throw
-///     <see cref="Exceptions.CacheException" /> (or derived types) on failure.
+///     Safe version of IRemoteCacheService that is guaranteed to leak no exceptions.
+///     Intended for cases where caching is nice to have but not a deal-breaker in a pinch.
 /// </summary>
-public interface IRemoteCacheService
+public interface ISafeRemoteCacheService
 {
     /// <summary>
-    ///     Retrieve a string under the specified key.
+    ///     Attempt to retrieve a string under the specified key.
     /// </summary>
     /// <param name="key"></param>
     /// <param name="cancellationToken"></param>
-    /// <returns>The cached string, or <c>null</c> if the key is missing or empty.</returns>
+    /// <returns></returns>
     Task<string?> GetStringAsync(string key, CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     Set a string under the specified key with the given expiry.
-    ///     If the value provided is a null or empty string, then instead delete the key out of the cache.
+    ///     Attempt to set a string. If the value provided is a null or empty string, then instead attempt to delete the key
+    ///     out of the cache.
     /// </summary>
     /// <param name="key"></param>
     /// <param name="value"></param>
