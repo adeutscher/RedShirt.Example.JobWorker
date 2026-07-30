@@ -38,7 +38,7 @@ internal class JobExecutor(
         if (cachedIdempotentResult == true)
         {
             var idempotentAcknowledgementSuccess =
-                await safeJobAcknowledgementService.AcknowledgeSafelyAsync(job.JobModel, true, cancellationToken);
+                await safeJobAcknowledgementService.AcknowledgeSafelyAsync(job, true, cancellationToken);
             if (!idempotentAcknowledgementSuccess)
             {
                 /*
@@ -65,7 +65,7 @@ internal class JobExecutor(
         await jobRepository.RemoveJobAsync(job, cancellationToken);
 
         var acknowledgementSuccess =
-            await safeJobAcknowledgementService.AcknowledgeSafelyAsync(job.JobModel, success, cancellationToken);
+            await safeJobAcknowledgementService.AcknowledgeSafelyAsync(job, success, cancellationToken);
         await idempotencyExecutionService.SetResultInCacheAsync(job.JobModel, success, acknowledgementSuccess,
             cancellationToken);
     }

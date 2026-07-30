@@ -56,7 +56,7 @@ internal class IdempotencyMonitor(
                 else
                 {
                     // Cached result is true. We are attempting to retry.
-                    await safeJobAcknowledgementService.AcknowledgeSafelyAsync(blockedJob.JobModel, cachedResult.Value,
+                    await safeJobAcknowledgementService.AcknowledgeSafelyAsync(blockedJob, cachedResult.Value,
                         cancellationToken);
                     /*
                      * If the acknowledgment was successful, then the message is complete and can be removed from the repository.
@@ -80,7 +80,7 @@ internal class IdempotencyMonitor(
                  * If the job were reloaded within the idempotency lock, then there would be the potential of a race condition.
                  *  If the JobExecutor thread receives job and attempted to acquire an idempotency lock before
                  *  this method's instance of the idempotency lock had a chance to release, then the job would be marked for monitoring.
-                 *  That would bring us right back here to CheckBlockedJobsAsync().
+                 *  That would bring us right back here to CheckBlockedJobsAsync(), and the cycle continues until we win the race condition.
                  *
                  * Instead, we are very deliberately doing this outside of the idempotency lock.
                  */

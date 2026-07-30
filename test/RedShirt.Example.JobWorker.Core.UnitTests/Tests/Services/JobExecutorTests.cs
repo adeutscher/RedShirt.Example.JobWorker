@@ -33,7 +33,7 @@ public class JobExecutorTests
 
         var safeAcknowledgementService = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
         safeAcknowledgementService
-            .Setup(s => s.AcknowledgeSafelyAsync(jobModel.Object, safeRunnerSuccess,
+            .Setup(s => s.AcknowledgeSafelyAsync(jobRepositoryEntry.Object, safeRunnerSuccess,
                 TestContext.Current.CancellationToken))
             .ReturnsAsync(true);
 
@@ -74,7 +74,7 @@ public class JobExecutorTests
             .ReturnsAsync(idempotencyLock.Object);
         idempotencyExecutionService
             .Setup(s => s.GetCachedResultAsync(jobModel.Object, TestContext.Current.CancellationToken))
-            .ReturnsAsync((bool?)null);
+            .ReturnsAsync((bool?) null);
         idempotencyExecutionService
             .Setup(s => s.SetResultInCacheAsync(jobModel.Object, safeRunnerSuccess, true,
                 TestContext.Current.CancellationToken))
@@ -91,7 +91,8 @@ public class JobExecutorTests
 
         Assert.Single(safeAcknowledgementService.Invocations);
         safeAcknowledgementService.Verify(
-            s => s.AcknowledgeSafelyAsync(jobModel.Object, safeRunnerSuccess, TestContext.Current.CancellationToken),
+            s => s.AcknowledgeSafelyAsync(jobRepositoryEntry.Object, safeRunnerSuccess,
+                TestContext.Current.CancellationToken),
             Times.Once);
 
         jobRepositoryEntry.Verify(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken),
@@ -131,7 +132,7 @@ public class JobExecutorTests
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         jobRepository
             .Setup(r => r.GetNextJobAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync((IJobRepositoryEntry?)null);
+            .ReturnsAsync((IJobRepositoryEntry?) null);
 
         var safeJobRunner = new Mock<ISafeJobRunner>(MockBehavior.Strict);
         var idempotencyExecutionService = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
