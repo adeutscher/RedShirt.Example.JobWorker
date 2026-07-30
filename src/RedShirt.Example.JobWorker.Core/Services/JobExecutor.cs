@@ -95,7 +95,7 @@ internal class JobExecutor(
                      * Another process will follow up on the blocked jobs.
                      */
                     logger.LogTrace(
-                        "Executor {Id} was unable to obtain a lock on message {MessageId} , deferring to idempotency monitor",
+                        "Executor {Id} was unable to obtain a lock on message {MessageId} , deferring to Idempotency Monitor",
                         executorId, job.JobModel.MessageId);
                     await job.SetStateAsync(JobState.BlockedByIdempotency, cancellationToken);
                     continue;
