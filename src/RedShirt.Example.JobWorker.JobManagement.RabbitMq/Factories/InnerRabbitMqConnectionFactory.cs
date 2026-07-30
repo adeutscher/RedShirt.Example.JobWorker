@@ -22,7 +22,10 @@ internal class InnerRabbitMqConnectionFactory(IRabbitMqServerConfigurationSource
             UserName = configuration.User,
             Password = configuration.Password,
             HostName = configuration.Hostname,
-            VirtualHost = configuration.VirtualHost
+            VirtualHost = configuration.VirtualHost,
+            AutomaticRecoveryEnabled = true,
+            NetworkRecoveryInterval = TimeSpan.FromSeconds(1),
+            RequestedConnectionTimeout = TimeSpan.FromSeconds(5)
         };
 
         return new RabbitConnectionWrapper(connectionFactory);
