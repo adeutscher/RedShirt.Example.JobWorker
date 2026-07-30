@@ -52,13 +52,13 @@ internal class HighLevelStreamSource(
                 trackerSession.ReleaseLockOnShard();
                 Sessions.Remove(kinesisJobModel.ShardId);
             }
-
-            return true;
         }
         finally
         {
             _sessionsSemaphore.Release();
         }
+
+        return true;
     }
 
     /// <summary>

@@ -143,7 +143,8 @@ public class AzureQueueStorageJobSourceTests
             Data = null!
         };
 
-        Assert.True(await jobSource.AcknowledgeCompletionAsync(job, success, TestContext.Current.CancellationToken));
+        Assert.True(await jobSource.AcknowledgeCompletionAsync(job, success,
+            TestContext.Current.CancellationToken));
 
         client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),
             Times.Once);

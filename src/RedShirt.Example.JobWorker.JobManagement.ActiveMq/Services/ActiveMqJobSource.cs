@@ -76,6 +76,7 @@ internal class ActiveMqJobSource : IJobSource
         }
 
         await jobModel.Message.AcknowledgeAsync();
+
         return true;
     }
 

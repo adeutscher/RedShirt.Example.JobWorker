@@ -31,6 +31,7 @@ internal class NatsJobSource(
         }
 
         await jobModel.Message.AckAsync(cancellationToken: cancellationToken);
+
         return true;
     }
 

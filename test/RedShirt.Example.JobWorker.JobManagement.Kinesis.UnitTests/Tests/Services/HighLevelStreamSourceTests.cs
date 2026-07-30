@@ -74,10 +74,12 @@ public class HighLevelStreamSourceTests
                 Items = [job1, job2]
             }, lockHandle.Object);
 
-        Assert.True(await streamSource.AcknowledgeCompletionAsync(job1, false, TestContext.Current.CancellationToken));
+        Assert.True(await streamSource.AcknowledgeCompletionAsync(job1, false,
+            TestContext.Current.CancellationToken));
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
 
-        Assert.True(await streamSource.AcknowledgeCompletionAsync(job2, true, TestContext.Current.CancellationToken));
+        Assert.True(await streamSource.AcknowledgeCompletionAsync(job2, true,
+            TestContext.Current.CancellationToken));
 
         Assert.False(streamSource.Sessions.ContainsKey("shard-a"));
         checkpointStorage.Verify(
@@ -104,7 +106,8 @@ public class HighLevelStreamSourceTests
                 Items = [job1, job2]
             }, lockHandle.Object);
 
-        Assert.True(await streamSource.AcknowledgeCompletionAsync(job1, true, TestContext.Current.CancellationToken));
+        Assert.True(await streamSource.AcknowledgeCompletionAsync(job1, true,
+            TestContext.Current.CancellationToken));
 
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
         Assert.False(streamSource.Sessions["shard-a"].IsComplete);
