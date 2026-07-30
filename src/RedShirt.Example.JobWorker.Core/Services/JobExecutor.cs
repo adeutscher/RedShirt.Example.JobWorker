@@ -12,7 +12,7 @@ namespace RedShirt.Example.JobWorker.Core.Services;
 internal interface IJobExecutor
 {
     /// <summary>
-    ///     Begin am executor worker instance.
+    ///     Run an executor worker instance.
     /// </summary>
     /// <param name="executorId"></param>
     /// <param name="cancellationToken"></param>
