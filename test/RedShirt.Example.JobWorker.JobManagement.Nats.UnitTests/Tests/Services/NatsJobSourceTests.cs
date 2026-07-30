@@ -5,6 +5,7 @@ using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services;

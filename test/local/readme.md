@@ -11,7 +11,9 @@ Run the following to install the assumed modules:
 pip install --user boto3 awscli awslocal stomp.py azure.servicebus azure.identity azure.keyvault
 ```
 
-## SQS
+## Message Sources
+
+### SQS
 
 To initialize SQS and queue sample messages:
 
@@ -50,7 +52,7 @@ export USE_RABBITMQ=0
     docker compose up worker
     ```
 
-## Kinesis
+### Kinesis
 
 To initialize Kinesis and queue sample messages:
 
@@ -89,7 +91,7 @@ To initialize Kinesis and queue sample messages:
     docker compose up worker
     ```
 
-## RabbitMQ
+### RabbitMQ
 
 RabbitMQ takes a few more steps to set up than the other input sources.
 
@@ -144,7 +146,7 @@ To initialize RabbitMQ and queue messages:
     docker compose up worker
     ```
 
-## ActiveMQ
+### ActiveMQ
 
 ActiveMQ Artemis takes a few more steps to set up than the other input sources.
 
@@ -217,11 +219,11 @@ To initialize RabbitMQ and queue messages:
     docker compose up worker
     ```
 
-## NATS
+### NATS
 
 NATS takes a few more steps to set up than the other input sources. It will also require the installation of the `nats` command.
 
-### CLI Installation
+#### CLI Installation
 
 To install the `nats` command:
 
@@ -231,7 +233,7 @@ To install the `nats` command:
     * If you chose a package such as an `.rpm`, install using your package manager.
     * If you chose a `.zip` archive, unpack it to a location and add that location to your `$PATH` variable.
 
-### Testing Messages
+#### Testing Messages
 
 1. Bring up ministack:
 
@@ -278,7 +280,7 @@ To install the `nats` command:
     docker compose up worker
     ```
 
-## Azure Queue Storage
+### Azure Queue Storage
 
 Testing `Azure Queue Storage` will require:
 
@@ -294,11 +296,11 @@ Testing `Azure Queue Storage` will require the various Azure-related python modu
 pip install azure.identity azure.keyvault
 ```
 
-### VSCode Configuration
+#### VSCode Configuration
 
 VSCode automatically knows how to point to your local `azurite` server after the service is started.
 
-### Testing Messages
+#### Testing Messages
 
 1. Run `generate-azure-key-vault-cert.sh` to generate the certificate files necessary for the Azure Key Vault Emulator to work.
 
@@ -353,7 +355,7 @@ VSCode automatically knows how to point to your local `azurite` server after the
     docker compose up worker
     ```
 
-## Azure Service Bus
+### Azure Service Bus
 
 Testing `Azure Service Bus` will require the various Azure-related python module to be installed:
 
@@ -361,7 +363,7 @@ Testing `Azure Service Bus` will require the various Azure-related python module
 pip install azure.servicebus azure.identity azure.keyvault
 ```
 
-### Testing Messages
+#### Testing Messages
 
 1. Run `generate-azure-key-vault-cert.sh` to generate the certificate files necessary for the Azure Key Vault Emulator to work.
 

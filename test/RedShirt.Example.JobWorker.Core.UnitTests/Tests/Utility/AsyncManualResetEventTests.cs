@@ -39,6 +39,24 @@ public class AsyncManualResetEventTests
         Assert.False(result);
     }
 
+    [Fact(Timeout = 2000)]
+    public async Task Test_Reset_DuringConcurrentSet_EventuallyConsistent()
+    {
+        var evt = new AsyncManualResetEvent();
+
+        var setters = Enumerable.Range(0, 20).Select(_ => Task.Run(() =>
+        {
+            evt.Set();
+            evt.Reset();
+        }, TestContext.Current.CancellationToken));
+
+        await Task.WhenAll(setters);
+
+        // After interleaved set/reset pulses, event should not be guaranteed set;
+        // a zero-timeout wait must complete without hanging.
+        _ = await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken);
+    }
+
     [Fact(Timeout = 1000)]
     public async Task Test_Reset_WhenUnset_IsSafe()
     {
@@ -70,6 +88,19 @@ public class AsyncManualResetEventTests
         var result = await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken);
 
         Assert.True(result);
+    }
+
+    [Fact(Timeout = 1000)]
+    public async Task Test_WaitAsync_AfterTimeout_SetRemainsSticky()
+    {
+        var evt = new AsyncManualResetEvent();
+
+        Assert.False(await evt.WaitAsync(TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken));
+
+        evt.Set();
+
+        Assert.True(await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken));
+        Assert.True(await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 2000)]
@@ -125,12 +156,40 @@ public class AsyncManualResetEventTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await waitTask);
     }
 
+    [Fact(Timeout = 1000)]
+    public async Task Test_WaitAsync_DefaultOverload_WhenAlreadySet_ReturnsTrue()
+    {
+        var evt = new AsyncManualResetEvent(true);
+
+#pragma warning disable xUnit1051 // Intentionally uses default token to exercise the parameterless overload
+        Assert.True(await evt.WaitAsync());
+#pragma warning restore xUnit1051
+    }
+
     [Fact(Timeout = 2000)]
     public async Task Test_WaitAsync_InfiniteTimeout_UnblocksWhenSet()
     {
         var evt = new AsyncManualResetEvent();
 
         var waitTask = evt.WaitAsync(Timeout.InfiniteTimeSpan, TestContext.Current.CancellationToken);
+
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.False(waitTask.IsCompleted);
+
+        evt.Set();
+
+        Assert.True(await waitTask);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Test_WaitAsync_InfiniteTimeout_WithoutCancelableToken_UnblocksWhenSet()
+    {
+        // Hits the fast path: InfiniteTimeSpan && !cancellationToken.CanBeCanceled
+        var evt = new AsyncManualResetEvent();
+
+#pragma warning disable xUnit1051 // Intentionally non-cancelable to hit infinite-wait fast path
+        var waitTask = evt.WaitAsync(Timeout.InfiniteTimeSpan);
+#pragma warning restore xUnit1051
 
         await Task.Delay(50, TestContext.Current.CancellationToken);
         Assert.False(waitTask.IsCompleted);
@@ -218,5 +277,27 @@ public class AsyncManualResetEventTests
         evt.Set();
 
         Assert.True(await waitTask);
+    }
+
+    [Fact(Timeout = 1000)]
+    public async Task Test_WaitAsync_ZeroTimeout_CancelledToken_WhenSet_Throws()
+    {
+        var evt = new AsyncManualResetEvent(true);
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            evt.WaitAsync(TimeSpan.Zero, cts.Token));
+    }
+
+    [Fact(Timeout = 1000)]
+    public async Task Test_WaitAsync_ZeroTimeout_CancelledToken_WhenUnset_Throws()
+    {
+        var evt = new AsyncManualResetEvent();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            evt.WaitAsync(TimeSpan.Zero, cts.Token));
     }
 }

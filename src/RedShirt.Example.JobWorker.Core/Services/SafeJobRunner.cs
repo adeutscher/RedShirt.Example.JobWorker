@@ -7,6 +7,9 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 
 namespace RedShirt.Example.JobWorker.Core.Services;
 
+/// <summary>
+///     Ensures a safe execution of a job with no leaked exceptions.
+/// </summary>
 internal interface ISafeJobRunner
 {
     Task<bool> RunSafelyAsync(IJobModel job, CancellationToken cancellationToken = default);
