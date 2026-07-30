@@ -18,13 +18,9 @@ internal class SafeJobAcknowledgementService(
 {
     private readonly AsyncRetryPolicy<bool> _acknowledgementRetryPolicy = Policy<bool>.Handle<Exception>()
         .RetryAsync(Globals.AcknowledgementRetryCount,
-            async (e, instanceCount) =>
-            {
-                // Unfortunately, cannot have a common policy declaration AND our cancellationToken.
-                // I chose to have the common policy declaration.
-                await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)));
-            }
-        );
+            // Unfortunately, cannot have a common policy declaration AND our cancellationToken.
+            // I chose to have the common policy declaration.
+            (_, instanceCount) => sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount))));
 
     public async Task<bool> AcknowledgeSafelyAsync(IJobRepositoryEntry job, bool success,
         CancellationToken cancellationToken)

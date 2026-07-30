@@ -42,13 +42,8 @@ internal class Maintainer(
         var retryPolicy = Policy
             .Handle<Exception>(e => e is not CanNoLongerHeartbeatException)
             .RetryAsync(Globals.HeartbeatRetryCount,
-                async (e, instanceCount) =>
-                {
-                    // Unfortunately, cannot have a common policy declaration AND our cancellationToken.
-                    // I chose to have the common policy declaration.
-                    await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)), cancellationToken);
-                }
-            );
+                (_, instanceCount) =>
+                    sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)), cancellationToken));
 
         foreach (var job in jobs)
         {
