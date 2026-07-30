@@ -13,4 +13,8 @@
         <PackageReference Include="Polly" Version="8.7.0"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.Distributed\RedShirt.Example.JobWorker.Common.Distributed.csproj"/>
+    </ItemGroup>
+
 </Project>
