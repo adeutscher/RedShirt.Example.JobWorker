@@ -11,7 +11,8 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.Extensions;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    ///     Add common services for distributed caching and distributed locks.
+    ///     Add common services for caching and locks in support of the distributed execution of multiple instances of the
+    ///     worker process.
     /// </summary>
     /// <param name="services"></param>
     /// <param name="configuration"></param>

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.Extensions;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Extensions;
+using RedShirt.Example.JobWorker.Common.Distributed.Extensions;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Logic.Extensions;
@@ -20,6 +21,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection ConfigureWorker(this IServiceCollection services, IConfigurationRoot configuration)
     {
         services = services
+            .AddDistributedServices(configuration)
             .AddCoreJobManagement(configuration)
             .AddCoreLogic(configuration);
 
