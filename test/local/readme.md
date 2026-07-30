@@ -1,6 +1,8 @@
 
 # Usage
 
+Instructions for local testing.
+
 ## General
 
 The scripts below assume that certain Python modules are installed in your environment.
@@ -10,6 +12,11 @@ Run the following to install the assumed modules:
 ```
 pip install --user boto3 awscli awslocal stomp.py azure.servicebus azure.identity azure.keyvault
 ```
+
+## Idempotency
+
+Idempotency testing relies on having a reliable way of setting a message ID.
+If this template is still in general form, then I would advise testing using the RabbitMQ job source.
 
 ## Message Sources
 
