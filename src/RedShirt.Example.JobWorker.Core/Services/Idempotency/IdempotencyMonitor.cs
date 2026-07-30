@@ -50,7 +50,7 @@ internal class IdempotencyMonitor(
                      * For the running worker instance that currently has the message, this means that it should be re-run.
                      */
 
-                    // Prep to mark as unblocked. See below for justification
+                    // Prep to mark as unblocked. See below for justification on why we don't just call the jobRepository on this line.
                     unblockedJob = blockedJob;
                 }
                 else
