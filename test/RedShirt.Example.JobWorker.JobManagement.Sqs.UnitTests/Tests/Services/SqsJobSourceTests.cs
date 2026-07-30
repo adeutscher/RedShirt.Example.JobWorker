@@ -2,7 +2,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.Core.Exceptions;
+using RedShirt.Example.JobWorker.Core.Exceptions.JobSource;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
@@ -313,8 +313,10 @@ public class SqsJobSourceTests
             Data = null!
         };
 
-        await Assert.ThrowsAsync<CanNoLongerHeartbeatException>(() =>
+        var ex = await Assert.ThrowsAsync<JobSourceHeartbeatException>(() =>
             source.HeartbeatAsync(job, TestContext.Current.CancellationToken));
+
+        Assert.False(ex.IsTransient);
 
         sqs.Verify(
             s => s.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(),
@@ -364,7 +366,7 @@ public class SqsJobSourceTests
                 Data = new Mock<IJobDataModel>().Object
             };
 
-            Assert.IsAssignableFrom<IJobModel>(model);
+            Assert.IsType<IJobModel>(model, false);
         }
 
         [Fact]
@@ -395,6 +397,8 @@ public class SqsJobSourceTests
     private class OutsideContextJobModel : IJobModel
     {
         public required string MessageId { get; init; }
+
+        // ReSharper disable once ReturnTypeCanBeNotNullable
         public string? IdempotencyId => MessageId;
         public required DateTime CreatedAtUtc { get; init; }
         public required IJobDataModel Data { get; init; }

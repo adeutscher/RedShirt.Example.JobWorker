@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Polly;
 using RedShirt.Example.JobWorker.Core.Enums;
-using RedShirt.Example.JobWorker.Core.Exceptions;
+using RedShirt.Example.JobWorker.Core.Exceptions.JobSource;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
@@ -42,7 +42,7 @@ internal class Maintainer(
         TimeSpan? timeToWait = null;
 
         var retryPolicy = Policy
-            .Handle<Exception>(e => e is not CanNoLongerHeartbeatException)
+            .Handle<JobSourceHeartbeatException>(e => e.IsTransient)
             .RetryAsync(Globals.HeartbeatRetryCount,
                 (_, instanceCount) =>
                     sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)), cancellationToken));
@@ -78,28 +78,32 @@ internal class Maintainer(
                 }
 
                 logger.LogTrace("Sending heartbeat for message: {MessageId}", job.JobModel.MessageId);
+
+                /*
+                 * For the moment, deliberately choosing not to catch globally catch unplanned exceptions.
+                 * Unplanned exceptions should absolutely bring down the house, as they indicate a fundamental error with the job source implementation or possibly an unaccounted-for permission issue in the underlying message source.
+                 */
+
+                var heartbeatResult = false;
                 try
                 {
-                    /*
-                     * For the moment, deliberately choosing not to catch unexpected exceptions.
-                     */
-
-                    if (await retryPolicy.ExecuteAsync(() => jobSource.HeartbeatAsync(job.JobModel, cancellationToken)))
-                    {
-                        job.LastHeartbeatTime = DateTime.UtcNow;
-                    }
-                    else
-                    {
-                        logger.LogWarning("Heartbeat could not be completed for message: {MessageId}",
-                            job.JobModel.MessageId);
-                        // Assume that if heartbeating failed this time around, then the message will be REALLY expired by the time the next loop iteration comes around.
-                        await job.SetIfFlightTimeCanBeExtendedAsync(false, cancellationToken);
-                    }
+                    heartbeatResult = await retryPolicy.ExecuteAsync(() =>
+                        jobSource.HeartbeatAsync(job.JobModel, cancellationToken));
                 }
-                catch (CanNoLongerHeartbeatException e)
+                catch (JobSourceHeartbeatException)
                 {
-                    // Different log message.
-                    logger.LogWarning(e, "Can no longer heartbeat message: {MessageId}", job.JobModel.MessageId);
+                    // Pass, will be handled in a few lines by virtue of heartbeatResult being false.
+                }
+
+                if (heartbeatResult)
+                {
+                    job.LastHeartbeatTime = DateTime.UtcNow;
+                }
+                else
+                {
+                    logger.LogWarning("Heartbeat could not be completed for message: {MessageId}",
+                        job.JobModel.MessageId);
+                    // Assume that if heartbeating failed this time around, then the message will be REALLY expired by the time the next loop iteration comes around.
                     await job.SetIfFlightTimeCanBeExtendedAsync(false, cancellationToken);
                 }
 

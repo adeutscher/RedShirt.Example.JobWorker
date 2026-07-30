@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Core.Enums;
-using RedShirt.Example.JobWorker.Core.Exceptions;
+using RedShirt.Example.JobWorker.Core.Exceptions.JobSource;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -285,7 +285,7 @@ public class MaintainerTests
             .Returns(1);
         jobSource
             .Setup(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken))
-            .Returns(() => throw new CanNoLongerHeartbeatException());
+            .Returns(() => throw new JobSourceHeartbeatException(false, "Test"));
 
         var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
             jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
