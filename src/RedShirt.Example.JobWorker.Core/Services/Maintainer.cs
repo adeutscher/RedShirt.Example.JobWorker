@@ -86,24 +86,15 @@ internal class Maintainer(
                  * or an unaccounted-for permission configuration issue with the underlying message source.
                  */
 
-                var heartbeatResult = false;
                 try
                 {
-                    heartbeatResult = await retryPolicy.ExecuteAsync(() =>
+                    await retryPolicy.ExecuteAsync(() =>
                         jobSource.HeartbeatAsync(job.JobModel, cancellationToken));
-                }
-                catch (JobSourceHeartbeatException)
-                {
-                    // Pass, will be handled in a few lines by virtue of heartbeatResult being false.
-                }
-
-                if (heartbeatResult)
-                {
                     job.LastHeartbeatTime = DateTime.UtcNow;
                 }
-                else
+                catch (JobSourceHeartbeatException e)
                 {
-                    logger.LogWarning("Heartbeat could not be completed for message: {MessageId}",
+                    logger.LogWarning(e, "Heartbeat could not be completed for message: {MessageId}",
                         job.JobModel.MessageId);
                     // Assume that if heartbeating failed this time around, then the message will be REALLY expired by the time the next loop iteration comes around.
                     await job.SetIfFlightTimeCanBeExtendedAsync(false, cancellationToken);

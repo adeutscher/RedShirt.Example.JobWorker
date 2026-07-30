@@ -22,17 +22,15 @@ internal class NatsJobSource(
     private readonly Lazy<Task<INatsJSContext>> _lazyContext =
         new(() => natsJetStreamContextFactory.CreateNatsJetStreamContextAsync());
 
-    public async Task<bool> AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not JobModel jobModel)
         {
-            return false;
+            return;
         }
 
         await jobModel.Message.AckAsync(cancellationToken: cancellationToken);
-
-        return true;
     }
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
@@ -106,9 +104,9 @@ internal class NatsJobSource(
         };
     }
 
-    public Task<bool> HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(true);
+        return Task.CompletedTask;
     }
 
     public sealed class ConfigurationModel

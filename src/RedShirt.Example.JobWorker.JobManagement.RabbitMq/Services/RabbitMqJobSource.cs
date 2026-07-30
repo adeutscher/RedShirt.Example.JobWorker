@@ -37,13 +37,13 @@ internal class RabbitMqJobSource : IJobSource
         });
     }
 
-    public async Task<bool> AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not RabbitMqJobModel rabbitMqJobModel)
         {
             // Message did not originate from RabbitMQ, return
-            return false;
+            return;
         }
 
         var channel = await _channel.Value;
@@ -61,8 +61,6 @@ internal class RabbitMqJobSource : IJobSource
              * The message represented by this message ID already fell back into the queue when the connection died.
              */
         }
-
-        return true;
     }
 
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -140,14 +138,14 @@ internal class RabbitMqJobSource : IJobSource
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
-    public Task<bool> HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
         /*
          * Not necessary. Heartbeats are managed by the persistence of the IConnection object.
          * See: https://www.rabbitmq.com/client-libraries/dotnet-api-guide
          * Since it is not necessary to do any thinking, then it is also not necessary to check that the provided IJobModel is even a RabbitMqJobModel.
          */
-        return Task.FromResult(true);
+        return Task.CompletedTask;
     }
 
     public sealed class ConfigurationModel

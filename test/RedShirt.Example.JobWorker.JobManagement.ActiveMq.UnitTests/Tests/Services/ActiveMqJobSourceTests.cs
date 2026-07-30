@@ -36,8 +36,8 @@ public class ActiveMqJobSourceTests
             Data = null!
         };
 
-        Assert.True(await activeMqJobSource.AcknowledgeCompletionAsync(jobModel, true,
-            TestContext.Current.CancellationToken));
+        await activeMqJobSource.AcknowledgeCompletionAsync(jobModel, true,
+            TestContext.Current.CancellationToken);
 
         message.Verify(m => m.AcknowledgeAsync(), Times.Once);
     }
@@ -58,8 +58,8 @@ public class ActiveMqJobSourceTests
         var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration), null!, null!,
             new NullLogger<ActiveMqJobSource>());
 
-        Assert.False(await activeMqJobSource.AcknowledgeCompletionAsync(job.Object, true,
-            TestContext.Current.CancellationToken));
+        await activeMqJobSource.AcknowledgeCompletionAsync(job.Object, true,
+            TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -775,7 +775,7 @@ public class ActiveMqJobSourceTests
             null!, null!, new NullLogger<ActiveMqJobSource>());
 
         // Run. Source should be executing an empty block with no complains about all the nulls that it's been given.
-        Assert.True(await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken));
+        await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);
     }
 
     public sealed class LandmineException : Exception;

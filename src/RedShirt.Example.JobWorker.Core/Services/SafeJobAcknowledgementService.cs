@@ -28,7 +28,7 @@ internal class SafeJobAcknowledgementService(
     ///     source implementation or possibly an unaccounted-for permission issue in the profile/credentials used with the
     ///     underlying message source.
     /// </summary>
-    private readonly AsyncRetryPolicy<bool> _acknowledgementRetryPolicy = Policy<bool>
+    private readonly AsyncRetryPolicy _acknowledgementRetryPolicy = Policy
         .Handle<JobSourceAcknowledgementException>(e => e.IsTransient)
         .RetryAsync(Globals.AcknowledgementRetryCount,
             // Unfortunately, cannot have a common policy declaration AND our cancellationToken.
@@ -40,10 +40,11 @@ internal class SafeJobAcknowledgementService(
     {
         try
         {
-            return await _acknowledgementRetryPolicy
+            await _acknowledgementRetryPolicy
                 .ExecuteAsync(() => jobSource.AcknowledgeCompletionAsync(job.JobModel, success, cancellationToken));
+            return true;
         }
-        catch (JobSourceHeartbeatException e)
+        catch (JobSourceAcknowledgementException e)
         {
             logger.LogError(e, "Job acknowledge failed: {EMessage}", e.Message);
         }

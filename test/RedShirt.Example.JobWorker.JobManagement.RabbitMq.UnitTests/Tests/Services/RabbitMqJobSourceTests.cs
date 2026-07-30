@@ -52,8 +52,8 @@ public class RabbitMqJobSourceTests
             Data = new Mock<IJobDataModel>().Object
         };
 
-        Assert.True(await jobSource.AcknowledgeCompletionAsync(job, true,
-            TestContext.Current.CancellationToken));
+        await jobSource.AcknowledgeCompletionAsync(job, true,
+            TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Single(rabbitConnectionFactory.Invocations);
@@ -86,8 +86,8 @@ public class RabbitMqJobSourceTests
 
         var job = new Mock<IJobModel>();
 
-        Assert.False(await jobSource.AcknowledgeCompletionAsync(job.Object, true,
-            TestContext.Current.CancellationToken));
+        await jobSource.AcknowledgeCompletionAsync(job.Object, true,
+            TestContext.Current.CancellationToken);
 
         Assert.Empty(rabbitConnectionFactory.Invocations);
         Assert.Empty(mockConnection.Invocations);
@@ -134,8 +134,8 @@ public class RabbitMqJobSourceTests
             Data = new Mock<IJobDataModel>().Object
         };
 
-        Assert.True(await jobSource.AcknowledgeCompletionAsync(job, true,
-            TestContext.Current.CancellationToken));
+        await jobSource.AcknowledgeCompletionAsync(job, true,
+            TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Single(rabbitConnectionFactory.Invocations);
@@ -548,7 +548,7 @@ public class RabbitMqJobSourceTests
             null!, new NullLogger<RabbitMqJobSource>());
 
         // Run. Source should be executing an empty block with no complains about all the nulls that it's been given.
-        Assert.True(await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken));
+        await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);
     }
 
     public sealed class LandmineException : Exception;

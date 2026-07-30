@@ -17,12 +17,12 @@ internal class HighLevelStreamSource(
     internal readonly Dictionary<string, KinesisTrackerSession> Sessions = new();
     private readonly SemaphoreSlim _sessionsSemaphore = new(1, 1);
 
-    public async Task<bool> AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not KinesisJobModel kinesisJobModel)
         {
-            return false;
+            return;
         }
 
         await _sessionsSemaphore.WaitAsync(cancellationToken);
@@ -31,7 +31,7 @@ internal class HighLevelStreamSource(
         {
             if (!Sessions.TryGetValue(kinesisJobModel.ShardId, out var trackerSession))
             {
-                return false;
+                return;
             }
 
             trackerSession.Increment(kinesisJobModel.MessageId);
@@ -57,8 +57,6 @@ internal class HighLevelStreamSource(
         {
             _sessionsSemaphore.Release();
         }
-
-        return true;
     }
 
     /// <summary>
@@ -155,10 +153,10 @@ internal class HighLevelStreamSource(
         };
     }
 
-    public Task<bool> HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
         // This source does not do heartbeats
-        return Task.FromResult(true);
+        return Task.CompletedTask;
     }
 
     /// <summary>

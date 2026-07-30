@@ -143,8 +143,8 @@ public class AzureQueueStorageJobSourceTests
             Data = null!
         };
 
-        Assert.True(await jobSource.AcknowledgeCompletionAsync(job, success,
-            TestContext.Current.CancellationToken));
+        await jobSource.AcknowledgeCompletionAsync(job, success,
+            TestContext.Current.CancellationToken);
 
         client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),
             Times.Once);
@@ -174,8 +174,8 @@ public class AzureQueueStorageJobSourceTests
 
         var job = new Mock<IJobModel>();
 
-        Assert.False(await jobSource.AcknowledgeCompletionAsync(job.Object, success,
-            TestContext.Current.CancellationToken));
+        await jobSource.AcknowledgeCompletionAsync(job.Object, success,
+            TestContext.Current.CancellationToken);
 
         client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -210,7 +210,7 @@ public class AzureQueueStorageJobSourceTests
             Data = null!
         };
 
-        Assert.True(await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken));
+        await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken);
 
         client.Verify(
             c => c.SetMessageVisibilityTimeoutAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<TimeSpan>(),
@@ -246,7 +246,7 @@ public class AzureQueueStorageJobSourceTests
 
         var job = new Mock<IJobModel>();
 
-        Assert.False(await jobSource.HeartbeatAsync(job.Object, TestContext.Current.CancellationToken));
+        await jobSource.HeartbeatAsync(job.Object, TestContext.Current.CancellationToken);
 
         client.Verify(
             c => c.SetMessageVisibilityTimeoutAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<TimeSpan>(),

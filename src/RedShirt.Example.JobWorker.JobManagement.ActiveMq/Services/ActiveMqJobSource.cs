@@ -67,17 +67,15 @@ internal class ActiveMqJobSource : IJobSource
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
-    public async Task<bool> AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not JobModel jobModel)
         {
-            return false;
+            return;
         }
 
         await jobModel.Message.AcknowledgeAsync();
-
-        return true;
     }
 
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -150,12 +148,12 @@ internal class ActiveMqJobSource : IJobSource
         };
     }
 
-    public Task<bool> HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
         /*
          * Not necessary. Heartbeats are managed by the persistence of the IMessage object.
          */
-        return Task.FromResult(true);
+        return Task.CompletedTask;
     }
 
     public sealed class ConfigurationModel

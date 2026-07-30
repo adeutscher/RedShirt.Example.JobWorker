@@ -22,11 +22,8 @@ public interface IJobSource
     /// <param name="message"></param>
     /// <param name="success"></param>
     /// <param name="cancellationToken"></param>
-    /// <returns>
-    ///     <c>true</c> if acknowledgement succeeded; <c>false</c> if acknowledgement could not be completed
-    ///     or was a no-op failure path.
-    /// </returns>
-    Task<bool> AcknowledgeCompletionAsync(IJobModel message, bool success,
+    /// <returns></returns>
+    Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default);
 
     Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default);
@@ -36,9 +33,6 @@ public interface IJobSource
     /// </summary>
     /// <param name="message"></param>
     /// <param name="cancellationToken"></param>
-    /// <returns>
-    ///     <c>true</c> if the heartbeat succeeded (or was intentionally a no-op for sources that do not use heartbeats);
-    ///     <c>false</c> if the heartbeat could not be completed or was a no-op failure path.
-    /// </returns>
-    Task<bool> HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default);
+    /// <returns></returns>
+    Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default);
 }

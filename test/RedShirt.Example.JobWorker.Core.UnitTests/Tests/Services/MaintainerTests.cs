@@ -88,7 +88,7 @@ public class MaintainerTests
             .Returns(1);
         jobSource
             .Setup(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken))
-            .ReturnsAsync(true);
+            .Returns(Task.CompletedTask);
 
         var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
             jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
@@ -209,7 +209,7 @@ public class MaintainerTests
             .Returns(1);
         jobSource
             .Setup(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken))
-            .ReturnsAsync(true);
+            .Returns(Task.CompletedTask);
 
         var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
             jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
@@ -501,7 +501,7 @@ public class MaintainerTests
             .Returns(1);
         jobSource
             .Setup(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken))
-            .ReturnsAsync(true);
+            .Returns(Task.CompletedTask);
 
         var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
             jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
@@ -601,10 +601,10 @@ public class MaintainerTests
             .Returns(1);
         jobSource
             .Setup(s => s.HeartbeatAsync(subject1.Object, TestContext.Current.CancellationToken))
-            .ReturnsAsync(true);
+            .Returns(Task.CompletedTask);
         jobSource
             .Setup(s => s.HeartbeatAsync(subject2.Object, TestContext.Current.CancellationToken))
-            .ReturnsAsync(true);
+            .Returns(Task.CompletedTask);
 
         var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
             jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());

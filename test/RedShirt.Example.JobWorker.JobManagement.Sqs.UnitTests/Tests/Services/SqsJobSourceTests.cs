@@ -159,7 +159,7 @@ public class SqsJobSourceTests
             Data = new Mock<IJobDataModel>().Object
         };
 
-        Assert.False(await source.AcknowledgeCompletionAsync(job, success, TestContext.Current.CancellationToken));
+        await source.AcknowledgeCompletionAsync(job, success, TestContext.Current.CancellationToken);
 
         Assert.Empty(sqs.Invocations);
         Assert.Empty(poisonMessageHandler.Invocations);
@@ -187,7 +187,7 @@ public class SqsJobSourceTests
             RawMessage = rawMessage
         };
 
-        Assert.True(await source.AcknowledgeCompletionAsync(job, false, TestContext.Current.CancellationToken));
+        await source.AcknowledgeCompletionAsync(job, false, TestContext.Current.CancellationToken);
 
         Assert.Empty(sqs.Invocations);
         poisonMessageHandler.Verify(
@@ -215,7 +215,7 @@ public class SqsJobSourceTests
             RawMessage = new Message {ReceiptHandle = receiptHandle}
         };
 
-        Assert.True(await source.AcknowledgeCompletionAsync(job, true, TestContext.Current.CancellationToken));
+        await source.AcknowledgeCompletionAsync(job, true, TestContext.Current.CancellationToken);
 
         sqs.Verify(s => s.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(), It.IsAny<CancellationToken>()),
             Times.Once);
@@ -265,7 +265,7 @@ public class SqsJobSourceTests
             Data = null!
         };
 
-        Assert.True(await source.HeartbeatAsync(job, TestContext.Current.CancellationToken));
+        await source.HeartbeatAsync(job, TestContext.Current.CancellationToken);
 
         sqs.Verify(
             s => s.ChangeMessageVisibilityAsync(It.IsAny<ChangeMessageVisibilityRequest>(),
@@ -349,7 +349,7 @@ public class SqsJobSourceTests
             Data = new Mock<IJobDataModel>().Object
         };
 
-        Assert.False(await source.HeartbeatAsync(job, TestContext.Current.CancellationToken));
+        await source.HeartbeatAsync(job, TestContext.Current.CancellationToken);
 
         Assert.Empty(sqs.Invocations);
     }

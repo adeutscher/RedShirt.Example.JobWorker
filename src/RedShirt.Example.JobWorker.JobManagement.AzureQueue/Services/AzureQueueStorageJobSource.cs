@@ -16,13 +16,13 @@ internal class AzureQueueStorageJobSource(
     ILogger<AzureQueueStorageJobSource> logger,
     IOptions<AzureQueueStorageConfigurationModel> options) : IJobSource
 {
-    public async Task<bool> AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not AzureJobModel messageAsAzureJobModel)
             // For consideration: Throw some kind of exception?
         {
-            return false;
+            return;
         }
 
         var client = await clientSource.GetQueueClientAsync(cancellationToken);
@@ -31,8 +31,6 @@ internal class AzureQueueStorageJobSource(
         // For lack of that, in this template we will treat it like ActiveMQ/RabbitMQ and delete the message.
         // Queueing up failed messages in another DLQ would 
         await client.DeleteMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
-
-        return true;
     }
 
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -78,17 +76,16 @@ internal class AzureQueueStorageJobSource(
     public int RecommendedHeartbeatIntervalSeconds =>
         (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
-    public async Task<bool> HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public async Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
         if (message is not AzureJobModel messageAsAzureJobModel)
             // For consideration: Throw some kind of exception?
         {
-            return false;
+            return;
         }
 
         var client = await clientSource.GetQueueClientAsync(cancellationToken);
         await client.SetMessageVisibilityTimeoutAsync(messageAsAzureJobModel.Message,
             TimeSpan.FromSeconds(options.Value.EffectiveVisibilityTimeoutSeconds), cancellationToken);
-        return true;
     }
 }
