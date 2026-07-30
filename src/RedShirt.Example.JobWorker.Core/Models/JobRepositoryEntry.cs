@@ -10,7 +10,7 @@ internal interface ISortableJobWrapper
 
 internal interface IJobRepositoryEntry : ISortableJobWrapper
 {
-    bool FlightTimeCanBeExtended { get; }
+    bool CanHeartbeat { get; }
     DateTime LastHeartbeatTime { get; set; }
     JobState State { get; }
     Task<Guid> AcquireLockAsync(CancellationToken cancellationToken = default);
@@ -24,14 +24,14 @@ internal class JobRepositoryEntry : IJobRepositoryEntry
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
     private Guid _lockId = Guid.Empty;
-    public bool FlightTimeCanBeExtended { get; private set; } = true;
+    public bool CanHeartbeat { get; private set; } = true;
     public required DateTime LastHeartbeatTime { get; set; }
     public required IJobModel JobModel { get; init; }
 
     public async Task SetIfFlightTimeCanBeExtendedAsync(bool flightTime, CancellationToken cancellationToken = default)
     {
         await _semaphoreSlim.WaitAsync(cancellationToken);
-        FlightTimeCanBeExtended = flightTime;
+        CanHeartbeat = flightTime;
         _semaphoreSlim.Release();
     }
 

@@ -45,7 +45,7 @@ internal class Maintainer(
 
             try
             {
-                if (!job.FlightTimeCanBeExtended)
+                if (!job.CanHeartbeat)
                 {
                     // Job's flight time cannot be extended further
                     continue;

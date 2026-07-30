@@ -17,7 +17,7 @@ public class JobRepositoryEntryTests
             JobModel = jobModel
         };
 
-        Assert.True(jre.FlightTimeCanBeExtended);
+        Assert.True(jre.CanHeartbeat);
         Assert.Equal(JobState.Inactive, jre.State);
 
         // Set/Get Heartbeat Time
@@ -32,7 +32,7 @@ public class JobRepositoryEntryTests
 
         // Set/Get FlightTimeCanBeExtended
         await jre.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken);
-        Assert.False(jre.FlightTimeCanBeExtended);
+        Assert.False(jre.CanHeartbeat);
     }
 
     [Fact(Timeout = 500)]
