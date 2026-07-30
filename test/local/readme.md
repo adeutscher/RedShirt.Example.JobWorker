@@ -129,6 +129,8 @@ To initialize RabbitMQ and queue messages:
     {"SleepDurationSeconds": 12}
     ```
 
+    * If you are testing idempotency, then remember to also set an arbitrary value to the `message_id` property.
+
 9. Before starting the worker, make sure that the `USE_RABBITMQ` is set to `1` and that other `USE_` environment variables are not set to `1`:
 
     ```
