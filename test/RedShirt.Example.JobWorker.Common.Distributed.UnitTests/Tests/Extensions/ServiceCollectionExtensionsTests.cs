@@ -17,7 +17,7 @@ public class ServiceCollectionExtensionsTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["JobSource:Kinesis:Redis:ConnectionStringPath"] = connectionStringPath
+                ["Common:Cache:Redis:ConnectionStringPath"] = connectionStringPath
             })
             .Build();
 

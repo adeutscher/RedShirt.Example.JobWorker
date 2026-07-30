@@ -28,6 +28,7 @@ public static class ServiceCollectionExtensions
             .Configure<RedisConnectionFactory.ConfigurationModel>(configuration.GetSection("Common:Cache:Redis"))
             .AddSingleton<IRedisConnectionFactory, RedisConnectionFactory>()
             .AddSingleton<IRedisConnectionCacheService, RedisConnectionCacheService>()
-            .AddSingleton<IAbstractedLockService, RedisLockService>();
+            .AddSingleton<IAbstractedLockService, RedisLockService>()
+            .AddSingleton<IRemoteCacheService, RedisCacheService>();
     }
 }

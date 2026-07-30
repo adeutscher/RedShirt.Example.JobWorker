@@ -4,6 +4,7 @@ using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Services;
 
@@ -159,7 +160,7 @@ public class HighLevelStreamSourceTests
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-a", "shard-b"]);
-        locker.Setup(l => l.GetLockAsync("shard-b", TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-b"), TestContext.Current.CancellationToken))
             .ReturnsAsync(secondLock.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-b", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-b");
@@ -185,8 +186,9 @@ public class HighLevelStreamSourceTests
 
         Assert.Same(secondJob, Assert.Single(response.Items));
         Assert.Equal(2, streamSource.Sessions.Count);
-        locker.Verify(l => l.GetLockAsync("shard-a", It.IsAny<CancellationToken>()), Times.Never);
-        locker.Verify(l => l.GetLockAsync("shard-b", TestContext.Current.CancellationToken), Times.Once);
+        locker.Verify(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-a"), It.IsAny<CancellationToken>()), Times.Never);
+        locker.Verify(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-b"), TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Fact]
@@ -201,9 +203,9 @@ public class HighLevelStreamSourceTests
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-a", "shard-b"]);
-        locker.Setup(l => l.GetLockAsync("shard-a", TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-a"), TestContext.Current.CancellationToken))
             .ReturnsAsync(CreateUnacquiredLock().Object);
-        locker.Setup(l => l.GetLockAsync("shard-b", TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-b"), TestContext.Current.CancellationToken))
             .ReturnsAsync(acquiredLock.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-b", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-b");
@@ -241,7 +243,7 @@ public class HighLevelStreamSourceTests
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-a"]);
-        locker.Setup(l => l.GetLockAsync("shard-a", TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-a"), TestContext.Current.CancellationToken))
             .ReturnsAsync(lockHandle.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-a", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-1");
@@ -263,7 +265,8 @@ public class HighLevelStreamSourceTests
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
         Assert.Equal(1, streamSource.Sessions["shard-a"].Count);
 
-        locker.Verify(l => l.GetLockAsync("shard-a", TestContext.Current.CancellationToken), Times.Once);
+        locker.Verify(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-a"), TestContext.Current.CancellationToken),
+            Times.Once);
         checkpointStorage.Verify(c => c.GetCheckpointAsync("shard-a", TestContext.Current.CancellationToken),
             Times.Once);
         lowLevelStreamSource.Verify(
@@ -293,8 +296,10 @@ public class HighLevelStreamSourceTests
 
         Assert.Empty(response.Items);
         Assert.Empty(streamSource.Sessions);
-        locker.Verify(l => l.GetLockAsync("shard-a", TestContext.Current.CancellationToken), Times.Once);
-        locker.Verify(l => l.GetLockAsync("shard-b", TestContext.Current.CancellationToken), Times.Once);
+        locker.Verify(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-a"), TestContext.Current.CancellationToken),
+            Times.Once);
+        locker.Verify(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-b"), TestContext.Current.CancellationToken),
+            Times.Once);
         checkpointStorage.Verify(
             c => c.GetCheckpointAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         lowLevelStreamSource.Verify(
@@ -313,7 +318,7 @@ public class HighLevelStreamSourceTests
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-empty"]);
-        locker.Setup(l => l.GetLockAsync("shard-empty", TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-empty"), TestContext.Current.CancellationToken))
             .ReturnsAsync(emptyShardLock.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-empty", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-empty");
@@ -355,7 +360,7 @@ public class HighLevelStreamSourceTests
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-empty"]);
-        locker.Setup(l => l.GetLockAsync("shard-empty", TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-empty"), TestContext.Current.CancellationToken))
             .ReturnsAsync(emptyShardLock.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-empty", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-empty");
