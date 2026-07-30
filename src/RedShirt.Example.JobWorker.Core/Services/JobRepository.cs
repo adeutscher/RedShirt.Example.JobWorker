@@ -4,6 +4,7 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.Core.Utility;
+using System.Collections.Concurrent;
 
 namespace RedShirt.Example.JobWorker.Core.Services;
 
@@ -35,6 +36,8 @@ internal interface IJobRepository
     Task LoadAsync(JobSourceResponse jobSourceResponse,
         CancellationToken cancellationToken = default);
 
+    Task ReloadUnblockedJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default);
+
     Task RemoveJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default);
 
     Task WaitForEmptyRepositoryAsync(CancellationToken cancellationToken = default);
@@ -51,7 +54,7 @@ internal class JobRepository(
 {
     private readonly SemaphoreSlim _inactiveJobsSemaphore = new(1, 1);
 
-    private readonly AsyncManualResetEvent _jobsArrivedEvent = new();
+    private readonly AsyncManualResetEvent _jobsAvailableEvent = new();
 
     /// <summary>
     ///     Signaled when the repository has no watched jobs OR the repository was unable to produce an inactive job for a
@@ -65,16 +68,23 @@ internal class JobRepository(
     /// </summary>
     private readonly AsyncManualResetEvent _repositoryEmptyEvent = new(true);
 
+    /// <summary>
+    ///     Jobs that have recently been unblocked due to an idempotency lock.
+    ///     This queue intended as a shortlist that will jump the normal sorted line of the inactive jobs list.
+    /// </summary>
+    private readonly ConcurrentQueue<IJobRepositoryEntry> _unblockedJobsQueue = new();
+
     private readonly SemaphoreSlim _watchedJobsListSemaphore = new(1, 1);
 
     /// <summary>
     ///     Inactive potential jobs
     ///     Reminder: This is currently a list instead of a queue because it needs to be sorted in a manner that is consistent
     ///     with the Batch approach
+    ///     Similarly, confirming that it is intentional that this list not be marked as readonly.
     /// </summary>
-    private List<IJobRepositoryEntry> _inactiveJobs = new();
+    private List<IJobRepositoryEntry> _inactiveJobsList = [];
 
-    internal List<IJobRepositoryEntry> WatchedJobs { get; } = new();
+    internal List<IJobRepositoryEntry> WatchedJobs { get; } = [];
 
     public async Task<List<IJobRepositoryEntry>> GetAllInFlightJobsAsync(CancellationToken cancellationToken = default)
     {
@@ -129,18 +139,39 @@ internal class JobRepository(
         IJobRepositoryEntry? result;
         do
         {
-            await _inactiveJobsSemaphore.WaitAsync(cancellationToken);
-            await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
+            // Try shortlist of unblocked jobs
+            if (_unblockedJobsQueue.TryDequeue(out result))
+            {
+                await _inactiveJobsSemaphore.WaitAsync(cancellationToken);
+                try
+                {
+                    if (_inactiveJobsList.Count == 0 && _unblockedJobsQueue.IsEmpty)
+                    {
+                        _jobsAvailableEvent.Reset();
+                    }
+                }
+                finally
+                {
+                    _inactiveJobsSemaphore.Release();
+                }
 
+                // Continue out of loop iteration to abort via do-while condition
+                continue;
+            }
+
+            await _inactiveJobsSemaphore.WaitAsync(cancellationToken);
             try
             {
-                result = _inactiveJobs.FirstOrDefault();
+                result = _inactiveJobsList.FirstOrDefault();
 
                 if (result is not null)
                 {
-                    _inactiveJobs.RemoveAt(0);
+                    _inactiveJobsList.RemoveAt(0);
 
-                    await result.SetStateAsync(JobState.Active, cancellationToken);
+                    if (_inactiveJobsList.Count == 0 && _unblockedJobsQueue.IsEmpty)
+                    {
+                        _jobsAvailableEvent.Reset();
+                    }
 
                     // Continue out of loop iteration to abort via do-while condition
                     continue;
@@ -149,10 +180,9 @@ internal class JobRepository(
             finally
             {
                 _inactiveJobsSemaphore.Release();
-                _watchedJobsListSemaphore.Release();
             }
 
-            // Queue is currently empty
+            // If execution has reached here, then there are currently no available jobs to be handed out.
 
             // Is it because we've been asked to stop running?
             if (
@@ -176,8 +206,10 @@ internal class JobRepository(
             // Wait for jobs to arrive
             // The milliseconds timeout is necessary due to timing problems that came up during unit testing
             // I can't say that I'm thrilled with it, though...
-            await _jobsArrivedEvent.WaitAsync(TimeSpan.FromMilliseconds(250), cancellationToken);
+            await _jobsAvailableEvent.WaitAsync(TimeSpan.FromMilliseconds(250), cancellationToken);
         } while (result is null);
+
+        await result.SetStateAsync(JobState.Active, cancellationToken);
 
         return result;
     }
@@ -185,11 +217,18 @@ internal class JobRepository(
     public async Task LoadAsync(JobSourceResponse jobSourceResponse,
         CancellationToken cancellationToken = default)
     {
-        await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
+        if (jobSourceResponse.Items.Count == 0)
+        {
+            // If nothing to add, then don't bother with semaphores
+            return;
+        }
+
         await _inactiveJobsSemaphore.WaitAsync(cancellationToken);
 
         try
         {
+            await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
+
             try
             {
                 // ReSharper disable once ForeachCanBePartlyConvertedToQueryUsingAnotherGetEnumerator
@@ -201,7 +240,7 @@ internal class JobRepository(
                         JobModel = jobModel
                     };
 
-                    _inactiveJobs.Add(job); // Worry about sorting later, see below
+                    _inactiveJobsList.Add(job); // Worry about sorting later, see below
 
                     WatchedJobs.Add(job);
 
@@ -222,15 +261,24 @@ internal class JobRepository(
              * * Needs to be compatible with Batch mode, at least for the time being.
              * * We're assuming that we're not working with enormous datasets for our backlog size.
              */
-            _inactiveJobs = sorter.GetSortedListOfJobs(_inactiveJobs);
+            _inactiveJobsList = sorter.GetSortedListOfJobs(_inactiveJobsList);
         }
         finally
         {
             _inactiveJobsSemaphore.Release();
         }
 
-        _jobsArrivedEvent.Set();
-        _jobsArrivedEvent.Reset();
+        _jobsAvailableEvent.Set();
+    }
+
+    public Task ReloadUnblockedJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default)
+    {
+        job.SetStateAsync(JobState.Inactive, cancellationToken);
+        // Shortlist the job for re-execution in memory
+        _unblockedJobsQueue.Enqueue(job);
+        // Tell any active invocations of GetNextJobAsync that there is something available.
+        _jobsAvailableEvent.Set();
+        return Task.CompletedTask;
     }
 
     public async Task RemoveJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default)

@@ -117,6 +117,12 @@ internal class Maintainer(
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
+        if (jobSource.RecommendedHeartbeatIntervalSeconds <= 0)
+        {
+            // Not needed by implementation, abort immediately.
+            return;
+        }
+
         while (await appliedExecutionEndArbiter.MaintainerShouldKeepRunningAsync(cancellationToken))
         {
             var jobs = await jobRepository.GetAllInFlightJobsAsync(cancellationToken);
