@@ -38,7 +38,8 @@ public class NatsJobSourceTests
             Data = null!
         };
 
-        await natsJobSource.AcknowledgeCompletionAsync(jobModel, true, TestContext.Current.CancellationToken);
+        Assert.True(await natsJobSource.AcknowledgeCompletionAsync(jobModel, true,
+            TestContext.Current.CancellationToken));
 
         message.Verify(m => m.AckAsync(It.IsAny<AckOpts?>(), TestContext.Current.CancellationToken), Times.Once);
     }
@@ -59,9 +60,8 @@ public class NatsJobSourceTests
         var natsJobSource = new NatsJobSource(null!, null!, null!, null!,
             new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
-        await natsJobSource.AcknowledgeCompletionAsync(job.Object, true, TestContext.Current.CancellationToken);
-
-        Assert.True(true); // Satisfy Sonar's requirement for an assert.
+        Assert.False(await natsJobSource.AcknowledgeCompletionAsync(job.Object, true,
+            TestContext.Current.CancellationToken));
     }
 
     [Fact]

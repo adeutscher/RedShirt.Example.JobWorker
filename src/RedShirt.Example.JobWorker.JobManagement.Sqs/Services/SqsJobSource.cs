@@ -20,19 +20,19 @@ internal class SqsJobSource(
     ILogger<SqsJobSource> logger,
     IOptions<SqsConfigurationModel> options) : IJobSource
 {
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task<bool> AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not SqsJobModel sqsJobModel)
         {
             // Message did not originate from this job source, ignore
-            return;
+            return false;
         }
 
         if (!success)
         {
             await poisonMessagesHandler.AttemptPoisonMessageEnforcementAsync(sqsJobModel.RawMessage, cancellationToken);
-            return;
+            return true;
         }
 
         await sqs.DeleteMessageAsync(new DeleteMessageRequest
@@ -40,6 +40,8 @@ internal class SqsJobSource(
             QueueUrl = options.Value.QueueUrl,
             ReceiptHandle = sqsJobModel.RawMessage.ReceiptHandle
         }, cancellationToken);
+
+        return true;
     }
 
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)

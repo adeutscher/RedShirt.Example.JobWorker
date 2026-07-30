@@ -37,13 +37,13 @@ internal class RabbitMqJobSource : IJobSource
         });
     }
 
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task<bool> AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not RabbitMqJobModel rabbitMqJobModel)
         {
             // Message did not originate from RabbitMQ, return
-            return;
+            return false;
         }
 
         var channel = await _channel.Value;
@@ -61,6 +61,8 @@ internal class RabbitMqJobSource : IJobSource
              * The message represented by this message ID already fell back into the queue when the connection died.
              */
         }
+
+        return true;
     }
 
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)

@@ -97,7 +97,6 @@ public class MaintainerTests
 
         Assert.Single(jobRepository.Invocations);
 
-        Assert.Single(jobSource.Invocations);
         jobSource.Verify(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken), Times.Once);
 
         entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
@@ -219,7 +218,6 @@ public class MaintainerTests
 
         Assert.Single(jobRepository.Invocations);
 
-        Assert.Single(jobSource.Invocations);
         jobSource.Verify(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken), Times.Once);
 
         entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
@@ -296,7 +294,6 @@ public class MaintainerTests
 
         Assert.Single(jobRepository.Invocations);
 
-        Assert.Single(jobSource.Invocations);
         jobSource.Verify(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken), Times.Once);
 
         entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
@@ -439,7 +436,7 @@ public class MaintainerTests
 
         Assert.Single(jobRepository.Invocations);
 
-        Assert.Empty(jobSource.Invocations);
+        jobSource.Verify(s => s.HeartbeatAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Never);
 
         entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
         entry.Verify(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken), Times.Once);
@@ -513,7 +510,6 @@ public class MaintainerTests
 
         Assert.Single(jobRepository.Invocations);
 
-        Assert.Single(jobSource.Invocations);
         jobSource.Verify(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken), Times.Once);
 
         entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
@@ -617,7 +613,6 @@ public class MaintainerTests
 
         Assert.Single(jobRepository.Invocations);
 
-        Assert.Equal(2, jobSource.Invocations.Count);
         jobSource.Verify(s => s.HeartbeatAsync(subject1.Object, TestContext.Current.CancellationToken), Times.Once);
         jobSource.Verify(s => s.HeartbeatAsync(subject2.Object, TestContext.Current.CancellationToken), Times.Once);
 

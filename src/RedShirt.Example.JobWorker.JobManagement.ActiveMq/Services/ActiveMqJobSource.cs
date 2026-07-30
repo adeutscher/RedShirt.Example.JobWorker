@@ -67,13 +67,16 @@ internal class ActiveMqJobSource : IJobSource
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task<bool> AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
-        if (message is JobModel jobModel)
+        if (message is not JobModel jobModel)
         {
-            await jobModel.Message.AcknowledgeAsync();
+            return false;
         }
+
+        await jobModel.Message.AcknowledgeAsync();
+        return true;
     }
 
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)

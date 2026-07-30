@@ -22,13 +22,16 @@ internal class NatsJobSource(
     private readonly Lazy<Task<INatsJSContext>> _lazyContext =
         new(() => natsJetStreamContextFactory.CreateNatsJetStreamContextAsync());
 
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task<bool> AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
-        if (message is JobModel jobModel)
+        if (message is not JobModel jobModel)
         {
-            await jobModel.Message.AckAsync(cancellationToken: cancellationToken);
+            return false;
         }
+
+        await jobModel.Message.AckAsync(cancellationToken: cancellationToken);
+        return true;
     }
 
     public int RecommendedHeartbeatIntervalSeconds => 0;

@@ -52,7 +52,7 @@ public class RabbitMqJobSourceTests
             Data = new Mock<IJobDataModel>().Object
         };
 
-        await jobSource.AcknowledgeCompletionAsync(job, true, TestContext.Current.CancellationToken);
+        Assert.True(await jobSource.AcknowledgeCompletionAsync(job, true, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Single(rabbitConnectionFactory.Invocations);
@@ -85,7 +85,8 @@ public class RabbitMqJobSourceTests
 
         var job = new Mock<IJobModel>();
 
-        await jobSource.AcknowledgeCompletionAsync(job.Object, true, TestContext.Current.CancellationToken);
+        Assert.False(await jobSource.AcknowledgeCompletionAsync(job.Object, true,
+            TestContext.Current.CancellationToken));
 
         Assert.Empty(rabbitConnectionFactory.Invocations);
         Assert.Empty(mockConnection.Invocations);
@@ -132,7 +133,7 @@ public class RabbitMqJobSourceTests
             Data = new Mock<IJobDataModel>().Object
         };
 
-        await jobSource.AcknowledgeCompletionAsync(job, true, TestContext.Current.CancellationToken);
+        Assert.True(await jobSource.AcknowledgeCompletionAsync(job, true, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Single(rabbitConnectionFactory.Invocations);

@@ -36,7 +36,8 @@ public class ActiveMqJobSourceTests
             Data = null!
         };
 
-        await activeMqJobSource.AcknowledgeCompletionAsync(jobModel, true, TestContext.Current.CancellationToken);
+        Assert.True(await activeMqJobSource.AcknowledgeCompletionAsync(jobModel, true,
+            TestContext.Current.CancellationToken));
 
         message.Verify(m => m.AcknowledgeAsync(), Times.Once);
     }
@@ -57,9 +58,8 @@ public class ActiveMqJobSourceTests
         var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration), null!, null!,
             new NullLogger<ActiveMqJobSource>());
 
-        await activeMqJobSource.AcknowledgeCompletionAsync(job.Object, true, TestContext.Current.CancellationToken);
-
-        Assert.True(true); // Satisfy Sonar's requirement for an assert.
+        Assert.False(await activeMqJobSource.AcknowledgeCompletionAsync(job.Object, true,
+            TestContext.Current.CancellationToken));
     }
 
     [Fact]

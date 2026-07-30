@@ -22,8 +22,12 @@ public interface IJobSource
     /// <param name="message"></param>
     /// <param name="success"></param>
     /// <param name="cancellationToken"></param>
-    /// <returns></returns>
-    Task AcknowledgeCompletionAsync(IJobModel message, bool success, CancellationToken cancellationToken = default);
+    /// <returns>
+    ///     <c>true</c> if acknowledgement succeeded; <c>false</c> if acknowledgement could not be completed
+    ///     or was a no-op failure path.
+    /// </returns>
+    Task<bool> AcknowledgeCompletionAsync(IJobModel message, bool success,
+        CancellationToken cancellationToken = default);
 
     Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default);
     Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default);

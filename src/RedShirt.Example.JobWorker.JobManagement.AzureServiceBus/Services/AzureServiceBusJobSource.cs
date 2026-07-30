@@ -17,13 +17,13 @@ internal class AzureServiceBusJobSource(
     ILogger<AzureServiceBusJobSource> logger,
     IOptions<AzureServiceBusConfigurationModel> options) : IJobSource
 {
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task<bool> AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not AzureJobModel messageAsAzureJobModel)
             // For consideration: Throw some kind of exception?
         {
-            return;
+            return false;
         }
 
         var client = await clientSource.GetQueueClientAsync();
@@ -42,6 +42,8 @@ internal class AzureServiceBusJobSource(
              */
             await client.AbandonMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
         }
+
+        return true;
     }
 
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)

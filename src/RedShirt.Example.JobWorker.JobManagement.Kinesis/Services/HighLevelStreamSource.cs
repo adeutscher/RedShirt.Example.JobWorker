@@ -17,12 +17,12 @@ internal class HighLevelStreamSource(
     internal readonly Dictionary<string, KinesisTrackerSession> Sessions = new();
     private readonly SemaphoreSlim _sessionsSemaphore = new(1, 1);
 
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task<bool> AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not KinesisJobModel kinesisJobModel)
         {
-            return;
+            return false;
         }
 
         await _sessionsSemaphore.WaitAsync(cancellationToken);
@@ -31,7 +31,7 @@ internal class HighLevelStreamSource(
         {
             if (!Sessions.TryGetValue(kinesisJobModel.ShardId, out var trackerSession))
             {
-                return;
+                return false;
             }
 
             trackerSession.Increment(kinesisJobModel.MessageId);
@@ -52,6 +52,8 @@ internal class HighLevelStreamSource(
                 trackerSession.ReleaseLockOnShard();
                 Sessions.Remove(kinesisJobModel.ShardId);
             }
+
+            return true;
         }
         finally
         {

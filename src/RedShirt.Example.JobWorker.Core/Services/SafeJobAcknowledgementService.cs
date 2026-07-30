@@ -16,7 +16,7 @@ internal class SafeJobAcknowledgementService(
     ISleepService sleepService,
     ILogger<SafeJobAcknowledgementService> logger) : ISafeJobAcknowledgementService
 {
-    private readonly AsyncRetryPolicy _acknowledgementRetryPolicy = Policy.Handle<Exception>()
+    private readonly AsyncRetryPolicy<bool> _acknowledgementRetryPolicy = Policy<bool>.Handle<Exception>()
         .RetryAsync(Globals.AcknowledgementRetryCount,
             async (e, instanceCount) =>
             {
@@ -31,9 +31,8 @@ internal class SafeJobAcknowledgementService(
     {
         try
         {
-            await _acknowledgementRetryPolicy
+            return await _acknowledgementRetryPolicy
                 .ExecuteAsync(() => jobSource.AcknowledgeCompletionAsync(job.JobModel, success, cancellationToken));
-            return true;
         }
         catch (Exception e)
         {
