@@ -2,7 +2,7 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 using StackExchange.Redis;
 
-namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Factories;
+namespace RedShirt.Example.JobWorker.Common.Distributed.Factories;
 
 internal interface IRedisConnectionFactory
 {

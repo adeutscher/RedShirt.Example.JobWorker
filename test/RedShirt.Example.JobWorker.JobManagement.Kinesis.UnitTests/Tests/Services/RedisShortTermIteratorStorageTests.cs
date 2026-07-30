@@ -1,3 +1,4 @@
+using RedShirt.Example.JobWorker.Common.Distributed.Services;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 using StackExchange.Redis;
 

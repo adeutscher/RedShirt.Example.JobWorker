@@ -1,9 +1,10 @@
 using Microsoft.Extensions.Options;
+using Moq;
+using RedShirt.Example.JobWorker.Common.Distributed.Factories;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
-using RedShirt.Example.JobWorker.JobManagement.Kinesis.Factories;
 using StackExchange.Redis;
 
-namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Factories;
+namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Factories;
 
 public class RedisConnectionFactoryTests
 {

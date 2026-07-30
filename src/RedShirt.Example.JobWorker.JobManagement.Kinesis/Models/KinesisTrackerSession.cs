@@ -1,3 +1,5 @@
+using RedShirt.Example.JobWorker.Common.Distributed.Models;
+
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 
 internal class KinesisTrackerSession(

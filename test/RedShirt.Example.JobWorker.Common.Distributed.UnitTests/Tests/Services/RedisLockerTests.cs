@@ -1,7 +1,8 @@
-using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
+using Moq;
+using RedShirt.Example.JobWorker.Common.Distributed.Services;
 using StackExchange.Redis;
 
-namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services;
 
 public class RedisLockerTests
 {

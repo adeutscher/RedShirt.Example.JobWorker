@@ -1,12 +1,12 @@
-using RedShirt.Example.JobWorker.JobManagement.Kinesis.Factories;
+using RedShirt.Example.JobWorker.Common.Distributed.Factories;
 using StackExchange.Redis;
 
-namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
+namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
 
 /// <summary>
 ///     Caching layer to keep multiple invokers/invocations using the same Redis connection.
 /// </summary>
-internal interface IRedisConnectionCacheService
+public interface IRedisConnectionCacheService
 {
     Task<IDatabase> GetDatabaseAsync(CancellationToken cancellationToken = default);
 }
