@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.Core.Enums.Loader;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
@@ -57,6 +57,17 @@ public class JobRepositoryTests
             jobRepository.WatchedJobs.Add(job.Object);
         }
 
+        for (var i = 0; i < 2; i++)
+        {
+            var job = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
+            job.Setup(j => j.State).Returns(JobState.BlockedByIdempotency);
+            var jobModel = new Mock<IJobModel>(MockBehavior.Strict);
+            jobModel.Setup(m => m.MessageId).Returns(Guid.NewGuid().ToString());
+            expectedJobs.Add(jobModel);
+            job.Setup(j => j.JobModel).Returns(jobModel.Object);
+            jobRepository.WatchedJobs.Add(job.Object);
+        }
+
         for (var i = 0; i < 1; i++)
         {
             var job = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
@@ -66,12 +77,86 @@ public class JobRepositoryTests
 
         var jobs = await jobRepository.GetAllInFlightJobsAsync(TestContext.Current.CancellationToken);
         Assert.NotSame(expectedJobs, jobRepository.WatchedJobs);
-        Assert.Equal(5, jobs.Count); // Excludes the Complete one
+        Assert.Equal(7, jobs.Count); // Excludes the Complete one; includes BlockedByIdempotency
 
         foreach (var t in expectedJobs)
         {
             Assert.Single(jobs, job => job.JobModel.MessageId == t.Object.MessageId);
         }
+    }
+
+    [Fact(Timeout = 500)]
+    public async Task TestGetAllIdempotencyBlockedJobsAsync()
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+
+        var options = new JobRepository.ConfigurationModel
+        {
+            BacklogSize = 0
+        };
+
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
+            Options.Create(options));
+
+        var expectedBlockedJobs = new List<Mock<IJobModel>>();
+
+        for (var i = 0; i < 2; i++)
+        {
+            var job = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
+            job.Setup(j => j.State).Returns(JobState.Inactive);
+            var jobModel = new Mock<IJobModel>(MockBehavior.Strict);
+            jobModel.Setup(m => m.MessageId).Returns(Guid.NewGuid().ToString());
+            job.Setup(j => j.JobModel).Returns(jobModel.Object);
+            jobRepository.WatchedJobs.Add(job.Object);
+        }
+
+        for (var i = 0; i < 1; i++)
+        {
+            var job = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
+            job.Setup(j => j.State).Returns(JobState.Active);
+            var jobModel = new Mock<IJobModel>(MockBehavior.Strict);
+            jobModel.Setup(m => m.MessageId).Returns(Guid.NewGuid().ToString());
+            job.Setup(j => j.JobModel).Returns(jobModel.Object);
+            jobRepository.WatchedJobs.Add(job.Object);
+        }
+
+        for (var i = 0; i < 3; i++)
+        {
+            var job = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
+            job.Setup(j => j.State).Returns(JobState.BlockedByIdempotency);
+            var jobModel = new Mock<IJobModel>(MockBehavior.Strict);
+            jobModel.Setup(m => m.MessageId).Returns(Guid.NewGuid().ToString());
+            expectedBlockedJobs.Add(jobModel);
+            job.Setup(j => j.JobModel).Returns(jobModel.Object);
+            jobRepository.WatchedJobs.Add(job.Object);
+        }
+
+        for (var i = 0; i < 1; i++)
+        {
+            var job = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
+            job.Setup(j => j.State).Returns(JobState.Complete);
+            jobRepository.WatchedJobs.Add(job.Object);
+        }
+
+        var jobs = await jobRepository.GetAllIdempotencyBlockedJobsAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(3, jobs.Count);
+
+        foreach (var t in expectedBlockedJobs)
+        {
+            Assert.Single(jobs, job => job.JobModel.MessageId == t.Object.MessageId);
+        }
+
+        Assert.All(jobs, job => Assert.Equal(JobState.BlockedByIdempotency, job.State));
     }
 
     [Theory]

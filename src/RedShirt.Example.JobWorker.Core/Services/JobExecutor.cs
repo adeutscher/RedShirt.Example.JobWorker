@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
-using RedShirt.Example.JobWorker.Core.Enums.Loader;
+using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 
 namespace RedShirt.Example.JobWorker.Core.Services;
 
@@ -12,20 +14,63 @@ internal interface IJobExecutor
     /// <summary>
     ///     Begin am executor worker instance.
     /// </summary>
-    /// <param name="id"></param>
+    /// <param name="executorId"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    Task RunAsync(int id, CancellationToken cancellationToken = default);
+    Task RunAsync(int executorId, CancellationToken cancellationToken = default);
 }
 
 internal class JobExecutor(
     IAppliedExecutionEndArbiter appliedExecutionEndArbiter,
     IJobRepository jobRepository,
+    IIdempotencyExecutionService idempotencyExecutionService,
     ISafeJobRunner safeJobRunner,
     ISafeJobAcknowledgementService safeJobAcknowledgementService,
     ILogger<JobExecutor> logger) : IJobExecutor
 {
-    public async Task RunAsync(int id, CancellationToken cancellationToken = default)
+    private async Task ActOnJobAsync(int executorId, IJobRepositoryEntry job,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogTrace("Executor {Id} received message {MessageId}", executorId, job.JobModel.MessageId);
+
+        var cachedIdempotentResult =
+            await idempotencyExecutionService.GetCachedResultAsync(job.JobModel, cancellationToken);
+        if (cachedIdempotentResult == true)
+        {
+            var idempotentAcknowledgementSuccess =
+                await safeJobAcknowledgementService.AcknowledgeSafelyAsync(job.JobModel, true, cancellationToken);
+            if (!idempotentAcknowledgementSuccess)
+            {
+                /*
+                 * Implies that the executor somehow managed to lose custody of a message within a split second of receiving it.
+                 * Nothing we can do, continue.
+                 */
+                logger.LogError("Executor {Id} failed to acknowledge cached result for message {MessageId}", executorId,
+                    job.JobModel.MessageId);
+                return;
+            }
+        }
+
+        /*
+         * If the idempotency cache returned null, then there is no proof of a previous attempt. If so, then we need to run the task for the first time.
+         * If the idempotency cache returned false, then assume that we need to retry
+         */
+
+        var success = await safeJobRunner.RunSafelyAsync(job.JobModel, cancellationToken);
+        logger.LogTrace("Executor {Id} finished processing message {MessageId}. Success: {Success}", executorId,
+            job.JobModel.MessageId, success);
+
+        await job.SetStateAsync(JobState.Complete, cancellationToken);
+
+        await jobRepository.RemoveJobAsync(job, cancellationToken);
+
+        var acknowledgementSuccess =
+            await safeJobAcknowledgementService.AcknowledgeSafelyAsync(job.JobModel, success, cancellationToken);
+        await idempotencyExecutionService.SetResultInCacheAsync(job.JobModel, success, acknowledgementSuccess,
+            cancellationToken);
+    }
+
+    public async Task RunAsync(int executorId, CancellationToken cancellationToken = default)
     {
         while (await appliedExecutionEndArbiter.ExecutorsShouldKeepRunningAsync(cancellationToken))
         {
@@ -36,18 +81,29 @@ internal class JobExecutor(
                 continue;
             }
 
-            logger.LogTrace("Executor {Id} received message {MessageId}", id, job.JobModel.MessageId);
-            var success = await safeJobRunner.RunSafelyAsync(job.JobModel, cancellationToken);
-            logger.LogTrace("Executor {Id} finished processing message {MessageId}. Success: {Success}", id,
-                job.JobModel.MessageId, success);
+            var idempotencyLock = await idempotencyExecutionService.GetLockAsync(job.JobModel, cancellationToken);
 
-            var lockId = await job.AcquireLockAsync(cancellationToken);
-            job.State = JobState.Complete;
-            await job.ReleaseLockAsync(lockId, cancellationToken);
+            try
+            {
+                if (!idempotencyLock.IsAcquired)
+                {
+                    /*
+                     * A failure to get a lock suggests that idempotency has been enabled and that an instance of the job is actively running.
+                     *
+                     * This JobExecutor run should mark this instance of the job retrieval as being blocked, and proceed to try pulling another job.
+                     *
+                     * Another process will follow up on the blocked jobs.
+                     */
+                    await job.SetStateAsync(JobState.BlockedByIdempotency, cancellationToken);
+                    continue;
+                }
 
-            await jobRepository.RemoveJobAsync(job, cancellationToken);
-
-            await safeJobAcknowledgementService.AcknowledgeSafelyAsync(job.JobModel, success, cancellationToken);
+                await ActOnJobAsync(executorId, job, cancellationToken);
+            }
+            finally
+            {
+                idempotencyLock.Unlock();
+            }
         }
     }
 }

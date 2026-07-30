@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using RedShirt.Example.JobWorker.Core.Enums.Loader;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
@@ -238,7 +238,8 @@ public class MaintainerTests
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         entry.Setup(e => e.FlightTimeCanBeExtended).Returns(true);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
-        entry.SetupSet(e => e.FlightTimeCanBeExtended = false);
+        entry.Setup(e => e.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
 
         var lockId = Guid.NewGuid();
         entry.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
@@ -301,7 +302,8 @@ public class MaintainerTests
         entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
         entry.Verify(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken), Times.Once);
 
-        entry.VerifySet(e => e.FlightTimeCanBeExtended = false, Times.Once);
+        entry.Verify(e => e.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     /// <summary>

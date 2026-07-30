@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using RedShirt.Example.JobWorker.Core.Enums.Loader;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -77,7 +77,7 @@ internal class Maintainer(
                 catch (CanNoLongerHeartbeatException e)
                 {
                     logger.LogWarning(e, "Can no longer heartbeat message: {MessageId}", job.JobModel.MessageId);
-                    job.FlightTimeCanBeExtended = false;
+                    await job.SetIfFlightTimeCanBeExtendedAsync(false, cancellationToken);
                 }
 
                 var timeToNextHeartbeat = heartbeatCalculator.TimeUntilNextHeartbeat(job);

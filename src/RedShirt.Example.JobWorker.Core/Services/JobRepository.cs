@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.Core.Enums.Loader;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
@@ -16,6 +16,7 @@ namespace RedShirt.Example.JobWorker.Core.Services;
 /// </summary>
 internal interface IJobRepository
 {
+    Task<List<IJobRepositoryEntry>> GetAllIdempotencyBlockedJobsAsync(CancellationToken cancellationToken = default);
     Task<List<IJobRepositoryEntry>> GetAllInFlightJobsAsync(CancellationToken cancellationToken = default);
     int GetBacklogMaxCount();
     Task<int> GetInactiveJobCountAsync(CancellationToken cancellationToken = default);
@@ -64,7 +65,7 @@ internal class JobRepository(
     /// </summary>
     private readonly AsyncManualResetEvent _repositoryEmptyEvent = new(true);
 
-    private readonly SemaphoreSlim _watchedJobsSemaphore = new(1, 1);
+    private readonly SemaphoreSlim _watchedJobsListSemaphore = new(1, 1);
 
     /// <summary>
     ///     Inactive potential jobs
@@ -77,29 +78,48 @@ internal class JobRepository(
 
     public async Task<List<IJobRepositoryEntry>> GetAllInFlightJobsAsync(CancellationToken cancellationToken = default)
     {
-        await _watchedJobsSemaphore.WaitAsync(cancellationToken);
+        await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
 
         try
         {
             var items = WatchedJobs
-                .Where(job => job.State is JobState.Inactive or JobState.Active)
+                .Where(job => job.State is JobState.Inactive or JobState.Active or JobState.BlockedByIdempotency)
                 .ToList();
 
             return items;
         }
         finally
         {
-            _watchedJobsSemaphore.Release();
+            _watchedJobsListSemaphore.Release();
+        }
+    }
+
+    public async Task<List<IJobRepositoryEntry>> GetAllIdempotencyBlockedJobsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
+
+        try
+        {
+            var items = WatchedJobs
+                .Where(job => job.State is JobState.BlockedByIdempotency)
+                .ToList();
+
+            return items;
+        }
+        finally
+        {
+            _watchedJobsListSemaphore.Release();
         }
     }
 
     public async Task<int> GetWatchedJobsCountAsync(CancellationToken cancellationToken = default)
     {
-        await _watchedJobsSemaphore.WaitAsync(cancellationToken);
+        await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
 
         var count = WatchedJobs.Count;
 
-        _watchedJobsSemaphore.Release();
+        _watchedJobsListSemaphore.Release();
 
         return count;
     }
@@ -110,7 +130,7 @@ internal class JobRepository(
         do
         {
             await _inactiveJobsSemaphore.WaitAsync(cancellationToken);
-            await _watchedJobsSemaphore.WaitAsync(cancellationToken);
+            await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
 
             try
             {
@@ -120,16 +140,7 @@ internal class JobRepository(
                 {
                     _inactiveJobs.RemoveAt(0);
 
-                    var lockId = await result.AcquireLockAsync(cancellationToken);
-                    try
-                    {
-                        // I know this is the silliest try-finally for a simple setter, but it's the principle of the thing.
-                        result.State = JobState.Active;
-                    }
-                    finally
-                    {
-                        await result.ReleaseLockAsync(lockId, cancellationToken);
-                    }
+                    await result.SetStateAsync(JobState.Active, cancellationToken);
 
                     // Continue out of loop iteration to abort via do-while condition
                     continue;
@@ -138,7 +149,7 @@ internal class JobRepository(
             finally
             {
                 _inactiveJobsSemaphore.Release();
-                _watchedJobsSemaphore.Release();
+                _watchedJobsListSemaphore.Release();
             }
 
             // Queue is currently empty
@@ -174,7 +185,7 @@ internal class JobRepository(
     public async Task LoadAsync(JobSourceResponse jobSourceResponse,
         CancellationToken cancellationToken = default)
     {
-        await _watchedJobsSemaphore.WaitAsync(cancellationToken);
+        await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
         await _inactiveJobsSemaphore.WaitAsync(cancellationToken);
 
         try
@@ -186,10 +197,8 @@ internal class JobRepository(
                 {
                     var job = new JobRepositoryEntry
                     {
-                        FlightTimeCanBeExtended = true,
                         LastHeartbeatTime = DateTime.UtcNow,
-                        JobModel = jobModel,
-                        State = JobState.Inactive
+                        JobModel = jobModel
                     };
 
                     _inactiveJobs.Add(job); // Worry about sorting later, see below
@@ -203,7 +212,7 @@ internal class JobRepository(
             }
             finally
             {
-                _watchedJobsSemaphore.Release();
+                _watchedJobsListSemaphore.Release();
             }
 
             /*
@@ -226,7 +235,7 @@ internal class JobRepository(
 
     public async Task RemoveJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default)
     {
-        await _watchedJobsSemaphore.WaitAsync(cancellationToken);
+        await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
         try
         {
             WatchedJobs.Remove(job);
@@ -240,7 +249,7 @@ internal class JobRepository(
         }
         finally
         {
-            _watchedJobsSemaphore.Release();
+            _watchedJobsListSemaphore.Release();
         }
     }
 
@@ -265,7 +274,7 @@ internal class JobRepository(
 
     public async Task<int> GetInactiveJobCountAsync(CancellationToken cancellationToken = default)
     {
-        await _watchedJobsSemaphore.WaitAsync(cancellationToken);
+        await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
 
         try
         {
@@ -275,7 +284,7 @@ internal class JobRepository(
         }
         finally
         {
-            _watchedJobsSemaphore.Release();
+            _watchedJobsListSemaphore.Release();
         }
     }
 

@@ -1,4 +1,4 @@
-using RedShirt.Example.JobWorker.Core.Enums.Loader;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions.Loader;
 using RedShirt.Example.JobWorker.Core.Models;
 
@@ -7,17 +7,18 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Models;
 public class JobRepositoryEntryTests
 {
     [Fact]
-    public void TestGettersSetters()
+    public async Task TestGettersSetters()
     {
         var jobModel = new Mock<IJobModel>(MockBehavior.Strict).Object;
 
         var jre = new JobRepositoryEntry
         {
-            FlightTimeCanBeExtended = true,
             LastHeartbeatTime = default,
-            JobModel = jobModel,
-            State = JobState.Inactive
+            JobModel = jobModel
         };
+
+        Assert.True(jre.FlightTimeCanBeExtended);
+        Assert.Equal(JobState.Inactive, jre.State);
 
         // Set/Get Heartbeat Time
         Assert.Equal(default, jre.LastHeartbeatTime);
@@ -26,11 +27,11 @@ public class JobRepositoryEntryTests
         Assert.Equal(newDate, jre.LastHeartbeatTime);
 
         // Set/Get State
-        jre.State = JobState.Active;
+        await jre.SetStateAsync(JobState.Active, TestContext.Current.CancellationToken);
         Assert.Equal(JobState.Active, jre.State);
 
-        // Set/Get FlightTimeCanBeEx
-        jre.FlightTimeCanBeExtended = false;
+        // Set/Get FlightTimeCanBeExtended
+        await jre.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken);
         Assert.False(jre.FlightTimeCanBeExtended);
     }
 
@@ -39,10 +40,8 @@ public class JobRepositoryEntryTests
     {
         var jre = new JobRepositoryEntry
         {
-            FlightTimeCanBeExtended = true,
             LastHeartbeatTime = default,
-            JobModel = null!,
-            State = JobState.Inactive
+            JobModel = null!
         };
 
         var lockId = await jre.AcquireLockAsync(TestContext.Current.CancellationToken);
@@ -63,10 +62,8 @@ public class JobRepositoryEntryTests
     {
         var jre = new JobRepositoryEntry
         {
-            FlightTimeCanBeExtended = true,
             LastHeartbeatTime = default,
-            JobModel = null!,
-            State = JobState.Inactive
+            JobModel = null!
         };
 
         await jre.AcquireLockAsync(TestContext.Current.CancellationToken); // Don't care about storing this lock id.
@@ -81,10 +78,8 @@ public class JobRepositoryEntryTests
     {
         var jre = new JobRepositoryEntry
         {
-            FlightTimeCanBeExtended = true,
             LastHeartbeatTime = default,
-            JobModel = null!,
-            State = JobState.Inactive
+            JobModel = null!
         };
 
         var fakeLockId = Guid.NewGuid();
