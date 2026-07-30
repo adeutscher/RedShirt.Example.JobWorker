@@ -4,7 +4,7 @@ using StackExchange.Redis;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Services;
 
-public class RedisShortTermIteratorStorageTests
+public class RemoteCacheShortTermIteratorStorageTests
 {
     [Fact]
     public async Task Test_Get_WithNoResult()
@@ -20,7 +20,7 @@ public class RedisShortTermIteratorStorageTests
         database.Setup(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
             .ReturnsAsync(value);
 
-        var storage = new RedisShortTermIteratorStorage(connectionSource.Object);
+        var storage = new RemoteCacheShortTermIteratorStorage(connectionSource.Object);
         var storedValue = await storage.GetAsync(key, TestContext.Current.CancellationToken);
 
         Assert.Equal(value, storedValue);
@@ -49,7 +49,7 @@ public class RedisShortTermIteratorStorageTests
         database.Setup(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
             .ReturnsAsync(value);
 
-        var storage = new RedisShortTermIteratorStorage(connectionSource.Object);
+        var storage = new RemoteCacheShortTermIteratorStorage(connectionSource.Object);
         var storedValue = await storage.GetAsync(key, TestContext.Current.CancellationToken);
 
         Assert.Equal(value, storedValue);
@@ -75,7 +75,7 @@ public class RedisShortTermIteratorStorageTests
         var key = Guid.NewGuid().ToString();
         var value = Guid.NewGuid().ToString();
 
-        var storage = new RedisShortTermIteratorStorage(connectionSource.Object);
+        var storage = new RemoteCacheShortTermIteratorStorage(connectionSource.Object);
         await storage.SetAsync(key, value, TestContext.Current.CancellationToken);
 
         Assert.Single(database.Invocations);
@@ -104,7 +104,7 @@ public class RedisShortTermIteratorStorageTests
         var key = Guid.NewGuid().ToString();
         string? value = null;
 
-        var storage = new RedisShortTermIteratorStorage(connectionSource.Object);
+        var storage = new RemoteCacheShortTermIteratorStorage(connectionSource.Object);
         await storage.SetAsync(key, value, TestContext.Current.CancellationToken);
 
         Assert.Single(connectionSource.Invocations);

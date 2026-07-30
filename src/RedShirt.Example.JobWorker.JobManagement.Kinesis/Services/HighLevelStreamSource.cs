@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using RedShirt.Example.JobWorker.Common.Distributed.Services;
+using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
@@ -10,7 +11,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 internal class HighLevelStreamSource(
     ICheckpointStorage checkpointStorage,
     IKinesisShardLister lister,
-    IAbstractedLocker locker,
+    IAbstractedLockService lockService,
     ILowLevelStreamSource lowLevelStreamSource,
     ILogger<HighLevelStreamSource> logger) : IJobSource
 {
@@ -90,7 +91,7 @@ internal class HighLevelStreamSource(
             }
 
             // Try to get lock
-            var currentIterationLock = await locker.GetLockAsync(KeyHelper.GetLockKey(shard), cancellationToken);
+            var currentIterationLock = await lockService.GetLockAsync(KeyHelper.GetLockKey(shard), cancellationToken);
 
             if (!currentIterationLock.IsAcquired)
             {

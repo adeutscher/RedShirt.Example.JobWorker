@@ -4,7 +4,7 @@ using StackExchange.Redis;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services;
 
-public class RedisLockerTests
+public class RedisLockServiceTests
 {
     [Fact]
     public async Task LockerTest_False()
@@ -15,7 +15,7 @@ public class RedisLockerTests
             .Setup(s => s.GetDatabaseAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(db.Object);
 
-        var locker = new RedisLocker(source.Object);
+        var locker = new RedisLockService(source.Object);
         var @lock = await locker.GetLockAsync("abc", TestContext.Current.CancellationToken);
         Assert.NotNull(@lock);
         Assert.False(@lock.IsAcquired);

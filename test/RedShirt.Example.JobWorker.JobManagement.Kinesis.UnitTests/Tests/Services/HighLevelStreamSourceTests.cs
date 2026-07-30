@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Distributed.Services;
+using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
@@ -12,13 +13,13 @@ public class HighLevelStreamSourceTests
     private static HighLevelStreamSource CreateStreamSource(
         Mock<ICheckpointStorage>? checkpointStorage = null,
         Mock<IKinesisShardLister>? lister = null,
-        Mock<IAbstractedLocker>? locker = null,
+        Mock<IAbstractedLockService>? locker = null,
         Mock<ILowLevelStreamSource>? lowLevelStreamSource = null)
     {
         return new HighLevelStreamSource(
             (checkpointStorage ?? new Mock<ICheckpointStorage>(MockBehavior.Strict)).Object,
             (lister ?? new Mock<IKinesisShardLister>(MockBehavior.Strict)).Object,
-            (locker ?? new Mock<IAbstractedLocker>(MockBehavior.Strict)).Object,
+            (locker ?? new Mock<IAbstractedLockService>(MockBehavior.Strict)).Object,
             (lowLevelStreamSource ?? new Mock<ILowLevelStreamSource>(MockBehavior.Strict)).Object,
             new NullLogger<HighLevelStreamSource>());
     }
@@ -152,7 +153,7 @@ public class HighLevelStreamSourceTests
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
-        var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
+        var locker = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
         var secondLock = CreateAcquiredLock();
         var secondJob = CreateKinesisJob("shard-b");
@@ -194,7 +195,7 @@ public class HighLevelStreamSourceTests
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
-        var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
+        var locker = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
         var acquiredLock = CreateAcquiredLock();
         var job = CreateKinesisJob("shard-b");
@@ -233,7 +234,7 @@ public class HighLevelStreamSourceTests
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
-        var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
+        var locker = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
         var lockHandle = CreateAcquiredLock();
 
@@ -279,7 +280,7 @@ public class HighLevelStreamSourceTests
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
-        var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
+        var locker = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
@@ -307,7 +308,7 @@ public class HighLevelStreamSourceTests
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
-        var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
+        var locker = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
         var emptyShardLock = CreateAcquiredLock();
 
@@ -349,7 +350,7 @@ public class HighLevelStreamSourceTests
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
-        var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
+        var locker = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
         var emptyShardLock = CreateAcquiredLock();
 

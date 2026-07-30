@@ -1,14 +1,10 @@
 using Medallion.Threading.Redis;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
+using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
 
-public interface IAbstractedLocker
-{
-    Task<IAbstractedLock> GetLockAsync(string lockName, CancellationToken cancellationToken = default);
-}
-
-internal class RedisLocker(IRedisConnectionCacheService redisConnectionCacheService) : IAbstractedLocker
+internal class RedisLockService(IRedisConnectionCacheService redisConnectionCacheService) : IAbstractedLockService
 {
     public async Task<IAbstractedLock> GetLockAsync(string lockName, CancellationToken cancellationToken = default)
     {
