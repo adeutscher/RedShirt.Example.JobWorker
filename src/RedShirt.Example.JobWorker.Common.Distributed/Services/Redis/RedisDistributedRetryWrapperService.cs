@@ -22,6 +22,9 @@ public interface IDistributedRetryWrapperService
     ///     Token used to cancel the operation, retry attempts, and backoff delays.
     /// </param>
     /// <returns>The successful result of <paramref name="func" />.</returns>
+    /// <exception cref="OperationCanceledException">
+    ///     Propagated when <paramref name="cancellationToken" /> is canceled.
+    /// </exception>
     /// <exception cref="WorkerDistributedException">
     ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerDistributedException.IsTransient" />
     ///     reflects the arbiter judgement for the final exception.
@@ -37,6 +40,9 @@ public interface IDistributedRetryWrapperService
     /// <param name="cancellationToken">
     ///     Token used to cancel the operation, retry attempts, and backoff delays.
     /// </param>
+    /// <exception cref="OperationCanceledException">
+    ///     Propagated when <paramref name="cancellationToken" /> is canceled.
+    /// </exception>
     /// <exception cref="WorkerDistributedException">
     ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerDistributedException.IsTransient" />
     ///     reflects the arbiter judgement for the final exception.
@@ -131,6 +137,10 @@ public class RedisDistributedRetryWrapperService(
                 async token => await func(token),
                 cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception exception)
         {
             throw WrapIfNeeded(exception);
@@ -145,6 +155,10 @@ public class RedisDistributedRetryWrapperService(
             await GetRetryPipeline().ExecuteAsync(
                 async token => await func(token),
                 cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception exception)
         {

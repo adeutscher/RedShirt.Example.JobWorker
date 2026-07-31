@@ -22,6 +22,9 @@ public interface IAzureRetryWrapperService
     ///     Token used to cancel the operation, retry attempts, and backoff delays.
     /// </param>
     /// <returns>The successful result of <paramref name="func" />.</returns>
+    /// <exception cref="OperationCanceledException">
+    ///     Propagated when <paramref name="cancellationToken" /> is cancelled.
+    /// </exception>
     /// <exception cref="WorkerAzureException">
     ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerAzureException.IsTransient" />
     ///     reflects the arbiter judgement for the final exception.
@@ -104,6 +107,10 @@ public class AzureRetryWrapperService(IAzureExceptionArbiterService exceptionArb
             return await GetRetryPipeline().ExecuteAsync(
                 async token => await func(token),
                 cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception exception)
         {

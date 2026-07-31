@@ -32,6 +32,7 @@ internal class SafeAbstractedLockService(
              * to make a judgement call on the disgrace period based on the time that the attempt took.
              */
             var timeExceeded = stopwatch.Elapsed > LockAttemptThreshold;
+            // ReSharper disable once InvertIf
             if (timeExceeded)
             {
                 logger.LogWarning("Failure to communicate with lock service: Timeout");
@@ -39,6 +40,10 @@ internal class SafeAbstractedLockService(
             }
 
             return new SafeLockWrapper(innerLock, timeExceeded);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (WorkerDistributedException e)
         {

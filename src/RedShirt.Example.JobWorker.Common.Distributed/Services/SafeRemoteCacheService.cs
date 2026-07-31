@@ -20,6 +20,10 @@ internal class SafeRemoteCacheService(
         {
             return await remoteCacheService.GetStringAsync(key, cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (WorkerDistributedException e)
         {
             logger.LogWarning(e, "Failure to communicate with cache service: {EMessage}", e.Message);
@@ -39,6 +43,10 @@ internal class SafeRemoteCacheService(
         try
         {
             await remoteCacheService.SetStringAsync(key, value, expiry, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (WorkerDistributedException e)
         {
