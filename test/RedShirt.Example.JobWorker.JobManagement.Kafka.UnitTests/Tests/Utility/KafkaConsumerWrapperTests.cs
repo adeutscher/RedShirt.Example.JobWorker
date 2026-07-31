@@ -154,10 +154,11 @@ public class KafkaConsumerWrapperTests
         partition1.SetupGet(m => m.Offset).Returns(3);
 
         var wrapper = CreateWrapper(consumer.Object, retry.Object);
-        await wrapper.CommitAsync(
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.CommitAsync(
             [partition0First.Object, partition0Second.Object, partition1.Object],
-            TestContext.Current.CancellationToken);
+            TestContext.Current.CancellationToken));
 
+        Assert.Same(permanent, thrown);
         Assert.Equal([1], committedPartitions);
         Assert.Equal(2, retryAttempts);
     }

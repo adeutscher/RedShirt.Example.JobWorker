@@ -17,7 +17,8 @@ public class DependencyInjectionTests
             ["UseAzureServiceBus"] = "0",
             ["UseNats"] = "0",
             ["UseRabbitMq"] = "0",
-            ["UseKinesis"] = "0"
+            ["UseKinesis"] = "0",
+            ["UseKafka"] = "0"
         }, () => { Assert.NotNull(Setup.GetRunner()); });
     }
 
@@ -35,7 +36,8 @@ public class DependencyInjectionTests
             ["UseAzureServiceBus"] = "0",
             ["UseNats"] = "0",
             ["UseRabbitMq"] = "0",
-            ["UseKinesis"] = "0"
+            ["UseKinesis"] = "0",
+            ["UseKafka"] = "0"
         }, () => { Assert.NotNull(Setup.GetRunner()); });
     }
 
@@ -53,7 +55,27 @@ public class DependencyInjectionTests
             ["UseAzureServiceBus"] = "1",
             ["UseNats"] = "0",
             ["UseRabbitMq"] = "0",
-            ["UseKinesis"] = "0"
+            ["UseKinesis"] = "0",
+            ["UseKafka"] = "0"
+        }, () => { Assert.NotNull(Setup.GetRunner()); });
+    }
+
+    [Fact]
+    public void Test_Get_Runner_Kafka()
+    {
+        TestUtilities.WrapEnvironment(new Dictionary<string, string>
+        {
+            ["AWS_SERVICE_URL"] = "http://foo.bar",
+            ["AWS_ACCESS_KEY_ID"] = "foo",
+            ["AWS_SECRET_ACCESS_KEY"] = "bar",
+            ["AWS_SESSION_TOKEN"] = "foobar",
+            ["UseActiveMq"] = "0",
+            ["UseAzureQueueStorage"] = "0",
+            ["UseAzureServiceBus"] = "0",
+            ["UseNats"] = "0",
+            ["UseRabbitMq"] = "0",
+            ["UseKinesis"] = "0",
+            ["UseKafka"] = "1"
         }, () => { Assert.NotNull(Setup.GetRunner()); });
     }
 
@@ -71,7 +93,8 @@ public class DependencyInjectionTests
             ["UseAzureServiceBus"] = "0",
             ["UseNats"] = "0",
             ["UseRabbitMq"] = "0",
-            ["UseKinesis"] = "1"
+            ["UseKinesis"] = "1",
+            ["UseKafka"] = "0"
         }, () => { Assert.NotNull(Setup.GetRunner()); });
     }
 
@@ -89,7 +112,8 @@ public class DependencyInjectionTests
             ["UseAzureQueueStorage"] = "0",
             ["UseAzureServiceBus"] = "0",
             ["UseNats"] = "1",
-            ["UseRabbitMq"] = "0"
+            ["UseRabbitMq"] = "0",
+            ["UseKafka"] = "0"
         }, () => { Assert.NotNull(Setup.GetRunner()); });
     }
 
@@ -107,7 +131,8 @@ public class DependencyInjectionTests
             ["UseAzureServiceBus"] = "0",
             ["UseKinesis"] = "0",
             ["UseNats"] = "0",
-            ["UseRabbitMq"] = "1"
+            ["UseRabbitMq"] = "1",
+            ["UseKafka"] = "0"
         }, () => { Assert.NotNull(Setup.GetRunner()); });
     }
 
@@ -126,7 +151,8 @@ public class DependencyInjectionTests
             ["UseAzureServiceBus"] = "0",
             ["UseKinesis"] = "0",
             ["UseNats"] = "0",
-            ["UseRabbitMq"] = "0"
+            ["UseRabbitMq"] = "0",
+            ["UseKafka"] = "0"
         }, () => { Assert.NotNull(Setup.GetRunner()); });
     }
 
@@ -145,7 +171,8 @@ public class DependencyInjectionTests
             ["UseAzureServiceBus"] = "0",
             ["UseKinesis"] = "0",
             ["UseNats"] = "0",
-            ["UseRabbitMq"] = "0"
+            ["UseRabbitMq"] = "0",
+            ["UseKafka"] = "0"
         }, () => { Assert.NotNull(Setup.GetRunner()); });
     }
 }
