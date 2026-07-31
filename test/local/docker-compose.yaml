@@ -128,6 +128,7 @@ services:
         TESTS_ENABLE: "${TESTS_ENABLE-1}"
     depends_on:
       - ministack
+      - redis
     environment:
       # General
       AWS_SERVICE_URL: http://ministack:4566
@@ -199,6 +200,11 @@ services:
       JOB_SOURCE__NATS__USER_PATH: /nats/user
       JOB_SOURCE__NATS__PASSWORD_PATH: /nats/password
       JOB_SOURCE__NATS__STREAM_NAME: TestStream
+      ## Job Management (Redis Streams)
+      USE_REDIS_STREAMS: "${USE_REDIS_STREAMS-0}"
+      JOB_SOURCE__REDIS_STREAMS__STREAM_NAME: jobs
+      JOB_SOURCE__REDIS_STREAMS__GROUP_NAME: job-worker
+      JOB_SOURCE__REDIS_STREAMS__CONSUMER_NAME: worker-1
       ## Jog Management (Azure Key Vault, used by both Azure Queue Storage and Azure Service Bus)
       ## Job Management (Azure Queue Storage)
       USE_AZURE_QUEUE_STORAGE: "${USE_AZURE_QUEUE_STORAGE-0}"

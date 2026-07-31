@@ -10,7 +10,7 @@ The scripts below assume that certain Python modules are installed in your envir
 Run the following to install the assumed modules:
 
 ```
-pip install --user boto3 awscli awslocal stomp.py azure.servicebus azure.identity azure.keyvault kafka-python
+pip install --user boto3 awscli awslocal stomp.py azure.servicebus azure.identity azure.keyvault kafka-python redis
 ```
 
 ## Idempotency
@@ -339,6 +339,58 @@ To install the `nats` command:
     ```
 
 7. Bring up the worker:
+
+    ```
+    docker compose up worker
+    ```
+
+### Redis Streams
+
+Redis Streams testing requires the `redis` Python module to be installed.
+
+#### Testing Messages
+
+1. Bring up ministack and Redis:
+
+    ```
+    docker compose up -d ministack redis
+    ```
+
+2. Run the `make-local-aws-resources.sh` script:
+
+    ```
+    ./make-local-aws-resources.sh
+    ```
+
+3. Create the Redis stream consumer group (creates the `jobs` stream if needed). This is safe to re-run if the group already exists:
+
+    ```
+    ./create-redis-stream-consumer-group.py
+    ```
+
+4. Use the `send-redis-stream-job.py` script to publish a message to the `jobs` stream. Specify the number of seconds the worker should sleep for in the first argument. You may optionally provide a second argument to set the `message_id` field for idempotency testing:
+
+    ```
+    ./send-redis-stream-job.py 12
+    ./send-redis-stream-job.py 12 example-idempotency-key
+    ```
+
+5. Before starting the worker, make sure that `USE_REDIS_STREAMS` is set to `1` and that the other `USE_` environment variables are not set to `1`.
+   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
+
+    ```
+    export USE_REDIS_STREAMS=1
+    export USE_NATS=0
+    export USE_ACTIVEMQ=0
+    export USE_KAFKA=0
+    export USE_AZURE_QUEUE_STORAGE=0
+    export USE_AZURE_SERVICE_BUS=0
+    export USE_KINESIS=0
+    export USE_RABBITMQ=0
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+    ```
+
+6. Bring up the worker:
 
     ```
     docker compose up worker

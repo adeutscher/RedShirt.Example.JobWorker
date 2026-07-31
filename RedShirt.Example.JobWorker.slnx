@@ -38,6 +38,8 @@
         <Project
                 Path="src/RedShirt.Example.JobWorker.JobManagement.RabbitMq/RedShirt.Example.JobWorker.JobManagement.RabbitMq.csproj"/>
         <Project
+                Path="src/RedShirt.Example.JobWorker.JobManagement.RedisStreams/RedShirt.Example.JobWorker.JobManagement.RedisStreams.csproj"/>
+        <Project
                 Path="src/RedShirt.Example.JobWorker.JobManagement.Sqs/RedShirt.Example.JobWorker.JobManagement.Sqs.csproj"/>
         <Project Path="src/RedShirt.Example.JobWorker/RedShirt.Example.JobWorker.csproj"/>
     </Folder>
