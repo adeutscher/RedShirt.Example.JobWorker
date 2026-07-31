@@ -38,7 +38,8 @@ public class NatsJobSourceTests
             Data = null!
         };
 
-        await natsJobSource.AcknowledgeCompletionAsync(jobModel, true, TestContext.Current.CancellationToken);
+        await natsJobSource.AcknowledgeCompletionAsync(jobModel, true,
+            TestContext.Current.CancellationToken);
 
         message.Verify(m => m.AckAsync(It.IsAny<AckOpts?>(), TestContext.Current.CancellationToken), Times.Once);
     }
@@ -59,9 +60,8 @@ public class NatsJobSourceTests
         var natsJobSource = new NatsJobSource(null!, null!, null!, null!,
             new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
-        await natsJobSource.AcknowledgeCompletionAsync(job.Object, true, TestContext.Current.CancellationToken);
-
-        Assert.True(true); // Satisfy Sonar's requirement for an assert.
+        await natsJobSource.AcknowledgeCompletionAsync(job.Object, true,
+            TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -477,9 +477,6 @@ public class NatsJobSourceTests
 
         // Run. Source should be executing an empty block with no complains about all the nulls that it's been given.
         await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.True(true); // Satisfy Sonar requirements
     }
 
     public sealed class LandmineException : Exception;

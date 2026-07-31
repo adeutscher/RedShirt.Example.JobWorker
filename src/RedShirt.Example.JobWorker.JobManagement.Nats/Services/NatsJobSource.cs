@@ -25,10 +25,12 @@ internal class NatsJobSource(
     public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
-        if (message is JobModel jobModel)
+        if (message is not JobModel jobModel)
         {
-            await jobModel.Message.AckAsync(cancellationToken: cancellationToken);
+            return;
         }
+
+        await jobModel.Message.AckAsync(cancellationToken: cancellationToken);
     }
 
     public int RecommendedHeartbeatIntervalSeconds => 0;

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
 using RedShirt.Example.JobWorker.Core.Configuration;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
@@ -30,7 +31,7 @@ internal class BatchModeJobLoader(
     ISleepService sleepService) : IJobLoader
 #pragma warning restore S107
 {
-    public async Task RunAsync(CancellationToken cancellationToken = default)
+    public async Task<HandlerResponseEnum> RunAsync(CancellationToken cancellationToken = default)
     {
         try
         {
@@ -75,5 +76,7 @@ internal class BatchModeJobLoader(
         {
             jobLoaderStateService.ReportLoaderStop();
         }
+
+        return HandlerResponseEnum.Finished;
     }
 }

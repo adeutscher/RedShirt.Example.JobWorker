@@ -3,7 +3,7 @@ namespace RedShirt.Example.JobWorker.Core.Utility;
 public class AsyncAutoResetEvent(bool setInitially = false)
 {
     private readonly Queue<TaskCompletionSource<bool>> _waits = new();
-    private bool _signaled = setInitially;
+    private bool _signalled = setInitially;
 
     private void RemoveWaiter(TaskCompletionSource<bool> tcs)
     {
@@ -15,7 +15,7 @@ public class AsyncAutoResetEvent(bool setInitially = false)
                 return;
             }
 
-            // Remove the specific canceled waiter from the queue
+            // Remove the specific cancelled waiter from the queue
             // A custom queue or LinkedList would optimize this, but List/Queue manipulation under a lock is robust for typical use
             var remaining = new List<TaskCompletionSource<bool>>(_waits.Count);
             while (_waits.Count > 0)
@@ -48,10 +48,10 @@ public class AsyncAutoResetEvent(bool setInitially = false)
                 // Release the first waiter in line
                 toRelease = _waits.Dequeue();
             }
-            else if (!_signaled)
+            else if (!_signalled)
             {
                 // No waiters, store the signal for the next caller
-                _signaled = true;
+                _signalled = true;
             }
         }
 
@@ -65,10 +65,10 @@ public class AsyncAutoResetEvent(bool setInitially = false)
 
         lock (_waits)
         {
-            // 1. Fast path: Event is already signaled
-            if (_signaled)
+            // 1. Fast path: Event is already signalled
+            if (_signalled)
             {
-                _signaled = false;
+                _signalled = false;
                 cancellationToken.ThrowIfCancellationRequested();
                 return true;
             }
@@ -98,8 +98,8 @@ public class AsyncAutoResetEvent(bool setInitially = false)
             cts.CancelAfter(timeout);
         }
 
-        // Register a cancellation callback to pull this waiter out of the queue if it times out or gets canceled
-        using var registration = cts.Token.Register(state =>
+        // Register a cancellation callback to pull this waiter out of the queue if it times out or gets cancelled
+        await using var registration = cts.Token.Register(state =>
         {
             var tuple = ((AsyncAutoResetEvent Event, TaskCompletionSource<bool> Tcs)) state!;
             tuple.Event.RemoveWaiter(tuple.Tcs);

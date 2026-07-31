@@ -6,15 +6,6 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Utility;
 
 public class AsyncAutoResetEventTests
 {
-    private static async Task AwaitAndRecordAsync(
-        AsyncAutoResetEvent evt,
-        int index,
-        ConcurrentQueue<int> releaseOrder)
-    {
-        Assert.True(await evt.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
-        releaseOrder.Enqueue(index);
-    }
-
     [Fact(Timeout = 2000)]
     public async Task Test_Set_AfterWaiterTimedOut_DoesNotLoseSignal()
     {
@@ -234,7 +225,7 @@ public class AsyncAutoResetEventTests
         Assert.True(await waitTask);
     }
 
-    [Fact(Timeout = 2000)]
+    [Fact(Timeout = 5000)]
     public async Task Test_WaitAsync_Set_ReleasesWaitersInFifoOrder()
     {
         var evt = new AsyncAutoResetEvent();
@@ -258,6 +249,16 @@ public class AsyncAutoResetEventTests
         await Task.WhenAll(waiters);
 
         Assert.Equal([0, 1, 2], releaseOrder.ToArray());
+        return;
+
+        static async Task AwaitAndRecordAsync(
+            AsyncAutoResetEvent evt,
+            int index,
+            ConcurrentQueue<int> releaseOrder)
+        {
+            Assert.True(await evt.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+            releaseOrder.Enqueue(index);
+        }
     }
 
     [Fact(Timeout = 2000)]

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
-using RedShirt.Example.JobWorker.Core.Enums.Loader;
-using RedShirt.Example.JobWorker.Core.Exceptions;
+using Polly;
+using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Exceptions.JobSource;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
@@ -10,10 +11,7 @@ namespace RedShirt.Example.JobWorker.Core.Services;
 /// <summary>
 ///     The maintainer is responsible for making sure that messages checked out from the job source remain 'in flight'.
 /// </summary>
-internal interface IMaintainer
-{
-    Task RunAsync(CancellationToken cancellationToken = default);
-}
+internal interface IMaintainer : IHandlerSubComponent;
 
 internal class Maintainer(
     IHeartbeatCalculator heartbeatCalculator,
@@ -23,6 +21,8 @@ internal class Maintainer(
     ILogger<Maintainer> logger,
     ISleepService sleepService) : IMaintainer
 {
+    private const int MinimumTimeToWaitMilliseconds = 500;
+
     /// <summary>
     ///     Minor centralization of a log message
     /// </summary>
@@ -38,6 +38,12 @@ internal class Maintainer(
     {
         TimeSpan? timeToWait = null;
 
+        var retryPolicy = Policy
+            .Handle<JobSourceHeartbeatException>(e => e.IsTransient)
+            .RetryAsync(Globals.HeartbeatRetryCount,
+                (_, instanceCount) =>
+                    sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)), cancellationToken));
+
         foreach (var job in jobs)
         {
             // Make sure that we are currently the only thing manipulating this job item.
@@ -45,7 +51,7 @@ internal class Maintainer(
 
             try
             {
-                if (!job.FlightTimeCanBeExtended)
+                if (!job.CanHeartbeat)
                 {
                     // Job's flight time cannot be extended further
                     continue;
@@ -69,15 +75,26 @@ internal class Maintainer(
                 }
 
                 logger.LogTrace("Sending heartbeat for message: {MessageId}", job.JobModel.MessageId);
+
+                /*
+                 * For the moment, deliberately choosing not to catch globally catch unplanned exceptions.
+                 * Unplanned exceptions should absolutely bring down the house,
+                 *  as they suggest a fundamental error with the job source implementation
+                 * or an unaccounted-for permission configuration issue with the underlying message source.
+                 */
+
                 try
                 {
-                    await jobSource.HeartbeatAsync(job.JobModel, cancellationToken);
+                    await retryPolicy.ExecuteAsync(() =>
+                        jobSource.HeartbeatAsync(job.JobModel, cancellationToken));
                     job.LastHeartbeatTime = DateTime.UtcNow;
                 }
-                catch (CanNoLongerHeartbeatException e)
+                catch (JobSourceHeartbeatException e)
                 {
-                    logger.LogWarning(e, "Can no longer heartbeat message: {MessageId}", job.JobModel.MessageId);
-                    job.FlightTimeCanBeExtended = false;
+                    logger.LogWarning(e, "Heartbeat could not be completed for message: {MessageId}",
+                        job.JobModel.MessageId);
+                    // Assume that if heartbeating failed this time around, then the message will be REALLY expired by the time the next loop iteration comes around.
+                    await job.SetIfFlightTimeCanBeExtendedAsync(false, cancellationToken);
                 }
 
                 var timeToNextHeartbeat = heartbeatCalculator.TimeUntilNextHeartbeat(job);
@@ -95,7 +112,7 @@ internal class Maintainer(
         // Fallback, possibly because all jobs became complete after they were fetched?
         timeToWait ??= TimeSpan.FromSeconds(jobSource.RecommendedHeartbeatIntervalSeconds);
 
-        if (timeToWait.Value.TotalMilliseconds < 500)
+        if (timeToWait.Value.TotalMilliseconds < MinimumTimeToWaitMilliseconds)
         {
             /*
              * Rounding up to 500ms to avoid possible inching to the next heartbeat check because
@@ -109,14 +126,20 @@ internal class Maintainer(
              * heartbeat time should not be configured tightly enough for that to be a problem.
              */
 
-            timeToWait = TimeSpan.FromMilliseconds(500);
+            timeToWait = TimeSpan.FromMilliseconds(MinimumTimeToWaitMilliseconds);
         }
 
         return timeToWait.Value;
     }
 
-    public async Task RunAsync(CancellationToken cancellationToken = default)
+    public async Task<HandlerResponseEnum> RunAsync(CancellationToken cancellationToken = default)
     {
+        if (jobSource.RecommendedHeartbeatIntervalSeconds <= 0)
+        {
+            // Not needed by implementation, abort immediately.
+            return HandlerResponseEnum.NotEnabled;
+        }
+
         while (await appliedExecutionEndArbiter.MaintainerShouldKeepRunningAsync(cancellationToken))
         {
             var jobs = await jobRepository.GetAllInFlightJobsAsync(cancellationToken);
@@ -131,5 +154,7 @@ internal class Maintainer(
             var timeToWait = await MaintainJobsAsync(jobs, cancellationToken);
             await LogAndWaitAsync(timeToWait, cancellationToken);
         }
+
+        return HandlerResponseEnum.Finished;
     }
 }

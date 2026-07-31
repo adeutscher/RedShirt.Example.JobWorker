@@ -1,6 +1,8 @@
 
 # Usage
 
+Instructions for local testing.
+
 ## General
 
 The scripts below assume that certain Python modules are installed in your environment.
@@ -11,22 +13,27 @@ Run the following to install the assumed modules:
 pip install --user boto3 awscli awslocal stomp.py azure.servicebus azure.identity azure.keyvault
 ```
 
+## Idempotency
+
+Idempotency testing relies on having a reliable way of setting a message ID.
+If this template is still in general form, then I would advise testing using the RabbitMQ job source.
+
 ## Message Sources
 
 ### SQS
 
 To initialize SQS and queue sample messages:
 
-1. Bring up ministack:
+1. Bring up ministack and Redis:
 
 ```
-docker compose up -d ministack
+docker compose up -d ministack redis
 ```
 
-2. Run the `make-local-resources.sh` script:
+2. Run the `make-local-aws-resources.sh` script:
 
 ```
-./make-local-resources.sh
+./make-local-aws-resources.sh
 ```
 
 3. Use the `send-sqs-message.py` script to send a message into SQS. Specify the number of seconds the worker should sleep for in the first argument:
@@ -35,7 +42,7 @@ docker compose up -d ministack
 ./send-sqs-message.py 12
 ```
 
-4. Before starting the worker, make sure none of the `USE_` environment variables are set to **1**:
+4. Before starting the worker, make sure none of the `USE_` environment variables are set to **1**, and unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
 ```
 export USE_ACTIVEMQ=0
@@ -44,6 +51,7 @@ export USE_AZURE_QUEUE_STORAGE=0
 export USE_AZURE_SERVICE_BUS=0
 export USE_NATS=0
 export USE_RABBITMQ=0
+unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
 ```
 
 5. Bring up the worker:
@@ -62,10 +70,10 @@ To initialize Kinesis and queue sample messages:
     docker compose up -d ministack redis
     ```
 
-2. Run the `make-local-resources.sh` script:
+2. Run the `make-local-aws-resources.sh` script:
 
     ```
-    ./make-local-resources.sh
+    ./make-local-aws-resources.sh
     ```
 
 3. Use the `send-sqs-message.py` script to send a message into SQS. Specify the number of seconds the worker should sleep for in the first argument:
@@ -74,7 +82,8 @@ To initialize Kinesis and queue sample messages:
     ./put-kinesis-job.py 12
     ```
 
-4. Before starting the worker, make sure that neither the `USE_KINESIS` is set to `1` and that other `USE_` environment variables are not set to `1`:
+4. Before starting the worker, make sure that neither the `USE_KINESIS` is set to `1` and that other `USE_` environment variables are not set to `1`.
+   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
     ```
     export USE_ACTIVEMQ=0
@@ -83,6 +92,7 @@ To initialize Kinesis and queue sample messages:
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
     export USE_RABBITMQ=0
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
 5. Bring up the worker:
@@ -97,16 +107,16 @@ RabbitMQ takes a few more steps to set up than the other input sources.
 
 To initialize RabbitMQ and queue messages:
 
-1. Bring up ministack:
+1. Bring up ministack and Redis:
 
     ```
-    docker compose up -d ministack
+    docker compose up -d ministack redis
     ```
 
-2. Run the `make-local-resources.sh` script:
+2. Run the `make-local-aws-resources.sh` script:
 
     ```
-    ./make-local-resources.sh
+    ./make-local-aws-resources.sh
     ```
 
 3. Bring up RabbitMQ:
@@ -123,13 +133,16 @@ To initialize RabbitMQ and queue messages:
 
 7. Create a new queue named `RabbitQueue`. Leave all other options at default.
 
-8. Rather than cook up a new script for inserting messages, we will be using the Web GUI to submit messages for the moment. To insert a message into the queue, select `RabbitQueue` from the queue list and open the 'Publish message' section. Example of a message JSON:
+8. Rather than cook up a new script for inserting messages, we will be using the Web GUI to submit messages for the moment. To insert a message into the queue, select `RabbitQueue` from the queue list and open the 'Publish message' section. Example of a message JSON payload:
 
     ```
     {"SleepDurationSeconds": 12}
     ```
 
-9. Before starting the worker, make sure that the `USE_RABBITMQ` is set to `1` and that other `USE_` environment variables are not set to `1`:
+    * If you are testing idempotency, then remember to also set an arbitrary value to the `message_id` property.
+
+9. Before starting the worker, make sure that the `USE_RABBITMQ` is set to `1` and that other `USE_` environment variables are not set to `1`.
+   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
     ```
     export USE_RABBITMQ=0
@@ -138,6 +151,7 @@ To initialize RabbitMQ and queue messages:
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
     export USE_RABBITMQ=1
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
 10. Bring up the worker:
@@ -152,16 +166,16 @@ ActiveMQ Artemis takes a few more steps to set up than the other input sources.
 
 To initialize RabbitMQ and queue messages:
 
-1. Bring up ministack:
+1. Bring up ministack and Redis:
 
     ```
-    docker compose up -d ministack
+    docker compose up -d ministack redis
     ```
 
-2. Run the `make-local-resources.sh` script:
+2. Run the `make-local-aws-resources.sh` script:
 
     ```
-    ./make-local-resources.sh
+    ./make-local-aws-resources.sh
     ```
 
 3. Bring up ActiveMQ:
@@ -202,7 +216,8 @@ To initialize RabbitMQ and queue messages:
     {"SleepDurationSeconds": 12}
     ```
 
-14. Before starting the worker, make sure that neither the `USE_ACTIVEMQ` is set to `1` and that other `USE_` environment variables are not set to `1`:
+14. Before starting the worker, make sure that neither the `USE_ACTIVEMQ` is set to `1` and that other `USE_` environment variables are not set to `1`.
+    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
     ```
     export USE_ACTIVEMQ=1
@@ -211,6 +226,7 @@ To initialize RabbitMQ and queue messages:
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
     export USE_RABBITMQ=0
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
 15. Bring up the worker:
@@ -235,16 +251,16 @@ To install the `nats` command:
 
 #### Testing Messages
 
-1. Bring up ministack:
+1. Bring up ministack and Redis:
 
     ```
-    docker compose up -d ministack
+    docker compose up -d ministack redis
     ```
 
-2. Run the `make-local-resources.sh` script:
+2. Run the `make-local-aws-resources.sh` script:
 
     ```
-    ./make-local-resources.sh
+    ./make-local-aws-resources.sh
     ```
 3. Bring up NATS:
 
@@ -263,7 +279,8 @@ To install the `nats` command:
     ./send-nats-message.sh 5
     ```
 
-6. Before starting the worker, make sure that the `USE_NATS` is set to `1` and that other `USE_` environment variables are not set to `1`:
+6. Before starting the worker, make sure that the `USE_NATS` is set to `1` and that other `USE_` environment variables are not set to `1`.
+   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
     ```
     export USE_NATS=1
@@ -272,6 +289,7 @@ To install the `nats` command:
     export USE_AZURE_SERVICE_BUS=0
     export USE_KINESIS=0
     export USE_RABBITMQ=0
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
 7. Bring up the worker:
@@ -308,13 +326,13 @@ VSCode automatically knows how to point to your local `azurite` server after the
     ./generate-azure-key-vault-cert.sh
     ```
 
-2. Bring up `azure-key-vault-emulator`, which shall be holding the connection string for Azure Queue Storage:
+2. Bring up `azure-key-vault-emulator` (which shall be holding the connection string for Azure Queue Storage) and Redis:
 
     ```
-    docker compose up -d azure-key-vault-emulator
+    docker compose up -d azure-key-vault-emulator redis
     ```
 
-3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage and Azure Service Bus in the Azure Key Vault emulator:
+3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage, Azure Service Bus, and Redis (`common-distributed-redis`) in the Azure Key Vault emulator:
 
     ```
     ./set-azure-key-vault-secrets.py
@@ -338,7 +356,8 @@ VSCode automatically knows how to point to your local `azurite` server after the
     {"SleepDurationSeconds": 12}
     ```
 
-9. Before starting the worker, make sure that the `USE_AZURE_QUEUE_STORAGE` is set to `1` and that other `USE_` environment variables are not set to `1`:
+9. Before starting the worker, make sure that the `USE_AZURE_QUEUE_STORAGE` is set to `1` and that other `USE_` environment variables are not set to `1`.
+   You will also point Redis at the Key Vault secret name created by `set-azure-key-vault-secrets.py`, as the compose file's default is to use the SSM path (Azure Key Vault key and SSM Parameter Store path formats are entirely incompatible with one another):
 
     ```
     export USE_AZURE_QUEUE_STORAGE=1
@@ -347,6 +366,7 @@ VSCode automatically knows how to point to your local `azurite` server after the
     export USE_ACTIVEMQ=0
     export USE_KINESIS=0
     export USE_RABBITMQ=0
+    export COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH=common-distributed-redis
     ```
 
 10. Bring up the worker:
@@ -371,13 +391,13 @@ pip install azure.servicebus azure.identity azure.keyvault
     ./generate-azure-key-vault-cert.sh
     ```
 
-2. Bring up `azure-key-vault-emulator`, which shall be holding the connection string for Azure Service Bus:
+2. Bring up `azure-key-vault-emulator` (which shall be holding the connection string for Azure Service Bus) and Redis:
 
     ```
-    docker compose up -d azure-key-vault-emulator
+    docker compose up -d azure-key-vault-emulator redis
     ```
 
-3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage and Azure Service Bus in the Azure Key Vault emulator:
+3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage, Azure Service Bus, and Redis (`common-distributed-redis`) in the Azure Key Vault emulator:
 
     ```
     ./set-azure-key-vault-secrets.py
@@ -415,7 +435,8 @@ pip install azure.servicebus azure.identity azure.keyvault
     ./send-azure-service-bus-job.py 12
     ```
 
-10. Before starting the worker, make sure that the `USE_AZURE_SERVICE_BUS` is set to `1` and that other `USE_` environment variables are not set to `1`:
+10. Before starting the worker, make sure that the `USE_AZURE_SERVICE_BUS` is set to `1` and that other `USE_` environment variables are not set to `1`.
+    You will also point Redis at the Key Vault secret name created by `set-azure-key-vault-secrets.py`, as the compose file's default is to use the SSM path (Azure Key Vault key and SSM Parameter Store path formats are entirely incompatible with one another):
 
     ```
     export USE_AZURE_QUEUE_STORAGE=0
@@ -424,6 +445,7 @@ pip install azure.servicebus azure.identity azure.keyvault
     export USE_ACTIVEMQ=0
     export USE_KINESIS=0
     export USE_RABBITMQ=0
+    export COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH=common-distributed-redis
     ```
 
 11. Bring up the worker:

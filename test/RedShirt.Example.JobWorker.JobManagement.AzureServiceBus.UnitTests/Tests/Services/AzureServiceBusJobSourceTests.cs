@@ -372,7 +372,8 @@ public class AzureServiceBusJobSourceTests
             Data = null!
         };
 
-        await jobSource.AcknowledgeCompletionAsync(job, false, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeCompletionAsync(job, false,
+            TestContext.Current.CancellationToken);
 
         client.Verify(
             s => s.CompleteMessageAsync(It.IsAny<IServiceBusMessageContainer>(), It.IsAny<CancellationToken>()),
@@ -410,7 +411,8 @@ public class AzureServiceBusJobSourceTests
 
         var job = new Mock<IJobModel>();
 
-        await jobSource.AcknowledgeCompletionAsync(job.Object, success, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeCompletionAsync(job.Object, success,
+            TestContext.Current.CancellationToken);
 
         client.Verify(
             s => s.CompleteMessageAsync(It.IsAny<IServiceBusMessageContainer>(), It.IsAny<CancellationToken>()),
@@ -444,7 +446,8 @@ public class AzureServiceBusJobSourceTests
             Data = null!
         };
 
-        await jobSource.AcknowledgeCompletionAsync(job, true, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeCompletionAsync(job, true,
+            TestContext.Current.CancellationToken);
 
         client.Verify(
             s => s.CompleteMessageAsync(It.IsAny<IServiceBusMessageContainer>(), It.IsAny<CancellationToken>()),

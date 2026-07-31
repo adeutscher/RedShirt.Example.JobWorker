@@ -1,14 +1,16 @@
 using Microsoft.Extensions.Logging;
+using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 
 internal class HighLevelStreamSource(
     ICheckpointStorage checkpointStorage,
     IKinesisShardLister lister,
-    IAbstractedLocker locker,
+    IAbstractedLockService lockService,
     ILowLevelStreamSource lowLevelStreamSource,
     ILogger<HighLevelStreamSource> logger) : IJobSource
 {
@@ -37,7 +39,7 @@ internal class HighLevelStreamSource(
             if (trackerSession.IsComplete)
             {
                 /*
-                 * Handling MoveTrackerAsync and ReleaseLockOnShard within the semaphore claim
+                 * Handling MoveTrackerAsync and ReleaseLockOnShardAsync within the semaphore claim
                  * technically bottlenecks operation behind Redis/DynamoDB latency.
                  *
                  * However, if we did not do this within the semaphore claim then we would create the potential for multiple invocations of this method to remove/unlock a single session.
@@ -47,7 +49,7 @@ internal class HighLevelStreamSource(
                 await MoveTrackerAsync(trackerSession, cancellationToken);
                 logger.LogTrace("Releasing distributed lock");
                 // Releasing distributed lock so that GetJobsAsync calls can poll this shard again
-                trackerSession.ReleaseLockOnShard();
+                await trackerSession.ReleaseLockOnShardAsync(cancellationToken);
                 Sessions.Remove(kinesisJobModel.ShardId);
             }
         }
@@ -88,7 +90,7 @@ internal class HighLevelStreamSource(
             }
 
             // Try to get lock
-            var currentIterationLock = await locker.GetLockAsync(shard, cancellationToken);
+            var currentIterationLock = await lockService.GetLockAsync(KeyHelper.GetLockKey(shard), cancellationToken);
 
             if (!currentIterationLock.IsAcquired)
             {
@@ -113,7 +115,7 @@ internal class HighLevelStreamSource(
             {
                 await MoveTrackerAsync(trackerSession, cancellationToken);
                 // No jobs, so release lock and continue    
-                trackerSession.ReleaseLockOnShard();
+                await trackerSession.ReleaseLockOnShardAsync(cancellationToken);
                 continue;
             }
 

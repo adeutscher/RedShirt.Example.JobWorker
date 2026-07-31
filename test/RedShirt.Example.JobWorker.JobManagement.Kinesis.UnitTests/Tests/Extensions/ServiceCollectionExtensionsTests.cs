@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
-using RedShirt.Example.JobWorker.JobManagement.Kinesis.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Extensions;
@@ -59,27 +58,6 @@ public class ServiceCollectionExtensionsTests
         Assert.Equal(streamArn, kinesis.StreamArn);
         Assert.Equal(roundRobinShards, kinesis.RoundRobinShards);
         Assert.Equal(shuffleShards, kinesis.ShuffleShards);
-    }
-
-    [Theory]
-    [InlineData("redis/connection-string")]
-    [InlineData("secrets/redis")]
-    public void AddKinesisJobManagement_ConfiguresRedisConnectionFactory(string connectionStringPath)
-    {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["JobSource:Kinesis:Redis:ConnectionStringPath"] = connectionStringPath
-            })
-            .Build();
-
-        var services = new ServiceCollection()
-            .AddKinesisJobManagement(configuration);
-
-        using var provider = services.BuildServiceProvider();
-
-        var redis = provider.GetRequiredService<IOptions<RedisConnectionFactory.ConfigurationModel>>().Value;
-        Assert.Equal(connectionStringPath, redis.ConnectionStringPath);
     }
 
     [Theory]

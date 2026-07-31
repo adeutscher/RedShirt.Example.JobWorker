@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
 using RedShirt.Example.JobWorker.Core.Configuration;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions.Loader;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -23,7 +24,7 @@ internal class LoaderModeJobLoader(
     IOptions<JobSourceConfigurationModel> jobSourceOptions) : IJobLoader
 #pragma warning restore S107
 {
-    public async Task RunAsync(CancellationToken cancellationToken = default)
+    public async Task<HandlerResponseEnum> RunAsync(CancellationToken cancellationToken = default)
     {
         var breakLoop = false;
 
@@ -121,5 +122,7 @@ internal class LoaderModeJobLoader(
             // Using finally makes the use of loader stop exception-safe
             jobLoaderStateService.ReportLoaderStop();
         }
+
+        return HandlerResponseEnum.Finished;
     }
 }

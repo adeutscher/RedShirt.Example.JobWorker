@@ -2,7 +2,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.Core.Exceptions;
+using RedShirt.Example.JobWorker.Core.Exceptions.JobSource;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
@@ -135,7 +135,8 @@ internal class SqsJobSource(
                 ReceiptHandle = sqsJobModel.RawMessage.ReceiptHandle
             }, cancellationToken);
 
-            throw new CanNoLongerHeartbeatException();
+            throw new JobSourceHeartbeatException(false,
+                "Message is in danger of exceeding maximum SQS visibility timeout.");
         }
 
         await sqs.ChangeMessageVisibilityAsync(request, cancellationToken);

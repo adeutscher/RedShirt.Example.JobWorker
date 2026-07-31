@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
@@ -64,16 +65,27 @@ internal class RabbitMqJobSource : IJobSource
 
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
-        var channel = await _channel.Value;
-
         _logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from RabbitMQ Queue: {QueueName}",
             batchSize, _configuration.Value.QueueName);
 
         var getJobsResponseItems = new List<IJobModel>();
 
+        var channel = await _channel.Value;
+
         while (getJobsResponseItems.Count < batchSize)
         {
-            var result = await channel.BasicGetAsync(_configuration.Value.QueueName, false, cancellationToken);
+            BasicGetResult? result;
+
+            try
+            {
+                result = await channel.BasicGetAsync(_configuration.Value.QueueName, false, cancellationToken);
+            }
+            catch (AlreadyClosedException e)
+            {
+                // Came up during local testing, not sure how I triggered it at time of writing
+                _logger.LogWarning(e, "RabbitMQ connection closed (will reacquire): {EMessage}", e.Message);
+                break;
+            }
 
             if (result is null)
                 // Nothing more to grab at the moment.

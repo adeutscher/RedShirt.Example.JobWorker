@@ -1,7 +1,10 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using RedShirt.Example.JobWorker.Common.Distributed.Models;
+using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Services;
 
@@ -10,13 +13,13 @@ public class HighLevelStreamSourceTests
     private static HighLevelStreamSource CreateStreamSource(
         Mock<ICheckpointStorage>? checkpointStorage = null,
         Mock<IKinesisShardLister>? lister = null,
-        Mock<IAbstractedLocker>? locker = null,
+        Mock<IAbstractedLockService>? locker = null,
         Mock<ILowLevelStreamSource>? lowLevelStreamSource = null)
     {
         return new HighLevelStreamSource(
             (checkpointStorage ?? new Mock<ICheckpointStorage>(MockBehavior.Strict)).Object,
             (lister ?? new Mock<IKinesisShardLister>(MockBehavior.Strict)).Object,
-            (locker ?? new Mock<IAbstractedLocker>(MockBehavior.Strict)).Object,
+            (locker ?? new Mock<IAbstractedLockService>(MockBehavior.Strict)).Object,
             (lowLevelStreamSource ?? new Mock<ILowLevelStreamSource>(MockBehavior.Strict)).Object,
             new NullLogger<HighLevelStreamSource>());
     }
@@ -60,7 +63,7 @@ public class HighLevelStreamSourceTests
         checkpointStorage.Setup(c =>
                 c.UpdateLongTermAsync("shard-a", "seq-2", TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
-        lockHandle.Setup(l => l.Unlock());
+        lockHandle.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var streamSource = CreateStreamSource(checkpointStorage);
         streamSource.Sessions["shard-a"] = new KinesisTrackerSession("shard-a",
@@ -71,17 +74,19 @@ public class HighLevelStreamSourceTests
                 Items = [job1, job2]
             }, lockHandle.Object);
 
-        await streamSource.AcknowledgeCompletionAsync(job1, false, TestContext.Current.CancellationToken);
+        await streamSource.AcknowledgeCompletionAsync(job1, false,
+            TestContext.Current.CancellationToken);
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
 
-        await streamSource.AcknowledgeCompletionAsync(job2, true, TestContext.Current.CancellationToken);
+        await streamSource.AcknowledgeCompletionAsync(job2, true,
+            TestContext.Current.CancellationToken);
 
         Assert.False(streamSource.Sessions.ContainsKey("shard-a"));
         checkpointStorage.Verify(
             c => c.UpdateShortTermAsync("shard-a", "iterator-2", TestContext.Current.CancellationToken), Times.Once);
         checkpointStorage.Verify(c => c.UpdateLongTermAsync("shard-a", "seq-2", TestContext.Current.CancellationToken),
             Times.Once);
-        lockHandle.Verify(l => l.Unlock(), Times.Once);
+        lockHandle.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -101,11 +106,12 @@ public class HighLevelStreamSourceTests
                 Items = [job1, job2]
             }, lockHandle.Object);
 
-        await streamSource.AcknowledgeCompletionAsync(job1, true, TestContext.Current.CancellationToken);
+        await streamSource.AcknowledgeCompletionAsync(job1, true,
+            TestContext.Current.CancellationToken);
 
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
         Assert.False(streamSource.Sessions["shard-a"].IsComplete);
-        lockHandle.Verify(l => l.Unlock(), Times.Never);
+        lockHandle.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Never);
         Assert.Empty(checkpointStorage.Invocations);
     }
 
@@ -125,10 +131,11 @@ public class HighLevelStreamSourceTests
 
         var nonKinesisJob = new Mock<IJobModel>(MockBehavior.Strict).Object;
 
-        await streamSource.AcknowledgeCompletionAsync(nonKinesisJob, true, TestContext.Current.CancellationToken);
+        await streamSource.AcknowledgeCompletionAsync(nonKinesisJob, true,
+            TestContext.Current.CancellationToken);
 
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
-        lockHandle.Verify(l => l.Unlock(), Times.Never);
+        lockHandle.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Never);
         Assert.Empty(checkpointStorage.Invocations);
     }
 
@@ -150,14 +157,14 @@ public class HighLevelStreamSourceTests
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
-        var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
+        var locker = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
         var secondLock = CreateAcquiredLock();
         var secondJob = CreateKinesisJob("shard-b");
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-a", "shard-b"]);
-        locker.Setup(l => l.GetLockAsync("shard-b", TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-b"), TestContext.Current.CancellationToken))
             .ReturnsAsync(secondLock.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-b", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-b");
@@ -183,8 +190,9 @@ public class HighLevelStreamSourceTests
 
         Assert.Same(secondJob, Assert.Single(response.Items));
         Assert.Equal(2, streamSource.Sessions.Count);
-        locker.Verify(l => l.GetLockAsync("shard-a", It.IsAny<CancellationToken>()), Times.Never);
-        locker.Verify(l => l.GetLockAsync("shard-b", TestContext.Current.CancellationToken), Times.Once);
+        locker.Verify(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-a"), It.IsAny<CancellationToken>()), Times.Never);
+        locker.Verify(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-b"), TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Fact]
@@ -192,16 +200,16 @@ public class HighLevelStreamSourceTests
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
-        var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
+        var locker = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
         var acquiredLock = CreateAcquiredLock();
         var job = CreateKinesisJob("shard-b");
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-a", "shard-b"]);
-        locker.Setup(l => l.GetLockAsync("shard-a", TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-a"), TestContext.Current.CancellationToken))
             .ReturnsAsync(CreateUnacquiredLock().Object);
-        locker.Setup(l => l.GetLockAsync("shard-b", TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-b"), TestContext.Current.CancellationToken))
             .ReturnsAsync(acquiredLock.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-b", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-b");
@@ -231,7 +239,7 @@ public class HighLevelStreamSourceTests
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
-        var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
+        var locker = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
         var lockHandle = CreateAcquiredLock();
 
@@ -239,7 +247,7 @@ public class HighLevelStreamSourceTests
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-a"]);
-        locker.Setup(l => l.GetLockAsync("shard-a", TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-a"), TestContext.Current.CancellationToken))
             .ReturnsAsync(lockHandle.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-a", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-1");
@@ -261,12 +269,13 @@ public class HighLevelStreamSourceTests
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
         Assert.Equal(1, streamSource.Sessions["shard-a"].Count);
 
-        locker.Verify(l => l.GetLockAsync("shard-a", TestContext.Current.CancellationToken), Times.Once);
+        locker.Verify(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-a"), TestContext.Current.CancellationToken),
+            Times.Once);
         checkpointStorage.Verify(c => c.GetCheckpointAsync("shard-a", TestContext.Current.CancellationToken),
             Times.Once);
         lowLevelStreamSource.Verify(
             l => l.GetJobsAsync(batchSize, "shard-a", "iterator-1", TestContext.Current.CancellationToken), Times.Once);
-        lockHandle.Verify(l => l.Unlock(), Times.Never);
+        lockHandle.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Never);
         checkpointStorage.Verify(
             c => c.UpdateShortTermAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -277,7 +286,7 @@ public class HighLevelStreamSourceTests
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
-        var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
+        var locker = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
@@ -291,8 +300,10 @@ public class HighLevelStreamSourceTests
 
         Assert.Empty(response.Items);
         Assert.Empty(streamSource.Sessions);
-        locker.Verify(l => l.GetLockAsync("shard-a", TestContext.Current.CancellationToken), Times.Once);
-        locker.Verify(l => l.GetLockAsync("shard-b", TestContext.Current.CancellationToken), Times.Once);
+        locker.Verify(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-a"), TestContext.Current.CancellationToken),
+            Times.Once);
+        locker.Verify(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-b"), TestContext.Current.CancellationToken),
+            Times.Once);
         checkpointStorage.Verify(
             c => c.GetCheckpointAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         lowLevelStreamSource.Verify(
@@ -305,13 +316,13 @@ public class HighLevelStreamSourceTests
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
-        var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
+        var locker = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
         var emptyShardLock = CreateAcquiredLock();
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-empty"]);
-        locker.Setup(l => l.GetLockAsync("shard-empty", TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-empty"), TestContext.Current.CancellationToken))
             .ReturnsAsync(emptyShardLock.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-empty", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-empty");
@@ -326,7 +337,7 @@ public class HighLevelStreamSourceTests
         checkpointStorage.Setup(c =>
                 c.UpdateShortTermAsync("shard-empty", "iterator-empty-2", TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
-        emptyShardLock.Setup(l => l.Unlock());
+        emptyShardLock.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var streamSource = CreateStreamSource(checkpointStorage, lister, locker, lowLevelStreamSource);
 
@@ -339,7 +350,7 @@ public class HighLevelStreamSourceTests
         checkpointStorage.Verify(
             c => c.UpdateLongTermAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
-        emptyShardLock.Verify(l => l.Unlock(), Times.Once);
+        emptyShardLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -347,13 +358,13 @@ public class HighLevelStreamSourceTests
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lister = new Mock<IKinesisShardLister>(MockBehavior.Strict);
-        var locker = new Mock<IAbstractedLocker>(MockBehavior.Strict);
+        var locker = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         var lowLevelStreamSource = new Mock<ILowLevelStreamSource>(MockBehavior.Strict);
         var emptyShardLock = CreateAcquiredLock();
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-empty"]);
-        locker.Setup(l => l.GetLockAsync("shard-empty", TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey("shard-empty"), TestContext.Current.CancellationToken))
             .ReturnsAsync(emptyShardLock.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-empty", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-empty");
@@ -371,7 +382,7 @@ public class HighLevelStreamSourceTests
         checkpointStorage.Setup(c =>
                 c.UpdateLongTermAsync("shard-empty", "seq-empty", TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
-        emptyShardLock.Setup(l => l.Unlock());
+        emptyShardLock.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var streamSource = CreateStreamSource(checkpointStorage, lister, locker, lowLevelStreamSource);
 
@@ -384,7 +395,7 @@ public class HighLevelStreamSourceTests
             Times.Once);
         checkpointStorage.Verify(
             c => c.UpdateLongTermAsync("shard-empty", "seq-empty", TestContext.Current.CancellationToken), Times.Once);
-        emptyShardLock.Verify(l => l.Unlock(), Times.Once);
+        emptyShardLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -392,7 +403,8 @@ public class HighLevelStreamSourceTests
     {
         var streamSource = CreateStreamSource();
 
-        await streamSource.HeartbeatAsync(CreateKinesisJob("shard-a"), TestContext.Current.CancellationToken);
+        await streamSource.HeartbeatAsync(CreateKinesisJob("shard-a"),
+            TestContext.Current.CancellationToken);
 
         Assert.Empty(streamSource.Sessions);
     }

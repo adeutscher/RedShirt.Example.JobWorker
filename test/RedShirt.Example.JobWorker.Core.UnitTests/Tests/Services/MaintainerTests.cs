@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using RedShirt.Example.JobWorker.Core.Enums.Loader;
-using RedShirt.Example.JobWorker.Core.Exceptions;
+using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Exceptions.JobSource;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -19,6 +19,27 @@ public class MaintainerTests
         return sleepService.Object;
     }
 
+    [Theory(Timeout = 500)]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task RunAsync_WhenRecommendedHeartbeatIntervalIsNotPositive_ReturnsImmediately(int intervalSeconds)
+    {
+        var heartbeatCalculator = new Mock<IHeartbeatCalculator>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IAppliedExecutionEndArbiter>(MockBehavior.Strict);
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(intervalSeconds);
+
+        var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
+
+        await maintainer.RunAsync(TestContext.Current.CancellationToken);
+
+        Assert.Empty(executionEndArbiter.Invocations);
+        Assert.Empty(jobRepository.Invocations);
+        Assert.Empty(heartbeatCalculator.Invocations);
+    }
+
     /// <summary>
     ///     Confirm that getting we filter messages that cannot receive heartbeats out of the InFlight list that we received
     ///     out of the job repository.
@@ -30,7 +51,7 @@ public class MaintainerTests
         subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
-        entry.Setup(e => e.FlightTimeCanBeExtended).Returns(true);
+        entry.Setup(e => e.CanHeartbeat).Returns(true);
 
         var lockId = Guid.NewGuid();
         entry.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
@@ -45,7 +66,7 @@ public class MaintainerTests
         var redHerringLockId = Guid.NewGuid();
         var redHerringEntry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         redHerringEntry.Setup(e => e.State).Returns(JobState.Active);
-        redHerringEntry.Setup(e => e.FlightTimeCanBeExtended).Returns(false);
+        redHerringEntry.Setup(e => e.CanHeartbeat).Returns(false);
         redHerringEntry.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(redHerringLockId);
         redHerringEntry.Setup(e => e.ReleaseLockAsync(redHerringLockId, TestContext.Current.CancellationToken))
@@ -97,7 +118,6 @@ public class MaintainerTests
 
         Assert.Single(jobRepository.Invocations);
 
-        Assert.Single(jobSource.Invocations);
         jobSource.Verify(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken), Times.Once);
 
         entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
@@ -161,7 +181,7 @@ public class MaintainerTests
         var subject = new Mock<IJobModel>(MockBehavior.Strict);
         subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
-        entry.Setup(e => e.FlightTimeCanBeExtended).Returns(true);
+        entry.Setup(e => e.CanHeartbeat).Returns(true);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
 
         var lockId = Guid.NewGuid();
@@ -219,7 +239,6 @@ public class MaintainerTests
 
         Assert.Single(jobRepository.Invocations);
 
-        Assert.Single(jobSource.Invocations);
         jobSource.Verify(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken), Times.Once);
 
         entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
@@ -236,9 +255,10 @@ public class MaintainerTests
         var subject = new Mock<IJobModel>(MockBehavior.Strict);
         subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
-        entry.Setup(e => e.FlightTimeCanBeExtended).Returns(true);
+        entry.Setup(e => e.CanHeartbeat).Returns(true);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
-        entry.SetupSet(e => e.FlightTimeCanBeExtended = false);
+        entry.Setup(e => e.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
 
         var lockId = Guid.NewGuid();
         entry.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
@@ -286,7 +306,7 @@ public class MaintainerTests
             .Returns(1);
         jobSource
             .Setup(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken))
-            .Returns(() => throw new CanNoLongerHeartbeatException());
+            .Returns(() => throw new JobSourceHeartbeatException(false, "Test"));
 
         var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
             jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
@@ -295,13 +315,13 @@ public class MaintainerTests
 
         Assert.Single(jobRepository.Invocations);
 
-        Assert.Single(jobSource.Invocations);
         jobSource.Verify(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken), Times.Once);
 
         entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
         entry.Verify(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken), Times.Once);
 
-        entry.VerifySet(e => e.FlightTimeCanBeExtended = false, Times.Once);
+        entry.Verify(e => e.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     /// <summary>
@@ -314,7 +334,7 @@ public class MaintainerTests
         var subject = new Mock<IJobModel>(MockBehavior.Strict);
         subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
-        entry.Setup(e => e.FlightTimeCanBeExtended).Returns(true);
+        entry.Setup(e => e.CanHeartbeat).Returns(true);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
 
         var lockId = Guid.NewGuid();
@@ -373,6 +393,70 @@ public class MaintainerTests
         entry.Verify(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken), Times.Once);
     }
 
+    [Fact(Timeout = 1500)]
+    public async Task TestHeartbeatSingleJob_ExhaustsTransientRetriesThenDisablesExtension()
+    {
+        var subject = new Mock<IJobModel>(MockBehavior.Strict);
+        subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
+        var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
+        entry.Setup(e => e.CanHeartbeat).Returns(true);
+        entry.Setup(e => e.JobModel).Returns(subject.Object);
+        entry.Setup(e => e.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
+        var lockId = Guid.NewGuid();
+        entry.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync(lockId);
+        entry.Setup(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+        entry.Setup(e => e.State).Returns(JobState.Active);
+
+        var heartbeatCalculator = new Mock<IHeartbeatCalculator>(MockBehavior.Strict);
+        heartbeatCalculator.Setup(c => c.IsReadyForHeartbeat(entry.Object)).Returns(true);
+        heartbeatCalculator.Setup(c => c.TimeUntilNextHeartbeat(entry.Object)).Returns(TimeSpan.FromSeconds(1));
+
+        var doQuit = false;
+        var executionEndArbiter = new Mock<IAppliedExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter
+            .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync((CancellationToken _) =>
+            {
+                if (doQuit)
+                {
+                    return false;
+                }
+
+                doQuit = true;
+                return true;
+            });
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        jobRepository
+            .Setup(r => r.GetAllInFlightJobsAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync([entry.Object]);
+
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
+        jobSource
+            .Setup(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken))
+            .ThrowsAsync(new JobSourceHeartbeatException(true, new Exception("transient")));
+
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        sleepService
+            .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object, new NullLogger<Maintainer>(), sleepService.Object);
+
+        await maintainer.RunAsync(TestContext.Current.CancellationToken);
+
+        jobSource.Verify(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken),
+            Times.Exactly(Globals.HeartbeatRetryCount + 1));
+        entry.Verify(e => e.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken),
+            Times.Once);
+    }
+
     /// <summary>
     ///     Maintain a job that not yet ready for a heartbeat
     /// </summary>
@@ -382,7 +466,7 @@ public class MaintainerTests
         var subject = new Mock<IJobModel>(MockBehavior.Strict);
         subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
-        entry.Setup(e => e.FlightTimeCanBeExtended).Returns(true);
+        entry.Setup(e => e.CanHeartbeat).Returns(true);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
 
         var lockId = Guid.NewGuid();
@@ -437,7 +521,7 @@ public class MaintainerTests
 
         Assert.Single(jobRepository.Invocations);
 
-        Assert.Empty(jobSource.Invocations);
+        jobSource.Verify(s => s.HeartbeatAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Never);
 
         entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
         entry.Verify(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken), Times.Once);
@@ -453,7 +537,7 @@ public class MaintainerTests
         var subject = new Mock<IJobModel>(MockBehavior.Strict);
         subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
-        entry.Setup(e => e.FlightTimeCanBeExtended).Returns(true);
+        entry.Setup(e => e.CanHeartbeat).Returns(true);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
 
         var lockId = Guid.NewGuid();
@@ -511,11 +595,83 @@ public class MaintainerTests
 
         Assert.Single(jobRepository.Invocations);
 
-        Assert.Single(jobSource.Invocations);
         jobSource.Verify(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken), Times.Once);
 
         entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
         entry.Verify(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Fact(Timeout = 1500)]
+    public async Task TestHeartbeatSingleJob_RetriesTransientFailuresThenSucceeds()
+    {
+        var subject = new Mock<IJobModel>(MockBehavior.Strict);
+        subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
+        var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
+        entry.Setup(e => e.CanHeartbeat).Returns(true);
+        entry.Setup(e => e.JobModel).Returns(subject.Object);
+
+        var lockId = Guid.NewGuid();
+        entry.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync(lockId);
+        entry.Setup(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+        entry.Setup(e => e.State).Returns(JobState.Active);
+        entry.SetupSet(e => e.LastHeartbeatTime = It.IsAny<DateTime>());
+
+        var heartbeatCalculator = new Mock<IHeartbeatCalculator>(MockBehavior.Strict);
+        heartbeatCalculator.Setup(c => c.IsReadyForHeartbeat(entry.Object)).Returns(true);
+        heartbeatCalculator.Setup(c => c.TimeUntilNextHeartbeat(entry.Object)).Returns(TimeSpan.FromSeconds(1));
+
+        var doQuit = false;
+        var executionEndArbiter = new Mock<IAppliedExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter
+            .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync((CancellationToken _) =>
+            {
+                if (doQuit)
+                {
+                    return false;
+                }
+
+                doQuit = true;
+                return true;
+            });
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        jobRepository
+            .Setup(r => r.GetAllInFlightJobsAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync([entry.Object]);
+
+        var attempts = 0;
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
+        jobSource
+            .Setup(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken))
+            .Returns(() =>
+            {
+                attempts++;
+                if (attempts < 3)
+                {
+                    throw new JobSourceHeartbeatException(true, new Exception($"transient {attempts}"));
+                }
+
+                return Task.CompletedTask;
+            });
+
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        sleepService
+            .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object, new NullLogger<Maintainer>(), sleepService.Object);
+
+        await maintainer.RunAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(3, attempts);
+        entry.Verify(e => e.SetIfFlightTimeCanBeExtendedAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        entry.VerifySet(e => e.LastHeartbeatTime = It.IsAny<DateTime>(), Times.Once);
     }
 
     /// <summary>
@@ -536,7 +692,7 @@ public class MaintainerTests
             .ReturnsAsync(lockId1);
         entry1.Setup(e => e.ReleaseLockAsync(lockId1, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
-        entry1.Setup(e => e.FlightTimeCanBeExtended).Returns(true);
+        entry1.Setup(e => e.CanHeartbeat).Returns(true);
         entry1.Setup(e => e.State).Returns(JobState.Active);
         entry1.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
             dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
@@ -554,7 +710,7 @@ public class MaintainerTests
         entry2.Setup(e => e.ReleaseLockAsync(lockId2, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
         entry2.Setup(e => e.State).Returns(JobState.Active);
-        entry2.Setup(e => e.FlightTimeCanBeExtended).Returns(true);
+        entry2.Setup(e => e.CanHeartbeat).Returns(true);
         entry2.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
             dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
             dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));
@@ -615,7 +771,6 @@ public class MaintainerTests
 
         Assert.Single(jobRepository.Invocations);
 
-        Assert.Equal(2, jobSource.Invocations.Count);
         jobSource.Verify(s => s.HeartbeatAsync(subject1.Object, TestContext.Current.CancellationToken), Times.Once);
         jobSource.Verify(s => s.HeartbeatAsync(subject2.Object, TestContext.Current.CancellationToken), Times.Once);
 
