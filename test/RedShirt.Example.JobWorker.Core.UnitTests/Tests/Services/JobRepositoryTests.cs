@@ -796,10 +796,7 @@ public class JobRepositoryTests
             BacklogSize = 0
         };
 
-        var sorter = new Mock<ISourceMessageSorter>();
-        sorter
-            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
-            .Returns((List<IJobRepositoryEntry> input) => input);
+        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
 
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
@@ -817,6 +814,9 @@ public class JobRepositoryTests
 
         var demandResult = await demandTask;
         Assert.True(demandResult);
+
+        // Sorter should not be invoked by GetNextJob
+        Assert.Empty(sorter.Invocations);
     }
 
     [Fact(Timeout = 2000)]
