@@ -49,6 +49,30 @@ public class SafeJobAcknowledgementServiceTests
     }
 
     [Fact]
+    public async Task AcknowledgeSafelyAsync_WhenPermanentFailure_ReturnsFalseWithoutRetry()
+    {
+        var (entry, jobModel) = CreateJob();
+
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource
+            .Setup(s => s.AcknowledgeCompletionAsync(jobModel.Object, false, TestContext.Current.CancellationToken))
+            .ThrowsAsync(new JobSourceAcknowledgementException(false, new Exception("permanent")));
+
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+
+        var service = new SafeJobAcknowledgementService(jobSource.Object, sleepService.Object,
+            new NullLogger<SafeJobAcknowledgementService>());
+
+        var result = await service.AcknowledgeSafelyAsync(entry.Object, false, TestContext.Current.CancellationToken);
+
+        Assert.False(result);
+        jobSource.Verify(
+            s => s.AcknowledgeCompletionAsync(jobModel.Object, false, TestContext.Current.CancellationToken),
+            Times.Once);
+        Assert.Empty(sleepService.Invocations);
+    }
+
+    [Fact]
     public async Task AcknowledgeSafelyAsync_WhenTransientFailureThenSucceeds_RetriesAndReturnsTrue()
     {
         var (entry, jobModel) = CreateJob();
@@ -82,30 +106,6 @@ public class SafeJobAcknowledgementServiceTests
         Assert.Equal(3, attempts);
         sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(2), default), Times.Once);
         sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(4), default), Times.Once);
-    }
-
-    [Fact]
-    public async Task AcknowledgeSafelyAsync_WhenPermanentFailure_ReturnsFalseWithoutRetry()
-    {
-        var (entry, jobModel) = CreateJob();
-
-        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
-        jobSource
-            .Setup(s => s.AcknowledgeCompletionAsync(jobModel.Object, false, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new JobSourceAcknowledgementException(false, new Exception("permanent")));
-
-        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
-
-        var service = new SafeJobAcknowledgementService(jobSource.Object, sleepService.Object,
-            new NullLogger<SafeJobAcknowledgementService>());
-
-        var result = await service.AcknowledgeSafelyAsync(entry.Object, false, TestContext.Current.CancellationToken);
-
-        Assert.False(result);
-        jobSource.Verify(
-            s => s.AcknowledgeCompletionAsync(jobModel.Object, false, TestContext.Current.CancellationToken),
-            Times.Once);
-        Assert.Empty(sleepService.Invocations);
     }
 
     [Fact]

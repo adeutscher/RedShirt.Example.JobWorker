@@ -5,27 +5,6 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Configuration;
 public class IdempotencyConfigurationModelTests
 {
     [Theory]
-    [InlineData(-1, 10)]
-    [InlineData(0, 10)]
-    [InlineData(9, 10)]
-    [InlineData(10, 10)]
-    [InlineData(11, 11)]
-    [InlineData(100, 100)]
-    public void EffectiveResultCacheDurationSeconds_ClampsToMinimumOfTen(int resultCacheDurationSeconds,
-        int expectedEffective)
-    {
-        var model = new IdempotencyConfigurationModel
-        {
-            Enabled = true,
-            ResultCacheDurationSeconds = resultCacheDurationSeconds,
-            MonitorIntervalSeconds = 3,
-            IdempotencyIdsCanRepeat = false
-        };
-
-        Assert.Equal(expectedEffective, model.EffectiveResultCacheDurationSeconds);
-    }
-
-    [Theory]
     [InlineData(-1, 3)]
     [InlineData(0, 3)]
     [InlineData(2, 3)]
@@ -44,6 +23,27 @@ public class IdempotencyConfigurationModelTests
         };
 
         Assert.Equal(expectedEffective, model.EffectiveMonitorIntervalSeconds);
+    }
+
+    [Theory]
+    [InlineData(-1, 10)]
+    [InlineData(0, 10)]
+    [InlineData(9, 10)]
+    [InlineData(10, 10)]
+    [InlineData(11, 11)]
+    [InlineData(100, 100)]
+    public void EffectiveResultCacheDurationSeconds_ClampsToMinimumOfTen(int resultCacheDurationSeconds,
+        int expectedEffective)
+    {
+        var model = new IdempotencyConfigurationModel
+        {
+            Enabled = true,
+            ResultCacheDurationSeconds = resultCacheDurationSeconds,
+            MonitorIntervalSeconds = 3,
+            IdempotencyIdsCanRepeat = false
+        };
+
+        Assert.Equal(expectedEffective, model.EffectiveResultCacheDurationSeconds);
     }
 
     [Theory]

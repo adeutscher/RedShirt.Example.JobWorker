@@ -5,6 +5,23 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Exceptio
 public class CacheConnectionExceptionTests
 {
     [Fact]
+    public void CanBeCaughtAsCacheException()
+    {
+        CacheException? caught = null;
+
+        try
+        {
+            throw new CacheConnectionException(new Exception("boom"));
+        }
+        catch (CacheException ex)
+        {
+            caught = ex;
+        }
+
+        Assert.IsType<CacheConnectionException>(caught);
+    }
+
+    [Fact]
     public void Constructor_WrapsInnerException()
     {
         var inner = new InvalidOperationException("connection failed");
@@ -22,22 +39,5 @@ public class CacheConnectionExceptionTests
 
         Assert.IsAssignableFrom<CacheException>(exception);
         Assert.IsAssignableFrom<Exception>(exception);
-    }
-
-    [Fact]
-    public void CanBeCaughtAsCacheException()
-    {
-        CacheException? caught = null;
-
-        try
-        {
-            throw new CacheConnectionException(new Exception("boom"));
-        }
-        catch (CacheException ex)
-        {
-            caught = ex;
-        }
-
-        Assert.IsType<CacheConnectionException>(caught);
     }
 }

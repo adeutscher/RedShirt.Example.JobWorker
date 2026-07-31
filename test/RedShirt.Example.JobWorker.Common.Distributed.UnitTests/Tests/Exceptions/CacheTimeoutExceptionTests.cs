@@ -5,6 +5,23 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Exceptio
 public class CacheTimeoutExceptionTests
 {
     [Fact]
+    public void CanBeCaughtAsCacheException()
+    {
+        CacheException? caught = null;
+
+        try
+        {
+            throw new CacheTimeoutException(new Exception("boom"));
+        }
+        catch (CacheException ex)
+        {
+            caught = ex;
+        }
+
+        Assert.IsType<CacheTimeoutException>(caught);
+    }
+
+    [Fact]
     public void Constructor_WrapsInnerException()
     {
         var inner = new TimeoutException("timed out");
@@ -22,22 +39,5 @@ public class CacheTimeoutExceptionTests
 
         Assert.IsAssignableFrom<CacheException>(exception);
         Assert.IsAssignableFrom<Exception>(exception);
-    }
-
-    [Fact]
-    public void CanBeCaughtAsCacheException()
-    {
-        CacheException? caught = null;
-
-        try
-        {
-            throw new CacheTimeoutException(new Exception("boom"));
-        }
-        catch (CacheException ex)
-        {
-            caught = ex;
-        }
-
-        Assert.IsType<CacheTimeoutException>(caught);
     }
 }

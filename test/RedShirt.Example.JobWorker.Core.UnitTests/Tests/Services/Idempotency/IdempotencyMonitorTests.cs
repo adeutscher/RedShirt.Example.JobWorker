@@ -50,30 +50,12 @@ public class IdempotencyMonitorTests
     }
 
     [Fact(Timeout = 1000)]
-    public async Task RunAsync_WhenDisabled_ReturnsImmediately()
+    public async Task RunAsync_SleepsUsingEffectiveMonitorIntervalBetweenLoops()
     {
-        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        var idempotencyExecutionService = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
-        var safeJobAcknowledgementService = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
-
-        var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
-            idempotencyExecutionService.Object, safeJobAcknowledgementService.Object, CreateSleepService(),
-            Options.Create(CreateOptions(enabled: false)), new NullLogger<IdempotencyMonitor>());
-
-        await monitor.RunAsync(TestContext.Current.CancellationToken);
-
-        Assert.Empty(executionEndArbiter.Invocations);
-        Assert.Empty(jobRepository.Invocations);
-        Assert.Empty(idempotencyExecutionService.Invocations);
-        Assert.Empty(safeJobAcknowledgementService.Invocations);
-    }
-
-    [Fact(Timeout = 1000)]
-    public async Task RunAsync_WhenLockNotAcquired_LeavesJobBlocked()
-    {
-        var (entry, jobModel) = CreateBlockedJob();
-        var idempotencyLock = CreateLock(false);
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        sleepService
+            .Setup(s => s.DelayAsync(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
@@ -93,27 +75,17 @@ public class IdempotencyMonitorTests
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         jobRepository
             .Setup(r => r.GetAllIdempotencyBlockedJobsAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync([entry.Object]);
-
-        var idempotencyExecutionService = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
-        idempotencyExecutionService
-            .Setup(s => s.GetLockAsync(jobModel.Object, TestContext.Current.CancellationToken))
-            .ReturnsAsync(idempotencyLock.Object);
-
-        var safeJobAcknowledgementService = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
+            .ReturnsAsync([]);
 
         var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
-            idempotencyExecutionService.Object, safeJobAcknowledgementService.Object, CreateSleepService(),
-            Options.Create(CreateOptions()), new NullLogger<IdempotencyMonitor>());
+            new Mock<IIdempotencyExecutionService>(MockBehavior.Strict).Object,
+            new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object, sleepService.Object,
+            Options.Create(CreateOptions(monitorIntervalSeconds: 1)), new NullLogger<IdempotencyMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
-        idempotencyLock.Verify(l => l.Unlock(), Times.Once);
-        jobRepository.Verify(r => r.ReloadUnblockedJobAsync(It.IsAny<IJobRepositoryEntry>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-        jobRepository.Verify(r => r.RemoveJobAsync(It.IsAny<IJobRepositoryEntry>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-        Assert.Empty(safeJobAcknowledgementService.Invocations);
+        sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Theory(Timeout = 2000)]
@@ -168,68 +140,6 @@ public class IdempotencyMonitorTests
         jobRepository.Verify(r => r.RemoveJobAsync(It.IsAny<IJobRepositoryEntry>(), It.IsAny<CancellationToken>()),
             Times.Never);
         Assert.Empty(safeJobAcknowledgementService.Invocations);
-        idempotencyLock.Verify(l => l.Unlock(), Times.Once);
-    }
-
-    [Fact(Timeout = 1000)]
-    public async Task RunAsync_WhenCachedResultIsTrueAndAcknowledgeSucceeds_RemovesJobAndRefreshesCache()
-    {
-        var (entry, jobModel) = CreateBlockedJob();
-        var idempotencyLock = CreateLock(true);
-
-        var doQuit = false;
-        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        executionEndArbiter
-            .Setup(a => a.ShouldKeepRunning())
-            .Returns(() =>
-            {
-                if (doQuit)
-                {
-                    return false;
-                }
-
-                doQuit = true;
-                return true;
-            });
-
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetAllIdempotencyBlockedJobsAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync([entry.Object]);
-        jobRepository
-            .Setup(r => r.RemoveJobAsync(entry.Object, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
-
-        var idempotencyExecutionService = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
-        idempotencyExecutionService
-            .Setup(s => s.GetLockAsync(jobModel.Object, TestContext.Current.CancellationToken))
-            .ReturnsAsync(idempotencyLock.Object);
-        idempotencyExecutionService
-            .Setup(s => s.GetCachedResultAsync(jobModel.Object, TestContext.Current.CancellationToken))
-            .ReturnsAsync(true);
-        idempotencyExecutionService
-            .Setup(s => s.SetResultInCacheAsync(jobModel.Object, true, true, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
-
-        var safeJobAcknowledgementService = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
-        safeJobAcknowledgementService
-            .Setup(s => s.AcknowledgeSafelyAsync(entry.Object, true, TestContext.Current.CancellationToken))
-            .ReturnsAsync(true);
-
-        var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
-            idempotencyExecutionService.Object, safeJobAcknowledgementService.Object, CreateSleepService(),
-            Options.Create(CreateOptions()), new NullLogger<IdempotencyMonitor>());
-
-        await monitor.RunAsync(TestContext.Current.CancellationToken);
-
-        safeJobAcknowledgementService.Verify(
-            s => s.AcknowledgeSafelyAsync(entry.Object, true, TestContext.Current.CancellationToken), Times.Once);
-        idempotencyExecutionService.Verify(
-            s => s.SetResultInCacheAsync(jobModel.Object, true, true, TestContext.Current.CancellationToken),
-            Times.Once);
-        jobRepository.Verify(r => r.RemoveJobAsync(entry.Object, TestContext.Current.CancellationToken), Times.Once);
-        jobRepository.Verify(r => r.ReloadUnblockedJobAsync(It.IsAny<IJobRepositoryEntry>(), It.IsAny<CancellationToken>()),
-            Times.Never);
         idempotencyLock.Verify(l => l.Unlock(), Times.Once);
     }
 
@@ -291,12 +201,10 @@ public class IdempotencyMonitorTests
     }
 
     [Fact(Timeout = 1000)]
-    public async Task RunAsync_SleepsUsingEffectiveMonitorIntervalBetweenLoops()
+    public async Task RunAsync_WhenCachedResultIsTrueAndAcknowledgeSucceeds_RemovesJobAndRefreshesCache()
     {
-        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
-        sleepService
-            .Setup(s => s.DelayAsync(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        var (entry, jobModel) = CreateBlockedJob();
+        var idempotencyLock = CreateLock(true);
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
@@ -316,16 +224,110 @@ public class IdempotencyMonitorTests
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         jobRepository
             .Setup(r => r.GetAllIdempotencyBlockedJobsAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync([]);
+            .ReturnsAsync([entry.Object]);
+        jobRepository
+            .Setup(r => r.RemoveJobAsync(entry.Object, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
+        var idempotencyExecutionService = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
+        idempotencyExecutionService
+            .Setup(s => s.GetLockAsync(jobModel.Object, TestContext.Current.CancellationToken))
+            .ReturnsAsync(idempotencyLock.Object);
+        idempotencyExecutionService
+            .Setup(s => s.GetCachedResultAsync(jobModel.Object, TestContext.Current.CancellationToken))
+            .ReturnsAsync(true);
+        idempotencyExecutionService
+            .Setup(s => s.SetResultInCacheAsync(jobModel.Object, true, true, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
+        var safeJobAcknowledgementService = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
+        safeJobAcknowledgementService
+            .Setup(s => s.AcknowledgeSafelyAsync(entry.Object, true, TestContext.Current.CancellationToken))
+            .ReturnsAsync(true);
 
         var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
-            new Mock<IIdempotencyExecutionService>(MockBehavior.Strict).Object,
-            new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object, sleepService.Object,
-            Options.Create(CreateOptions(monitorIntervalSeconds: 1)), new NullLogger<IdempotencyMonitor>());
+            idempotencyExecutionService.Object, safeJobAcknowledgementService.Object, CreateSleepService(),
+            Options.Create(CreateOptions()), new NullLogger<IdempotencyMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
-        sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken),
+        safeJobAcknowledgementService.Verify(
+            s => s.AcknowledgeSafelyAsync(entry.Object, true, TestContext.Current.CancellationToken), Times.Once);
+        idempotencyExecutionService.Verify(
+            s => s.SetResultInCacheAsync(jobModel.Object, true, true, TestContext.Current.CancellationToken),
             Times.Once);
+        jobRepository.Verify(r => r.RemoveJobAsync(entry.Object, TestContext.Current.CancellationToken), Times.Once);
+        jobRepository.Verify(
+            r => r.ReloadUnblockedJobAsync(It.IsAny<IJobRepositoryEntry>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        idempotencyLock.Verify(l => l.Unlock(), Times.Once);
+    }
+
+    [Fact(Timeout = 1000)]
+    public async Task RunAsync_WhenDisabled_ReturnsImmediately()
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        var idempotencyExecutionService = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
+        var safeJobAcknowledgementService = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
+
+        var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
+            idempotencyExecutionService.Object, safeJobAcknowledgementService.Object, CreateSleepService(),
+            Options.Create(CreateOptions(false)), new NullLogger<IdempotencyMonitor>());
+
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
+
+        Assert.Empty(executionEndArbiter.Invocations);
+        Assert.Empty(jobRepository.Invocations);
+        Assert.Empty(idempotencyExecutionService.Invocations);
+        Assert.Empty(safeJobAcknowledgementService.Invocations);
+    }
+
+    [Fact(Timeout = 1000)]
+    public async Task RunAsync_WhenLockNotAcquired_LeavesJobBlocked()
+    {
+        var (entry, jobModel) = CreateBlockedJob();
+        var idempotencyLock = CreateLock(false);
+
+        var doQuit = false;
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter
+            .Setup(a => a.ShouldKeepRunning())
+            .Returns(() =>
+            {
+                if (doQuit)
+                {
+                    return false;
+                }
+
+                doQuit = true;
+                return true;
+            });
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        jobRepository
+            .Setup(r => r.GetAllIdempotencyBlockedJobsAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync([entry.Object]);
+
+        var idempotencyExecutionService = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
+        idempotencyExecutionService
+            .Setup(s => s.GetLockAsync(jobModel.Object, TestContext.Current.CancellationToken))
+            .ReturnsAsync(idempotencyLock.Object);
+
+        var safeJobAcknowledgementService = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
+
+        var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
+            idempotencyExecutionService.Object, safeJobAcknowledgementService.Object, CreateSleepService(),
+            Options.Create(CreateOptions()), new NullLogger<IdempotencyMonitor>());
+
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
+
+        idempotencyLock.Verify(l => l.Unlock(), Times.Once);
+        jobRepository.Verify(
+            r => r.ReloadUnblockedJobAsync(It.IsAny<IJobRepositoryEntry>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        jobRepository.Verify(r => r.RemoveJobAsync(It.IsAny<IJobRepositoryEntry>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        Assert.Empty(safeJobAcknowledgementService.Invocations);
     }
 }

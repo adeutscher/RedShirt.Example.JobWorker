@@ -5,6 +5,24 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Exceptions.JobSource;
 public class JobSourceHeartbeatExceptionTests
 {
     [Fact]
+    public void CanBeCaughtAsException()
+    {
+        Exception? caught = null;
+
+        try
+        {
+            throw new JobSourceHeartbeatException(false, "permanent failure");
+        }
+        catch (Exception ex)
+        {
+            caught = ex;
+        }
+
+        var heartbeatException = Assert.IsType<JobSourceHeartbeatException>(caught);
+        Assert.False(heartbeatException.IsTransient);
+    }
+
+    [Fact]
     public void Constructor_WithInnerExceptionOnly_DefaultsIsTransientToTrue()
     {
         var inner = new TimeoutException("timed out");
@@ -49,23 +67,5 @@ public class JobSourceHeartbeatExceptionTests
         var exception = new JobSourceHeartbeatException(new Exception("boom"));
 
         Assert.IsAssignableFrom<Exception>(exception);
-    }
-
-    [Fact]
-    public void CanBeCaughtAsException()
-    {
-        Exception? caught = null;
-
-        try
-        {
-            throw new JobSourceHeartbeatException(false, "permanent failure");
-        }
-        catch (Exception ex)
-        {
-            caught = ex;
-        }
-
-        var heartbeatException = Assert.IsType<JobSourceHeartbeatException>(caught);
-        Assert.False(heartbeatException.IsTransient);
     }
 }

@@ -5,6 +5,24 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Exceptions.JobSource;
 public class JobSourceAcknowledgementExceptionTests
 {
     [Fact]
+    public void CanBeCaughtAsException()
+    {
+        Exception? caught = null;
+
+        try
+        {
+            throw new JobSourceAcknowledgementException(false, new Exception("permanent failure"));
+        }
+        catch (Exception ex)
+        {
+            caught = ex;
+        }
+
+        var acknowledgementException = Assert.IsType<JobSourceAcknowledgementException>(caught);
+        Assert.False(acknowledgementException.IsTransient);
+    }
+
+    [Fact]
     public void Constructor_WithInnerExceptionOnly_DefaultsIsTransientToTrue()
     {
         var inner = new TimeoutException("ack timed out");
@@ -31,37 +49,19 @@ public class JobSourceAcknowledgementExceptionTests
     }
 
     [Fact]
-    public void IsException()
-    {
-        var exception = new JobSourceAcknowledgementException(new Exception("boom"));
-
-        Assert.IsAssignableFrom<Exception>(exception);
-    }
-
-    [Fact]
-    public void CanBeCaughtAsException()
-    {
-        Exception? caught = null;
-
-        try
-        {
-            throw new JobSourceAcknowledgementException(false, new Exception("permanent failure"));
-        }
-        catch (Exception ex)
-        {
-            caught = ex;
-        }
-
-        var acknowledgementException = Assert.IsType<JobSourceAcknowledgementException>(caught);
-        Assert.False(acknowledgementException.IsTransient);
-    }
-
-    [Fact]
     public void IsDistinctFromJobSourceHeartbeatException()
     {
         Exception exception = new JobSourceAcknowledgementException(new Exception("boom"));
 
         Assert.IsNotType<JobSourceHeartbeatException>(exception);
         Assert.IsType<JobSourceAcknowledgementException>(exception);
+    }
+
+    [Fact]
+    public void IsException()
+    {
+        var exception = new JobSourceAcknowledgementException(new Exception("boom"));
+
+        Assert.IsAssignableFrom<Exception>(exception);
     }
 }
