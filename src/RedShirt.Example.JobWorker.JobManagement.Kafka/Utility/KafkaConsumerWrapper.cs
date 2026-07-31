@@ -79,9 +79,16 @@ internal sealed class KafkaConsumerWrapper(IKafkaRetryWrapperService retryWrappe
                     return Task.CompletedTask;
                 }, cancellationToken);
             }
-            catch (WorkerJobSourceException e) when (e is {IsCritical: false, CouldBeTransient: false})
+            catch (WorkerJobSourceException e) when (e is {IsCritical: false})
             {
+                // Suppressing non-critical exceptions, temporarily
+
+                // Add to watch list to avoid trying to commit another message for this partition in this loop 
                 problematicPartitionIds.Add(offset.Partition);
+
+                // Store the exception to call after we're done looping
+                // If an exception overwrites another, then assuming that no significant data was lost
+                storedException = e;
             }
         }
 
