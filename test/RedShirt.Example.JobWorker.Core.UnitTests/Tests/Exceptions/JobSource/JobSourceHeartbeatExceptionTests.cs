@@ -1,3 +1,4 @@
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions.JobSource;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Exceptions.JobSource;
@@ -23,15 +24,23 @@ public class JobSourceHeartbeatExceptionTests
     }
 
     [Fact]
-    public void Constructor_WithInnerExceptionOnly_DefaultsIsTransientToTrue()
+    public void CanBeCaughtAsJobWorkerWrapperException()
     {
-        var inner = new TimeoutException("timed out");
+        JobWorkerWrapperException? caught = null;
 
-        var exception = new JobSourceHeartbeatException(inner);
+        try
+        {
+            throw new JobSourceHeartbeatException(true, new TimeoutException("heartbeat timed out"));
+        }
+        catch (JobWorkerWrapperException ex)
+        {
+            caught = ex;
+        }
 
-        Assert.True(exception.IsTransient);
-        Assert.Same(inner, exception.InnerException);
-        Assert.Equal(inner.Message, exception.Message);
+        var heartbeatException = Assert.IsType<JobSourceHeartbeatException>(caught);
+        Assert.True(heartbeatException.IsTransient);
+        Assert.Equal("heartbeat timed out", heartbeatException.Message);
+        Assert.IsType<TimeoutException>(heartbeatException.InnerException);
     }
 
     [Theory]
@@ -62,10 +71,20 @@ public class JobSourceHeartbeatExceptionTests
     }
 
     [Fact]
-    public void IsException()
+    public void IsDistinctFromJobSourceAcknowledgementException()
     {
-        var exception = new JobSourceHeartbeatException(new Exception("boom"));
+        Exception exception = new JobSourceHeartbeatException(true, new Exception("boom"));
 
+        Assert.IsNotType<JobSourceAcknowledgementException>(exception);
+        Assert.IsType<JobSourceHeartbeatException>(exception);
+    }
+
+    [Fact]
+    public void IsJobWorkerWrapperException()
+    {
+        var exception = new JobSourceHeartbeatException(false, "boom");
+
+        Assert.IsAssignableFrom<JobWorkerWrapperException>(exception);
         Assert.IsAssignableFrom<Exception>(exception);
     }
 }

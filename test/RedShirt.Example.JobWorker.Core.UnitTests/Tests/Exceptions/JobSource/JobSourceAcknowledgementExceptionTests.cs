@@ -1,3 +1,4 @@
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions.JobSource;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Exceptions.JobSource;
@@ -23,15 +24,22 @@ public class JobSourceAcknowledgementExceptionTests
     }
 
     [Fact]
-    public void Constructor_WithInnerExceptionOnly_DefaultsIsTransientToTrue()
+    public void CanBeCaughtAsJobWorkerWrapperException()
     {
-        var inner = new TimeoutException("ack timed out");
+        JobWorkerWrapperException? caught = null;
 
-        var exception = new JobSourceAcknowledgementException(inner);
+        try
+        {
+            throw new JobSourceAcknowledgementException(true, "transient ack failure");
+        }
+        catch (JobWorkerWrapperException ex)
+        {
+            caught = ex;
+        }
 
-        Assert.True(exception.IsTransient);
-        Assert.Same(inner, exception.InnerException);
-        Assert.Equal(inner.Message, exception.Message);
+        var acknowledgementException = Assert.IsType<JobSourceAcknowledgementException>(caught);
+        Assert.True(acknowledgementException.IsTransient);
+        Assert.Equal("transient ack failure", acknowledgementException.Message);
     }
 
     [Theory]
@@ -48,20 +56,34 @@ public class JobSourceAcknowledgementExceptionTests
         Assert.Equal(inner.Message, exception.Message);
     }
 
+    [Theory]
+    [InlineData(true, "could not acknowledge")]
+    [InlineData(false, "message expired")]
+    public void Constructor_WithIsTransientAndMessage_SetsMessageWithoutInnerException(bool isTransient,
+        string message)
+    {
+        var exception = new JobSourceAcknowledgementException(isTransient, message);
+
+        Assert.Equal(isTransient, exception.IsTransient);
+        Assert.Equal(message, exception.Message);
+        Assert.Null(exception.InnerException);
+    }
+
     [Fact]
     public void IsDistinctFromJobSourceHeartbeatException()
     {
-        Exception exception = new JobSourceAcknowledgementException(new Exception("boom"));
+        Exception exception = new JobSourceAcknowledgementException(true, new Exception("boom"));
 
         Assert.IsNotType<JobSourceHeartbeatException>(exception);
         Assert.IsType<JobSourceAcknowledgementException>(exception);
     }
 
     [Fact]
-    public void IsException()
+    public void IsJobWorkerWrapperException()
     {
-        var exception = new JobSourceAcknowledgementException(new Exception("boom"));
+        var exception = new JobSourceAcknowledgementException(false, "boom");
 
+        Assert.IsAssignableFrom<JobWorkerWrapperException>(exception);
         Assert.IsAssignableFrom<Exception>(exception);
     }
 }
