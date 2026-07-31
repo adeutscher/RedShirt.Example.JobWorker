@@ -93,7 +93,14 @@ public class AzureExceptionArbiterService : IAzureExceptionArbiterService
                 IsExpected = true,
                 IsTransient = false
             },
-            // Client-side argument validation from the Azure SDK (includes ArgumentNullException).
+            // Invalid Azure resource URL (e.g. KeyVaultUrl from configuration) — not retryable.
+            // UriFormatException derives from FormatException, not ArgumentException.
+            UriFormatException => new AzureExceptionArbiterReport
+            {
+                IsExpected = true,
+                IsTransient = false
+            },
+            // Client-side argument validation from the Azure SDK / factory (includes ArgumentNullException).
             ArgumentException => new AzureExceptionArbiterReport
             {
                 IsExpected = true,
