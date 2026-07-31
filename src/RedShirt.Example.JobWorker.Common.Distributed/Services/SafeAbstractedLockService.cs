@@ -58,7 +58,7 @@ internal class SafeAbstractedLockService(
         }
     }
 
-    private class SafeLockWrapper(IAbstractedLock abstractedLock, bool isAcquiredOverride) : ISafeAbstractedLock
+    private sealed class SafeLockWrapper(IAbstractedLock abstractedLock, bool isAcquiredOverride) : ISafeAbstractedLock
     {
         public bool IsAcquired => isAcquiredOverride || abstractedLock.IsAcquired;
 

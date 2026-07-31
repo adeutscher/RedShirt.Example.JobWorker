@@ -11,6 +11,7 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 /// </summary>
 /// <param name="redisConnectionCacheService"></param>
 internal class RedisLockService(
+    IDistributedRetryWrapperService retryWrapper,
     IRedisConnectionCacheService redisConnectionCacheService,
     IOptions<LockConfigurationModel> options) : IAbstractedLockService
 {
@@ -18,7 +19,7 @@ internal class RedisLockService(
 
     public async Task<IAbstractedLock> GetLockAsync(string lockName, CancellationToken cancellationToken = default)
     {
-        var redis = await redisConnectionCacheService.GetDatabaseAsync(cancellationToken);
+        var redis = await retryWrapper.RunAsync(redisConnectionCacheService.GetDatabaseAsync, cancellationToken);
         var redisLock = new RedisDistributedLock(lockName, redis);
         return new DistributedLock(await redisLock.TryAcquireAsync(Timeout, cancellationToken));
     }

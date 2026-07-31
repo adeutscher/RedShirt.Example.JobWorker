@@ -11,8 +11,6 @@ namespace RedShirt.Example.JobWorker.Common.Azure.Services;
 /// </summary>
 public interface IAzureRetryWrapperService
 {
-    bool JudgeIfExceptionCanBeHandled(Exception exception);
-    
     /// <summary>
     ///     Executes <paramref name="func" /> with retry for expected transient Azure failures.
     /// </summary>
@@ -52,7 +50,7 @@ public class AzureRetryWrapperService(IAzureExceptionArbiterService exceptionArb
     ///     Returns whether the exception should be retried based on if the arbiter
     ///     marks the exception as both expected and transient.
     /// </summary>
-    public bool JudgeIfExceptionCanBeHandled(Exception exception)
+    private bool JudgeIfExceptionCanBeHandled(Exception exception)
     {
         var judgement = exceptionArbiterService.GetJudgement(exception);
         return judgement is {IsExpected: true, CouldBeTransient: true};
@@ -74,7 +72,7 @@ public class AzureRetryWrapperService(IAzureExceptionArbiterService exceptionArb
                     {
                         return PredicateResult.False();
                     }
-                    
+
                     // Cancellation is honoured via ResilienceContext rather than a classic Polly Context bag.
                     if (args.Context.CancellationToken.IsCancellationRequested)
                     {

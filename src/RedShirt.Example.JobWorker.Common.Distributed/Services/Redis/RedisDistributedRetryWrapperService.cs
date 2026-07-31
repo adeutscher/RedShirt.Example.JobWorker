@@ -46,12 +46,14 @@ public interface IDistributedRetryWrapperService
 
 /// <summary>
 ///     Polly v8-based retry wrapper for Redis / distributed-cache calls.
-///     Retries when <see cref="IRedisDistributedExceptionArbiterService" /> reports a possibly transient failure.
-///     Modeled after <c>AzureRetryWrapperService</c>; uses Polly delay generation because Distributed cannot
-///     reference Core's <c>ISleepService</c> without a circular project dependency.
+///     Retries when <see cref="IRedisDistributedExceptionArbiterService" /> reports a possibly transient failure,
+///     using exponential backoff via <see cref="IDistributedSleepService" />.
 /// </summary>
 /// <param name="exceptionArbiterService">Classifies Redis-related exceptions as possibly transient.</param>
-public class RedisDistributedRetryWrapperService(IRedisDistributedExceptionArbiterService exceptionArbiterService)
+/// <param name="sleepService">Provides cancellable backoff delays between retry attempts.</param>
+public class RedisDistributedRetryWrapperService(
+    IRedisDistributedExceptionArbiterService exceptionArbiterService,
+    IDistributedSleepService sleepService)
     : IDistributedRetryWrapperService
 {
     private const int RedisRetryCount = 3;
@@ -62,16 +64,8 @@ public class RedisDistributedRetryWrapperService(IRedisDistributedExceptionArbit
     private ResiliencePipeline? _retryPipeline;
 
     /// <summary>
-    ///     Returns whether the exception should be retried based on the Redis arbiter report.
-    /// </summary>
-    public bool JudgeIfExceptionCanBeHandled(Exception exception)
-    {
-        return exceptionArbiterService.GetReport(exception).CouldBeTransient;
-    }
-
-    /// <summary>
-    ///     Creates (once) the retry pipeline: arbiter-driven <c>ShouldHandle</c> and exponential backoff via
-    ///     <c>DelayGenerator</c> (honours <see cref="ResilienceContext.CancellationToken" />).
+    ///     Creates (once) the retry pipeline: arbiter-driven <c>ShouldHandle</c>, zero Polly delay,
+    ///     and exponential backoff performed in <c>OnRetry</c> through <see cref="IDistributedSleepService" />.
     /// </summary>
     private ResiliencePipeline GetRetryPipeline()
     {
@@ -96,14 +90,35 @@ public class RedisDistributedRetryWrapperService(IRedisDistributedExceptionArbit
                         ? PredicateResult.True()
                         : PredicateResult.False();
                 },
-                DelayGenerator = static args =>
+                // Do not use Polly-based delays between attempts
+                DelayGenerator = static _ => new ValueTask<TimeSpan?>(TimeSpan.Zero),
+                OnRetry = async args =>
                 {
-                    // AttemptNumber is zero-based: 1s, 2s, 4s, ...
-                    var delay = TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber));
-                    return new ValueTask<TimeSpan?>(delay);
+                    // Delay is performed via IDistributedSleepService in OnRetry so tests can mock sleeps.
+                    await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber)),
+                        args.Context.CancellationToken);
                 }
             })
             .Build();
+    }
+
+    private Exception WrapIfNeeded(Exception exception)
+    {
+        var report = exceptionArbiterService.GetReport(exception);
+        if (report.AlreadyHandled)
+        {
+            return exception;
+        }
+
+        return new WorkerDistributedException(exception, report.CouldBeTransient);
+    }
+
+    /// <summary>
+    ///     Returns whether the exception should be retried based on the Redis arbiter report.
+    /// </summary>
+    private bool JudgeIfExceptionCanBeHandled(Exception exception)
+    {
+        return exceptionArbiterService.GetReport(exception).CouldBeTransient;
     }
 
     /// <inheritdoc />
@@ -135,16 +150,5 @@ public class RedisDistributedRetryWrapperService(IRedisDistributedExceptionArbit
         {
             throw WrapIfNeeded(exception);
         }
-    }
-
-    private Exception WrapIfNeeded(Exception exception)
-    {
-        var report = exceptionArbiterService.GetReport(exception);
-        if (report.AlreadyHandled)
-        {
-            return exception;
-        }
-
-        return new WorkerDistributedException(exception, report.CouldBeTransient);
     }
 }
