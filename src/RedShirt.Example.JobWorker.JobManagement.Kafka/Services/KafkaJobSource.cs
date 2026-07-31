@@ -41,9 +41,17 @@ internal class KafkaJobSource(
                 return;
             }
 
-            var consumer = consumerSource.GetConsumer();
-            await retryWrapperService.RunAsync(ct => consumer.CommitAsync(Session.MessagesToProcess, ct),
-                cancellationToken);
+            /*
+             * Confirming that this double-retry is intentional
+             * Most of the important code within the consumer wrapper implementation is itself wrapped by the retryWrapper.
+             * Wrapping again just in case there's something exception-worthy coming from another part of the code.
+             */
+            await retryWrapperService.RunAsync(async ct =>
+            {
+                var consumer = consumerSource.GetConsumer();
+                await consumer.CommitAsync(Session.MessagesToProcess, ct);
+            }, cancellationToken);
+
             Session = null;
         }
         finally
