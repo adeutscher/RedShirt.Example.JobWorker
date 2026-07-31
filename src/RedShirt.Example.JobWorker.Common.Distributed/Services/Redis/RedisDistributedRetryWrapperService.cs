@@ -1,5 +1,7 @@
 using Polly;
+using Polly.Retry;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
+using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
 
@@ -25,7 +27,7 @@ public interface IDistributedRetryWrapperService
     ///     reflects the arbiter judgement for the final exception.
     /// </exception>
     Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     ///     Executes <paramref name="func" /> with retry for expected transient Distributed failures.
     /// </summary>
@@ -35,7 +37,6 @@ public interface IDistributedRetryWrapperService
     /// <param name="cancellationToken">
     ///     Token used to cancel the operation, retry attempts, and backoff delays.
     /// </param>
-    /// <returns>The successful result of <paramref name="func" />.</returns>
     /// <exception cref="WorkerDistributedException">
     ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerDistributedException.IsTransient" />
     ///     reflects the arbiter judgement for the final exception.
@@ -43,7 +44,15 @@ public interface IDistributedRetryWrapperService
     Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default);
 }
 
-public class RedisDistributedRetryWrapperService : IDistributedRetryWrapperService
+/// <summary>
+///     Polly v8-based retry wrapper for Redis / distributed-cache calls.
+///     Retries when <see cref="IRedisDistributedExceptionArbiterService" /> reports a possibly transient failure.
+///     Modeled after <c>AzureRetryWrapperService</c>; uses Polly delay generation because Distributed cannot
+///     reference Core's <c>ISleepService</c> without a circular project dependency.
+/// </summary>
+/// <param name="exceptionArbiterService">Classifies Redis-related exceptions as possibly transient.</param>
+public class RedisDistributedRetryWrapperService(IRedisDistributedExceptionArbiterService exceptionArbiterService)
+    : IDistributedRetryWrapperService
 {
     private const int RedisRetryCount = 3;
 
@@ -51,14 +60,91 @@ public class RedisDistributedRetryWrapperService : IDistributedRetryWrapperServi
     ///     Lazily built Polly v8 <see cref="ResiliencePipeline" /> shared across invocations.
     /// </summary>
     private ResiliencePipeline? _retryPipeline;
-    
-    public Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default)
+
+    /// <summary>
+    ///     Returns whether the exception should be retried based on the Redis arbiter report.
+    /// </summary>
+    public bool JudgeIfExceptionCanBeHandled(Exception exception)
     {
-        throw new NotImplementedException();
+        return exceptionArbiterService.GetReport(exception).CouldBeTransient;
     }
 
-    public Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default)
+    /// <summary>
+    ///     Creates (once) the retry pipeline: arbiter-driven <c>ShouldHandle</c> and exponential backoff via
+    ///     <c>DelayGenerator</c> (honours <see cref="ResilienceContext.CancellationToken" />).
+    /// </summary>
+    private ResiliencePipeline GetRetryPipeline()
     {
-        throw new NotImplementedException();
+        return _retryPipeline ??= new ResiliencePipelineBuilder()
+            .AddRetry(new RetryStrategyOptions
+            {
+                MaxRetryAttempts = RedisRetryCount,
+                ShouldHandle = args =>
+                {
+                    if (args.Outcome.Exception is not { } exception)
+                    {
+                        return PredicateResult.False();
+                    }
+
+                    // Cancellation is honoured via ResilienceContext.
+                    if (args.Context.CancellationToken.IsCancellationRequested)
+                    {
+                        return PredicateResult.False();
+                    }
+
+                    return JudgeIfExceptionCanBeHandled(exception)
+                        ? PredicateResult.True()
+                        : PredicateResult.False();
+                },
+                DelayGenerator = static args =>
+                {
+                    // AttemptNumber is zero-based: 1s, 2s, 4s, ...
+                    var delay = TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber));
+                    return new ValueTask<TimeSpan?>(delay);
+                }
+            })
+            .Build();
+    }
+
+    /// <inheritdoc />
+    public async Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await GetRetryPipeline().ExecuteAsync(
+                async token => await func(token),
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            throw WrapIfNeeded(exception);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await GetRetryPipeline().ExecuteAsync(
+                async token => await func(token),
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            throw WrapIfNeeded(exception);
+        }
+    }
+
+    private Exception WrapIfNeeded(Exception exception)
+    {
+        var report = exceptionArbiterService.GetReport(exception);
+        if (report.AlreadyHandled)
+        {
+            return exception;
+        }
+
+        return new WorkerDistributedException(exception, report.CouldBeTransient);
     }
 }
