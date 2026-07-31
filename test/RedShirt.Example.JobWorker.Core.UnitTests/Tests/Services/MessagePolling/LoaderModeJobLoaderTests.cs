@@ -32,7 +32,7 @@ public class LoaderModeJobLoaderTests
         jobLoaderStateService.Setup(s => s.ReportLoaderStart());
         jobLoaderStateService.Setup(s => s.ReportLoaderStop());
 
-        var critical = new WorkerJobSourceException("auth failed", true, false);
+        var critical = new WorkerJobSourceException("auth failed");
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
             .Setup(s => s.GetJobsAsync(1, TestContext.Current.CancellationToken))
@@ -125,7 +125,7 @@ public class LoaderModeJobLoaderTests
         jobLoaderStateService.Setup(s => s.ReportLoaderStart());
         jobLoaderStateService.Setup(s => s.ReportLoaderStop());
 
-        var permanent = new WorkerJobSourceException("unknown topic", false, false);
+        var permanent = new WorkerJobSourceException("unknown topic", false);
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
             .Setup(s => s.GetJobsAsync(2, TestContext.Current.CancellationToken))

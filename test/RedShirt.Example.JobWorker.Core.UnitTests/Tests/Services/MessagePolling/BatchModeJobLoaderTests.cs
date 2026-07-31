@@ -58,7 +58,7 @@ public class BatchModeJobLoaderTests
         jobLoaderStateService.Setup(s => s.ReportLoaderStart());
         jobLoaderStateService.Setup(s => s.ReportLoaderStop());
 
-        var critical = new WorkerJobSourceException("auth failed", true, false);
+        var critical = new WorkerJobSourceException("auth failed");
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
             .Setup(s => s.GetJobsAsync(10, TestContext.Current.CancellationToken))
@@ -348,7 +348,7 @@ public class BatchModeJobLoaderTests
         jobLoaderStateService.Setup(s => s.ReportLoaderStart());
         jobLoaderStateService.Setup(s => s.ReportLoaderStop());
 
-        var permanent = new WorkerJobSourceException("unknown topic", false, false);
+        var permanent = new WorkerJobSourceException("unknown topic", false);
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
             .Setup(s => s.GetJobsAsync(10, TestContext.Current.CancellationToken))
