@@ -7,7 +7,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.Kafka.Utility;
 
 internal interface IKafkaConsumerWrapper : IDisposable
 {
-    Task CommitAsync(List<IKafkaMessageContainer> messages, CancellationToken cancellationToken = default);
+    Task CommitAsync(IReadOnlyList<IKafkaMessageContainer> messages, CancellationToken cancellationToken = default);
     IKafkaMessageContainer? Consume(TimeSpan timeout);
 }
 
@@ -46,7 +46,7 @@ internal sealed class KafkaConsumerWrapper(IKafkaRetryWrapperService retryWrappe
         };
     }
 
-    public async Task CommitAsync(List<IKafkaMessageContainer> messages, CancellationToken cancellationToken = default)
+    public async Task CommitAsync(IReadOnlyList<IKafkaMessageContainer> messages, CancellationToken cancellationToken = default)
     {
         var offsets = messages
             .Select(m => new TopicPartitionOffset(m.Topic, m.Partition, new Offset(m.Offset + 1)))
