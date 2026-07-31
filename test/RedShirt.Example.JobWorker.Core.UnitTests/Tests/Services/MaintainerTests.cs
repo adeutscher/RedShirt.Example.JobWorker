@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Core.Enums;
-using RedShirt.Example.JobWorker.Core.Exceptions.JobSource;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -306,7 +306,7 @@ public class MaintainerTests
             .Returns(1);
         jobSource
             .Setup(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken))
-            .Returns(() => throw new JobSourceHeartbeatException(false, "Test"));
+            .Returns(() => throw new WorkerJobSourceException("Test", false));
 
         var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
             jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
@@ -439,7 +439,7 @@ public class MaintainerTests
         jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
         jobSource
             .Setup(s => s.HeartbeatAsync(subject.Object, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new JobSourceHeartbeatException(true, new Exception("transient")));
+            .ThrowsAsync(new WorkerJobSourceException(new Exception("transient"), false, true));
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
         sleepService
@@ -652,7 +652,8 @@ public class MaintainerTests
                 attempts++;
                 if (attempts < 3)
                 {
-                    throw new JobSourceHeartbeatException(true, new Exception($"transient {attempts}"));
+                    throw new WorkerJobSourceException(new Exception($"transient {attempts}"), false,
+                        true);
                 }
 
                 return Task.CompletedTask;

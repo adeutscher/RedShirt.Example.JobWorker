@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Polly;
 using RedShirt.Example.JobWorker.Core.Enums;
-using RedShirt.Example.JobWorker.Core.Exceptions.JobSource;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
@@ -39,7 +39,7 @@ internal class Maintainer(
         TimeSpan? timeToWait = null;
 
         var retryPolicy = Policy
-            .Handle<JobSourceHeartbeatException>(e => e.IsTransient)
+            .Handle<WorkerJobSourceException>(e => e is {IsCritical: false, IsHandled: false, CouldBeTransient: true})
             .RetryAsync(Globals.HeartbeatRetryCount,
                 (_, instanceCount) =>
                     sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)), cancellationToken));
@@ -89,7 +89,7 @@ internal class Maintainer(
                         jobSource.HeartbeatAsync(job.JobModel, cancellationToken));
                     job.LastHeartbeatTime = DateTime.UtcNow;
                 }
-                catch (JobSourceHeartbeatException e)
+                catch (WorkerJobSourceException e) when (!e.IsCritical)
                 {
                     logger.LogWarning(e, "Heartbeat could not be completed for message: {MessageId}",
                         job.JobModel.MessageId);

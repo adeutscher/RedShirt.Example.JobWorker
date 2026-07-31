@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using RedShirt.Example.JobWorker.Core.Exceptions.JobSource;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -56,7 +56,7 @@ public class SafeJobAcknowledgementServiceTests
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
             .Setup(s => s.AcknowledgeCompletionAsync(jobModel.Object, false, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new JobSourceAcknowledgementException(false, new Exception("permanent")));
+            .ThrowsAsync(new WorkerJobSourceException(new Exception("permanent"), false));
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
 
@@ -86,7 +86,7 @@ public class SafeJobAcknowledgementServiceTests
                 attempts++;
                 if (attempts < 3)
                 {
-                    throw new JobSourceAcknowledgementException(true, new Exception($"transient {attempts}"));
+                    throw new WorkerJobSourceException(new Exception($"transient {attempts}"), false, true);
                 }
 
                 return Task.CompletedTask;
@@ -116,7 +116,7 @@ public class SafeJobAcknowledgementServiceTests
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
             .Setup(s => s.AcknowledgeCompletionAsync(jobModel.Object, true, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new JobSourceAcknowledgementException(true, new Exception("transient")));
+            .ThrowsAsync(new WorkerJobSourceException(new Exception("transient"), false, true));
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
         sleepService

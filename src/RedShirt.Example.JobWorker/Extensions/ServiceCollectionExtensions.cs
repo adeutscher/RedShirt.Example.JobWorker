@@ -9,6 +9,8 @@ using RedShirt.Example.JobWorker.Core.Logic.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Extensions;
@@ -39,6 +41,7 @@ public static class ServiceCollectionExtensions
          *      When adapting this template, you will want to pick one message source and prune away the rest.
          */
         var useKinesisRaw = configuration.GetValue("UseKinesis", "0");
+        var useKafkaRaw = configuration.GetValue("UseKafka", "0");
         var useActiveMqRaw = configuration.GetValue("UseActiveMq", "0");
         var useAzureQueueStorageRaw = configuration.GetValue("UseAzureQueueStorage", "0");
         var useAzureServiceBusRaw = configuration.GetValue("UseAzureServiceBus", "0");
@@ -79,6 +82,12 @@ public static class ServiceCollectionExtensions
             services = services
                 .AddSecretManagerCore(configuration)
                 .AddKinesisJobManagement(configuration);
+        }
+        else if (int.TryParse(useKafkaRaw, out var useKafka) && useKafka == 1)
+        {
+            services = services
+                .AddKafkaJobManagement(configuration)
+                .AddKafkaSqsFailureHandling(configuration);
         }
         else
         {
