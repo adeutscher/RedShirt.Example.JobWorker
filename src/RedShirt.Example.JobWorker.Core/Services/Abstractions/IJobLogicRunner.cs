@@ -7,5 +7,5 @@ namespace RedShirt.Example.JobWorker.Core.Services.Abstractions;
 /// </summary>
 public interface IJobLogicRunner
 {
-    Task RunAsync(IJobDataModel job, CancellationToken cancellationToken = default);
+    Task RunAsync(IJobModel job, CancellationToken cancellationToken = default);
 }

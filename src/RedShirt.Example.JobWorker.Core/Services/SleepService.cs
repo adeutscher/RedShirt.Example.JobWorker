@@ -7,7 +7,7 @@ namespace RedShirt.Example.JobWorker.Core.Services;
 ///     pipelines, or
 ///     just a developer's manual tests.
 /// </summary>
-internal interface ISleepService
+public interface ISleepService
 {
     Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken = default);
 }
