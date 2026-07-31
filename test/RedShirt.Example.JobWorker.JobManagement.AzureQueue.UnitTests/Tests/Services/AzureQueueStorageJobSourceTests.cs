@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Models;
@@ -143,7 +143,8 @@ public class AzureQueueStorageJobSourceTests
             Data = null!
         };
 
-        await jobSource.AcknowledgeCompletionAsync(job, success, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeCompletionAsync(job, success,
+            TestContext.Current.CancellationToken);
 
         client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),
             Times.Once);
@@ -173,7 +174,8 @@ public class AzureQueueStorageJobSourceTests
 
         var job = new Mock<IJobModel>();
 
-        await jobSource.AcknowledgeCompletionAsync(job.Object, success, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeCompletionAsync(job.Object, success,
+            TestContext.Current.CancellationToken);
 
         client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),
             Times.Never);

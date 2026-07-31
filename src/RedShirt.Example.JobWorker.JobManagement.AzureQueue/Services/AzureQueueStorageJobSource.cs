@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Models;

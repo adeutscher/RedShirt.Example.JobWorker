@@ -2,8 +2,8 @@ using Apache.NMS;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Models;
@@ -70,10 +70,12 @@ internal class ActiveMqJobSource : IJobSource
     public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
-        if (message is JobModel jobModel)
+        if (message is not JobModel jobModel)
         {
-            await jobModel.Message.AcknowledgeAsync();
+            return;
         }
+
+        await jobModel.Message.AcknowledgeAsync();
     }
 
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)

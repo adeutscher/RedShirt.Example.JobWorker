@@ -7,6 +7,7 @@ internal class JobModel : IJobModel
 {
     internal required IMessage Message { get; init; }
     public required string MessageId { get; init; }
+    public string? IdempotencyId => MessageId;
     public required DateTime CreatedAtUtc { get; init; }
     public required IJobDataModel Data { get; init; }
 }

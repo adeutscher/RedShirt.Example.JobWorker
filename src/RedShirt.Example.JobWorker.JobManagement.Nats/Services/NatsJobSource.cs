@@ -3,8 +3,8 @@ using Microsoft.Extensions.Options;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Utility;
@@ -25,10 +25,12 @@ internal class NatsJobSource(
     public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
-        if (message is JobModel jobModel)
+        if (message is not JobModel jobModel)
         {
-            await jobModel.Message.AckAsync(cancellationToken: cancellationToken);
+            return;
         }
+
+        await jobModel.Message.AckAsync(cancellationToken: cancellationToken);
     }
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
@@ -84,7 +86,7 @@ internal class NatsJobSource(
             getJobsResponseItems.Add(new JobModel
             {
                 Message = msg,
-                MessageId = msg.Subject,
+                MessageId = msg.Metadata?.Sequence.Stream.ToString() ?? "UNKNOWN",
                 CreatedAtUtc = DateTime.UtcNow,
                 Data = convertedMessage
             });

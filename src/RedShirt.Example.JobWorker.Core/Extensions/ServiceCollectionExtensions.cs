@@ -2,54 +2,77 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Services;
-using RedShirt.Example.JobWorker.Core.Services.Batch;
-using RedShirt.Example.JobWorker.Core.Services.Batch.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.Loader;
+using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Idempotency;
+using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
+using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 
 namespace RedShirt.Example.JobWorker.Core.Extensions;
 
 public static class ServiceCollectionExtensions
 {
+    private const string ConfigSectionName = "Jobs";
+
     public static IServiceCollection AddCoreJobManagement(this IServiceCollection services,
         IConfigurationRoot configuration)
     {
         services = services
             // General
-            .AddSingleton<ISourceMessageConverter, SourceMessageConverter>()
-            .AddSingleton<ISourceMessageSorter, SourceMessageSorter>()
+            .AddSingleton<IHandler, Handler>()
+            .AddSingleton<IJobExecutor, JobExecutor>()
+            .AddSingleton<IAppliedExecutionEndArbiter, AppliedExecutionEndArbiter>()
+            .AddSingleton<IMaintainer, Maintainer>()
+            .AddSingleton<IHeartbeatCalculator, HeartbeatCalculator>()
             .AddSingleton<ISafeJobRunner, SafeJobRunner>()
+            .AddSingleton<ISafeJobAcknowledgementService, SafeJobAcknowledgementService>()
             .AddSingleton<ISleepService, SleepService>()
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
-            .Configure<SafeJobRunner.ConfigurationModel>(configuration.GetSection("Jobs"))
+            .AddSingleton<IJobRepository, JobRepository>()
+            .Configure<JobRepository.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
+            .AddSingleton<IJobLoaderStateService, JobLoaderStateService>()
+            .Configure<SafeJobRunner.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .Configure<JobSourceConfigurationModel>(configuration.GetSection("JobSource"))
-            .Configure<LoopOptionsConfigurationModel>(configuration.GetSection("Jobs"))
-            .Configure<ThreadConfigurationModel>(configuration.GetSection("Jobs"));
+            .Configure<LoopOptionsConfigurationModel>(configuration.GetSection(ConfigSectionName))
+            .Configure<ThreadConfigurationModel>(configuration.GetSection(ConfigSectionName))
+            // Idempotency
+            .AddSingleton<IIdempotencyMonitor, IdempotencyMonitor>()
+            .AddSingleton<IIdempotencyExecutionService, IdempotencyExecutionService>()
+            .Configure<IdempotencyConfigurationModel>(configuration.GetSection($"{ConfigSectionName}:Idempotency"))
+            // Source Messages
+            .AddSingleton<ISourceMessageConverter, SourceMessageConverter>()
+            .AddSingleton<ISourceMessageSorter, SourceMessageSorter>();
 
-        var useLoaderModeRaw = configuration.GetValue("Jobs:Loader:Enabled", "0");
-
-        if (int.TryParse(useLoaderModeRaw, out var useLoaderMode) && useLoaderMode == 1)
-            // Loader Mode (Experimental)
+        if (configuration
+                .GetSection(ConfigSectionName).Get<CoreServiceConfigurationModel>()?.EffectiveUseLoaderModeSetting ==
+            true)
+            // Loader Mode
         {
             services = services
-                .AddSingleton<IHandler, LoaderHandler>()
-                .AddSingleton<ILoaderExecutionEndArbiter, LoaderExecutionEndArbiter>()
-                .AddSingleton<IExecutor, Executor>()
-                .AddSingleton<IJobRepository, JobRepository>()
-                .Configure<JobRepository.ConfigurationModel>(configuration.GetSection("Jobs:Loader"))
-                .AddSingleton<IMaintainer, Maintainer>()
-                .AddSingleton<IHeartbeatCalculator, HeartbeatCalculator>()
-                .AddSingleton<IJobLoader, JobLoader>()
-                .AddSingleton<IJobLoaderStateService, JobLoaderStateService>();
+                .AddSingleton<IJobLoader, LoaderModeJobLoader>();
         }
         else
             // Batch Mode
         {
             services = services
-                .AddSingleton<IHandler, BatchHandler>()
-                .AddSingleton<IJobManager, JobManager>()
-                .AddSingleton<IBatchWorkerLoop, BatchWorkerLoop>();
+                .AddSingleton<IJobLoader, BatchModeJobLoader>();
         }
 
         return services;
+    }
+
+    internal sealed class CoreServiceConfigurationModel
+    {
+        public required string? UseLoaderMode { get; init; }
+
+        /// <summary>
+        ///     Parsing of UseLoaderMode. Felt the need to be a bit more flexible with this parameter, so went with an Effective_
+        ///     property.
+        /// </summary>
+        public bool EffectiveUseLoaderModeSetting => !string.IsNullOrWhiteSpace(UseLoaderMode) &&
+                                                     (
+                                                         (int.TryParse(UseLoaderMode, out var intResult) &&
+                                                          intResult > 0) ||
+                                                         (bool.TryParse(UseLoaderMode, out var boolResult) &&
+                                                          boolResult));
     }
 }

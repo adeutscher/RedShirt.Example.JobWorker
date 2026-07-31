@@ -11,6 +11,8 @@ internal class KinesisJobModel : IJobModel
     /// </summary>
     public required string MessageId { get; init; }
 
+    public string? IdempotencyId => MessageId;
+
     public required DateTime CreatedAtUtc { get; init; }
     public required IJobDataModel Data { get; init; }
 }

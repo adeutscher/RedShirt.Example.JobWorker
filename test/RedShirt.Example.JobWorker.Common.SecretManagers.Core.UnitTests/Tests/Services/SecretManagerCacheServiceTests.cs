@@ -402,4 +402,109 @@ public class SecretManagerCacheServiceTests
             Assert.Equal(expected, model.EffectiveForceCooldownSeconds);
         }
     }
+
+    public class CacheEntry
+    {
+        [Fact]
+        public void IsExpired_WhenExpirationIsInTheFuture_IsFalse()
+        {
+            var entry = new SecretManagerCacheService.CacheEntry(
+                "secret",
+                DateTimeOffset.UtcNow.AddMinutes(5),
+                DateTimeOffset.UtcNow);
+
+            Assert.False(entry.IsExpired);
+        }
+
+        [Fact]
+        public void IsExpired_WhenExpirationIsInThePast_IsTrue()
+        {
+            var entry = new SecretManagerCacheService.CacheEntry(
+                "secret",
+                DateTimeOffset.UtcNow.AddSeconds(-1),
+                DateTimeOffset.UtcNow.AddMinutes(-2));
+
+            Assert.True(entry.IsExpired);
+        }
+
+        [Fact]
+        public void IsExpired_WhenExpirationIsNowOrEarlier_IsTrue()
+        {
+            var now = DateTimeOffset.UtcNow;
+            var entry = new SecretManagerCacheService.CacheEntry(
+                "secret",
+                now,
+                now.AddMinutes(-1));
+
+            // IsExpired uses >=, so an expiration of "now" counts as expired.
+            Assert.True(entry.IsExpired);
+        }
+
+        [Fact]
+        public void IsExpired_WhenNoAbsoluteExpiration_IsFalse()
+        {
+            var entry = new SecretManagerCacheService.CacheEntry(
+                "secret",
+                null,
+                DateTimeOffset.UtcNow.AddHours(-1));
+
+            Assert.False(entry.IsExpired);
+        }
+
+        [Fact]
+        public void IsWithinForceCooldown_WhenCooldownHasElapsed_IsFalse()
+        {
+            var entry = new SecretManagerCacheService.CacheEntry(
+                "secret",
+                null,
+                DateTimeOffset.UtcNow.AddSeconds(-60));
+
+            Assert.False(entry.IsWithinForceCooldown(30));
+        }
+
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-1)]
+        [InlineData(int.MinValue)]
+        public void IsWithinForceCooldown_WhenCooldownSecondsNotPositive_IsFalse(int cooldownSeconds)
+        {
+            var entry = new SecretManagerCacheService.CacheEntry(
+                "secret",
+                null,
+                DateTimeOffset.UtcNow);
+
+            Assert.False(entry.IsWithinForceCooldown(cooldownSeconds));
+        }
+
+        [Fact]
+        public void IsWithinForceCooldown_WhenExactlyAtBoundary_IsFalse()
+        {
+            const int cooldownSeconds = 10;
+            var fetchedAt = DateTimeOffset.UtcNow.AddSeconds(-cooldownSeconds);
+            var entry = new SecretManagerCacheService.CacheEntry("secret", null, fetchedAt);
+
+            // Uses < FetchedAt.AddSeconds(cooldown), so exactly at the boundary is outside cooldown.
+            Assert.False(entry.IsWithinForceCooldown(cooldownSeconds));
+        }
+
+        [Fact]
+        public void IsWithinForceCooldown_WhenFetchedRecently_IsTrue()
+        {
+            var entry = new SecretManagerCacheService.CacheEntry(
+                "secret",
+                null,
+                DateTimeOffset.UtcNow);
+
+            Assert.True(entry.IsWithinForceCooldown(30));
+        }
+
+        [Fact]
+        public void Value_RoundTrips()
+        {
+            var value = Guid.NewGuid().ToString("N");
+            var entry = new SecretManagerCacheService.CacheEntry(value, null, DateTimeOffset.UtcNow);
+
+            Assert.Equal(value, entry.Value);
+        }
+    }
 }

@@ -1,3 +1,4 @@
+using RedShirt.Example.JobWorker.Core.Exceptions.JobSource;
 using RedShirt.Example.JobWorker.Core.Models;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -23,8 +24,27 @@ public interface IJobSource
     /// <param name="success"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    Task AcknowledgeCompletionAsync(IJobModel message, bool success, CancellationToken cancellationToken = default);
+    /// <exception cref="JobSourceAcknowledgementException">
+    ///     Thrown when acknowledgement fails against the underlying message source.
+    ///     When <see cref="JobSourceAcknowledgementException.IsTransient" /> is <c>true</c>, callers may retry;
+    ///     when <c>false</c>, the failure should be treated as permanent.
+    /// </exception>
+    Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+        CancellationToken cancellationToken = default);
 
     Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Extend the in-flight / visibility window for a job record, if the underlying message source supports it.
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    /// <exception cref="JobSourceHeartbeatException">
+    ///     Thrown when the heartbeat / visibility extension fails against the underlying message source.
+    ///     When <see cref="JobSourceHeartbeatException.IsTransient" /> is <c>true</c>, callers may retry;
+    ///     when <c>false</c>, the failure should be treated as permanent (for example, the message can no longer
+    ///     have its flight time extended).
+    /// </exception>
     Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default);
 }

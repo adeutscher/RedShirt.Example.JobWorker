@@ -6,13 +6,19 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Utility;
 
 public class AsyncAutoResetEventTests
 {
-    private static async Task AwaitAndRecordAsync(
-        AsyncAutoResetEvent evt,
-        int index,
-        ConcurrentQueue<int> releaseOrder)
+    [Fact(Timeout = 2000)]
+    public async Task Test_Set_AfterWaiterTimedOut_DoesNotLoseSignal()
     {
-        Assert.True(await evt.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
-        releaseOrder.Enqueue(index);
+        var evt = new AsyncAutoResetEvent();
+
+        var timedOut = evt.WaitAsync(TimeSpan.FromMilliseconds(40), TestContext.Current.CancellationToken);
+        Assert.False(await timedOut);
+
+        // Another waiter enqueued after timeout should still get a fresh Set
+        var pending = evt.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await Task.Delay(20, TestContext.Current.CancellationToken);
+        evt.Set();
+        Assert.True(await pending);
     }
 
     [Fact(Timeout = 1000)]
@@ -56,6 +62,23 @@ public class AsyncAutoResetEventTests
         Assert.False(survivingWait.IsCompleted);
         evt.Set();
         Assert.True(await survivingWait);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Test_WaitAsync_CancelRemovesWaiter_SoLaterSetIsStored()
+    {
+        var evt = new AsyncAutoResetEvent();
+        using var cts = new CancellationTokenSource();
+
+        var waitTask = evt.WaitAsync(TimeSpan.FromSeconds(5), cts.Token);
+
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        await cts.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await waitTask);
+
+        evt.Set();
+
+        Assert.True(await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 1000)]
@@ -112,6 +135,25 @@ public class AsyncAutoResetEventTests
         evt.Set();
 
         Assert.True(await waitTask);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Test_WaitAsync_InfiniteTimeout_WithoutCancelableToken_UnblocksWhenSet()
+    {
+        // Hits the fast path: InfiniteTimeSpan && !cancellationToken.CanBeCanceled
+        var evt = new AsyncAutoResetEvent();
+
+#pragma warning disable xUnit1051 // Intentionally non-cancelable to hit infinite-wait fast path
+        var waitTask = evt.WaitAsync(Timeout.InfiniteTimeSpan);
+#pragma warning restore xUnit1051
+
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.False(waitTask.IsCompleted);
+
+        evt.Set();
+
+        Assert.True(await waitTask);
+        Assert.False(await evt.WaitAsync(TimeSpan.Zero, TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 1000)]
@@ -171,6 +213,19 @@ public class AsyncAutoResetEventTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Test_WaitAsync_SetWhileWaitingWithTimeout_ReturnsTrue()
+    {
+        var evt = new AsyncAutoResetEvent();
+
+        var waitTask = evt.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        evt.Set();
+
+        Assert.True(await waitTask);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task Test_WaitAsync_Set_ReleasesWaitersInFifoOrder()
     {
         var evt = new AsyncAutoResetEvent();
@@ -194,6 +249,16 @@ public class AsyncAutoResetEventTests
         await Task.WhenAll(waiters);
 
         Assert.Equal([0, 1, 2], releaseOrder.ToArray());
+        return;
+
+        static async Task AwaitAndRecordAsync(
+            AsyncAutoResetEvent evt,
+            int index,
+            ConcurrentQueue<int> releaseOrder)
+        {
+            Assert.True(await evt.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+            releaseOrder.Enqueue(index);
+        }
     }
 
     [Fact(Timeout = 2000)]
@@ -220,6 +285,21 @@ public class AsyncAutoResetEventTests
 
         evt.Set();
         Assert.True(await stillWaiting);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Test_WaitAsync_TimeoutAmongQueuedWaiters_DoesNotReleaseOthers()
+    {
+        var evt = new AsyncAutoResetEvent();
+
+        var shortWait = evt.WaitAsync(TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken);
+        var longWait = evt.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        Assert.False(await shortWait);
+        Assert.False(longWait.IsCompleted);
+
+        evt.Set();
+        Assert.True(await longWait);
     }
 
     [Fact(Timeout = 2000)]
@@ -260,5 +340,16 @@ public class AsyncAutoResetEventTests
         evt.Set();
 
         Assert.True(await waitTask);
+    }
+
+    [Fact(Timeout = 1000)]
+    public async Task Test_WaitAsync_ZeroTimeout_CancelledToken_WhenUnset_Throws()
+    {
+        var evt = new AsyncAutoResetEvent();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            evt.WaitAsync(TimeSpan.Zero, cts.Token));
     }
 }

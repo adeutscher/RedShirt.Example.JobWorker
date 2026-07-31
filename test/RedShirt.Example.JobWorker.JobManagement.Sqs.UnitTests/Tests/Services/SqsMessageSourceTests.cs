@@ -57,7 +57,7 @@ public class SqsMessageSourceTests
         {
             QueueUrl = queueUrl,
             VisibilityTimeoutSeconds = visibilityTimeout,
-            DlqEnabled = true,
+            DlqNotEnabled = true,
             MaximumReceives = 1
         };
 
@@ -104,7 +104,7 @@ public class SqsMessageSourceTests
         {
             QueueUrl = queueUrl,
             VisibilityTimeoutSeconds = visibilityTimeout,
-            DlqEnabled = true,
+            DlqNotEnabled = true,
             MaximumReceives = 1
         };
 

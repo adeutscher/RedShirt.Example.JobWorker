@@ -3,7 +3,7 @@ using Amazon.Kinesis.Model;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 using System.Text;

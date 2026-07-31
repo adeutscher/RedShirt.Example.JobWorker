@@ -1,14 +1,15 @@
 using Microsoft.Extensions.Logging;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 
 namespace RedShirt.Example.JobWorker.Core.Logic;
 
-internal class JobLogicRunner(ILogger<JobLogicRunner> logger) : IJobLogicRunner
+internal class JobLogicRunner(ISleepService sleepService, ILogger<JobLogicRunner> logger) : IJobLogicRunner
 {
-    public Task RunAsync(IJobDataModel job, CancellationToken cancellationToken = default)
+    public Task RunAsync(IJobModel job, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Sleeping for {DurationSeconds} seconds", job.SleepDurationSeconds);
-        return Task.Delay(TimeSpan.FromSeconds(job.SleepDurationSeconds), cancellationToken);
+        logger.LogInformation("Sleeping for {DurationSeconds} seconds", job.Data.SleepDurationSeconds);
+        return sleepService.DelayAsync(TimeSpan.FromSeconds(job.Data.SleepDurationSeconds), cancellationToken);
     }
 }

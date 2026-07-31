@@ -1,3 +1,5 @@
+using RedShirt.Example.JobWorker.Common.Distributed.Models;
+
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 
 internal class KinesisTrackerSession(
@@ -26,8 +28,8 @@ internal class KinesisTrackerSession(
         }
     }
 
-    public void ReleaseLockOnShard()
+    public Task ReleaseLockOnShardAsync(CancellationToken cancellationToken = default)
     {
-        lockHandle.Unlock();
+        return lockHandle.UnlockAsync(cancellationToken);
     }
 }

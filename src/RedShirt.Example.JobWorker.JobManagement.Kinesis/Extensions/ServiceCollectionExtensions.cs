@@ -7,7 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Common.Aws.Extensions;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
-using RedShirt.Example.JobWorker.JobManagement.Kinesis.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
@@ -27,16 +26,12 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobSource, HighLevelStreamSource>()
             .AddSingleton<ILowLevelStreamSource, LowLevelStreamSource>()
             .AddSingleton<IKinesisShardLister, KinesisShardLister>()
-            .AddSingleton<IShortTermIteratorStorage, RedisShortTermIteratorStorage>()
+            .AddSingleton<IShortTermIteratorStorage, RemoteCacheShortTermIteratorStorage>()
             .AddSingleton<ISequenceNumberStorage, DynamoSequenceNumberStorage>()
             .Configure<DynamoSequenceNumberStorage.ConfigurationModel>(
                 configuration.GetSection("JobSource:Kinesis:Checkpoint"))
             .AddSingleton<IJobFailureHandler, SqsQueueFailureHandler>()
             .Configure<SqsQueueFailureHandler.ConfigurationModel>(
-                configuration.GetSection("JobSource:Kinesis:Failures"))
-            .Configure<RedisConnectionFactory.ConfigurationModel>(configuration.GetSection("JobSource:Kinesis:Redis"))
-            .AddSingleton<IRedisConnectionFactory, RedisConnectionFactory>()
-            .AddSingleton<IRedisConnectionCacheService, RedisConnectionCacheService>()
-            .AddSingleton<IAbstractedLocker, RedisLocker>();
+                configuration.GetSection("JobSource:Kinesis:Failures"));
     }
 }

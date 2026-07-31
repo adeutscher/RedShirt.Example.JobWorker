@@ -162,7 +162,7 @@ internal class SecretManagerCacheService(
         return result;
     }
 
-    private sealed class CacheEntry(string value, DateTimeOffset? absoluteExpiration, DateTimeOffset fetchedAt)
+    internal sealed class CacheEntry(string value, DateTimeOffset? absoluteExpiration, DateTimeOffset fetchedAt)
     {
         private DateTimeOffset? AbsoluteExpiration { get; } = absoluteExpiration;
         private DateTimeOffset FetchedAt { get; } = fetchedAt;

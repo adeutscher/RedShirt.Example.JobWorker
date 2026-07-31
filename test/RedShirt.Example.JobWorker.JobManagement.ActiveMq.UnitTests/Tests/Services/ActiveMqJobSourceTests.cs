@@ -2,7 +2,7 @@ using Apache.NMS;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Models;
@@ -36,7 +36,8 @@ public class ActiveMqJobSourceTests
             Data = null!
         };
 
-        await activeMqJobSource.AcknowledgeCompletionAsync(jobModel, true, TestContext.Current.CancellationToken);
+        await activeMqJobSource.AcknowledgeCompletionAsync(jobModel, true,
+            TestContext.Current.CancellationToken);
 
         message.Verify(m => m.AcknowledgeAsync(), Times.Once);
     }
@@ -57,9 +58,8 @@ public class ActiveMqJobSourceTests
         var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration), null!, null!,
             new NullLogger<ActiveMqJobSource>());
 
-        await activeMqJobSource.AcknowledgeCompletionAsync(job.Object, true, TestContext.Current.CancellationToken);
-
-        Assert.True(true); // Satisfy Sonar's requirement for an assert.
+        await activeMqJobSource.AcknowledgeCompletionAsync(job.Object, true,
+            TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -776,9 +776,6 @@ public class ActiveMqJobSourceTests
 
         // Run. Source should be executing an empty block with no complains about all the nulls that it's been given.
         await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.True(true); // Satisfy Sonar requirements
     }
 
     public sealed class LandmineException : Exception;
