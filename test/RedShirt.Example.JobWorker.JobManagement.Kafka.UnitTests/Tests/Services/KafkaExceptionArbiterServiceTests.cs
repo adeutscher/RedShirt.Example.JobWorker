@@ -19,13 +19,37 @@ public class KafkaExceptionArbiterServiceTests
         Assert.False(report.CouldBeTransient);
     }
 
-    [Fact]
-    public void GetReport_KafkaException_Fatal_IsCritical()
+    [Theory]
+    [InlineData(ErrorCode.Local_Fatal)]
+    [InlineData(ErrorCode.Local_Authentication)]
+    [InlineData(ErrorCode.SaslAuthenticationFailed)]
+    [InlineData(ErrorCode.TopicAuthorizationFailed)]
+    [InlineData(ErrorCode.GroupAuthorizationFailed)]
+    [InlineData(ErrorCode.ClusterAuthorizationFailed)]
+    [InlineData(ErrorCode.UnsupportedVersion)]
+    [InlineData(ErrorCode.InvalidRequest)]
+    [InlineData(ErrorCode.Local_MaxPollExceeded)]
+    public void GetReport_KafkaException_CriticalCodes_IsCriticalAndNotTransient(ErrorCode code)
     {
-        var report = _sut.GetReport(new KafkaException(ErrorCode.Local_Fatal));
+        var report = _sut.GetReport(new KafkaException(code));
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsCritical);
+        Assert.False(report.CouldBeTransient);
+    }
+
+    [Theory]
+    [InlineData(ErrorCode.OffsetOutOfRange)]
+    [InlineData(ErrorCode.UnknownTopicOrPart)]
+    [InlineData(ErrorCode.IllegalGeneration)]
+    [InlineData(ErrorCode.UnknownMemberId)]
+    [InlineData(ErrorCode.RebalanceInProgress)]
+    public void GetReport_KafkaException_PermanentCodes_IsNotCriticalAndNotTransient(ErrorCode code)
+    {
+        var report = _sut.GetReport(new KafkaException(code));
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
         Assert.False(report.CouldBeTransient);
     }
 
@@ -45,25 +69,6 @@ public class KafkaExceptionArbiterServiceTests
         Assert.False(report.AlreadyHandled);
         Assert.False(report.IsCritical);
         Assert.True(report.CouldBeTransient);
-    }
-
-    [Theory]
-    [InlineData(ErrorCode.TopicAuthorizationFailed)]
-    [InlineData(ErrorCode.GroupAuthorizationFailed)]
-    [InlineData(ErrorCode.SaslAuthenticationFailed)]
-    [InlineData(ErrorCode.Local_Authentication)]
-    [InlineData(ErrorCode.OffsetOutOfRange)]
-    [InlineData(ErrorCode.UnknownTopicOrPart)]
-    [InlineData(ErrorCode.IllegalGeneration)]
-    [InlineData(ErrorCode.UnknownMemberId)]
-    [InlineData(ErrorCode.RebalanceInProgress)]
-    public void GetReport_KafkaException_PermanentCodes_IsNotCriticalAndNotTransient(ErrorCode code)
-    {
-        var report = _sut.GetReport(new KafkaException(code));
-
-        Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
-        Assert.False(report.CouldBeTransient);
     }
 
     [Fact]
@@ -162,8 +167,8 @@ public class KafkaExceptionArbiterServiceTests
     [Fact]
     public void GetReport_WorkerJobSourceException_Handled_DoesNotRetry()
     {
-        var exception = new WorkerJobSourceException("already handled", isCritical: false, isTransient: true,
-            isHandled: true);
+        var exception = new WorkerJobSourceException("already handled", false, true,
+            true);
 
         var report = _sut.GetReport(exception);
 
@@ -175,8 +180,8 @@ public class KafkaExceptionArbiterServiceTests
     [Fact]
     public void GetReport_WorkerJobSourceException_UnhandledTransient_MayRetry()
     {
-        var exception = new WorkerJobSourceException("transient", isCritical: false, isTransient: true,
-            isHandled: false);
+        var exception = new WorkerJobSourceException("transient", false, true,
+            false);
 
         var report = _sut.GetReport(exception);
 

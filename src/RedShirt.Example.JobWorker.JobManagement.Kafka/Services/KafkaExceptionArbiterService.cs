@@ -21,8 +21,17 @@ internal class KafkaExceptionArbiterService : IKafkaExceptionArbiterService
 {
     private static readonly HashSet<ErrorCode> CriticalErrorCodes =
     [
+        ErrorCode.Local_Fatal, // also covered by Error.IsFatal; listed for explicitness
+        ErrorCode.Local_Authentication,
+        ErrorCode.SaslAuthenticationFailed,
+        ErrorCode.TopicAuthorizationFailed,
+        ErrorCode.GroupAuthorizationFailed,
+        ErrorCode.ClusterAuthorizationFailed,
+        ErrorCode.UnsupportedVersion,
+        ErrorCode.InvalidRequest,
+        ErrorCode.Local_MaxPollExceeded
     ];
-    
+
     private static readonly HashSet<ErrorCode> TransientErrorCodes =
     [
         ErrorCode.Local_TimedOut,
@@ -71,8 +80,7 @@ internal class KafkaExceptionArbiterService : IKafkaExceptionArbiterService
     {
         ArgumentNullException.ThrowIfNull(exception);
 
-        while (exception is AggregateException {InnerExceptions.Count: 1} aggregate
-               && aggregate.InnerException is not null)
+        while (exception is AggregateException {InnerExceptions.Count: 1, InnerException: not null} aggregate)
         {
             exception = aggregate.InnerException;
         }
@@ -85,10 +93,11 @@ internal class KafkaExceptionArbiterService : IKafkaExceptionArbiterService
                 Handled(workerJobSource.IsCritical, workerJobSource is {IsHandled: false, IsTransient: true}),
             // Confluent marks these as explicitly retriable.
             KafkaRetriableException => Fresh(false, true),
-            // Fatal librdkafka errors surface raw so operators investigate.
-            KafkaException {Error.IsFatal: true} => Fresh(true, false),
-            // Other Kafka client failures: retry only known infrastructure / leadership blips.
-            KafkaException kafka => Fresh(false, TransientErrorCodes.Contains(kafka.Error.Code)),
+            // Critical codes / fatal librdkafka errors surface raw so operators investigate.
+            // Remaining known types retry only for infrastructure / leadership blips.
+            KafkaException kafka =>
+                Fresh(kafka.Error.IsFatal || CriticalErrorCodes.Contains(kafka.Error.Code),
+                    TransientErrorCodes.Contains(kafka.Error.Code)),
             TimeoutException or SocketException => Fresh(false, true),
             // HttpClient-style timeouts sometimes surface as TaskCanceledException.
             // Must be matched before OperationCanceledException (TCE derives from OCE).

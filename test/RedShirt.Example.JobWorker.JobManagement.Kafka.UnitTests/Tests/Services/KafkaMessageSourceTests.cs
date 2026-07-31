@@ -56,7 +56,6 @@ public class KafkaMessageSourceTests
         var response = await messageSource.GetMessagesAsync(3, TestContext.Current.CancellationToken);
 
         Assert.Empty(response.Messages);
-        Assert.Null(response.LastMessage);
         consumer.Verify(c => c.Consume(ExpectedConsumeTimeout), Times.Once);
     }
 
@@ -81,15 +80,6 @@ public class KafkaMessageSourceTests
         for (var i = 0; i < expectedCount; i++)
         {
             Assert.Same(queuedMessages[i], response.Messages[i]);
-        }
-
-        if (expectedCount == 0)
-        {
-            Assert.Null(response.LastMessage);
-        }
-        else
-        {
-            Assert.Same(queuedMessages[expectedCount - 1], response.LastMessage);
         }
 
         var expectedConsumes = batchSize == 0
@@ -123,7 +113,6 @@ public class KafkaMessageSourceTests
         Assert.Equal(2, response.Messages.Count);
         Assert.Same(message1, response.Messages[0]);
         Assert.Same(message2, response.Messages[1]);
-        Assert.Same(message2, response.LastMessage);
         consumer.Verify(c => c.Consume(ExpectedConsumeTimeout), Times.Exactly(3));
     }
 

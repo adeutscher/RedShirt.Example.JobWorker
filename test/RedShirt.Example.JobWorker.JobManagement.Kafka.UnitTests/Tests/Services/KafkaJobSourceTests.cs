@@ -25,8 +25,7 @@ public class KafkaJobSourceTests
     {
         return new KafkaMessageSourceResponse
         {
-            Messages = messages,
-            LastMessage = messages.Length > 0 ? messages[^1] : null
+            Messages = messages
         };
     }
 
@@ -155,7 +154,9 @@ public class KafkaJobSourceTests
         Assert.Equal("t:0:1", response.Items[0].MessageId);
         Assert.Equal("t:0:2", response.Items[1].MessageId);
         Assert.Single(jobSource.Sessions);
-        Assert.Same(message2, jobSource.Sessions[0].LastMessage);
+        Assert.Equal(2, jobSource.Sessions[0].MessagesToProcess.Count);
+        Assert.Same(message1, jobSource.Sessions[0].MessagesToProcess[0]);
+        Assert.Same(message2, jobSource.Sessions[0].MessagesToProcess[1]);
         consumerSource.Verify(s => s.GetConsumer(), Times.Never);
     }
 
@@ -222,7 +223,10 @@ public class KafkaJobSourceTests
         Assert.Equal(2, response.Items.Count);
         Assert.Same(mock1, response.Items[0].Data);
         Assert.Single(jobSource.Sessions);
-        Assert.Same(emptyMessage, jobSource.Sessions[0].LastMessage);
+        Assert.Equal(2, jobSource.Sessions[0].MessagesToProcess.Count);
+        Assert.Same(message1, jobSource.Sessions[0].MessagesToProcess[0]);
+        Assert.Same(message4, jobSource.Sessions[0].MessagesToProcess[1]);
+        Assert.Equal(5, jobSource.Sessions[0].TotalMessages.Count);
 
         // Mixed success/failure does not commit during GetJobsAsync
         consumer.Verify(c => c.Commit(It.IsAny<IEnumerable<IKafkaMessageContainer>>()), Times.Never);
