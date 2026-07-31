@@ -24,10 +24,10 @@ If this template is still in general form, then I would advise testing using the
 
 To initialize SQS and queue sample messages:
 
-1. Bring up ministack:
+1. Bring up ministack and Redis:
 
 ```
-docker compose up -d ministack
+docker compose up -d ministack redis
 ```
 
 2. Run the `make-local-aws-resources.sh` script:
@@ -107,10 +107,10 @@ RabbitMQ takes a few more steps to set up than the other input sources.
 
 To initialize RabbitMQ and queue messages:
 
-1. Bring up ministack:
+1. Bring up ministack and Redis:
 
     ```
-    docker compose up -d ministack
+    docker compose up -d ministack redis
     ```
 
 2. Run the `make-local-aws-resources.sh` script:
@@ -166,10 +166,10 @@ ActiveMQ Artemis takes a few more steps to set up than the other input sources.
 
 To initialize RabbitMQ and queue messages:
 
-1. Bring up ministack:
+1. Bring up ministack and Redis:
 
     ```
-    docker compose up -d ministack
+    docker compose up -d ministack redis
     ```
 
 2. Run the `make-local-aws-resources.sh` script:
@@ -251,10 +251,10 @@ To install the `nats` command:
 
 #### Testing Messages
 
-1. Bring up ministack:
+1. Bring up ministack and Redis:
 
     ```
-    docker compose up -d ministack
+    docker compose up -d ministack redis
     ```
 
 2. Run the `make-local-aws-resources.sh` script:
@@ -326,10 +326,10 @@ VSCode automatically knows how to point to your local `azurite` server after the
     ./generate-azure-key-vault-cert.sh
     ```
 
-2. Bring up `azure-key-vault-emulator`, which shall be holding the connection string for Azure Queue Storage:
+2. Bring up `azure-key-vault-emulator` (which shall be holding the connection string for Azure Queue Storage) and Redis:
 
     ```
-    docker compose up -d azure-key-vault-emulator
+    docker compose up -d azure-key-vault-emulator redis
     ```
 
 3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage, Azure Service Bus, and Redis (`common-distributed-redis`) in the Azure Key Vault emulator:
@@ -391,10 +391,10 @@ pip install azure.servicebus azure.identity azure.keyvault
     ./generate-azure-key-vault-cert.sh
     ```
 
-2. Bring up `azure-key-vault-emulator`, which shall be holding the connection string for Azure Service Bus:
+2. Bring up `azure-key-vault-emulator` (which shall be holding the connection string for Azure Service Bus) and Redis:
 
     ```
-    docker compose up -d azure-key-vault-emulator
+    docker compose up -d azure-key-vault-emulator redis
     ```
 
 3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage, Azure Service Bus, and Redis (`common-distributed-redis`) in the Azure Key Vault emulator:
