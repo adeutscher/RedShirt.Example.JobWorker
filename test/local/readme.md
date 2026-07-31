@@ -106,16 +106,16 @@ To initialize Kinesis and queue sample messages:
 
 To initialize Kafka and queue sample messages:
 
-1. Bring up ministack and Kafka:
+1. Bring up ministack, Kafka, and Redis:
 
     ```
-    docker compose up -d ministack kafka
+    docker compose up -d ministack kafka redis
     ```
 
-2. Run the `make-local-resources.sh` script (creates the SQS queue used for Kafka job failures):
+2. Run the `make-local-aws-resources.sh` script (creates the SQS queue used for Kafka job failures):
 
     ```
-    ./make-local-resources.sh
+    ./make-local-aws-resources.sh
     ```
 
 3. Use the `put-kafka-job.py` script (requires the `kafka-python` module) to publish a message to the `jobs` topic. Specify the number of seconds the worker should sleep for in the first argument:
@@ -124,7 +124,8 @@ To initialize Kafka and queue sample messages:
     ./put-kafka-job.py 12
     ```
 
-4. Before starting the worker, make sure that `USE_KAFKA` is set to `1` and that other `USE_` environment variables are not set to `1`:
+4. Before starting the worker, make sure that `USE_KAFKA` is set to `1` and that other `USE_` environment variables are not set to `1`.
+    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`)::
 
     ```
     export USE_KAFKA=1
