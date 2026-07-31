@@ -1,9 +1,9 @@
 using Moq;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
-using RedShirt.Example.JobWorker.Common.Distributed.Services;
+using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 using StackExchange.Redis;
 
-namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services.Redis;
 
 public class RedisCacheServiceTests
 {

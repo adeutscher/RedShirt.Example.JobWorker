@@ -2,7 +2,7 @@ using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using StackExchange.Redis;
 
-namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
+namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 
 internal class RedisCacheService(IRedisConnectionCacheService redisConnectionCacheService) : IRemoteCacheService
 {

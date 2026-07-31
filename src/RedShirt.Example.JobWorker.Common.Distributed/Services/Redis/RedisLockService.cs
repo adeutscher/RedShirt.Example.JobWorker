@@ -2,7 +2,7 @@ using Medallion.Threading.Redis;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 
-namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
+namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 
 /// <summary>
 ///     Redis-based locking through the DistributedLock.Redis package.

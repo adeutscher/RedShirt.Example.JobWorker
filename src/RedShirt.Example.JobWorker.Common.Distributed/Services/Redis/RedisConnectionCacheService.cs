@@ -1,7 +1,7 @@
 using RedShirt.Example.JobWorker.Common.Distributed.Factories;
 using StackExchange.Redis;
 
-namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
+namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 
 /// <summary>
 ///     Internal caching layer to keep multiple invokers/invocations using the same Redis connection.

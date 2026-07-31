@@ -3,8 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Common.Distributed.Factories;
 using RedShirt.Example.JobWorker.Common.Distributed.Services;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
+using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 using IRedisConnectionCacheService =
-    RedShirt.Example.JobWorker.Common.Distributed.Services.IRedisConnectionCacheService;
+    RedShirt.Example.JobWorker.Common.Distributed.Services.Redis.IRedisConnectionCacheService;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.Extensions;
 
