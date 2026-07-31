@@ -28,8 +28,8 @@ internal class KinesisTrackerSession(
         }
     }
 
-    public void ReleaseLockOnShard()
+    public Task ReleaseLockOnShardAsync()
     {
-        lockHandle.Unlock();
+        return lockHandle.UnlockAsync();
     }
 }

@@ -99,8 +99,9 @@ internal class IdempotencyExecutionService(
     {
         public bool IsAcquired => true;
 
-        public void Unlock()
+        public Task UnlockAsync()
         {
+            return Task.CompletedTask;
         }
     }
 }

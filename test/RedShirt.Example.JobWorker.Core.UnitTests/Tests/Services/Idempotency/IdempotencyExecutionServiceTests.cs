@@ -134,7 +134,7 @@ public class IdempotencyExecutionServiceTests
         var result = await service.GetLockAsync(job.Object, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsAcquired);
-        result.Unlock();
+        await result.UnlockAsync();
         Assert.Empty(lockService.Invocations);
         Assert.Empty(cache.Invocations);
     }

@@ -28,9 +28,14 @@ internal class RedisLockService(
     {
         public bool IsAcquired => lockHandle is not null;
 
-        public void Unlock()
+        public Task UnlockAsync()
         {
-            lockHandle?.Dispose();
+            if (lockHandle is null)
+            {
+                return Task.CompletedTask;
+            }
+
+            return lockHandle.DisposeAsync().AsTask();
         }
     }
 }

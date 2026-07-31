@@ -39,7 +39,7 @@ internal class HighLevelStreamSource(
             if (trackerSession.IsComplete)
             {
                 /*
-                 * Handling MoveTrackerAsync and ReleaseLockOnShard within the semaphore claim
+                 * Handling MoveTrackerAsync and ReleaseLockOnShardAsync within the semaphore claim
                  * technically bottlenecks operation behind Redis/DynamoDB latency.
                  *
                  * However, if we did not do this within the semaphore claim then we would create the potential for multiple invocations of this method to remove/unlock a single session.
@@ -49,7 +49,7 @@ internal class HighLevelStreamSource(
                 await MoveTrackerAsync(trackerSession, cancellationToken);
                 logger.LogTrace("Releasing distributed lock");
                 // Releasing distributed lock so that GetJobsAsync calls can poll this shard again
-                trackerSession.ReleaseLockOnShard();
+                await trackerSession.ReleaseLockOnShardAsync();
                 Sessions.Remove(kinesisJobModel.ShardId);
             }
         }
@@ -115,7 +115,7 @@ internal class HighLevelStreamSource(
             {
                 await MoveTrackerAsync(trackerSession, cancellationToken);
                 // No jobs, so release lock and continue    
-                trackerSession.ReleaseLockOnShard();
+                await trackerSession.ReleaseLockOnShardAsync();
                 continue;
             }
 

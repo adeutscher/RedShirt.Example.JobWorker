@@ -39,7 +39,7 @@ public class RedisLockServiceTests
         var @lock = await locker.GetLockAsync("abc", TestContext.Current.CancellationToken);
         Assert.NotNull(@lock);
         Assert.False(@lock.IsAcquired);
-        @lock.Unlock();
+        await @lock.UnlockAsync();
 
         source.Verify(s => s.GetDatabaseAsync(TestContext.Current.CancellationToken), Times.Once);
         retry.Verify(

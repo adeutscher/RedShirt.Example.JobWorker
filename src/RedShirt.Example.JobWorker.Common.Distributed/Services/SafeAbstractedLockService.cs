@@ -58,8 +58,9 @@ internal class SafeAbstractedLockService(
         public bool IsAcquired => true;
         public bool IsTrulyAcquired => false;
 
-        public void Unlock()
+        public Task UnlockAsync()
         {
+            return Task.CompletedTask;
         }
     }
 
@@ -67,9 +68,9 @@ internal class SafeAbstractedLockService(
     {
         public bool IsAcquired => isAcquiredOverride || abstractedLock.IsAcquired;
 
-        public void Unlock()
+        public Task UnlockAsync()
         {
-            abstractedLock.Unlock();
+            return abstractedLock.UnlockAsync();
         }
 
         public bool IsTrulyAcquired => abstractedLock.IsAcquired;
