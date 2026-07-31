@@ -11,6 +11,82 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services;
 public class JobRepositoryTests
 {
     [Fact(Timeout = 500)]
+    public async Task LoadAsync_WhenResponseHasNoItems_DoesNotTouchWatchedJobs()
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
+
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
+            Options.Create(new JobRepository.ConfigurationModel
+            {
+                BacklogSize = 0
+            }));
+
+        await jobRepository.LoadAsync(new JobSourceResponse
+        {
+            Items = []
+        }, TestContext.Current.CancellationToken);
+
+        Assert.Empty(jobRepository.WatchedJobs);
+        Assert.Empty(sorter.Invocations);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ReloadUnblockedJobAsync_ShortlistsJobAheadOfInactiveQueue()
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
+            Options.Create(new JobRepository.ConfigurationModel
+            {
+                BacklogSize = 0
+            }));
+
+        var queuedModel = new Mock<IJobModel>(MockBehavior.Strict);
+        queuedModel.Setup(m => m.MessageId).Returns("queued");
+        var unblockedModel = new Mock<IJobModel>(MockBehavior.Strict);
+        unblockedModel.Setup(m => m.MessageId).Returns("unblocked");
+
+        await jobRepository.LoadAsync(new JobSourceResponse
+        {
+            Items = [queuedModel.Object]
+        }, TestContext.Current.CancellationToken);
+
+        var blockedEntry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
+        blockedEntry.Setup(e => e.JobModel).Returns(unblockedModel.Object);
+        blockedEntry
+            .Setup(e => e.SetStateAsync(JobState.Inactive, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+        blockedEntry
+            .Setup(e => e.SetStateAsync(JobState.Active, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+        jobRepository.WatchedJobs.Add(blockedEntry.Object);
+
+        await jobRepository.ReloadUnblockedJobAsync(blockedEntry.Object, TestContext.Current.CancellationToken);
+
+        var nextJob = await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken);
+
+        Assert.Same(blockedEntry.Object, nextJob);
+        blockedEntry.Verify(e => e.SetStateAsync(JobState.Inactive, TestContext.Current.CancellationToken),
+            Times.Once);
+        blockedEntry.Verify(e => e.SetStateAsync(JobState.Active, TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Fact(Timeout = 500)]
     public async Task TestGetAllIdempotencyBlockedJobsAsync()
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);

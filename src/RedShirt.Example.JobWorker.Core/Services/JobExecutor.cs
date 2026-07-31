@@ -40,13 +40,17 @@ internal class JobExecutor(
             if (!idempotentAcknowledgementSuccess)
             {
                 /*
-                 * Implies that the executor somehow managed to lose custody of a message within a split second of receiving it.
-                 * Nothing we can do, continue.
+                 * An unsuccessful acknowledgement suggests that the executor somehow managed to lose custody of a message
+                 * within a split second of receiving it. Nothing we can do except to log it, continue.
                  */
                 logger.LogError("Executor {Id} failed to acknowledge cached result for message {MessageId}", executorId,
                     job.JobModel.MessageId);
-                return;
             }
+
+            // Send a notice to the idempotency execution service to refresh/remove the cache entry (depending on downstream settings) 
+            await idempotencyExecutionService.SetResultInCacheAsync(job.JobModel, true,
+                idempotentAcknowledgementSuccess, cancellationToken);
+            return;
         }
 
         /*
