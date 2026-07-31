@@ -2,20 +2,20 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 
 public sealed class WorkerDistributedException : Exception
 {
-    public bool IsExpected { get; private init; }
+    public bool IsCritical { get; private init; }
     public bool IsTransient { get; private init; }
 
-    public WorkerDistributedException(Exception innerException, bool isExpected = false, bool isTransient = false) :
+    public WorkerDistributedException(Exception innerException, bool isCritical = true, bool isTransient = false) :
         base(innerException.Message,
             innerException)
     {
-        IsExpected = isExpected;
+        IsCritical = isCritical;
         IsTransient = isTransient;
     }
 
-    public WorkerDistributedException(string message, bool isExpected = false, bool isTransient = false) : base(message)
+    public WorkerDistributedException(string message, bool isCritical = true, bool isTransient = false) : base(message)
     {
-        IsExpected = isExpected;
+        IsCritical = isCritical;
         IsTransient = isTransient;
     }
 }

@@ -11,40 +11,40 @@ public class AzureExceptionArbiterServiceTests
     private readonly AzureExceptionArbiterService _sut = new();
 
     [Fact]
-    public void GetJudgement_ArgumentException_IsExpectedAndNotTransient()
+    public void GetJudgement_ArgumentException_IsNotCriticalAndNotTransient()
     {
         var exception = new ArgumentException("secret name is empty", "name");
 
         var judgement = _sut.GetJudgement(exception);
 
-        Assert.True(judgement.IsExpected);
+        Assert.False(judgement.IsCritical);
         Assert.False(judgement.CouldBeTransient);
     }
 
     [Fact]
-    public void GetJudgement_ArgumentNullException_IsExpectedAndNotTransient()
+    public void GetJudgement_ArgumentNullException_IsNotCriticalAndNotTransient()
     {
         var exception = new ArgumentNullException("name");
 
         var judgement = _sut.GetJudgement(exception);
 
-        Assert.True(judgement.IsExpected);
+        Assert.False(judgement.IsCritical);
         Assert.False(judgement.CouldBeTransient);
     }
 
     [Fact]
-    public void GetJudgement_AuthenticationFailedException_IsExpectedAndTransient()
+    public void GetJudgement_AuthenticationFailedException_IsNotCriticalAndTransient()
     {
         var exception = new AuthenticationFailedException("token acquisition failed");
 
         var judgement = _sut.GetJudgement(exception);
 
-        Assert.True(judgement.IsExpected);
+        Assert.False(judgement.IsCritical);
         Assert.True(judgement.CouldBeTransient);
     }
 
     [Fact]
-    public void GetJudgement_AuthenticationRequiredException_IsExpectedAndNotTransient()
+    public void GetJudgement_AuthenticationRequiredException_IsNotCriticalAndNotTransient()
     {
         var exception = new AuthenticationRequiredException(
             "interactive auth required",
@@ -52,34 +52,34 @@ public class AzureExceptionArbiterServiceTests
 
         var judgement = _sut.GetJudgement(exception);
 
-        Assert.True(judgement.IsExpected);
+        Assert.False(judgement.IsCritical);
         Assert.False(judgement.CouldBeTransient);
     }
 
     [Fact]
-    public void GetJudgement_CredentialUnavailableException_IsExpectedAndTransient()
+    public void GetJudgement_CredentialUnavailableException_IsNotCriticalAndTransient()
     {
         var exception = new CredentialUnavailableException("no usable credential");
 
         var judgement = _sut.GetJudgement(exception);
 
-        Assert.True(judgement.IsExpected);
+        Assert.False(judgement.IsCritical);
         Assert.True(judgement.CouldBeTransient);
     }
 
     [Fact]
-    public void GetJudgement_HttpRequestException_IsExpectedAndTransient()
+    public void GetJudgement_HttpRequestException_IsNotCriticalAndTransient()
     {
         var exception = new HttpRequestException("connection reset");
 
         var judgement = _sut.GetJudgement(exception);
 
-        Assert.True(judgement.IsExpected);
+        Assert.False(judgement.IsCritical);
         Assert.True(judgement.CouldBeTransient);
     }
 
     [Fact]
-    public void GetJudgement_MultiInnerAggregateException_IsNotExpected()
+    public void GetJudgement_MultiInnerAggregateException_IsCritical()
     {
         var exception = new AggregateException(
             new RequestFailedException(429, "throttled"),
@@ -87,7 +87,7 @@ public class AzureExceptionArbiterServiceTests
 
         var judgement = _sut.GetJudgement(exception);
 
-        Assert.False(judgement.IsExpected);
+        Assert.True(judgement.IsCritical);
         Assert.False(judgement.CouldBeTransient);
     }
 
@@ -98,13 +98,13 @@ public class AzureExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetJudgement_OperationCanceledException_IsExpectedAndNotTransient()
+    public void GetJudgement_OperationCanceledException_IsNotCriticalAndNotTransient()
     {
         var exception = new OperationCanceledException("caller cancelled");
 
         var judgement = _sut.GetJudgement(exception);
 
-        Assert.True(judgement.IsExpected);
+        Assert.False(judgement.IsCritical);
         Assert.False(judgement.CouldBeTransient);
     }
 
@@ -114,13 +114,13 @@ public class AzureExceptionArbiterServiceTests
     [InlineData(403)]
     [InlineData(404)]
     [InlineData(409)]
-    public void GetJudgement_RequestFailedException_WithPermanentStatus_IsExpectedAndNotTransient(int status)
+    public void GetJudgement_RequestFailedException_WithPermanentStatus_IsNotCriticalAndNotTransient(int status)
     {
         var exception = new RequestFailedException(status, "azure request failed");
 
         var judgement = _sut.GetJudgement(exception);
 
-        Assert.True(judgement.IsExpected);
+        Assert.False(judgement.IsCritical);
         Assert.False(judgement.CouldBeTransient);
     }
 
@@ -132,13 +132,13 @@ public class AzureExceptionArbiterServiceTests
     [InlineData(502)]
     [InlineData(503)]
     [InlineData(504)]
-    public void GetJudgement_RequestFailedException_WithTransientStatus_IsExpectedAndTransient(int status)
+    public void GetJudgement_RequestFailedException_WithTransientStatus_IsNotCriticalAndTransient(int status)
     {
         var exception = new RequestFailedException(status, "azure request failed");
 
         var judgement = _sut.GetJudgement(exception);
 
-        Assert.True(judgement.IsExpected);
+        Assert.False(judgement.IsCritical);
         Assert.True(judgement.CouldBeTransient);
     }
 
@@ -150,51 +150,51 @@ public class AzureExceptionArbiterServiceTests
 
         var judgement = _sut.GetJudgement(exception);
 
-        Assert.True(judgement.IsExpected);
+        Assert.False(judgement.IsCritical);
         Assert.True(judgement.CouldBeTransient);
     }
 
     [Fact]
-    public void GetJudgement_SocketException_IsExpectedAndTransient()
+    public void GetJudgement_SocketException_IsNotCriticalAndTransient()
     {
         var exception = new SocketException((int) SocketError.TimedOut);
 
         var judgement = _sut.GetJudgement(exception);
 
-        Assert.True(judgement.IsExpected);
+        Assert.False(judgement.IsCritical);
         Assert.True(judgement.CouldBeTransient);
     }
 
     [Fact]
-    public void GetJudgement_TaskCanceledException_IsExpectedAndTransient()
+    public void GetJudgement_TaskCanceledException_IsNotCriticalAndTransient()
     {
         var exception = new TaskCanceledException("request timed out");
 
         var judgement = _sut.GetJudgement(exception);
 
-        Assert.True(judgement.IsExpected);
+        Assert.False(judgement.IsCritical);
         Assert.True(judgement.CouldBeTransient);
     }
 
     [Fact]
-    public void GetJudgement_UnrecognizedException_IsNotExpectedAndNotTransient()
+    public void GetJudgement_UnrecognizedException_IsCriticalAndNotTransient()
     {
         var exception = new InvalidOperationException("unexpected failure");
 
         var judgement = _sut.GetJudgement(exception);
 
-        Assert.False(judgement.IsExpected);
+        Assert.True(judgement.IsCritical);
         Assert.False(judgement.CouldBeTransient);
     }
 
     [Fact]
-    public void GetJudgement_UriFormatException_IsExpectedAndNotTransient()
+    public void GetJudgement_UriFormatException_IsNotCriticalAndNotTransient()
     {
         var exception = Assert.Throws<UriFormatException>(() => new Uri("not a uri"));
 
         var judgement = _sut.GetJudgement(exception);
 
-        Assert.True(judgement.IsExpected);
+        Assert.False(judgement.IsCritical);
         Assert.False(judgement.CouldBeTransient);
     }
 }

@@ -1,15 +1,15 @@
-using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Exceptions;
+using RedShirt.Example.JobWorker.Common.Azure.Exceptions;
 
-namespace RedShirt.Example.JobWorker.Common.SecretManagers.Core.UnitTests.Tests.Exceptions;
+namespace RedShirt.Example.JobWorker.Common.Azure.UnitTests.Tests.Exceptions;
 
-public class WorkerSecretManagerExceptionTests
+public class WorkerAzureExceptionTests
 {
     [Fact]
     public void Constructor_WithInnerException_DefaultsToCriticalAndNotTransient()
     {
         var inner = new InvalidOperationException("boom");
 
-        var exception = new WorkerSecretManagerException(inner);
+        var exception = new WorkerAzureException(inner);
 
         Assert.True(exception.IsCritical);
         Assert.False(exception.IsTransient);
@@ -24,9 +24,9 @@ public class WorkerSecretManagerExceptionTests
     [InlineData(false, false)]
     public void Constructor_WithInnerException_PreservesMessageInnerAndFlags(bool isCritical, bool isTransient)
     {
-        var inner = new TimeoutException("timed out talking to secrets");
+        var inner = new TimeoutException("timed out talking to azure");
 
-        var exception = new WorkerSecretManagerException(inner, isCritical, isTransient);
+        var exception = new WorkerAzureException(inner, isCritical, isTransient);
 
         Assert.Equal(inner.Message, exception.Message);
         Assert.Same(inner, exception.InnerException);
@@ -37,25 +37,25 @@ public class WorkerSecretManagerExceptionTests
     [Fact]
     public void Constructor_WithMessage_DefaultsToCriticalAndNotTransient()
     {
-        var exception = new WorkerSecretManagerException("secret failure");
+        var exception = new WorkerAzureException("azure failure");
 
-        Assert.Equal("secret failure", exception.Message);
+        Assert.Equal("azure failure", exception.Message);
         Assert.True(exception.IsCritical);
         Assert.False(exception.IsTransient);
         Assert.Null(exception.InnerException);
     }
 
     [Theory]
-    [InlineData(true, true, "critical transient secret failure")]
-    [InlineData(true, false, "critical permanent secret failure")]
-    [InlineData(false, true, "non-critical transient secret failure")]
-    [InlineData(false, false, "non-critical permanent secret failure")]
+    [InlineData(true, true, "critical transient azure failure")]
+    [InlineData(true, false, "critical permanent azure failure")]
+    [InlineData(false, true, "non-critical transient azure failure")]
+    [InlineData(false, false, "non-critical permanent azure failure")]
     public void Constructor_WithMessage_SetsMessageAndFlagsWithoutInnerException(
         bool isCritical,
         bool isTransient,
         string message)
     {
-        var exception = new WorkerSecretManagerException(message, isCritical, isTransient);
+        var exception = new WorkerAzureException(message, isCritical, isTransient);
 
         Assert.Equal(message, exception.Message);
         Assert.Null(exception.InnerException);
@@ -66,7 +66,7 @@ public class WorkerSecretManagerExceptionTests
     [Fact]
     public void IsException()
     {
-        var exception = new WorkerSecretManagerException("boom");
+        var exception = new WorkerAzureException("boom");
 
         Assert.IsAssignableFrom<Exception>(exception);
     }

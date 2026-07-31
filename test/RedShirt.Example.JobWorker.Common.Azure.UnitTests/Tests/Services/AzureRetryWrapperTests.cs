@@ -11,7 +11,7 @@ public class AzureRetryWrapperServiceTests
     {
         return new AzureExceptionArbiterReport
         {
-            IsExpected = true,
+            IsCritical = false,
             CouldBeTransient = true
         };
     }
@@ -20,7 +20,7 @@ public class AzureRetryWrapperServiceTests
     {
         return new AzureExceptionArbiterReport
         {
-            IsExpected = true,
+            IsCritical = false,
             CouldBeTransient = false
         };
     }
@@ -29,7 +29,7 @@ public class AzureRetryWrapperServiceTests
     {
         return new AzureExceptionArbiterReport
         {
-            IsExpected = false,
+            IsCritical = true,
             CouldBeTransient = couldBeTransient
         };
     }
@@ -136,6 +136,7 @@ public class AzureRetryWrapperServiceTests
 
         Assert.Equal(1, attempts);
         Assert.Same(inner, thrown.InnerException);
+        Assert.False(thrown.IsCritical);
         Assert.False(thrown.IsTransient);
         sleepService.Verify(
             s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
@@ -209,6 +210,7 @@ public class AzureRetryWrapperServiceTests
             TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown.InnerException);
+        Assert.False(thrown.IsCritical);
         Assert.True(thrown.IsTransient);
     }
 
@@ -264,6 +266,7 @@ public class AzureRetryWrapperServiceTests
             TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown.InnerException);
+        Assert.False(thrown.IsCritical);
         Assert.True(thrown.IsTransient);
         // original attempt + 3 retries
         Assert.Equal(4, attempts);

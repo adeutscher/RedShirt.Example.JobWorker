@@ -39,22 +39,22 @@ internal class RedisDistributedExceptionArbiterService : IRedisDistributedExcept
         return exception;
     }
 
-    private static RedisExceptionArbiterReport Fresh(bool isExpected, bool couldBeTransient)
+    private static RedisExceptionArbiterReport Fresh(bool isCritical, bool couldBeTransient)
     {
         return new RedisExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsExpected = isExpected,
+            IsCritical = isCritical,
             CouldBeTransient = couldBeTransient
         };
     }
 
-    private static RedisExceptionArbiterReport Handled(bool isExpected, bool couldBeTransient)
+    private static RedisExceptionArbiterReport Handled(bool isCritical, bool couldBeTransient)
     {
         return new RedisExceptionArbiterReport
         {
             AlreadyHandled = true,
-            IsExpected = isExpected,
+            IsCritical = isCritical,
             CouldBeTransient = couldBeTransient
         };
     }
@@ -69,28 +69,28 @@ internal class RedisDistributedExceptionArbiterService : IRedisDistributedExcept
         {
             // Already classified/wrapped by an earlier Distributed layer — do not wrap again.
             WorkerDistributedException workerDistributed =>
-                Handled(workerDistributed.IsExpected, workerDistributed.IsTransient),
+                Handled(workerDistributed.IsCritical, workerDistributed.IsTransient),
             WorkerSecretManagerException secretManager =>
-                Handled(secretManager.IsExpected, secretManager.IsTransient),
+                Handled(secretManager.IsCritical, secretManager.IsTransient),
             // Command / connection timeouts from StackExchange.Redis.
-            RedisTimeoutException => Fresh(true, true),
+            RedisTimeoutException => Fresh(false, true),
             // Connection drop / reconnect scenarios; auth and disposed connections are not retryable.
             RedisConnectionException connection =>
-                Fresh(true, TransientConnectionFailures.Contains(connection.FailureType)),
+                Fresh(false, TransientConnectionFailures.Contains(connection.FailureType)),
             // Server-side conditions (e.g. LOADING) are often brief; treat as possibly transient.
-            RedisServerException => Fresh(true, true),
+            RedisServerException => Fresh(false, true),
             // Generic Redis failures that were not matched above.
-            RedisException => Fresh(true, true),
-            TimeoutException or SocketException => Fresh(true, true),
+            RedisException => Fresh(false, true),
+            TimeoutException or SocketException => Fresh(false, true),
             // HttpClient-style timeouts sometimes surface as TaskCanceledException.
             // Must be matched before OperationCanceledException (TCE derives from OCE).
-            TaskCanceledException => Fresh(true, true),
+            TaskCanceledException => Fresh(false, true),
             // Explicit CancellationToken cancellation from the caller — do not retry.
-            OperationCanceledException => Fresh(true, false),
+            OperationCanceledException => Fresh(false, false),
             // Client-side argument validation — not retryable.
-            ArgumentException => Fresh(true, false),
-            // Unrecognized exception type — not treated as a known Redis / distributed failure.
-            _ => Fresh(false, false)
+            ArgumentException => Fresh(false, false),
+            // Unrecognized exception type — treat as critical so callers surface the raw failure.
+            _ => Fresh(true, false)
         };
     }
 }

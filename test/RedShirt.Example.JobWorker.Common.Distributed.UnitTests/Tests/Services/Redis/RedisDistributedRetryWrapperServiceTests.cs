@@ -14,7 +14,7 @@ public class RedisDistributedRetryWrapperServiceTests
         return new RedisExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsExpected = true,
+            IsCritical = false,
             CouldBeTransient = true
         };
     }
@@ -24,7 +24,7 @@ public class RedisDistributedRetryWrapperServiceTests
         return new RedisExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsExpected = true,
+            IsCritical = false,
             CouldBeTransient = false
         };
     }
@@ -34,7 +34,7 @@ public class RedisDistributedRetryWrapperServiceTests
         return new RedisExceptionArbiterReport
         {
             AlreadyHandled = true,
-            IsExpected = true,
+            IsCritical = false,
             CouldBeTransient = couldBeTransient
         };
     }
@@ -44,7 +44,7 @@ public class RedisDistributedRetryWrapperServiceTests
         return new RedisExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsExpected = false,
+            IsCritical = true,
             CouldBeTransient = false
         };
     }

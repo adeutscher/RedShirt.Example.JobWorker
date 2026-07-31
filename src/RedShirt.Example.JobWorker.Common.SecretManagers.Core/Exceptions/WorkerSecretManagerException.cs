@@ -2,20 +2,20 @@ namespace RedShirt.Example.JobWorker.Common.SecretManagers.Core.Exceptions;
 
 public sealed class WorkerSecretManagerException : Exception
 {
-    public bool IsExpected { get; private set; }
+    public bool IsCritical { get; private set; }
     public bool IsTransient { get; private set; }
 
-    public WorkerSecretManagerException(Exception innerException, bool isExpected = false, bool isTransient = false) :
+    public WorkerSecretManagerException(Exception innerException, bool isCritical = true, bool isTransient = false) :
         base(innerException.Message, innerException)
     {
-        IsExpected = isExpected;
+        IsCritical = isCritical;
         IsTransient = isTransient;
     }
 
-    public WorkerSecretManagerException(string message, bool isExpected = false, bool isTransient = false) :
+    public WorkerSecretManagerException(string message, bool isCritical = true, bool isTransient = false) :
         base(message)
     {
-        IsExpected = isExpected;
+        IsCritical = isCritical;
         IsTransient = isTransient;
     }
 }

@@ -11,27 +11,27 @@ public class RedisDistributedExceptionArbiterServiceTests
     private readonly RedisDistributedExceptionArbiterService _sut = new();
 
     [Fact]
-    public void GetReport_ArgumentException_IsExpectedAndNotTransient()
+    public void GetReport_ArgumentException_IsNotCriticalAndNotTransient()
     {
         var report = _sut.GetReport(new ArgumentException("bad lock name", "lockName"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsExpected);
+        Assert.False(report.IsCritical);
         Assert.False(report.CouldBeTransient);
     }
 
     [Fact]
-    public void GetReport_GenericRedisException_IsExpectedAndTransient()
+    public void GetReport_GenericRedisException_IsNotCriticalAndTransient()
     {
         var report = _sut.GetReport(new RedisException("unexpected Redis failure"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsExpected);
+        Assert.False(report.IsCritical);
         Assert.True(report.CouldBeTransient);
     }
 
     [Fact]
-    public void GetReport_MultiInnerAggregateException_IsNotExpected()
+    public void GetReport_MultiInnerAggregateException_IsCritical()
     {
         var exception = new AggregateException(
             new RedisTimeoutException("timeout", CommandStatus.Unknown),
@@ -40,7 +40,7 @@ public class RedisDistributedExceptionArbiterServiceTests
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsExpected);
+        Assert.True(report.IsCritical);
         Assert.False(report.CouldBeTransient);
     }
 
@@ -51,12 +51,12 @@ public class RedisDistributedExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_OperationCanceledException_IsExpectedAndNotTransient()
+    public void GetReport_OperationCanceledException_IsNotCriticalAndNotTransient()
     {
         var report = _sut.GetReport(new OperationCanceledException("caller cancelled"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsExpected);
+        Assert.False(report.IsCritical);
         Assert.False(report.CouldBeTransient);
     }
 
@@ -68,7 +68,7 @@ public class RedisDistributedExceptionArbiterServiceTests
     [InlineData(ConnectionFailureType.UnableToResolvePhysicalConnection, true)]
     [InlineData(ConnectionFailureType.AuthenticationFailure, false)]
     [InlineData(ConnectionFailureType.ProtocolFailure, false)]
-    public void GetReport_RedisConnectionException_IsExpected_DependsOnFailureType(
+    public void GetReport_RedisConnectionException_IsNotCritical_DependsOnFailureType(
         ConnectionFailureType failureType,
         bool expectedTransient)
     {
@@ -77,27 +77,27 @@ public class RedisDistributedExceptionArbiterServiceTests
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsExpected);
+        Assert.False(report.IsCritical);
         Assert.Equal(expectedTransient, report.CouldBeTransient);
     }
 
     [Fact]
-    public void GetReport_RedisServerException_IsExpectedAndTransient()
+    public void GetReport_RedisServerException_IsNotCriticalAndTransient()
     {
         var report = _sut.GetReport(new RedisServerException("LOADING Redis is loading the dataset in memory"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsExpected);
+        Assert.False(report.IsCritical);
         Assert.True(report.CouldBeTransient);
     }
 
     [Fact]
-    public void GetReport_RedisTimeoutException_IsExpectedAndTransient()
+    public void GetReport_RedisTimeoutException_IsNotCriticalAndTransient()
     {
         var report = _sut.GetReport(new RedisTimeoutException("command timed out", CommandStatus.Unknown));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsExpected);
+        Assert.False(report.IsCritical);
         Assert.True(report.CouldBeTransient);
     }
 
@@ -110,47 +110,47 @@ public class RedisDistributedExceptionArbiterServiceTests
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsExpected);
+        Assert.False(report.IsCritical);
         Assert.True(report.CouldBeTransient);
     }
 
     [Fact]
-    public void GetReport_SocketException_IsExpectedAndTransient()
+    public void GetReport_SocketException_IsNotCriticalAndTransient()
     {
         var report = _sut.GetReport(new SocketException((int) SocketError.TimedOut));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsExpected);
+        Assert.False(report.IsCritical);
         Assert.True(report.CouldBeTransient);
     }
 
     [Fact]
-    public void GetReport_TaskCanceledException_IsExpectedAndTransient()
+    public void GetReport_TaskCanceledException_IsNotCriticalAndTransient()
     {
         var report = _sut.GetReport(new TaskCanceledException("request timed out"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsExpected);
+        Assert.False(report.IsCritical);
         Assert.True(report.CouldBeTransient);
     }
 
     [Fact]
-    public void GetReport_TimeoutException_IsExpectedAndTransient()
+    public void GetReport_TimeoutException_IsNotCriticalAndTransient()
     {
         var report = _sut.GetReport(new TimeoutException("timed out"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsExpected);
+        Assert.False(report.IsCritical);
         Assert.True(report.CouldBeTransient);
     }
 
     [Fact]
-    public void GetReport_UnrecognizedException_IsNotExpectedAndNotTransient()
+    public void GetReport_UnrecognizedException_IsCriticalAndNotTransient()
     {
         var report = _sut.GetReport(new InvalidOperationException("unexpected"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsExpected);
+        Assert.True(report.IsCritical);
         Assert.False(report.CouldBeTransient);
     }
 
@@ -160,15 +160,15 @@ public class RedisDistributedExceptionArbiterServiceTests
     [InlineData(false, true)]
     [InlineData(false, false)]
     public void GetReport_WorkerDistributedException_IsAlreadyHandledWithFlags(
-        bool isExpected,
+        bool isCritical,
         bool isTransient)
     {
-        var exception = new WorkerDistributedException("wrapped", isExpected, isTransient);
+        var exception = new WorkerDistributedException("wrapped", isCritical, isTransient);
 
         var report = _sut.GetReport(exception);
 
         Assert.True(report.AlreadyHandled);
-        Assert.Equal(isExpected, report.IsExpected);
+        Assert.Equal(isCritical, report.IsCritical);
         Assert.Equal(isTransient, report.CouldBeTransient);
     }
 
@@ -178,15 +178,15 @@ public class RedisDistributedExceptionArbiterServiceTests
     [InlineData(false, true)]
     [InlineData(false, false)]
     public void GetReport_WorkerSecretManagerException_IsAlreadyHandledWithFlags(
-        bool isExpected,
+        bool isCritical,
         bool isTransient)
     {
-        var exception = new WorkerSecretManagerException("secret failure", isExpected, isTransient);
+        var exception = new WorkerSecretManagerException("secret failure", isCritical, isTransient);
 
         var report = _sut.GetReport(exception);
 
         Assert.True(report.AlreadyHandled);
-        Assert.Equal(isExpected, report.IsExpected);
+        Assert.Equal(isCritical, report.IsCritical);
         Assert.Equal(isTransient, report.CouldBeTransient);
     }
 }

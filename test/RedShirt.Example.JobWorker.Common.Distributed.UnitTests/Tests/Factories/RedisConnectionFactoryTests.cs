@@ -43,7 +43,7 @@ public class RedisConnectionFactoryTests
         const string connectionStringPath = "redis/connection-string";
         var secretException = new WorkerSecretManagerException(
             "secret lookup failed",
-            true,
+            false,
             isTransient);
 
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
@@ -63,7 +63,7 @@ public class RedisConnectionFactoryTests
 
         Assert.Equal(secretException.Message, thrown.Message);
         Assert.Same(secretException, thrown.InnerException);
-        Assert.True(thrown.IsExpected);
+        Assert.False(thrown.IsCritical);
         Assert.Equal(isTransient, thrown.IsTransient);
         secrets.Verify(s => s.GetSecretAsync(connectionStringPath, null, false, TestContext.Current.CancellationToken),
             Times.Once);

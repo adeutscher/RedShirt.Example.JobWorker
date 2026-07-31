@@ -43,7 +43,7 @@ public class AzureKeyVaultServiceTests
                 service.GetSecretAsync(key, TestContext.Current.CancellationToken));
 
             Assert.Equal($"Invalid secret path: {key}", thrown.Message);
-            Assert.True(thrown.IsExpected);
+            Assert.False(thrown.IsCritical);
             Assert.False(thrown.IsTransient);
             source.VerifyNoOtherCalls();
             client.VerifyNoOtherCalls();
@@ -62,7 +62,7 @@ public class AzureKeyVaultServiceTests
                 service.GetSecretAsync(key, TestContext.Current.CancellationToken));
 
             Assert.Equal($"Invalid secret path: {key}", thrown.Message);
-            Assert.True(thrown.IsExpected);
+            Assert.False(thrown.IsCritical);
             Assert.False(thrown.IsTransient);
             source.VerifyNoOtherCalls();
             retry.VerifyNoOtherCalls();
@@ -76,6 +76,7 @@ public class AzureKeyVaultServiceTests
             CancellationToken? seenToken = null;
 
             var client = new Mock<IAzureKeyVaultClientWrapper>(MockBehavior.Strict);
+            // ReSharper disable once AccessToDisposedClosure
             client.Setup(c => c.GetSecretAsync(key, cts.Token)).ReturnsAsync("value");
 
             var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
@@ -154,7 +155,7 @@ public class AzureKeyVaultServiceTests
         public async Task WhenRetryWrapperThrowsWorkerAzureException_Propagates()
         {
             var key = Guid.NewGuid().ToString("N");
-            var inner = new WorkerAzureException("vault unavailable", true);
+            var inner = new WorkerAzureException("vault unavailable", false, true);
 
             var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
             var retry = new Mock<IAzureRetryWrapperService>(MockBehavior.Strict);
@@ -264,6 +265,7 @@ public class AzureKeyVaultServiceTests
             var seenTokens = new List<CancellationToken>();
 
             var client = new Mock<IAzureKeyVaultClientWrapper>(MockBehavior.Strict);
+            // ReSharper disable once AccessToDisposedClosure
             client.Setup(c => c.GetSecretAsync(key, cts.Token)).ReturnsAsync("value");
 
             var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
@@ -335,7 +337,7 @@ public class AzureKeyVaultServiceTests
         public async Task WhenSecretFetchThrowsWorkerAzureException_WrapsAsSecretManagerException()
         {
             var key = Guid.NewGuid().ToString("N");
-            var azureException = new WorkerAzureException("get failed");
+            var azureException = new WorkerAzureException("get failed", false);
 
             var client = new Mock<IAzureKeyVaultClientWrapper>(MockBehavior.Strict);
             var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
@@ -357,7 +359,7 @@ public class AzureKeyVaultServiceTests
                 service.GetSecretsAsync([key], TestContext.Current.CancellationToken));
 
             Assert.Same(azureException, thrown.InnerException);
-            Assert.True(thrown.IsExpected);
+            Assert.False(thrown.IsCritical);
             Assert.False(thrown.IsTransient);
         }
 
@@ -367,7 +369,7 @@ public class AzureKeyVaultServiceTests
         public async Task WhenWorkerAzureException_WrapsAsSecretManagerException(bool isTransient)
         {
             var key = Guid.NewGuid().ToString("N");
-            var azureException = new WorkerAzureException("vault unavailable", isTransient);
+            var azureException = new WorkerAzureException("vault unavailable", false, isTransient);
 
             var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
             var retry = new Mock<IAzureRetryWrapperService>(MockBehavior.Strict);
@@ -382,7 +384,7 @@ public class AzureKeyVaultServiceTests
                 service.GetSecretsAsync([key], TestContext.Current.CancellationToken));
 
             Assert.Same(azureException, thrown.InnerException);
-            Assert.True(thrown.IsExpected);
+            Assert.False(thrown.IsCritical);
             Assert.Equal(isTransient, thrown.IsTransient);
             source.VerifyNoOtherCalls();
         }

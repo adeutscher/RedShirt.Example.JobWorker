@@ -111,10 +111,13 @@ internal class RedisDistributedRetryWrapperService(
     {
         var report = exceptionArbiterService.GetReport(exception);
 
-        if (!report.IsExpected)
+        if (report.IsCritical)
         {
-            // Unexpected. Throw raw exception.
-            // We absolutely want to raise a massive alert so that the exception gets developer attention and becomes expected.
+            /*
+             * Critical / unrecognized. Throw raw exception.
+             * We absolutely want to raise a massive alert and get a developer's attention
+             *  so that the problem either becomes classified or the upstream cause is addressed.
+             */
             throw exception;
         }
 
@@ -123,7 +126,7 @@ internal class RedisDistributedRetryWrapperService(
             return exception;
         }
 
-        return new WorkerDistributedException(exception, true, report.CouldBeTransient);
+        return new WorkerDistributedException(exception, false, report.CouldBeTransient);
     }
 
     /// <inheritdoc />

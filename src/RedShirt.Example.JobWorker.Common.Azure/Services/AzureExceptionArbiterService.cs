@@ -34,11 +34,11 @@ internal class AzureExceptionArbiterService : IAzureExceptionArbiterService
         return exception;
     }
 
-    private static AzureExceptionArbiterReport Fresh(bool isExpected, bool isTransient)
+    private static AzureExceptionArbiterReport Fresh(bool isCritical, bool isTransient)
     {
         return new AzureExceptionArbiterReport
         {
-            IsExpected = isExpected,
+            IsCritical = isCritical,
             CouldBeTransient = isTransient
         };
     }
@@ -54,31 +54,31 @@ internal class AzureExceptionArbiterService : IAzureExceptionArbiterService
             // Service returned an HTTP error (or no response). Transient only for retryable statuses
             // such as timeout, throttling, and 5xx — not for 401/403/404 and other permanent failures.
             RequestFailedException requestFailed =>
-                Fresh(true, TransientRequestStatuses.Contains(requestFailed.Status)),
+                Fresh(false, TransientRequestStatuses.Contains(requestFailed.Status)),
             // Interactive sign-in is required; a worker process cannot recover by retrying.
-            AuthenticationRequiredException => Fresh(true, false),
+            AuthenticationRequiredException => Fresh(false, false),
             // No credential in the DefaultAzureCredential chain succeeded. Often misconfiguration,
             // but also brief IMDS/startup unavailability — allow retry.
-            CredentialUnavailableException => Fresh(true, true),
+            CredentialUnavailableException => Fresh(false, true),
             // A credential was found but token acquisition failed. Often permanent config/RBAC,
             // but token endpoint blips are possible — allow retry.
-            AuthenticationFailedException => Fresh(true, true),
+            AuthenticationFailedException => Fresh(false, true),
             // Transport-level HTTP failure before a useful Azure response (DNS, TLS, connection drop).
-            HttpRequestException => Fresh(true, true),
+            HttpRequestException => Fresh(false, true),
             // Low-level network failure; typically intermittent connectivity.
-            SocketException => Fresh(true, true),
+            SocketException => Fresh(false, true),
             // HttpClient request timeouts commonly surface as TaskCanceledException; treat as retryable.
             // Must be matched before OperationCanceledException (TCE derives from OCE).
-            TaskCanceledException => Fresh(true, true),
+            TaskCanceledException => Fresh(false, true),
             // Explicit CancellationToken cancellation from the caller — do not retry.
-            OperationCanceledException => Fresh(true, false),
+            OperationCanceledException => Fresh(false, false),
             // Invalid Azure resource URL (e.g. KeyVaultUrl from configuration) — not retryable.
             // UriFormatException derives from FormatException, not ArgumentException.
-            UriFormatException => Fresh(true, false),
+            UriFormatException => Fresh(false, false),
             // Client-side argument validation from the Azure SDK / factory (includes ArgumentNullException).
-            ArgumentException => Fresh(true, false),
-            // Unrecognized exception type — not treated as a known Azure client failure.
-            _ => Fresh(false, false)
+            ArgumentException => Fresh(false, false),
+            // Unrecognized exception type — treat as critical so callers surface the raw failure.
+            _ => Fresh(true, false)
         };
     }
 }

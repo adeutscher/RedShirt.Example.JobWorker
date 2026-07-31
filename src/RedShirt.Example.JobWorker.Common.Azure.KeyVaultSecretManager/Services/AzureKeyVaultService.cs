@@ -30,7 +30,7 @@ internal partial class AzureKeyVaultService(
     {
         if (!IsValidKey(key))
         {
-            throw new WorkerSecretManagerException($"Invalid secret path: {key}", true);
+            throw new WorkerSecretManagerException($"Invalid secret path: {key}", false);
         }
 
         return retryWrapperService.RunAsync(ct =>
@@ -63,7 +63,7 @@ internal partial class AzureKeyVaultService(
         }
         catch (WorkerAzureException e)
         {
-            throw new WorkerSecretManagerException(e, true, e.IsTransient);
+            throw new WorkerSecretManagerException(e, e.IsCritical, e.IsTransient);
         }
 
         return items;
