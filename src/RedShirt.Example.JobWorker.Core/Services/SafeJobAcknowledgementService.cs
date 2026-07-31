@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
-using RedShirt.Example.JobWorker.Core.Exceptions.JobSource;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 
@@ -29,7 +29,7 @@ internal class SafeJobAcknowledgementService(
     ///     underlying message source.
     /// </summary>
     private readonly AsyncRetryPolicy _acknowledgementRetryPolicy = Policy
-        .Handle<JobSourceAcknowledgementException>(e => e.IsTransient)
+        .Handle<WorkerJobSourceException>(e => !e.IsCritical && e.IsTransient)
         .RetryAsync(Globals.AcknowledgementRetryCount,
             // Unfortunately, cannot have a common policy declaration AND our cancellationToken.
             // I chose to have the common policy declaration.
@@ -44,7 +44,7 @@ internal class SafeJobAcknowledgementService(
                 .ExecuteAsync(() => jobSource.AcknowledgeCompletionAsync(job.JobModel, success, cancellationToken));
             return true;
         }
-        catch (JobSourceAcknowledgementException e)
+        catch (WorkerJobSourceException e) when (!e.IsCritical)
         {
             logger.LogError(e, "Job acknowledge failed: {EMessage}", e.Message);
         }

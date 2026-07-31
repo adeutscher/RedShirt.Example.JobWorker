@@ -10,6 +10,7 @@ internal interface IKafkaMessageContainer
     int Partition { get; }
     long Offset { get; }
     string MessageId { get; }
+    bool MessageIdIsDefault { get; }
 }
 
 internal class KafkaMessageContainer : IKafkaMessageContainer
@@ -23,6 +24,10 @@ internal class KafkaMessageContainer : IKafkaMessageContainer
     public long Offset => Result?.Offset.Value ?? -1;
 
     public string MessageId => Result is null
-        ? "UNKNOWN"
+        ? DefaultMessageId
         : $"{Result.Topic}:{Result.Partition.Value}:{Result.Offset.Value}";
+
+    public bool MessageIdIsDefault => Result is null;
+    
+    private const string DefaultMessageId = "UNKNOWN";
 }

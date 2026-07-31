@@ -1,4 +1,4 @@
-using RedShirt.Example.JobWorker.Core.Exceptions.JobSource;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -24,10 +24,11 @@ public interface IJobSource
     /// <param name="success"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    /// <exception cref="JobSourceAcknowledgementException">
+    /// <exception cref="WorkerJobSourceException">
     ///     Thrown when acknowledgement fails against the underlying message source.
-    ///     When <see cref="JobSourceAcknowledgementException.IsTransient" /> is <c>true</c>, callers may retry;
+    ///     When <see cref="WorkerJobSourceException.IsTransient" /> is <c>true</c>, callers may retry;
     ///     when <c>false</c>, the failure should be treated as permanent.
+    ///     When <see cref="WorkerJobSourceException.IsCritical" /> is <c>true</c>, callers should surface the failure.
     /// </exception>
     Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default);
@@ -40,11 +41,12 @@ public interface IJobSource
     /// <param name="message"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    /// <exception cref="JobSourceHeartbeatException">
+    /// <exception cref="WorkerJobSourceException">
     ///     Thrown when the heartbeat / visibility extension fails against the underlying message source.
-    ///     When <see cref="JobSourceHeartbeatException.IsTransient" /> is <c>true</c>, callers may retry;
+    ///     When <see cref="WorkerJobSourceException.IsTransient" /> is <c>true</c>, callers may retry;
     ///     when <c>false</c>, the failure should be treated as permanent (for example, the message can no longer
     ///     have its flight time extended).
+    ///     When <see cref="WorkerJobSourceException.IsCritical" /> is <c>true</c>, callers should surface the failure.
     /// </exception>
     Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default);
 }

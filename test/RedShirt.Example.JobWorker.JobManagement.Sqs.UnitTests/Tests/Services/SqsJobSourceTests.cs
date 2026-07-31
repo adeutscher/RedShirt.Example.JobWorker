@@ -2,7 +2,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.Core.Exceptions.JobSource;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
@@ -313,9 +313,10 @@ public class SqsJobSourceTests
             Data = null!
         };
 
-        var ex = await Assert.ThrowsAsync<JobSourceHeartbeatException>(() =>
+        var ex = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             source.HeartbeatAsync(job, TestContext.Current.CancellationToken));
 
+        Assert.False(ex.IsCritical);
         Assert.False(ex.IsTransient);
 
         sqs.Verify(
