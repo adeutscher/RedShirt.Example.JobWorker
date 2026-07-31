@@ -3,7 +3,7 @@ namespace RedShirt.Example.JobWorker.Core.Utility;
 public class AsyncAutoResetEvent(bool setInitially = false)
 {
     private readonly Queue<TaskCompletionSource<bool>> _waits = new();
-    private bool _signaled = setInitially;
+    private bool _signalled = setInitially;
 
     private void RemoveWaiter(TaskCompletionSource<bool> tcs)
     {
@@ -48,10 +48,10 @@ public class AsyncAutoResetEvent(bool setInitially = false)
                 // Release the first waiter in line
                 toRelease = _waits.Dequeue();
             }
-            else if (!_signaled)
+            else if (!_signalled)
             {
                 // No waiters, store the signal for the next caller
-                _signaled = true;
+                _signalled = true;
             }
         }
 
@@ -66,9 +66,9 @@ public class AsyncAutoResetEvent(bool setInitially = false)
         lock (_waits)
         {
             // 1. Fast path: Event is already signalled
-            if (_signaled)
+            if (_signalled)
             {
-                _signaled = false;
+                _signalled = false;
                 cancellationToken.ThrowIfCancellationRequested();
                 return true;
             }

@@ -149,7 +149,7 @@ public class AzureRetryWrapperServiceTests
     {
         using var cts = new CancellationTokenSource();
         var attempts = 0;
-        var inner = new HttpRequestException("failed while canceling");
+        var inner = new HttpRequestException("failed while cancelling");
 
         var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
         // If judgement is consulted after cancel, still report transient; cancel should win in the judge.

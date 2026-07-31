@@ -69,7 +69,7 @@ public class AsyncManualResetEventTests
     }
 
     [Fact(Timeout = 1000)]
-    public async Task Test_Set_WhenAlreadySet_RemainsSignaled()
+    public async Task Test_Set_WhenAlreadySet_RemainsSignalled()
     {
         var evt = new AsyncManualResetEvent(true);
 

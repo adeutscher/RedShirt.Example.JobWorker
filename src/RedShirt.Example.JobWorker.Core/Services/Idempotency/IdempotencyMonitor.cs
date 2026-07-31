@@ -60,8 +60,8 @@ internal class IdempotencyMonitor(
                         cachedResult.Value,
                         cancellationToken);
                     /*
-                     * If the acknowledgment was successful, then the message is complete and can be removed from the repository.
-                     * If the acknowledgment was unsuccessful, then this job repository instance is no longer the authoratative checkout of the in-flight message.
+                     * If the acknowledgement was successful, then the message is complete and can be removed from the repository.
+                     * If the acknowledgement was unsuccessful, then this job repository instance is no longer the authoritative checkout of the in-flight message.
                      *
                      * In either of these cases, there's not much more that we can do with this entry in-memory. Removing from repository.
                      */
