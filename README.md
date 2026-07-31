@@ -228,7 +228,13 @@ operation of Kinesis within this framework.
 
 Kafka is more of an append-only event log rather than a traditional message queue.
 
-It is strongly advised to use Batch mode polling when using Kafka as a job source. See below for more details.
+I go into more detail on each of these points below, but the cliff notes for implementing Kafka are:
+
+* This template's version of Kafka assumes no authentication, which is currently left as an excercise for the reader.
+* It is strongly advised to use Batch mode polling when using Kafka as a job source.
+* It is strongly advised to enable idempotency handling for Kafka. Basic enabling of idempotency handling hinges off of
+  the `JOBS__IDEMPOTENCY__ENABLED` environment variable, with other options described in the configuration section of
+  this document and demonstrated in `test/local/docker-compose.yaml`.
 
 ### Kafka Authentication
 
@@ -239,18 +245,17 @@ Implementing authentication for Kafka when adapting this template is currently l
 ### Kinesis Comparisons and Batch Mode Recommendation
 
 A Kafka topic is very similar to a Kinesis stream. I am going to be comparing Kafka to Kinesis very heavily in this
-section because Kinesis is a much more established job source
-implementation that I have more experience with.
+section because Kinesis is a much more established job source implementation that I have more experience with.
 
-The Kinesis comparison carries down on an implementation level. A Kafka topic is divided into partitions, just as a
-Kinesis stream is divided into shards.
+The Kinesis comparison carries down to a basic implementation level of the technology. A Kafka topic is divided into
+partitions, just as a Kinesis stream is divided into shards. Processing jobs from either of these sources involves
+some layer of the process managing shard/partition ownership
 
 However, a major difference between the available interfaces for Kafka and Kinesis and their implementations in this
-template
-is how ownership of a partition/shard works:
+template is how ownership of a partition/shard works:
 
-* In Kinesis, the job source lists and iterates through shards in an attempt to find one that does not have a
-  distributed lock. The Kinesis job source then performs a `GetRecords` operation on that shard.
+* In Kinesis, the job source's application code lists and iterates through shards in an attempt to find one that does
+  not have a distributed lock. The Kinesis job source then performs a `GetRecords` operation on that shard.
 * In Kafka, our options are more limited.
     * Kafka does have an option to list individual partitions, but this is considered more of an admin action.
     * Instead, the client declares a Kafka consumer which simply calls `consumerObject.Consume(TimeSpan)`, with a
@@ -270,6 +275,18 @@ Because of this, it is strongly recommended to run message polling in Batch mode
 mode, the job source is polled as soon as the previous batch has finished. In Loader mode, the job loader handler could
 have to wait for several seconds (based on the value of the `JOBS__MAX_IDLE_WAIT_SECONDS` environment variable) before
 polling again.
+
+### Kafka Idempotency Handling
+
+As described in the above section on Kinesis comparisons, Kafka clients in a consumer group do not control over what
+partitions they have authority to commit to. Ownership of a partition is reconsidered when the number of clients in a
+consumer group or the number of partitions in a topic changes. A client can lose commit rights to a topic partition
+through no fault of its own.
+
+Because of the above point, it is *strongly* encouraged to enable idempotency support for your application if you are
+using Kafka with multiple consumers. Basic enabling of idempotency handling hinges off of the
+`JOBS__IDEMPOTENCY__ENABLED` environment variable, with other options described in the configuration section of this
+document and demonstrated in `test/local/docker-compose.yaml`.
 
 # Testing
 
