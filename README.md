@@ -242,6 +242,9 @@ This general template was tested against a local Kafka container with no authent
 In addition to that, there are currently 5 different SASL mechanisms to choose from when implementing authentication.
 Implementing authentication for Kafka when adapting this template is currently left as an exercise for the reader.
 
+Kafka clients are constructed in the `RedShirt.Example.JobWorker.JobManagement.Kafka` project, in
+`Factories/KafkaConsumerFactory.cs`.
+
 ### Kinesis Comparisons and Batch Mode Recommendation
 
 A Kafka topic is very similar to a Kinesis stream. I am going to be comparing Kafka to Kinesis very heavily in this
