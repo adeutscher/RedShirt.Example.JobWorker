@@ -14,13 +14,14 @@ internal class KafkaJobSource(
     ISourceMessageConverter converter,
     ILogger<KafkaJobSource> logger) : IJobSource
 {
-    internal readonly List<KafkaTrackerSession> Sessions = [];
-    private readonly SemaphoreSlim _sessionsSemaphore = new(1, 1);
+    internal KafkaTrackerSession? Session;
+    private readonly SemaphoreSlim _sessionSemaphore = new(1, 1);
 
     public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
-        if (message is not KafkaJobModel kafkaJobModel)
+        if (message is not KafkaJobModel kafkaJobModel
+            || Session is null)
         {
             return;
         }
@@ -29,21 +30,14 @@ internal class KafkaJobSource(
         // matching the Kinesis always-ack / batch-complete-before-commit pattern.
         _ = success;
 
-        await _sessionsSemaphore.WaitAsync(cancellationToken);
+        await _sessionSemaphore.WaitAsync(cancellationToken);
 
         try
         {
-            var trackerSession = Sessions.FirstOrDefault(s =>
-                s.MessagesToProcess.Any(m => m.MessageId == kafkaJobModel.MessageId));
 
-            if (trackerSession is null)
-            {
-                return;
-            }
+            Session.Increment(kafkaJobModel.MessageId);
 
-            trackerSession.Increment(kafkaJobModel.MessageId);
-
-            if (!trackerSession.IsComplete)
+            if (!Session.IsComplete)
             {
                 return;
             }
@@ -52,15 +46,15 @@ internal class KafkaJobSource(
             await retryWrapperService.RunAsync(
                 _ =>
                 {
-                    consumer.Commit(trackerSession.MessagesToProcess);
+                    consumer.Commit(Session.MessagesToProcess);
                     return Task.CompletedTask;
                 },
                 cancellationToken);
-            Sessions.Remove(trackerSession);
+            Session = null;
         }
         finally
         {
-            _sessionsSemaphore.Release();
+            _sessionSemaphore.Release();
         }
     }
 
@@ -136,14 +130,14 @@ internal class KafkaJobSource(
         // ReSharper disable once InvertIf
         if (messagesToProcess.Count > 0)
         {
-            await _sessionsSemaphore.WaitAsync(cancellationToken);
+            await _sessionSemaphore.WaitAsync(cancellationToken);
             try
             {
-                Sessions.Add(new KafkaTrackerSession(totalMessages, messagesToProcess));
+                Session = new KafkaTrackerSession(totalMessages, messagesToProcess);
             }
             finally
             {
-                _sessionsSemaphore.Release();
+                _sessionSemaphore.Release();
             }
         }
 
