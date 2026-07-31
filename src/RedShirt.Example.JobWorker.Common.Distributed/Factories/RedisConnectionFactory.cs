@@ -21,7 +21,11 @@ internal class RedisConnectionFactory(
         {
             return await ConnectionMultiplexer.ConnectAsync(
                 await secretManager.GetSecretAsync(options.Value.ConnectionStringPath,
-                    cancellationToken: cancellationToken));
+                    cancellationToken: cancellationToken), opts =>
+                {
+                    opts.ConnectTimeout = 2000;
+                    opts.ConnectRetry = 0;
+                });
         }
         catch (WorkerSecretManagerException e)
         {
