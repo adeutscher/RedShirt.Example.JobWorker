@@ -52,12 +52,15 @@ internal class JobRepository(
     IOptions<JobRepository.ConfigurationModel> options)
     : IJobRepository
 {
-    private readonly SemaphoreSlim _inactiveJobsSemaphore = new(1, 1);
+    private readonly SemaphoreSlim _inactiveJobsListSemaphore = new(1, 1);
 
+    /// <summary>
+    ///     Indicates that jobs are available to be pulled by JobExecutor instances via GetNextJobAsync.
+    /// </summary>
     private readonly AsyncManualResetEvent _jobsAvailableEvent = new();
 
     /// <summary>
-    ///     Signaled when the repository has no watched jobs OR the repository was unable to produce an inactive job for a
+    ///     Signalled when the repository has no watched jobs OR the repository was unable to produce an inactive job for a
     ///     worker request.
     /// </summary>
     private readonly AsyncManualResetEvent _jobsDemandEvent = new();
@@ -142,24 +145,25 @@ internal class JobRepository(
             // Try shortlist of unblocked jobs
             if (_unblockedJobsQueue.TryDequeue(out result))
             {
-                await _inactiveJobsSemaphore.WaitAsync(cancellationToken);
+                await _inactiveJobsListSemaphore.WaitAsync(cancellationToken);
                 try
                 {
                     if (_inactiveJobsList.Count == 0 && _unblockedJobsQueue.IsEmpty)
                     {
+                        // Jobs are no longer available
                         _jobsAvailableEvent.Reset();
                     }
                 }
                 finally
                 {
-                    _inactiveJobsSemaphore.Release();
+                    _inactiveJobsListSemaphore.Release();
                 }
 
                 // Continue out of loop iteration to abort via do-while condition
                 continue;
             }
 
-            await _inactiveJobsSemaphore.WaitAsync(cancellationToken);
+            await _inactiveJobsListSemaphore.WaitAsync(cancellationToken);
             try
             {
                 result = _inactiveJobsList.FirstOrDefault();
@@ -170,6 +174,7 @@ internal class JobRepository(
 
                     if (_inactiveJobsList.Count == 0 && _unblockedJobsQueue.IsEmpty)
                     {
+                        // Jobs are no longer available
                         _jobsAvailableEvent.Reset();
                     }
 
@@ -179,7 +184,7 @@ internal class JobRepository(
             }
             finally
             {
-                _inactiveJobsSemaphore.Release();
+                _inactiveJobsListSemaphore.Release();
             }
 
             // If execution has reached here, then there are currently no available jobs to be handed out.
@@ -200,7 +205,7 @@ internal class JobRepository(
             }
 
             // Note that there's a demand.
-            // Only the JobLoader should care about this via the IJobRepository.WaitForJobDemandAsync
+            // Only the JobLoader should care about this via the IJobRepository.WaitForJobDemandAsync method
             _jobsDemandEvent.Set();
 
             // Wait for jobs to arrive
@@ -223,7 +228,7 @@ internal class JobRepository(
             return;
         }
 
-        await _inactiveJobsSemaphore.WaitAsync(cancellationToken);
+        await _inactiveJobsListSemaphore.WaitAsync(cancellationToken);
 
         try
         {
@@ -265,7 +270,7 @@ internal class JobRepository(
         }
         finally
         {
-            _inactiveJobsSemaphore.Release();
+            _inactiveJobsListSemaphore.Release();
         }
 
         _jobsAvailableEvent.Set();

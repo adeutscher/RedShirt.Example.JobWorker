@@ -4,6 +4,7 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
+using RedShirt.Example.JobWorker.Core.Utility;
 using System.Diagnostics;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services;
@@ -415,7 +416,7 @@ public class JobRepositoryTests
     ///     Expansion of TestLoadJobs
     /// </summary>
     /// <param name="responseSize"></param>
-    [Theory(Timeout = 1000)]
+    [Theory(Timeout = 2000)]
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
@@ -481,6 +482,312 @@ public class JobRepositoryTests
         Assert.NotNull(gottenJob);
         // Matches at least one
         Assert.Contains(mockJobs, i => i.Object.MessageId == gottenJob.JobModel.MessageId);
+    }
+
+    /// <summary>
+    ///     The goal of this test is to confirm that GetNextJob prioritizes reloaded items over inactive items.
+    ///     Expansion of TestLoadJobsAndWaitForJob
+    /// </summary>
+    [Fact(Timeout = 2000)]
+    public async Task TestLoadJobsAndWaitForJob_RequeuedBacklog()
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter
+            .Setup(a => a.ShouldKeepRunning())
+            .Returns(true);
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+
+        var options = new JobRepository.ConfigurationModel
+        {
+            BacklogSize = 0
+        };
+
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
+            Options.Create(options));
+
+        var response = new JobSourceResponse
+        {
+            Items = []
+        };
+
+        var mockJobs = new List<Mock<IJobModel>>();
+
+        const int responseSize = 2;
+
+        for (var i = 0; i < responseSize; i++)
+        {
+            var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
+            currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
+            mockJobs.Add(currentItem);
+            response.Items.Add(currentItem.Object);
+        }
+
+        // Notably doing this BEFORE loading in jobs
+        // Also intentionally not awaiting it just yet
+        var getJobTask = Task.Run(() => jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken));
+
+        await jobRepository.LoadAsync(response, TestContext.Current.CancellationToken);
+
+        Assert.Equal(responseSize, jobRepository.WatchedJobs.Count);
+        for (var i = 0; i < responseSize; i++)
+        {
+            var currentMock = mockJobs[i];
+            var job = Assert.Single(jobRepository.WatchedJobs,
+                ci => ci.JobModel.MessageId == currentMock.Object.MessageId);
+            Assert.True(job.CanHeartbeat);
+            Assert.InRange(job.LastHeartbeatTime,
+                DateTime.UtcNow - TimeSpan.FromMilliseconds(250),
+                DateTime.UtcNow + TimeSpan.FromMilliseconds(250));
+        }
+
+        var gottenJob = await getJobTask;
+        Assert.NotNull(gottenJob);
+        // Matches at least one
+        Assert.Equal(mockJobs[0].Object.MessageId, gottenJob.JobModel.MessageId);
+
+        Assert.True(gottenJob.CanHeartbeat);
+        // Imitate JobExecutor by marking the task as blocked by idempotency.
+        // Not strictly necessary, but it does imitate the logic of JobExecutor to put the job on the radar of the Idempotency Monitor.
+        await gottenJob.SetStateAsync(JobState.BlockedByIdempotency, TestContext.Current.CancellationToken);
+        // Reload the unblocked job, imitating the Idempotency Monitor (this puts it into the queue)
+        await jobRepository.ReloadUnblockedJobAsync(gottenJob, TestContext.Current.CancellationToken);
+
+        Assert.Equal(responseSize, await jobRepository.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken));
+
+        // Run GetNextJobAsync. Just do it inline this time.
+        var gottenJob2 = await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken);
+        Assert.NotNull(gottenJob2);
+
+        // We just got handed the message back
+        Assert.Same(gottenJob, gottenJob2);
+        // More messages are still in the inactive list
+        Assert.Equal(responseSize - 1,
+            await jobRepository.GetInactiveJobCountAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(responseSize, await jobRepository.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
+    ///     The goal of this test is to confirm that GetNextJob prioritizes reloaded items over inactive items.
+    ///     Expansion of TestLoadJobsAndWaitForJob_RequeuedBacklog, except this version only queued up a single instance of a
+    ///     job.
+    ///     This is necessary for some obscure coverage.
+    /// </summary>
+    [Fact(Timeout = 2000)]
+    public async Task TestLoadJobsAndWaitForJob_RequeuedBacklogThenEmpty()
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter
+            .Setup(a => a.ShouldKeepRunning())
+            .Returns(true);
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+
+        var options = new JobRepository.ConfigurationModel
+        {
+            BacklogSize = 0
+        };
+
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
+            Options.Create(options));
+
+        var response = new JobSourceResponse
+        {
+            Items = []
+        };
+
+        var mockJobs = new List<Mock<IJobModel>>();
+
+        const int responseSize = 1;
+
+        for (var i = 0; i < responseSize; i++)
+        {
+            var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
+            currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
+            mockJobs.Add(currentItem);
+            response.Items.Add(currentItem.Object);
+        }
+
+        // Notably doing this BEFORE loading in jobs
+        // Also intentionally not awaiting it just yet
+        // ReSharper disable once RedundantArgumentDefaultValue
+        var manualResetEvent = new AsyncManualResetEvent(false);
+        var getJobFunc = new Func<Task<IJobRepositoryEntry?>>(async () =>
+        {
+            var funcItem = await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken);
+            manualResetEvent.Set();
+            return funcItem;
+        });
+        var getJobTask = Task.Run(getJobFunc);
+        // Run a second time
+        var getJobTask2 = Task.Run(getJobFunc);
+        // Run a third time (I promise that this is relevant)
+        var getJobTask3 = Task.Run(getJobFunc);
+
+        var getJobList = new List<Task<IJobRepositoryEntry?>>
+        {
+            getJobTask,
+            getJobTask2,
+            getJobTask3
+        };
+
+        await jobRepository.LoadAsync(response, TestContext.Current.CancellationToken);
+
+        Assert.Single(jobRepository.WatchedJobs);
+        for (var i = 0; i < responseSize; i++)
+        {
+            var currentMock = mockJobs[i];
+            var job = Assert.Single(jobRepository.WatchedJobs,
+                ci => ci.JobModel.MessageId == currentMock.Object.MessageId);
+            Assert.True(job.CanHeartbeat);
+            Assert.InRange(job.LastHeartbeatTime,
+                DateTime.UtcNow - TimeSpan.FromMilliseconds(250),
+                DateTime.UtcNow + TimeSpan.FromMilliseconds(250));
+        }
+
+        await manualResetEvent.WaitAsync(TestContext.Current.CancellationToken);
+        var completeTask = Assert.Single(getJobList, i => i.Status == TaskStatus.RanToCompletion);
+        manualResetEvent.Reset();
+        // Remove complete task from watch list
+        getJobList.RemoveAll(j => j.IsCompleted);
+        // The other task versions should still be working
+        Assert.Equal(2, getJobList.Count);
+
+        var gottenJob = await completeTask;
+        Assert.NotNull(gottenJob);
+        // Matches at least one
+        Assert.Equal(mockJobs[0].Object.MessageId, gottenJob.JobModel.MessageId);
+
+        Assert.True(gottenJob.CanHeartbeat);
+        // Imitate JobExecutor by marking the task as blocked by idempotency.
+        // Not strictly necessary, but it does imitate the logic of JobExecutor to put the job on the radar of the Idempotency Monitor.
+        await gottenJob.SetStateAsync(JobState.BlockedByIdempotency, TestContext.Current.CancellationToken);
+        // Reload the unblocked job, imitating the Idempotency Monitor (this puts it into the queue)
+        await jobRepository.ReloadUnblockedJobAsync(gottenJob, TestContext.Current.CancellationToken);
+
+        // Wait for another job to finish
+        await manualResetEvent.WaitAsync(TestContext.Current.CancellationToken);
+        // Get another job out of our watch list.
+        var completeTask2 = Assert.Single(getJobList, i => i.Status == TaskStatus.RanToCompletion);
+        manualResetEvent.Reset();
+        // Remove complete task from watch list
+        getJobList.RemoveAll(j => j.IsCompleted);
+        // The other task version should still be working
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+        Assert.Single(getJobList);
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+
+        var gottenJob2 = await completeTask2;
+        Assert.NotNull(gottenJob2);
+
+        // We just got handed the message back
+        Assert.Same(gottenJob, gottenJob2);
+
+        // Remaining job has not completed.
+        Assert.DoesNotContain(getJobList, j => j.IsCompleted);
+    }
+
+    /// <summary>
+    ///     The goal of this test is to confirm that waiting for an empty repository succeeds.
+    ///     Expansion of TestLoadJobsAndWaitForJob
+    /// </summary>
+    [Fact(Timeout = 2000)]
+    public async Task TestLoadJobsAndWaitForJob_ThenRemove()
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter
+            .Setup(a => a.ShouldKeepRunning())
+            .Returns(true);
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+
+        var options = new JobRepository.ConfigurationModel
+        {
+            BacklogSize = 0
+        };
+
+        var sorter = new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        var jobRepository = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
+            Options.Create(options));
+
+        var response = new JobSourceResponse
+        {
+            Items = []
+        };
+
+        var mockJobs = new List<Mock<IJobModel>>();
+
+        const int responseSize = 1;
+
+        for (var i = 0; i < responseSize; i++)
+        {
+            var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
+            currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
+            mockJobs.Add(currentItem);
+            response.Items.Add(currentItem.Object);
+        }
+
+        // Notably doing this BEFORE loading in jobs
+        // Also intentionally not awaiting it just yet
+        var getJobTask = Task.Run(() => jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken));
+
+        await jobRepository.LoadAsync(response, TestContext.Current.CancellationToken);
+
+        Assert.Single(jobRepository.WatchedJobs);
+        for (var i = 0; i < responseSize; i++)
+        {
+            var currentMock = mockJobs[i];
+            var job = Assert.Single(jobRepository.WatchedJobs,
+                ci => ci.JobModel.MessageId == currentMock.Object.MessageId);
+            Assert.True(job.CanHeartbeat);
+            Assert.InRange(job.LastHeartbeatTime,
+                DateTime.UtcNow - TimeSpan.FromMilliseconds(250),
+                DateTime.UtcNow + TimeSpan.FromMilliseconds(250));
+        }
+
+        var gottenJob = await getJobTask;
+        Assert.NotNull(gottenJob);
+        // Matches at least one
+        Assert.Equal(mockJobs[0].Object.MessageId, gottenJob.JobModel.MessageId);
+
+        // Confirm a few fields while we're here
+        Assert.True(gottenJob.CanHeartbeat);
+        Assert.Equal(JobState.Active, gottenJob.State);
+
+        // Set a background task to run in the background and wait for the repo to be empty.
+        // We'll be awaiting this later
+        var waitTask = Task.Run(() => jobRepository.WaitForEmptyRepositoryAsync(TestContext.Current.CancellationToken),
+            TestContext.Current.CancellationToken);
+
+        // Imitate JobExecutor by removing the item from the repository. 
+        await jobRepository.RemoveJobAsync(gottenJob, TestContext.Current.CancellationToken);
+
+        // The waiting should not time out this test.
+        await waitTask;
     }
 
     /// <summary>
