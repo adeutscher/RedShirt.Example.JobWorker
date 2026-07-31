@@ -260,6 +260,7 @@ public class SsmSecretManagerServiceTests
             var value = Guid.NewGuid().ToString("N");
 
             var ssm = new Mock<IAmazonSimpleSystemsManagement>(MockBehavior.Strict);
+            // ReSharper disable once AccessToDisposedClosure
             ssm.Setup(s => s.GetParametersAsync(It.IsAny<GetParametersRequest>(), cts.Token))
                 .ReturnsAsync(new GetParametersResponse
                 {
@@ -271,6 +272,7 @@ public class SsmSecretManagerServiceTests
             var result = await service.GetSecretsAsync([name], cts.Token);
 
             Assert.Equal(value, result[name]);
+            // ReSharper disable once AccessToDisposedClosure
             ssm.Verify(s => s.GetParametersAsync(It.IsAny<GetParametersRequest>(), cts.Token), Times.Once);
             ssm.VerifyNoOtherCalls();
         }

@@ -1,9 +1,8 @@
 using Polly;
 using Polly.Retry;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
-using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 
-namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
+namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 
 /// <summary>
 ///     Retries Distributed client operations that fail with expected transient exceptions,
@@ -52,10 +51,10 @@ internal interface IDistributedRetryWrapperService
 
 /// <summary>
 ///     Polly v8-based retry wrapper for Redis / distributed-cache calls.
-///     Retries when <see cref="IRedisDistributedExceptionArbiterService" /> reports a possibly transient failure,
-///     using exponential backoff via <see cref="IDistributedSleepService" />.
+///     Retries when <see cref="IDistributedSleepService" /> reports a possibly transient failure,
+///     using exponential backoff via <see cref="exceptionArbiterService" />.
 /// </summary>
-/// <param name="exceptionArbiterService">Classifies Redis-related exceptions as possibly transient.</param>
+/// <param name="sleepService">Classifies Redis-related exceptions as possibly transient.</param>
 /// <param name="sleepService">Provides cancellable backoff delays between retry attempts.</param>
 internal class RedisDistributedRetryWrapperService(
     IRedisDistributedExceptionArbiterService exceptionArbiterService,

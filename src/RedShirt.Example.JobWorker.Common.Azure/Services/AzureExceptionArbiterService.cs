@@ -25,7 +25,7 @@ internal class AzureExceptionArbiterService : IAzureExceptionArbiterService
 
     private static Exception Unwrap(Exception exception)
     {
-        while (exception is AggregateException { InnerExceptions.Count: 1 } aggregate
+        while (exception is AggregateException {InnerExceptions.Count: 1} aggregate
                && aggregate.InnerException is not null)
         {
             exception = aggregate.InnerException;
@@ -34,11 +34,14 @@ internal class AzureExceptionArbiterService : IAzureExceptionArbiterService
         return exception;
     }
 
-    private static AzureExceptionArbiterReport Fresh(bool isExpected, bool isTransient) => new()
+    private static AzureExceptionArbiterReport Fresh(bool isExpected, bool isTransient)
     {
-        IsExpected = isExpected,
-        CouldBeTransient = isTransient
-    };
+        return new AzureExceptionArbiterReport
+        {
+            IsExpected = isExpected,
+            CouldBeTransient = isTransient
+        };
+    }
 
     public AzureExceptionArbiterReport GetJudgement(Exception exception)
     {

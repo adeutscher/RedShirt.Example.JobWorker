@@ -10,39 +10,41 @@ public class RedisDistributedExceptionArbiterServiceTests
 {
     private readonly RedisDistributedExceptionArbiterService _sut = new();
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void GetReport_WorkerDistributedException_IsAlreadyHandled(bool isTransient)
-    {
-        var exception = new WorkerDistributedException("wrapped", isTransient);
-
-        var report = _sut.GetReport(exception);
-
-        Assert.True(report.AlreadyHandled);
-        Assert.Equal(isTransient, report.CouldBeTransient);
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void GetReport_WorkerSecretManagerException_IsAlreadyHandled(bool isTransient)
-    {
-        var exception = new WorkerSecretManagerException("secret failure", isTransient);
-
-        var report = _sut.GetReport(exception);
-
-        Assert.True(report.AlreadyHandled);
-        Assert.Equal(isTransient, report.CouldBeTransient);
-    }
-
     [Fact]
-    public void GetReport_RedisTimeoutException_IsFreshAndTransient()
+    public void GetReport_GenericRedisException_IsFreshAndTransient()
     {
-        var report = _sut.GetReport(new RedisTimeoutException("command timed out", CommandStatus.Unknown));
+        var report = _sut.GetReport(new RedisException("unexpected Redis failure"));
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.CouldBeTransient);
+    }
+
+    [Fact]
+    public void GetReport_MultiInnerAggregateException_IsNotTransient()
+    {
+        var exception = new AggregateException(
+            new RedisTimeoutException("timeout", CommandStatus.Unknown),
+            new SocketException((int) SocketError.TimedOut));
+
+        var report = _sut.GetReport(exception);
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.CouldBeTransient);
+    }
+
+    [Fact]
+    public void GetReport_NullException_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _sut.GetReport(null!));
+    }
+
+    [Fact]
+    public void GetReport_OperationCanceledException_IsFreshAndNotTransient()
+    {
+        var report = _sut.GetReport(new OperationCanceledException("caller cancelled"));
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.CouldBeTransient);
     }
 
     [Theory]
@@ -75,18 +77,21 @@ public class RedisDistributedExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_GenericRedisException_IsFreshAndTransient()
+    public void GetReport_RedisTimeoutException_IsFreshAndTransient()
     {
-        var report = _sut.GetReport(new RedisException("unexpected Redis failure"));
+        var report = _sut.GetReport(new RedisTimeoutException("command timed out", CommandStatus.Unknown));
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.CouldBeTransient);
     }
 
     [Fact]
-    public void GetReport_TimeoutException_IsFreshAndTransient()
+    public void GetReport_SingleInnerAggregateException_JudgesUnwrappedInner()
     {
-        var report = _sut.GetReport(new TimeoutException("timed out"));
+        var inner = new RedisTimeoutException("timeout", CommandStatus.Unknown);
+        var exception = new AggregateException(inner);
+
+        var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.CouldBeTransient);
@@ -111,12 +116,12 @@ public class RedisDistributedExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_OperationCanceledException_IsFreshAndNotTransient()
+    public void GetReport_TimeoutException_IsFreshAndTransient()
     {
-        var report = _sut.GetReport(new OperationCanceledException("caller cancelled"));
+        var report = _sut.GetReport(new TimeoutException("timed out"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.CouldBeTransient);
+        Assert.True(report.CouldBeTransient);
     }
 
     [Fact]
@@ -128,34 +133,29 @@ public class RedisDistributedExceptionArbiterServiceTests
         Assert.False(report.CouldBeTransient);
     }
 
-    [Fact]
-    public void GetReport_NullException_ThrowsArgumentNullException()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void GetReport_WorkerDistributedException_IsAlreadyHandled(bool isTransient)
     {
-        Assert.Throws<ArgumentNullException>(() => _sut.GetReport(null!));
-    }
-
-    [Fact]
-    public void GetReport_SingleInnerAggregateException_JudgesUnwrappedInner()
-    {
-        var inner = new RedisTimeoutException("timeout", CommandStatus.Unknown);
-        var exception = new AggregateException(inner);
+        var exception = new WorkerDistributedException("wrapped", isTransient);
 
         var report = _sut.GetReport(exception);
 
-        Assert.False(report.AlreadyHandled);
-        Assert.True(report.CouldBeTransient);
+        Assert.True(report.AlreadyHandled);
+        Assert.Equal(isTransient, report.CouldBeTransient);
     }
 
-    [Fact]
-    public void GetReport_MultiInnerAggregateException_IsNotTransient()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void GetReport_WorkerSecretManagerException_IsAlreadyHandled(bool isTransient)
     {
-        var exception = new AggregateException(
-            new RedisTimeoutException("timeout", CommandStatus.Unknown),
-            new SocketException((int) SocketError.TimedOut));
+        var exception = new WorkerSecretManagerException("secret failure", isTransient);
 
         var report = _sut.GetReport(exception);
 
-        Assert.False(report.AlreadyHandled);
-        Assert.False(report.CouldBeTransient);
+        Assert.True(report.AlreadyHandled);
+        Assert.Equal(isTransient, report.CouldBeTransient);
     }
 }

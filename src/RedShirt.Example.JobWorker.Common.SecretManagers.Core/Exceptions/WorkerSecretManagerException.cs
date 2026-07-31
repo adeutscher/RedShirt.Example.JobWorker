@@ -4,7 +4,8 @@ public sealed class WorkerSecretManagerException : Exception
 {
     public bool IsTransient { get; private set; }
 
-    public WorkerSecretManagerException(Exception innerException, bool isTransient = false) : base(innerException.Message,
+    public WorkerSecretManagerException(Exception innerException, bool isTransient = false) : base(
+        innerException.Message,
         innerException)
     {
         IsTransient = isTransient;

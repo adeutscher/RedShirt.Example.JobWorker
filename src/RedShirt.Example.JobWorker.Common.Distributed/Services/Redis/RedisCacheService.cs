@@ -1,10 +1,10 @@
-using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
-using StackExchange.Redis;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 
-internal class RedisCacheService(IDistributedRetryWrapperService retryWrapper, IRedisConnectionCacheService redisConnectionCacheService) : IRemoteCacheService
+internal class RedisCacheService(
+    IDistributedRetryWrapperService retryWrapper,
+    IRedisConnectionCacheService redisConnectionCacheService) : IRemoteCacheService
 {
     private async Task<string?> GetStringInnerAsync(string key, CancellationToken cancellationToken)
     {
@@ -20,12 +20,8 @@ internal class RedisCacheService(IDistributedRetryWrapperService retryWrapper, I
         return value.ToString();
     }
 
-    public Task<string?> GetStringAsync(string key, CancellationToken cancellationToken = default)
-    {
-        return retryWrapper.RunAsync(ct => GetStringInnerAsync(key, ct), cancellationToken);
-    }
-
-    private async Task SetStringInnerAsync(string key, string? value, TimeSpan expiry, CancellationToken cancellationToken)
+    private async Task SetStringInnerAsync(string key, string? value, TimeSpan expiry,
+        CancellationToken cancellationToken)
     {
         var db = await redisConnectionCacheService.GetDatabaseAsync(cancellationToken);
 
@@ -35,9 +31,14 @@ internal class RedisCacheService(IDistributedRetryWrapperService retryWrapper, I
             return;
         }
 
-        await db.StringSetAsync(key: key, value: value, expiry);
+        await db.StringSetAsync(key, value, expiry);
     }
-    
+
+    public Task<string?> GetStringAsync(string key, CancellationToken cancellationToken = default)
+    {
+        return retryWrapper.RunAsync(ct => GetStringInnerAsync(key, ct), cancellationToken);
+    }
+
     public Task SetStringAsync(string key, string? value, TimeSpan expiry,
         CancellationToken cancellationToken = default)
     {

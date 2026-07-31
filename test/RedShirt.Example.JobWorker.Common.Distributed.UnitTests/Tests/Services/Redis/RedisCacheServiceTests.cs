@@ -33,47 +33,6 @@ public class RedisCacheServiceTests
     }
 
     [Fact]
-    public async Task GetStringAsync_ReturnsValueThroughRetryWrapper()
-    {
-        var (service, database, connection, retry) = CreateService();
-        var key = Guid.NewGuid().ToString();
-        var value = Guid.NewGuid().ToString();
-
-        database.Setup(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
-            .ReturnsAsync(value);
-
-        var result = await service.GetStringAsync(key, TestContext.Current.CancellationToken);
-
-        Assert.Equal(value, result);
-        connection.Verify(c => c.GetDatabaseAsync(TestContext.Current.CancellationToken), Times.Once);
-        database.Verify(
-            d => d.StringGetAsync(It.Is<RedisKey>(k => k == key), It.IsAny<CommandFlags>()), Times.Once);
-        retry.Verify(
-            r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<string?>>>(),
-                TestContext.Current.CancellationToken), Times.Once);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData(" ")]
-    [InlineData("\t")]
-    public async Task GetStringAsync_WhenMissingOrWhitespace_ReturnsNull(string? value)
-    {
-        var (service, database, _, _) = CreateService();
-        var key = Guid.NewGuid().ToString();
-
-        database.Setup(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
-            .ReturnsAsync(value);
-
-        var result = await service.GetStringAsync(key, TestContext.Current.CancellationToken);
-
-        Assert.Null(result);
-        database.Verify(
-            d => d.StringGetAsync(It.Is<RedisKey>(k => k == key), It.IsAny<CommandFlags>()), Times.Once);
-    }
-
-    [Fact]
     public async Task GetStringAsync_PassesCancellationTokenToRetryWrapper()
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
@@ -103,6 +62,27 @@ public class RedisCacheServiceTests
     }
 
     [Fact]
+    public async Task GetStringAsync_ReturnsValueThroughRetryWrapper()
+    {
+        var (service, database, connection, retry) = CreateService();
+        var key = Guid.NewGuid().ToString();
+        var value = Guid.NewGuid().ToString();
+
+        database.Setup(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
+            .ReturnsAsync(value);
+
+        var result = await service.GetStringAsync(key, TestContext.Current.CancellationToken);
+
+        Assert.Equal(value, result);
+        connection.Verify(c => c.GetDatabaseAsync(TestContext.Current.CancellationToken), Times.Once);
+        database.Verify(
+            d => d.StringGetAsync(It.Is<RedisKey>(k => k == key), It.IsAny<CommandFlags>()), Times.Once);
+        retry.Verify(
+            r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<string?>>>(),
+                TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Fact]
     public async Task GetStringAsync_WhenDatabaseThrows_PropagatesThroughRetryWrapper()
     {
         var (service, database, _, _) = CreateService();
@@ -115,6 +95,26 @@ public class RedisCacheServiceTests
             service.GetStringAsync("key", TestContext.Current.CancellationToken));
 
         Assert.Same(redisException, thrown);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("\t")]
+    public async Task GetStringAsync_WhenMissingOrWhitespace_ReturnsNull(string? value)
+    {
+        var (service, database, _, _) = CreateService();
+        var key = Guid.NewGuid().ToString();
+
+        database.Setup(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
+            .ReturnsAsync(value);
+
+        var result = await service.GetStringAsync(key, TestContext.Current.CancellationToken);
+
+        Assert.Null(result);
+        database.Verify(
+            d => d.StringGetAsync(It.Is<RedisKey>(k => k == key), It.IsAny<CommandFlags>()), Times.Once);
     }
 
     [Fact]
@@ -144,6 +144,21 @@ public class RedisCacheServiceTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task SetStringAsync_WhenDeleteFails_PropagatesThroughRetryWrapper()
+    {
+        var (service, database, _, _) = CreateService();
+        var timeout = new TimeoutException("slow delete");
+
+        database.Setup(d => d.StringGetDeleteAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
+            .ThrowsAsync(timeout);
+
+        var thrown = await Assert.ThrowsAsync<TimeoutException>(() =>
+            service.SetStringAsync("key", null, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+        Assert.Same(timeout, thrown);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -165,21 +180,6 @@ public class RedisCacheServiceTests
         retry.Verify(
             r => r.RunAsync(It.IsAny<Func<CancellationToken, Task>>(), TestContext.Current.CancellationToken),
             Times.Once);
-    }
-
-    [Fact]
-    public async Task SetStringAsync_WhenDeleteFails_PropagatesThroughRetryWrapper()
-    {
-        var (service, database, _, _) = CreateService();
-        var timeout = new TimeoutException("slow delete");
-
-        database.Setup(d => d.StringGetDeleteAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
-            .ThrowsAsync(timeout);
-
-        var thrown = await Assert.ThrowsAsync<TimeoutException>(() =>
-            service.SetStringAsync("key", null, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
-
-        Assert.Same(timeout, thrown);
     }
 
     [Fact]

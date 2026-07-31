@@ -4,6 +4,17 @@ namespace RedShirt.Example.JobWorker.Common.Azure.UnitTests.Tests.Exceptions;
 
 public class WorkerDistributedExceptionTests
 {
+    [Fact]
+    public void Constructor_WithInnerException_DefaultsIsTransientToFalse()
+    {
+        var inner = new InvalidOperationException("boom");
+
+        var exception = new WorkerAzureException(inner);
+
+        Assert.False(exception.IsTransient);
+        Assert.Same(inner, exception.InnerException);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -19,14 +30,13 @@ public class WorkerDistributedExceptionTests
     }
 
     [Fact]
-    public void Constructor_WithInnerException_DefaultsIsTransientToFalse()
+    public void Constructor_WithMessage_DefaultsIsTransientToFalse()
     {
-        var inner = new InvalidOperationException("boom");
+        var exception = new WorkerAzureException("azure failure");
 
-        var exception = new WorkerAzureException(inner);
-
+        Assert.Equal("azure failure", exception.Message);
         Assert.False(exception.IsTransient);
-        Assert.Same(inner, exception.InnerException);
+        Assert.Null(exception.InnerException);
     }
 
     [Theory]
@@ -39,16 +49,6 @@ public class WorkerDistributedExceptionTests
         Assert.Equal(message, exception.Message);
         Assert.Null(exception.InnerException);
         Assert.Equal(isTransient, exception.IsTransient);
-    }
-
-    [Fact]
-    public void Constructor_WithMessage_DefaultsIsTransientToFalse()
-    {
-        var exception = new WorkerAzureException("azure failure");
-
-        Assert.Equal("azure failure", exception.Message);
-        Assert.False(exception.IsTransient);
-        Assert.Null(exception.InnerException);
     }
 
     [Fact]

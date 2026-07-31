@@ -31,7 +31,7 @@ internal class RedisDistributedExceptionArbiterService : IRedisDistributedExcept
 
     private static Exception Unwrap(Exception exception)
     {
-        while (exception is AggregateException { InnerExceptions.Count: 1 } aggregate
+        while (exception is AggregateException {InnerExceptions.Count: 1} aggregate
                && aggregate.InnerException is not null)
         {
             exception = aggregate.InnerException;
@@ -40,17 +40,23 @@ internal class RedisDistributedExceptionArbiterService : IRedisDistributedExcept
         return exception;
     }
 
-    private static RedisExceptionArbiterReport Fresh(bool couldBeTransient) => new()
+    private static RedisExceptionArbiterReport Fresh(bool couldBeTransient)
     {
-        AlreadyHandled = false,
-        CouldBeTransient = couldBeTransient
-    };
+        return new RedisExceptionArbiterReport
+        {
+            AlreadyHandled = false,
+            CouldBeTransient = couldBeTransient
+        };
+    }
 
-    private static RedisExceptionArbiterReport Handled(bool couldBeTransient) => new()
+    private static RedisExceptionArbiterReport Handled(bool couldBeTransient)
     {
-        AlreadyHandled = true,
-        CouldBeTransient = couldBeTransient
-    };
+        return new RedisExceptionArbiterReport
+        {
+            AlreadyHandled = true,
+            CouldBeTransient = couldBeTransient
+        };
+    }
 
     public RedisExceptionArbiterReport GetReport(Exception exception)
     {
