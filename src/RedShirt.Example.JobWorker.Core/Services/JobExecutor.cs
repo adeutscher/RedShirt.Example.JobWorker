@@ -109,7 +109,7 @@ internal class JobExecutor(
             }
             finally
             {
-                await idempotencyLock.UnlockAsync();
+                await idempotencyLock.UnlockAsync(cancellationToken);
             }
         }
 

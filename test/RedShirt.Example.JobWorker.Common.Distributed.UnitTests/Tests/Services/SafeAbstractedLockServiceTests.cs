@@ -33,7 +33,7 @@ public class SafeAbstractedLockServiceTests
 
         Assert.True(result.IsAcquired);
         Assert.False(result.IsTrulyAcquired);
-        await result.UnlockAsync();
+        await result.UnlockAsync(TestContext.Current.CancellationToken);
 
         lockService.Verify(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken), Times.Once);
         disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
@@ -55,7 +55,7 @@ public class SafeAbstractedLockServiceTests
 
         Assert.True(result.IsAcquired);
         Assert.False(result.IsTrulyAcquired);
-        await result.UnlockAsync();
+        await result.UnlockAsync(TestContext.Current.CancellationToken);
 
         lockService.VerifyNoOtherCalls();
         disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
@@ -73,7 +73,7 @@ public class SafeAbstractedLockServiceTests
 
         var innerLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
         innerLock.SetupGet(l => l.IsAcquired).Returns(true);
-        innerLock.Setup(l => l.UnlockAsync()).Returns(Task.CompletedTask);
+        innerLock.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         lockService
@@ -91,7 +91,7 @@ public class SafeAbstractedLockServiceTests
         Assert.True(result.IsAcquired);
         Assert.True(result.IsTrulyAcquired);
 
-        await result.UnlockAsync();
+        await result.UnlockAsync(TestContext.Current.CancellationToken);
         disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Once);
     }
 
@@ -107,7 +107,7 @@ public class SafeAbstractedLockServiceTests
         var innerLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
         // Even if the underlying lock was not acquired, a slow attempt forces IsAcquired.
         innerLock.SetupGet(l => l.IsAcquired).Returns(false);
-        innerLock.Setup(l => l.UnlockAsync()).Returns(Task.CompletedTask);
+        innerLock.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         lockService
@@ -125,8 +125,8 @@ public class SafeAbstractedLockServiceTests
         Assert.True(result.IsAcquired);
         Assert.False(result.IsTrulyAcquired);
 
-        await result.UnlockAsync();
-        innerLock.Verify(l => l.UnlockAsync(), Times.Once);
+        await result.UnlockAsync(TestContext.Current.CancellationToken);
+        innerLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
 
         lockService.Verify(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken), Times.Once);
         disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
@@ -146,7 +146,7 @@ public class SafeAbstractedLockServiceTests
 
         var innerLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
         innerLock.SetupGet(l => l.IsAcquired).Returns(isAcquired);
-        innerLock.Setup(l => l.UnlockAsync()).Returns(Task.CompletedTask);
+        innerLock.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         lockService
@@ -160,8 +160,8 @@ public class SafeAbstractedLockServiceTests
         Assert.Equal(isAcquired, result.IsAcquired);
         Assert.Equal(isAcquired, result.IsTrulyAcquired);
 
-        await result.UnlockAsync();
-        innerLock.Verify(l => l.UnlockAsync(), Times.Once);
+        await result.UnlockAsync(TestContext.Current.CancellationToken);
+        innerLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
 
         lockService.Verify(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken), Times.Once);
         disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);

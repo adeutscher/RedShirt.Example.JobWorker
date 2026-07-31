@@ -14,7 +14,7 @@ public class JobExecutorTests
     {
         var idempotencyLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
         idempotencyLock.SetupGet(l => l.IsAcquired).Returns(true);
-        idempotencyLock.Setup(l => l.UnlockAsync()).Returns(Task.CompletedTask);
+        idempotencyLock.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         return idempotencyLock;
     }
 
@@ -106,7 +106,7 @@ public class JobExecutorTests
         idempotencyExecutionService.Verify(
             s => s.SetResultInCacheAsync(jobModel.Object, safeRunnerSuccess, true,
                 TestContext.Current.CancellationToken), Times.Once);
-        idempotencyLock.Verify(l => l.UnlockAsync(), Times.Once);
+        idempotencyLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact(Timeout = 500)]
@@ -214,7 +214,7 @@ public class JobExecutorTests
         idempotencyExecutionService.Verify(
             s => s.SetResultInCacheAsync(jobModel.Object, safeRunnerSuccess, true,
                 TestContext.Current.CancellationToken), Times.Once);
-        idempotencyLock.Verify(l => l.UnlockAsync(), Times.Once);
+        idempotencyLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact(Timeout = 2000)]
@@ -276,7 +276,7 @@ public class JobExecutorTests
         idempotencyExecutionService.Verify(
             s => s.SetResultInCacheAsync(jobModel.Object, true, false, TestContext.Current.CancellationToken),
             Times.Once);
-        idempotencyLock.Verify(l => l.UnlockAsync(), Times.Once);
+        idempotencyLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact(Timeout = 2000)]
@@ -341,7 +341,7 @@ public class JobExecutorTests
         idempotencyExecutionService.Verify(
             s => s.SetResultInCacheAsync(jobModel.Object, true, true, TestContext.Current.CancellationToken),
             Times.Once);
-        idempotencyLock.Verify(l => l.UnlockAsync(), Times.Once);
+        idempotencyLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact(Timeout = 2000)]
@@ -358,7 +358,7 @@ public class JobExecutorTests
 
         var idempotencyLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
         idempotencyLock.SetupGet(l => l.IsAcquired).Returns(false);
-        idempotencyLock.Setup(l => l.UnlockAsync()).Returns(Task.CompletedTask);
+        idempotencyLock.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var calls = 0;
         var executionEndArbiter = new Mock<IAppliedExecutionEndArbiter>(MockBehavior.Strict);
@@ -387,7 +387,7 @@ public class JobExecutorTests
 
         jobRepositoryEntry.Verify(
             j => j.SetStateAsync(JobState.BlockedByIdempotency, TestContext.Current.CancellationToken), Times.Once);
-        idempotencyLock.Verify(l => l.UnlockAsync(), Times.Once);
+        idempotencyLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
         Assert.Empty(safeJobRunner.Invocations);
         Assert.Empty(safeAcknowledgementService.Invocations);
         idempotencyExecutionService.Verify(

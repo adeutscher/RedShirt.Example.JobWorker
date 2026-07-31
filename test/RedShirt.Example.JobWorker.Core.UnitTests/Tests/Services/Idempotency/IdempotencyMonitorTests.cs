@@ -26,7 +26,7 @@ public class IdempotencyMonitorTests
     {
         var idempotencyLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
         idempotencyLock.SetupGet(l => l.IsAcquired).Returns(isAcquired);
-        idempotencyLock.Setup(l => l.UnlockAsync()).Returns(Task.CompletedTask);
+        idempotencyLock.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         return idempotencyLock;
     }
 
@@ -140,7 +140,7 @@ public class IdempotencyMonitorTests
         jobRepository.Verify(r => r.RemoveJobAsync(It.IsAny<IJobRepositoryEntry>(), It.IsAny<CancellationToken>()),
             Times.Never);
         Assert.Empty(safeJobAcknowledgementService.Invocations);
-        idempotencyLock.Verify(l => l.UnlockAsync(), Times.Once);
+        idempotencyLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact(Timeout = 1000)]
@@ -197,7 +197,7 @@ public class IdempotencyMonitorTests
             s => s.SetResultInCacheAsync(It.IsAny<IJobModel>(), It.IsAny<bool>(), It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()), Times.Never);
         jobRepository.Verify(r => r.RemoveJobAsync(entry.Object, TestContext.Current.CancellationToken), Times.Once);
-        idempotencyLock.Verify(l => l.UnlockAsync(), Times.Once);
+        idempotencyLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact(Timeout = 1000)]
@@ -260,7 +260,7 @@ public class IdempotencyMonitorTests
         jobRepository.Verify(
             r => r.ReloadUnblockedJobAsync(It.IsAny<IJobRepositoryEntry>(), It.IsAny<CancellationToken>()),
             Times.Never);
-        idempotencyLock.Verify(l => l.UnlockAsync(), Times.Once);
+        idempotencyLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact(Timeout = 1000)]
@@ -322,7 +322,7 @@ public class IdempotencyMonitorTests
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
-        idempotencyLock.Verify(l => l.UnlockAsync(), Times.Once);
+        idempotencyLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
         jobRepository.Verify(
             r => r.ReloadUnblockedJobAsync(It.IsAny<IJobRepositoryEntry>(), It.IsAny<CancellationToken>()),
             Times.Never);

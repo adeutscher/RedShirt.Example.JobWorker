@@ -82,7 +82,7 @@ internal class IdempotencyMonitor(
             }
             finally
             {
-                await idempotencyLock.UnlockAsync();
+                await idempotencyLock.UnlockAsync(cancellationToken);
             }
 
             if (unblockedJob is { } jobToUnblock)

@@ -99,7 +99,7 @@ internal class IdempotencyExecutionService(
     {
         public bool IsAcquired => true;
 
-        public Task UnlockAsync()
+        public Task UnlockAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }

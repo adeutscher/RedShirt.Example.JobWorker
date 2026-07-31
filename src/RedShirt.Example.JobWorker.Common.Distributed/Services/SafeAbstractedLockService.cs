@@ -58,7 +58,7 @@ internal class SafeAbstractedLockService(
         public bool IsAcquired => true;
         public bool IsTrulyAcquired => false;
 
-        public Task UnlockAsync()
+        public Task UnlockAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }
@@ -68,9 +68,9 @@ internal class SafeAbstractedLockService(
     {
         public bool IsAcquired => isAcquiredOverride || abstractedLock.IsAcquired;
 
-        public Task UnlockAsync()
+        public Task UnlockAsync(CancellationToken cancellationToken = default)
         {
-            return abstractedLock.UnlockAsync();
+            return abstractedLock.UnlockAsync(cancellationToken);
         }
 
         public bool IsTrulyAcquired => abstractedLock.IsAcquired;

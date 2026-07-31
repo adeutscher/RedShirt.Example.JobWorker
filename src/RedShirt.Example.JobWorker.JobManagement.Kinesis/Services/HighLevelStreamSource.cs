@@ -49,7 +49,7 @@ internal class HighLevelStreamSource(
                 await MoveTrackerAsync(trackerSession, cancellationToken);
                 logger.LogTrace("Releasing distributed lock");
                 // Releasing distributed lock so that GetJobsAsync calls can poll this shard again
-                await trackerSession.ReleaseLockOnShardAsync();
+                await trackerSession.ReleaseLockOnShardAsync(cancellationToken);
                 Sessions.Remove(kinesisJobModel.ShardId);
             }
         }
@@ -115,7 +115,7 @@ internal class HighLevelStreamSource(
             {
                 await MoveTrackerAsync(trackerSession, cancellationToken);
                 // No jobs, so release lock and continue    
-                await trackerSession.ReleaseLockOnShardAsync();
+                await trackerSession.ReleaseLockOnShardAsync(cancellationToken);
                 continue;
             }
 

@@ -28,8 +28,8 @@ internal class KinesisTrackerSession(
         }
     }
 
-    public Task ReleaseLockOnShardAsync()
+    public Task ReleaseLockOnShardAsync(CancellationToken cancellationToken = default)
     {
-        return lockHandle.UnlockAsync();
+        return lockHandle.UnlockAsync(cancellationToken);
     }
 }

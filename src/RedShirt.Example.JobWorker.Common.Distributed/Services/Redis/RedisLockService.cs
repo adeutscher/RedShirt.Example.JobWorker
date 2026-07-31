@@ -28,8 +28,11 @@ internal class RedisLockService(
     {
         public bool IsAcquired => lockHandle is not null;
 
-        public Task UnlockAsync()
+        public Task UnlockAsync(CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // ReSharper disable once ConvertIfStatementToReturnStatement
             if (lockHandle is null)
             {
                 return Task.CompletedTask;

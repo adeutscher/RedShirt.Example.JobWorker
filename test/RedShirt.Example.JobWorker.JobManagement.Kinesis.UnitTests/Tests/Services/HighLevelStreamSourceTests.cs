@@ -63,7 +63,7 @@ public class HighLevelStreamSourceTests
         checkpointStorage.Setup(c =>
                 c.UpdateLongTermAsync("shard-a", "seq-2", TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
-        lockHandle.Setup(l => l.UnlockAsync()).Returns(Task.CompletedTask);
+        lockHandle.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var streamSource = CreateStreamSource(checkpointStorage);
         streamSource.Sessions["shard-a"] = new KinesisTrackerSession("shard-a",
@@ -86,7 +86,7 @@ public class HighLevelStreamSourceTests
             c => c.UpdateShortTermAsync("shard-a", "iterator-2", TestContext.Current.CancellationToken), Times.Once);
         checkpointStorage.Verify(c => c.UpdateLongTermAsync("shard-a", "seq-2", TestContext.Current.CancellationToken),
             Times.Once);
-        lockHandle.Verify(l => l.UnlockAsync(), Times.Once);
+        lockHandle.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class HighLevelStreamSourceTests
 
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
         Assert.False(streamSource.Sessions["shard-a"].IsComplete);
-        lockHandle.Verify(l => l.UnlockAsync(), Times.Never);
+        lockHandle.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Never);
         Assert.Empty(checkpointStorage.Invocations);
     }
 
@@ -135,7 +135,7 @@ public class HighLevelStreamSourceTests
             TestContext.Current.CancellationToken);
 
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
-        lockHandle.Verify(l => l.UnlockAsync(), Times.Never);
+        lockHandle.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Never);
         Assert.Empty(checkpointStorage.Invocations);
     }
 
@@ -275,7 +275,7 @@ public class HighLevelStreamSourceTests
             Times.Once);
         lowLevelStreamSource.Verify(
             l => l.GetJobsAsync(batchSize, "shard-a", "iterator-1", TestContext.Current.CancellationToken), Times.Once);
-        lockHandle.Verify(l => l.UnlockAsync(), Times.Never);
+        lockHandle.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Never);
         checkpointStorage.Verify(
             c => c.UpdateShortTermAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -337,7 +337,7 @@ public class HighLevelStreamSourceTests
         checkpointStorage.Setup(c =>
                 c.UpdateShortTermAsync("shard-empty", "iterator-empty-2", TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
-        emptyShardLock.Setup(l => l.UnlockAsync()).Returns(Task.CompletedTask);
+        emptyShardLock.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var streamSource = CreateStreamSource(checkpointStorage, lister, locker, lowLevelStreamSource);
 
@@ -350,7 +350,7 @@ public class HighLevelStreamSourceTests
         checkpointStorage.Verify(
             c => c.UpdateLongTermAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
-        emptyShardLock.Verify(l => l.UnlockAsync(), Times.Once);
+        emptyShardLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -382,7 +382,7 @@ public class HighLevelStreamSourceTests
         checkpointStorage.Setup(c =>
                 c.UpdateLongTermAsync("shard-empty", "seq-empty", TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
-        emptyShardLock.Setup(l => l.UnlockAsync()).Returns(Task.CompletedTask);
+        emptyShardLock.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var streamSource = CreateStreamSource(checkpointStorage, lister, locker, lowLevelStreamSource);
 
@@ -395,7 +395,7 @@ public class HighLevelStreamSourceTests
             Times.Once);
         checkpointStorage.Verify(
             c => c.UpdateLongTermAsync("shard-empty", "seq-empty", TestContext.Current.CancellationToken), Times.Once);
-        emptyShardLock.Verify(l => l.UnlockAsync(), Times.Once);
+        emptyShardLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
