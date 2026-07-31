@@ -15,7 +15,12 @@ Repo features:
     * [Azure Service Bus](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview)
     * [NATS](https://nats.io/)
     * [RabbitMQ](https://www.rabbitmq.com/)
-* Idempotency support
+* Cache-based idempotency support
+    * Prevents the same message from being run twice in the event that an executor loses custody of a message.
+        * Messages could be dropped by connection issues with the message source or because of a protocol decision by
+          the message source.
+    * Prevents simultaneous execution of the same message in the event of a dropped message
+    * Caches results to prevent re-running of a job if received non-concurrently
 * Documentation for local testing
 
 # Configuration
@@ -81,9 +86,12 @@ configurations where it is not set.
 
 #### Concerning Idempotency ID Uniqueness
 
-Many message sources can automatically provide Idempotency IDs that are reliably unique. However, some services allow them to be specified by the publisher submitting the message.
+Many message sources can automatically provide Idempotency IDs that are reliably unique. However, some services allow
+them to be specified by the publisher submitting the message.
 
-If the Idempotency IDs are considered to be reliably unique then a successful acknowledgement of a message shall mean that the cached result for that message will be cleared or not entered into the cache at all in the interest of saving cache resources.
+If the Idempotency IDs are considered to be reliably unique then a successful acknowledgement of a message shall mean
+that the cached result for that message will be cleared or not entered into the cache at all in the interest of saving
+cache resources.
 
 #### RabbitMQ Message IDs
 
@@ -144,7 +152,8 @@ Below are the recommended steps for using this as a template:
 
 ### Cached Idempotency vs Database
 
-This general template uses Redis to cache results and drive its idempotency. However, if Redis does not meet your needs for message permanence then you will need to implement a service to access another data store.
+This general template uses Redis to cache results and drive its idempotency. However, if Redis does not meet your needs
+for message permanence then you will need to implement a service to access another data store.
 
 ## Secret Managers
 
@@ -162,7 +171,8 @@ The Core library of this general template indirectly makes use of `ISecretManage
 in dependency injection by default. This general template assumes that the chosen secret manager implementation is SSM.
 The exception to this is if the chosen job source is either Azure Queue Storage or Azure Service Bus job sources, which
 configures Azure Key Vault as the secret manager. The Azure-based job sources use Key Vault with the assumption that
-mixing major cloud platforms would be unusual. The template chooses a secret manager provider in the `Extensions/ServiceCollectionExtensions.cs` file of the root `RedShirt.Example.JobWorker` project.
+mixing major cloud platforms would be unusual. The template chooses a secret manager provider in the
+`Extensions/ServiceCollectionExtensions.cs` file of the root `RedShirt.Example.JobWorker` project.
 
 Please keep this in mind when adapting this template for your specific application.
 
