@@ -125,9 +125,9 @@ services:
       JOBS__IDEMPOTENCY__MONITOR_INTERVAL_SECONDS: 30
       JOBS__IDEMPOTENCY__IDEMPOTENCY_IDS_CAN_REPEAT: false
       ## Common Distributed Execution Support Cache Options (Safety Layer Settings)
-      COMMON__CACHE__SAFE_CACHE__DISGRACE_PERIOD_SECONDS: 60
+      COMMON__DISTRIBUTED__SAFETY__DISGRACE_PERIOD_SECONDS: 60
       ## Common Distributed Execution Support Options (Redis)
-      COMMON__CACHE__REDIS__CONNECTION_STRING_PATH: /common/redis
+      COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH: /common/redis
       ## Common Secret Management Library (In-Memory Cache)
       COMMON__SECRETS__CACHE__FORCE_COOLDOWN_SECONDS: 60
       ## Common Secret Management Library (Azure Key Vault)

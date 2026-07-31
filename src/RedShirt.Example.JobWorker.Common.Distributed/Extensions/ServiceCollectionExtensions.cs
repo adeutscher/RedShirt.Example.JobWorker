@@ -21,11 +21,16 @@ public static class ServiceCollectionExtensions
         IConfigurationRoot configuration)
     {
         return services
-            // Implementation-agnostic services
-            .Configure<SafeRemoteCacheService.ConfigurationModel>(configuration.GetSection("Common:Cache:SafeCache"))
+            // Kind-of implementation-agnostic services.
+            // The logic is mostly independent, but the use of the common ISafetyDisgraceStateService
+            //  is based on the knowledge that the cache and lock systems are using the same underlying technology (Redis).
             .AddSingleton<ISafeRemoteCacheService, SafeRemoteCacheService>()
+            .AddSingleton<ISafeAbstractedLockService, SafeAbstractedLockService>()
+            .AddSingleton<ISafetyDisgraceStateService, SafetyDisgraceStateService>()
+            .Configure<SafetyDisgraceStateService.ConfigurationModel>(
+                configuration.GetSection("Common:Distributed:Safety"))
             // Redis-based
-            .Configure<RedisConnectionFactory.ConfigurationModel>(configuration.GetSection("Common:Cache:Redis"))
+            .Configure<RedisConnectionFactory.ConfigurationModel>(configuration.GetSection("Common:Distributed:Redis"))
             .AddSingleton<IRedisConnectionFactory, RedisConnectionFactory>()
             .AddSingleton<IRedisConnectionCacheService, RedisConnectionCacheService>()
             .AddSingleton<IAbstractedLockService, RedisLockService>()
