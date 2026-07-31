@@ -54,7 +54,27 @@ internal class KafkaJobSource(
 
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
+        if (Session is not null)
+        {
+            /*
+             * If a session is already established, then short-circuit and return empty.
+             * Like Kinesis, Kafka is more of a stream than a message broker.
+             * Unlike Kinesis, fine-grained control of which partition to poll from is considered more of an admin action.
+             *
+             * The Kafka consumer will instead receive from whichever parition the server(s) assign it.
+             * Because the Core library sorts message results and doesn't execute them in the exact order received,
+             *  we can't return any more messages at the moment for fear of them being acknowledged out of sequence.
+             * Because of this, if a session is already in motion then just return an empty list.
+             * An empty list just means more wait time in Loader mode, so if you are using Kafka as a source then it strongly recommended to use Batch mode for polling.
+             */
+            return new JobSourceResponse
+            {
+                Items = []
+            };
+        }
+
         var messageSourceResponse = await kafkaMessageSource.GetMessagesAsync(batchSize, cancellationToken);
+
         var items = new List<IJobModel>();
         var messagesToProcess = new List<IKafkaMessageContainer>();
         var skippedMessages = new List<IKafkaMessageContainer>();

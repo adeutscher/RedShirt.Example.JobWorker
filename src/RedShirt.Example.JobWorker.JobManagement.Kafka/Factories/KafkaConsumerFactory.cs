@@ -16,11 +16,20 @@ internal class KafkaConsumerFactory(
 {
     public IKafkaConsumerWrapper CreateConsumer()
     {
+        /*
+         * IMPORTANT:
+         *  This general template is focused on Kafka as a message source,
+         *  not the details of Kafka fine-tuning.
+         *
+         * In particular, this template was developed using a test container with no authentication
+         *  and not one of the 5 available SASL options.
+         * Implementing authentication is, for the moment, an excercise for the developer adapting this template.
+         */
         var config = new ConsumerConfig
         {
             BootstrapServers = options.Value.BootstrapServers,
             GroupId = options.Value.GroupId,
-            // KafkaJobSource is responsible for performing commits
+            // KafkaJobSource is responsible for driving commits
             EnableAutoCommit = false,
             AutoOffsetReset = AutoOffsetReset.Earliest
         };
