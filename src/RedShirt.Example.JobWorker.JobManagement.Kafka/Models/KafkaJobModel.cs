@@ -1,5 +1,4 @@
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.JobManagement.Kafka.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.Models;
 

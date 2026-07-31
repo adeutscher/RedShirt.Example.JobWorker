@@ -118,6 +118,24 @@ public class KafkaRetryWrapperServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_NonGeneric_WhenOperationCanceledAndTokenCancelled_PropagatesWithoutWrapping()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
+        var sleepService = CreateSleepService();
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, sleepService.Object);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync(
+            _ => throw new OperationCanceledException(cts.Token),
+            cts.Token));
+
+        arbiter.VerifyNoOtherCalls();
+        sleepService.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task RunAsync_NonGeneric_WhenTransientFailuresExhaustRetries_WrapsAsHandled()
     {
         var attempts = 0;
@@ -150,6 +168,30 @@ public class KafkaRetryWrapperServiceTests
                 TimeSpan.FromSeconds(4)
             ],
             delays);
+    }
+
+    [Fact]
+    public async Task RunAsync_NonGeneric_WhenUnexpected_RethrowsRawExceptionWithoutWrapping()
+    {
+        var attempts = 0;
+        var inner = new InvalidOperationException("unexpected");
+
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetReport(inner)).Returns(UnexpectedReport());
+
+        var sleepService = CreateSleepService();
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, sleepService.Object);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => wrapper.RunAsync(
+            _ =>
+            {
+                attempts++;
+                throw inner;
+            },
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(1, attempts);
+        Assert.Same(inner, thrown);
     }
 
     [Fact]
@@ -196,6 +238,33 @@ public class KafkaRetryWrapperServiceTests
         Assert.Equal(1, await wrapper.RunAsync(_ => Task.FromResult(1), TestContext.Current.CancellationToken));
         Assert.Equal(2, await wrapper.RunAsync(_ => Task.FromResult(2), TestContext.Current.CancellationToken));
         Assert.Equal(3, await wrapper.RunAsync(_ => Task.FromResult(3), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenAlreadyHandledCritical_RethrowsSameInstanceWithoutRetry()
+    {
+        var inner = new WorkerJobSourceException("critical handled", true, false,
+            true);
+
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetReport(inner)).Returns(new KafkaExceptionArbiterReport
+        {
+            AlreadyHandled = true,
+            IsCritical = true,
+            CouldBeTransient = false
+        });
+
+        var sleepService = CreateSleepService();
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, sleepService.Object);
+
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
+            _ => throw inner,
+            TestContext.Current.CancellationToken));
+
+        Assert.Same(inner, thrown);
+        sleepService.Verify(
+            s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -319,6 +388,27 @@ public class KafkaRetryWrapperServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenTaskCanceledWithoutCallerCancel_WrapsAsHandledTransient()
+    {
+        var inner = new TaskCanceledException("broker-style timeout");
+
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetReport(inner)).Returns(TransientReport());
+
+        var sleepService = CreateSleepService();
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, sleepService.Object);
+
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync<string>(
+            _ => throw inner,
+            TestContext.Current.CancellationToken));
+
+        Assert.Same(inner, thrown.InnerException);
+        Assert.False(thrown.IsCritical);
+        Assert.True(thrown.CouldBeTransient);
+        Assert.True(thrown.IsHandled);
+    }
+
+    [Fact]
     public async Task RunAsync_WhenTokenCancelledBeforeRetryDecision_DoesNotRetry()
     {
         using var cts = new CancellationTokenSource();
@@ -405,95 +495,5 @@ public class KafkaRetryWrapperServiceTests
         sleepService.Verify(
             s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
             Times.Never);
-    }
-
-    [Fact]
-    public async Task RunAsync_NonGeneric_WhenOperationCanceledAndTokenCancelled_PropagatesWithoutWrapping()
-    {
-        using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
-
-        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
-        var sleepService = CreateSleepService();
-        var wrapper = new KafkaRetryWrapperService(arbiter.Object, sleepService.Object);
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync(
-            _ => throw new OperationCanceledException(cts.Token),
-            cts.Token));
-
-        arbiter.VerifyNoOtherCalls();
-        sleepService.VerifyNoOtherCalls();
-    }
-
-    [Fact]
-    public async Task RunAsync_WhenTaskCanceledWithoutCallerCancel_WrapsAsHandledTransient()
-    {
-        var inner = new TaskCanceledException("broker-style timeout");
-
-        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(inner)).Returns(TransientReport());
-
-        var sleepService = CreateSleepService();
-        var wrapper = new KafkaRetryWrapperService(arbiter.Object, sleepService.Object);
-
-        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync<string>(
-            _ => throw inner,
-            TestContext.Current.CancellationToken));
-
-        Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
-        Assert.True(thrown.CouldBeTransient);
-        Assert.True(thrown.IsHandled);
-    }
-
-    [Fact]
-    public async Task RunAsync_WhenAlreadyHandledCritical_RethrowsSameInstanceWithoutRetry()
-    {
-        var inner = new WorkerJobSourceException("critical handled", isCritical: true, couldBeTransient: false,
-            isHandled: true);
-
-        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(inner)).Returns(new KafkaExceptionArbiterReport
-        {
-            AlreadyHandled = true,
-            IsCritical = true,
-            CouldBeTransient = false
-        });
-
-        var sleepService = CreateSleepService();
-        var wrapper = new KafkaRetryWrapperService(arbiter.Object, sleepService.Object);
-
-        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
-            _ => throw inner,
-            TestContext.Current.CancellationToken));
-
-        Assert.Same(inner, thrown);
-        sleepService.Verify(
-            s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
-
-    [Fact]
-    public async Task RunAsync_NonGeneric_WhenUnexpected_RethrowsRawExceptionWithoutWrapping()
-    {
-        var attempts = 0;
-        var inner = new InvalidOperationException("unexpected");
-
-        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(inner)).Returns(UnexpectedReport());
-
-        var sleepService = CreateSleepService();
-        var wrapper = new KafkaRetryWrapperService(arbiter.Object, sleepService.Object);
-
-        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => wrapper.RunAsync(
-            _ =>
-            {
-                attempts++;
-                throw inner;
-            },
-            TestContext.Current.CancellationToken));
-
-        Assert.Equal(1, attempts);
-        Assert.Same(inner, thrown);
     }
 }

@@ -15,6 +15,7 @@ internal interface IKafkaMessageContainer
 
 internal class KafkaMessageContainer : IKafkaMessageContainer
 {
+    private const string DefaultMessageId = "UNKNOWN";
     public required ConsumeResult<string, string>? Result { get; init; }
 
     public string? Key => Result?.Message?.Key;
@@ -28,6 +29,4 @@ internal class KafkaMessageContainer : IKafkaMessageContainer
         : $"{Result.Topic}:{Result.Partition.Value}:{Result.Offset.Value}";
 
     public bool MessageIdIsDefault => Result is null;
-    
-    private const string DefaultMessageId = "UNKNOWN";
 }

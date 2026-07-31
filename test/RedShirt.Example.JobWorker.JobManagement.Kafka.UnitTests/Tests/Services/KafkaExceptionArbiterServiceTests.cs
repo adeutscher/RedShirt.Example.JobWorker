@@ -180,8 +180,7 @@ public class KafkaExceptionArbiterServiceTests
     [Fact]
     public void GetReport_WorkerJobSourceException_UnhandledTransient_MayRetry()
     {
-        var exception = new WorkerJobSourceException("transient", false, true,
-            false);
+        var exception = new WorkerJobSourceException("transient", false, true);
 
         var report = _sut.GetReport(exception);
 

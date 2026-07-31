@@ -32,7 +32,8 @@ Hello! If you're reading this section of the README, then one of the following i
 
 These are my end-of-first-session notes for my Kafka branch.
 
-Basic testing of Kafka is going alright. Happy-path execution is working locally. A few Cursor-isms to clean up (this was also an experiment in AI-assisted development), but nothing too terrible.
+Basic testing of Kafka is going alright. Happy-path execution is working locally. A few Cursor-isms to clean up (this
+was also an experiment in AI-assisted development), but nothing too terrible.
 
 However, there are problems around scaling that I haven't quite solved yet.
 

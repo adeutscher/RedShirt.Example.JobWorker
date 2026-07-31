@@ -14,8 +14,8 @@ internal class KafkaJobSource(
     ISourceMessageConverter converter,
     ILogger<KafkaJobSource> logger) : IJobSource
 {
-    internal KafkaTrackerSession? Session;
     private readonly SemaphoreSlim _sessionSemaphore = new(1, 1);
+    internal KafkaTrackerSession? Session;
 
     public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
@@ -34,7 +34,6 @@ internal class KafkaJobSource(
 
         try
         {
-
             Session.Increment(kafkaJobModel.MessageId);
 
             if (!Session.IsComplete)
@@ -69,7 +68,7 @@ internal class KafkaJobSource(
         foreach (var receivedMessage in messageSourceResponse.Messages)
         {
             totalMessages.Add(receivedMessage);
-            
+
             var messageBody = receivedMessage.Value;
 
             if (string.IsNullOrWhiteSpace(messageBody))
@@ -78,7 +77,7 @@ internal class KafkaJobSource(
                 skippedMessages.Add(receivedMessage);
                 continue;
             }
-            
+
             try
             {
                 logger.LogTrace("Raw Kafka message: {MessageBody}", messageBody);
@@ -148,8 +147,9 @@ internal class KafkaJobSource(
     }
 
     /// <summary>
-    /// Being from a stream-based message source, Kafka messages do not need heartbeats.
-    /// The ownership of the client over the underlying topic partition for the consumer group is managed by the Kafka protocol. 
+    ///     Being from a stream-based message source, Kafka messages do not need heartbeats.
+    ///     The ownership of the client over the underlying topic partition for the consumer group is managed by the Kafka
+    ///     protocol.
     /// </summary>
     public int RecommendedHeartbeatIntervalSeconds => 0;
 

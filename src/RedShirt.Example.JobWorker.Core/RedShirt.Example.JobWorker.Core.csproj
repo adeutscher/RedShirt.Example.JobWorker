@@ -18,7 +18,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Exceptions\JobSource\" />
+        <Folder Include="Exceptions\JobSource\"/>
     </ItemGroup>
 
 </Project>

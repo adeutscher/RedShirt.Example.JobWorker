@@ -137,7 +137,7 @@ internal class SqsJobSource(
 
             throw new WorkerJobSourceException(
                 "Message is in danger of exceeding maximum SQS visibility timeout.",
-                isCritical: false);
+                false);
         }
 
         await sqs.ChangeMessageVisibilityAsync(request, cancellationToken);

@@ -27,6 +27,62 @@ public class KafkaConsumerWrapperTests
     }
 
     [Fact]
+    public void Commit_CommitsNextOffsetsForEachMessage()
+    {
+        IReadOnlyList<TopicPartitionOffset>? committed = null;
+        var consumer = new Mock<IConsumer<string, string>>(MockBehavior.Strict);
+        consumer
+            .Setup(c => c.Commit(It.IsAny<IEnumerable<TopicPartitionOffset>>()))
+            .Callback<IEnumerable<TopicPartitionOffset>>(offsets => committed = offsets.ToList());
+
+        var message1 = new Mock<IKafkaMessageContainer>(MockBehavior.Strict);
+        message1.SetupGet(m => m.Topic).Returns("t");
+        message1.SetupGet(m => m.Partition).Returns(0);
+        message1.SetupGet(m => m.Offset).Returns(10);
+
+        var message2 = new Mock<IKafkaMessageContainer>(MockBehavior.Strict);
+        message2.SetupGet(m => m.Topic).Returns("t");
+        message2.SetupGet(m => m.Partition).Returns(1);
+        message2.SetupGet(m => m.Offset).Returns(20);
+
+        var wrapper = new KafkaConsumerWrapper(consumer.Object);
+        wrapper.Commit([message1.Object, message2.Object]);
+
+        Assert.NotNull(committed);
+        Assert.Equal(2, committed.Count);
+        Assert.Equal(new TopicPartitionOffset("t", 0, new Offset(11)), committed[0]);
+        Assert.Equal(new TopicPartitionOffset("t", 1, new Offset(21)), committed[1]);
+    }
+
+    [Fact]
+    public void Commit_WhenNoMessages_DoesNotCallConsumer()
+    {
+        var consumer = new Mock<IConsumer<string, string>>(MockBehavior.Strict);
+        var wrapper = new KafkaConsumerWrapper(consumer.Object);
+
+        wrapper.Commit([]);
+
+        consumer.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public void Consume_WhenMessageIsNull_ReturnsNull()
+    {
+        var consumer = new Mock<IConsumer<string, string>>(MockBehavior.Strict);
+        consumer.Setup(c => c.Consume(It.IsAny<TimeSpan>())).Returns(new ConsumeResult<string, string>
+        {
+            Topic = "t",
+            Partition = new Partition(0),
+            Offset = new Offset(1),
+            Message = null
+        });
+
+        var wrapper = new KafkaConsumerWrapper(consumer.Object);
+
+        Assert.Null(wrapper.Consume(TimeSpan.FromSeconds(1)));
+    }
+
+    [Fact]
     public void Consume_WhenMessagePresent_ReturnsContainerMappedFromResult()
     {
         var result = CreateResult("orders", 2, 15, "k", "payload");
@@ -57,62 +113,6 @@ public class KafkaConsumerWrapperTests
         var wrapper = new KafkaConsumerWrapper(consumer.Object);
 
         Assert.Null(wrapper.Consume(TimeSpan.FromMilliseconds(250)));
-    }
-
-    [Fact]
-    public void Consume_WhenMessageIsNull_ReturnsNull()
-    {
-        var consumer = new Mock<IConsumer<string, string>>(MockBehavior.Strict);
-        consumer.Setup(c => c.Consume(It.IsAny<TimeSpan>())).Returns(new ConsumeResult<string, string>
-        {
-            Topic = "t",
-            Partition = new Partition(0),
-            Offset = new Offset(1),
-            Message = null
-        });
-
-        var wrapper = new KafkaConsumerWrapper(consumer.Object);
-
-        Assert.Null(wrapper.Consume(TimeSpan.FromSeconds(1)));
-    }
-
-    [Fact]
-    public void Commit_WhenNoMessages_DoesNotCallConsumer()
-    {
-        var consumer = new Mock<IConsumer<string, string>>(MockBehavior.Strict);
-        var wrapper = new KafkaConsumerWrapper(consumer.Object);
-
-        wrapper.Commit([]);
-
-        consumer.VerifyNoOtherCalls();
-    }
-
-    [Fact]
-    public void Commit_CommitsNextOffsetsForEachMessage()
-    {
-        IReadOnlyList<TopicPartitionOffset>? committed = null;
-        var consumer = new Mock<IConsumer<string, string>>(MockBehavior.Strict);
-        consumer
-            .Setup(c => c.Commit(It.IsAny<IEnumerable<TopicPartitionOffset>>()))
-            .Callback<IEnumerable<TopicPartitionOffset>>(offsets => committed = offsets.ToList());
-
-        var message1 = new Mock<IKafkaMessageContainer>(MockBehavior.Strict);
-        message1.SetupGet(m => m.Topic).Returns("t");
-        message1.SetupGet(m => m.Partition).Returns(0);
-        message1.SetupGet(m => m.Offset).Returns(10);
-
-        var message2 = new Mock<IKafkaMessageContainer>(MockBehavior.Strict);
-        message2.SetupGet(m => m.Topic).Returns("t");
-        message2.SetupGet(m => m.Partition).Returns(1);
-        message2.SetupGet(m => m.Offset).Returns(20);
-
-        var wrapper = new KafkaConsumerWrapper(consumer.Object);
-        wrapper.Commit([message1.Object, message2.Object]);
-
-        Assert.NotNull(committed);
-        Assert.Equal(2, committed.Count);
-        Assert.Equal(new TopicPartitionOffset("t", 0, new Offset(11)), committed[0]);
-        Assert.Equal(new TopicPartitionOffset("t", 1, new Offset(21)), committed[1]);
     }
 
     [Fact]

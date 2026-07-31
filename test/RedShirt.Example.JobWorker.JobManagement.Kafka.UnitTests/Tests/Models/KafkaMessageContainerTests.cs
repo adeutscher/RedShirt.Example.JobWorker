@@ -33,23 +33,6 @@ public class KafkaMessageContainerTests
     }
 
     [Fact]
-    public void Properties_WhenResultIsNull_UseSafeDefaults()
-    {
-        var container = new KafkaMessageContainer
-        {
-            Result = null
-        };
-
-        Assert.Null(container.Key);
-        Assert.Null(container.Value);
-        Assert.Equal(string.Empty, container.Topic);
-        Assert.Equal(-1, container.Partition);
-        Assert.Equal(-1, container.Offset);
-        Assert.Equal("UNKNOWN", container.MessageId);
-        Assert.True(container.MessageIdIsDefault);
-    }
-
-    [Fact]
     public void Properties_WhenMessageIsNull_ExposeNullKeyAndValue()
     {
         var container = new KafkaMessageContainer
@@ -70,5 +53,22 @@ public class KafkaMessageContainerTests
         Assert.Equal(1, container.Offset);
         Assert.Equal("t:0:1", container.MessageId);
         Assert.False(container.MessageIdIsDefault);
+    }
+
+    [Fact]
+    public void Properties_WhenResultIsNull_UseSafeDefaults()
+    {
+        var container = new KafkaMessageContainer
+        {
+            Result = null
+        };
+
+        Assert.Null(container.Key);
+        Assert.Null(container.Value);
+        Assert.Equal(string.Empty, container.Topic);
+        Assert.Equal(-1, container.Partition);
+        Assert.Equal(-1, container.Offset);
+        Assert.Equal("UNKNOWN", container.MessageId);
+        Assert.True(container.MessageIdIsDefault);
     }
 }
