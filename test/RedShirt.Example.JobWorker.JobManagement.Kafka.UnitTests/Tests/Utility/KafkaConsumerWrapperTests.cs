@@ -1,5 +1,8 @@
 using Confluent.Kafka;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Models;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.UnitTests.Tests.Services;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.UnitTests.Tests.Utility;
@@ -26,15 +29,24 @@ public class KafkaConsumerWrapperTests
         };
     }
 
-    [Fact]
-    public void Commit_CommitsNextOffsetsForEachMessage()
+    private static KafkaConsumerWrapper CreateWrapper(
+        IConsumer<string, string> consumer,
+        IKafkaRetryWrapperService? retryWrapper = null)
     {
-        IReadOnlyList<TopicPartitionOffset>? committed = null;
+        return new KafkaConsumerWrapper(
+            retryWrapper ?? KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            consumer);
+    }
+
+    [Fact]
+    public async Task CommitAsync_CommitsNextOffsetForEachMessageIndividually()
+    {
+        var committed = new List<TopicPartitionOffset>();
         var consumer = new Mock<IConsumer<string, string>>(MockBehavior.Strict);
         consumer
             .Setup(c => c.Commit(It.IsAny<IEnumerable<TopicPartitionOffset>>()))
             .Callback<IEnumerable<TopicPartitionOffset>>(offsets =>
-                committed = offsets as List<TopicPartitionOffset> ?? offsets.ToList());
+                committed.AddRange(offsets as List<TopicPartitionOffset> ?? offsets.ToList()));
 
         var message1 = new Mock<IKafkaMessageContainer>(MockBehavior.Strict);
         message1.SetupGet(m => m.Topic).Returns("t");
@@ -46,24 +58,108 @@ public class KafkaConsumerWrapperTests
         message2.SetupGet(m => m.Partition).Returns(1);
         message2.SetupGet(m => m.Offset).Returns(20);
 
-        var wrapper = new KafkaConsumerWrapper(consumer.Object);
-        wrapper.Commit([message1.Object, message2.Object]);
+        var wrapper = CreateWrapper(consumer.Object);
+        await wrapper.CommitAsync([message1.Object, message2.Object], TestContext.Current.CancellationToken);
 
-        Assert.NotNull(committed);
         Assert.Equal(2, committed.Count);
         Assert.Equal(new TopicPartitionOffset("t", 0, new Offset(11)), committed[0]);
         Assert.Equal(new TopicPartitionOffset("t", 1, new Offset(21)), committed[1]);
+        consumer.Verify(c => c.Commit(It.IsAny<IEnumerable<TopicPartitionOffset>>()), Times.Exactly(2));
     }
 
     [Fact]
-    public void Commit_WhenNoMessages_DoesNotCallConsumer()
+    public async Task CommitAsync_RoutesEachOffsetThroughRetryWrapper()
     {
         var consumer = new Mock<IConsumer<string, string>>(MockBehavior.Strict);
-        var wrapper = new KafkaConsumerWrapper(consumer.Object);
+        consumer.Setup(c => c.Commit(It.IsAny<IEnumerable<TopicPartitionOffset>>()));
 
-        wrapper.Commit([]);
+        var retryCalls = 0;
+        var retry = new Mock<IKafkaRetryWrapperService>(MockBehavior.Strict);
+        retry
+            .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task>>(), It.IsAny<CancellationToken>()))
+            .Returns<Func<CancellationToken, Task>, CancellationToken>((func, token) =>
+            {
+                retryCalls++;
+                return func(token);
+            });
+
+        var message = new Mock<IKafkaMessageContainer>(MockBehavior.Strict);
+        message.SetupGet(m => m.Topic).Returns("t");
+        message.SetupGet(m => m.Partition).Returns(0);
+        message.SetupGet(m => m.Offset).Returns(5);
+
+        var wrapper = CreateWrapper(consumer.Object, retry.Object);
+        await wrapper.CommitAsync([message.Object], TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, retryCalls);
+        consumer.Verify(c => c.Commit(It.IsAny<IEnumerable<TopicPartitionOffset>>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CommitAsync_WhenNoMessages_DoesNotCallConsumerOrRetry()
+    {
+        var consumer = new Mock<IConsumer<string, string>>(MockBehavior.Strict);
+        var retry = new Mock<IKafkaRetryWrapperService>(MockBehavior.Strict);
+        var wrapper = CreateWrapper(consumer.Object, retry.Object);
+
+        await wrapper.CommitAsync([], TestContext.Current.CancellationToken);
 
         consumer.VerifyNoOtherCalls();
+        retry.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task CommitAsync_WhenPermanentNonCriticalFailure_SkipsRemainingOffsetsOnSamePartition()
+    {
+        var committedPartitions = new List<int>();
+        var consumer = new Mock<IConsumer<string, string>>(MockBehavior.Strict);
+        consumer
+            .Setup(c => c.Commit(It.IsAny<IEnumerable<TopicPartitionOffset>>()))
+            .Callback<IEnumerable<TopicPartitionOffset>>(offsets =>
+            {
+                var offset = offsets.Single();
+                committedPartitions.Add(offset.Partition);
+            });
+
+        var permanent = new WorkerJobSourceException("lost ownership", false, false,
+            true);
+        var retryAttempts = 0;
+        var retry = new Mock<IKafkaRetryWrapperService>(MockBehavior.Strict);
+        retry
+            .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task>>(), It.IsAny<CancellationToken>()))
+            .Returns<Func<CancellationToken, Task>, CancellationToken>((func, token) =>
+            {
+                retryAttempts++;
+                if (retryAttempts == 1)
+                {
+                    return Task.FromException(permanent);
+                }
+
+                return func(token);
+            });
+
+        var partition0First = new Mock<IKafkaMessageContainer>(MockBehavior.Strict);
+        partition0First.SetupGet(m => m.Topic).Returns("t");
+        partition0First.SetupGet(m => m.Partition).Returns(0);
+        partition0First.SetupGet(m => m.Offset).Returns(1);
+
+        var partition0Second = new Mock<IKafkaMessageContainer>(MockBehavior.Strict);
+        partition0Second.SetupGet(m => m.Topic).Returns("t");
+        partition0Second.SetupGet(m => m.Partition).Returns(0);
+        partition0Second.SetupGet(m => m.Offset).Returns(2);
+
+        var partition1 = new Mock<IKafkaMessageContainer>(MockBehavior.Strict);
+        partition1.SetupGet(m => m.Topic).Returns("t");
+        partition1.SetupGet(m => m.Partition).Returns(1);
+        partition1.SetupGet(m => m.Offset).Returns(3);
+
+        var wrapper = CreateWrapper(consumer.Object, retry.Object);
+        await wrapper.CommitAsync(
+            [partition0First.Object, partition0Second.Object, partition1.Object],
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal([1], committedPartitions);
+        Assert.Equal(2, retryAttempts);
     }
 
     [Fact]
@@ -78,7 +174,7 @@ public class KafkaConsumerWrapperTests
             Message = null
         });
 
-        var wrapper = new KafkaConsumerWrapper(consumer.Object);
+        var wrapper = CreateWrapper(consumer.Object);
 
         Assert.Null(wrapper.Consume(TimeSpan.FromSeconds(1)));
     }
@@ -90,7 +186,7 @@ public class KafkaConsumerWrapperTests
         var consumer = new Mock<IConsumer<string, string>>(MockBehavior.Strict);
         consumer.Setup(c => c.Consume(TimeSpan.FromSeconds(1))).Returns(result);
 
-        var wrapper = new KafkaConsumerWrapper(consumer.Object);
+        var wrapper = CreateWrapper(consumer.Object);
         var message = wrapper.Consume(TimeSpan.FromSeconds(1));
 
         Assert.NotNull(message);
@@ -111,7 +207,7 @@ public class KafkaConsumerWrapperTests
         consumer.Setup(c => c.Consume(TimeSpan.FromMilliseconds(250)))
             .Returns((ConsumeResult<string, string>) null!);
 
-        var wrapper = new KafkaConsumerWrapper(consumer.Object);
+        var wrapper = CreateWrapper(consumer.Object);
 
         Assert.Null(wrapper.Consume(TimeSpan.FromMilliseconds(250)));
     }
@@ -123,7 +219,8 @@ public class KafkaConsumerWrapperTests
         consumer.Setup(c => c.Close());
         consumer.Setup(c => c.Dispose());
 
-        var wrapper = new KafkaConsumerWrapper(consumer.Object);
+        var wrapper = CreateWrapper(consumer.Object);
+        wrapper.Dispose();
         wrapper.Dispose();
 
         consumer.Verify(c => c.Close(), Times.Once);

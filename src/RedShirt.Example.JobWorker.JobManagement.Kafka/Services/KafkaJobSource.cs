@@ -42,12 +42,7 @@ internal class KafkaJobSource(
             }
 
             var consumer = consumerSource.GetConsumer();
-            await retryWrapperService.RunAsync(
-                _ =>
-                {
-                    consumer.Commit(Session.MessagesToProcess);
-                    return Task.CompletedTask;
-                },
+            await retryWrapperService.RunAsync(ct => consumer.CommitAsync(Session.MessagesToProcess, ct),
                 cancellationToken);
             Session = null;
         }
@@ -113,13 +108,7 @@ internal class KafkaJobSource(
         {
             // Skipped every single message (ouch)
             await retryWrapperService.RunAsync(
-                _ =>
-                {
-                    var consumer = consumerSource.GetConsumer();
-                    consumer.Commit(skippedMessages);
-                    return Task.CompletedTask;
-                },
-                cancellationToken);
+                ct => consumerSource.GetConsumer().CommitAsync(skippedMessages, ct), cancellationToken);
             return new JobSourceResponse
             {
                 Items = []

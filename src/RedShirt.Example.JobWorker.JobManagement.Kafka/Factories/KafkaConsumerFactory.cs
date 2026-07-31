@@ -1,5 +1,6 @@
 using Confluent.Kafka;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.Services;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.Factories;
@@ -9,7 +10,9 @@ internal interface IKafkaConsumerFactory
     IKafkaConsumerWrapper CreateConsumer();
 }
 
-internal class KafkaConsumerFactory(IOptions<KafkaConsumerFactory.ConfigurationModel> options) : IKafkaConsumerFactory
+internal class KafkaConsumerFactory(
+    IKafkaRetryWrapperService retryWrapperService,
+    IOptions<KafkaConsumerFactory.ConfigurationModel> options) : IKafkaConsumerFactory
 {
     public IKafkaConsumerWrapper CreateConsumer()
     {
@@ -25,7 +28,7 @@ internal class KafkaConsumerFactory(IOptions<KafkaConsumerFactory.ConfigurationM
         var consumer = new ConsumerBuilder<string, string>(config).Build();
         consumer.Subscribe(options.Value.Topic);
 
-        return new KafkaConsumerWrapper(consumer);
+        return new KafkaConsumerWrapper(retryWrapperService, consumer);
     }
 
     public sealed class ConfigurationModel

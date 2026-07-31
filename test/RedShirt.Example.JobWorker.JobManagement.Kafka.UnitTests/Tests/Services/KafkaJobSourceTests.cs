@@ -52,7 +52,8 @@ public class KafkaJobSourceTests
         converter.Setup(c => c.Convert(data2)).Returns(mock2);
 
         var consumer = new Mock<IKafkaConsumerWrapper>(MockBehavior.Strict);
-        consumer.Setup(c => c.Commit(It.IsAny<List<IKafkaMessageContainer>>()));
+        consumer.Setup(c => c.CommitAsync(It.IsAny<List<IKafkaMessageContainer>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
@@ -65,13 +66,14 @@ public class KafkaJobSourceTests
         Assert.Equal(2, response.Items.Count);
 
         await jobSource.AcknowledgeCompletionAsync(response.Items[0], true, TestContext.Current.CancellationToken);
-        consumer.Verify(c => c.Commit(It.IsAny<List<IKafkaMessageContainer>>()), Times.Never);
+        consumer.Verify(c => c.CommitAsync(It.IsAny<List<IKafkaMessageContainer>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
         Assert.NotNull(jobSource.Session);
 
         await jobSource.AcknowledgeCompletionAsync(response.Items[1], lastSuccess,
             TestContext.Current.CancellationToken);
-        consumer.Verify(c => c.Commit(It.Is<List<IKafkaMessageContainer>>(m =>
-            m.Count == 2 && m.Contains(message1) && m.Contains(message2))), Times.Once);
+        consumer.Verify(c => c.CommitAsync(It.Is<List<IKafkaMessageContainer>>(m =>
+            m.Count == 2 && m.Contains(message1) && m.Contains(message2)), It.IsAny<CancellationToken>()), Times.Once);
         Assert.Null(jobSource.Session);
     }
 
@@ -107,7 +109,8 @@ public class KafkaJobSourceTests
         converter.Setup(c => c.Convert(data)).Returns(new Mock<IJobDataModel>().Object);
 
         var consumer = new Mock<IKafkaConsumerWrapper>(MockBehavior.Strict);
-        consumer.Setup(c => c.Commit(It.IsAny<List<IKafkaMessageContainer>>()));
+        consumer.Setup(c => c.CommitAsync(It.IsAny<List<IKafkaMessageContainer>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
 
@@ -128,7 +131,8 @@ public class KafkaJobSourceTests
         await jobSource.AcknowledgeCompletionAsync(response.Items[0], true, TestContext.Current.CancellationToken);
 
         Assert.True(retryInvoked);
-        consumer.Verify(c => c.Commit(It.Is<List<IKafkaMessageContainer>>(m => m.Single() == message)),
+        consumer.Verify(c => c.CommitAsync(It.Is<List<IKafkaMessageContainer>>(m => m.Single() == message),
+                It.IsAny<CancellationToken>()),
             Times.Once);
         Assert.Null(jobSource.Session);
     }
@@ -168,7 +172,8 @@ public class KafkaJobSourceTests
 
         Assert.NotNull(jobSource.Session);
         Assert.False(jobSource.Session.IsComplete);
-        consumer.Verify(c => c.Commit(It.IsAny<List<IKafkaMessageContainer>>()), Times.Never);
+        consumer.Verify(c => c.CommitAsync(It.IsAny<List<IKafkaMessageContainer>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -261,7 +266,8 @@ public class KafkaJobSourceTests
 
         Assert.Empty(response.Items);
         Assert.Null(jobSource.Session);
-        consumer.Verify(c => c.Commit(It.IsAny<List<IKafkaMessageContainer>>()), Times.Never);
+        consumer.Verify(c => c.CommitAsync(It.IsAny<List<IKafkaMessageContainer>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -279,7 +285,8 @@ public class KafkaJobSourceTests
         converter.Setup(c => c.Convert(data1)).Throws(new Exception("Controlled Test Blast"));
 
         var consumer = new Mock<IKafkaConsumerWrapper>(MockBehavior.Strict);
-        consumer.Setup(c => c.Commit(It.IsAny<List<IKafkaMessageContainer>>()));
+        consumer.Setup(c => c.CommitAsync(It.IsAny<List<IKafkaMessageContainer>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
@@ -292,8 +299,8 @@ public class KafkaJobSourceTests
 
         Assert.Empty(response.Items);
         Assert.Null(jobSource.Session);
-        consumer.Verify(c => c.Commit(It.Is<List<IKafkaMessageContainer>>(m =>
-            m.Count == 2 && m.Contains(message1) && m.Contains(message2))), Times.Once);
+        consumer.Verify(c => c.CommitAsync(It.Is<List<IKafkaMessageContainer>>(m =>
+            m.Count == 2 && m.Contains(message1) && m.Contains(message2)), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -404,7 +411,8 @@ public class KafkaJobSourceTests
         Assert.Equal(5, jobSource.Session.TotalMessages.Count);
 
         // Mixed success/failure does not commit during GetJobsAsync
-        consumer.Verify(c => c.Commit(It.IsAny<List<IKafkaMessageContainer>>()), Times.Never);
+        consumer.Verify(c => c.CommitAsync(It.IsAny<List<IKafkaMessageContainer>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
