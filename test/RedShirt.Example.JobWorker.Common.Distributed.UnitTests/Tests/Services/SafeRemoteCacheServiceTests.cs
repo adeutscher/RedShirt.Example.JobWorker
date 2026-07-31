@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
@@ -18,7 +19,8 @@ public class SafeRemoteCacheServiceTests
                 DisgracePeriodSeconds = disgracePeriodSeconds
             }));
 
-        var service = new SafeRemoteCacheService(remoteCache.Object, disgraceState);
+        var service = new SafeRemoteCacheService(remoteCache.Object, disgraceState,
+            new NullLogger<SafeRemoteCacheService>());
         return (service, disgraceState);
     }
 

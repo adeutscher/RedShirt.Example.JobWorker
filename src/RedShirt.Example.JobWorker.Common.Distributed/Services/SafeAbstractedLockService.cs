@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
@@ -7,7 +8,8 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
 
 internal class SafeAbstractedLockService(
     ISafetyDisgraceStateService safetyDisgraceStateService,
-    IAbstractedLockService lockService)
+    IAbstractedLockService lockService,
+    ILogger<SafeAbstractedLockService> logger)
     : ISafeAbstractedLockService
 {
     private static readonly TimeSpan LockAttemptThreshold = TimeSpan.FromSeconds(5);
@@ -32,13 +34,15 @@ internal class SafeAbstractedLockService(
             var timeExceeded = stopwatch.Elapsed > LockAttemptThreshold;
             if (timeExceeded)
             {
+                logger.LogWarning("Failure to communicate with lock service: Timeout");
                 safetyDisgraceStateService.EnterDisgracePeriod();
             }
 
             return new SafeLockWrapper(innerLock, timeExceeded);
         }
-        catch (CacheException)
+        catch (CacheException e)
         {
+            logger.LogWarning(e, "Failure to communicate with lock service: {EMessage}", e.Message);
             safetyDisgraceStateService.EnterDisgracePeriod();
             return new PermissiveLock();
         }

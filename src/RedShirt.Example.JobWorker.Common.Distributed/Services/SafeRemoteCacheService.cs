@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 
@@ -5,7 +6,8 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
 
 internal class SafeRemoteCacheService(
     IRemoteCacheService remoteCacheService,
-    ISafetyDisgraceStateService safetyDisgraceStateService) : ISafeRemoteCacheService
+    ISafetyDisgraceStateService safetyDisgraceStateService,
+    ILogger<SafeRemoteCacheService> logger) : ISafeRemoteCacheService
 {
     public async Task<string?> GetStringAsync(string key, CancellationToken cancellationToken = default)
     {
@@ -18,8 +20,9 @@ internal class SafeRemoteCacheService(
         {
             return await remoteCacheService.GetStringAsync(key, cancellationToken);
         }
-        catch (CacheException)
+        catch (CacheException e)
         {
+            logger.LogWarning(e, "Failure to communicate with cache service: {EMessage}", e.Message);
             safetyDisgraceStateService.EnterDisgracePeriod();
             return null;
         }
@@ -37,8 +40,9 @@ internal class SafeRemoteCacheService(
         {
             await remoteCacheService.SetStringAsync(key, value, expiry, cancellationToken);
         }
-        catch (CacheException)
+        catch (CacheException e)
         {
+            logger.LogWarning(e, "Failure to communicate with cache service: {EMessage}", e.Message);
             safetyDisgraceStateService.EnterDisgracePeriod();
         }
     }

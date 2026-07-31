@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
@@ -26,7 +27,8 @@ public class SafeAbstractedLockServiceTests
             .Setup(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken))
             .ThrowsAsync(exception);
 
-        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object);
+        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object,
+            new NullLogger<SafeAbstractedLockService>());
         var result = await service.GetLockAsync(lockName, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsAcquired);
@@ -47,7 +49,8 @@ public class SafeAbstractedLockServiceTests
 
         var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
 
-        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object);
+        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object,
+            new NullLogger<SafeAbstractedLockService>());
         var result = await service.GetLockAsync("lock-a", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsAcquired);
@@ -81,7 +84,8 @@ public class SafeAbstractedLockServiceTests
                 return innerLock.Object;
             });
 
-        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object);
+        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object,
+            new NullLogger<SafeAbstractedLockService>());
         var result = await service.GetLockAsync(lockName, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsAcquired);
@@ -114,7 +118,8 @@ public class SafeAbstractedLockServiceTests
                 return innerLock.Object;
             });
 
-        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object);
+        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object,
+            new NullLogger<SafeAbstractedLockService>());
         var result = await service.GetLockAsync(lockName, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsAcquired);
@@ -148,7 +153,8 @@ public class SafeAbstractedLockServiceTests
             .Setup(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken))
             .ReturnsAsync(innerLock.Object);
 
-        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object);
+        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object,
+            new NullLogger<SafeAbstractedLockService>());
         var result = await service.GetLockAsync(lockName, TestContext.Current.CancellationToken);
 
         Assert.Equal(isAcquired, result.IsAcquired);
@@ -175,7 +181,8 @@ public class SafeAbstractedLockServiceTests
             .Setup(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken))
             .ThrowsAsync(new InvalidOperationException("unexpected"));
 
-        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object);
+        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object,
+            new NullLogger<SafeAbstractedLockService>());
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.GetLockAsync(lockName, TestContext.Current.CancellationToken));
