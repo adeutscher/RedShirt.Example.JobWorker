@@ -23,7 +23,7 @@ public interface IDistributedRetryWrapperService
     /// </param>
     /// <returns>The successful result of <paramref name="func" />.</returns>
     /// <exception cref="OperationCanceledException">
-    ///     Propagated when <paramref name="cancellationToken" /> is canceled.
+    ///     Propagated when <paramref name="cancellationToken" /> is cancelled.
     /// </exception>
     /// <exception cref="WorkerDistributedException">
     ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerDistributedException.IsTransient" />
@@ -41,7 +41,7 @@ public interface IDistributedRetryWrapperService
     ///     Token used to cancel the operation, retry attempts, and backoff delays.
     /// </param>
     /// <exception cref="OperationCanceledException">
-    ///     Propagated when <paramref name="cancellationToken" /> is canceled.
+    ///     Propagated when <paramref name="cancellationToken" /> is cancelled.
     /// </exception>
     /// <exception cref="WorkerDistributedException">
     ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerDistributedException.IsTransient" />

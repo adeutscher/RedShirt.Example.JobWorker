@@ -100,7 +100,7 @@ public class AzureExceptionArbiterServiceTests
     [Fact]
     public void GetJudgement_OperationCanceledException_IsExpectedAndNotTransient()
     {
-        var exception = new OperationCanceledException("caller canceled");
+        var exception = new OperationCanceledException("caller cancelled");
 
         var judgement = _sut.GetJudgement(exception);
 

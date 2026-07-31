@@ -77,7 +77,7 @@ public class AsyncManualResetEvent
         }
 
         // Delay task won: either user cancellation or timeout.
-        // WhenAny does not throw when the delay task is canceled, so check explicitly.
+        // WhenAny does not throw when the delay task is cancelled, so check explicitly.
         cancellationToken.ThrowIfCancellationRequested();
         return false;
     }

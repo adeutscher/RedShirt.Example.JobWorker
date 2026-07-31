@@ -15,7 +15,7 @@ public class AsyncAutoResetEvent(bool setInitially = false)
                 return;
             }
 
-            // Remove the specific canceled waiter from the queue
+            // Remove the specific cancelled waiter from the queue
             // A custom queue or LinkedList would optimize this, but List/Queue manipulation under a lock is robust for typical use
             var remaining = new List<TaskCompletionSource<bool>>(_waits.Count);
             while (_waits.Count > 0)
@@ -98,7 +98,7 @@ public class AsyncAutoResetEvent(bool setInitially = false)
             cts.CancelAfter(timeout);
         }
 
-        // Register a cancellation callback to pull this waiter out of the queue if it times out or gets canceled
+        // Register a cancellation callback to pull this waiter out of the queue if it times out or gets cancelled
         using var registration = cts.Token.Register(state =>
         {
             var tuple = ((AsyncAutoResetEvent Event, TaskCompletionSource<bool> Tcs)) state!;

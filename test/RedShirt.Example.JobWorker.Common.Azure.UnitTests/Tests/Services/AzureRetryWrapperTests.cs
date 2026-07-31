@@ -218,7 +218,7 @@ public class AzureRetryWrapperServiceTests
     }
 
     [Fact]
-    public async Task RunAsync_WhenTokenCanceledBeforeRetryDecision_DoesNotRetry()
+    public async Task RunAsync_WhenTokenCancelledBeforeRetryDecision_DoesNotRetry()
     {
         using var cts = new CancellationTokenSource();
         var attempts = 0;
