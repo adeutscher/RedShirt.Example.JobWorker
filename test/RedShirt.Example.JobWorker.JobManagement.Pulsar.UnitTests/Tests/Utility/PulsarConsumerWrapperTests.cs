@@ -33,6 +33,24 @@ public class PulsarConsumerWrapperTests
     }
 
     [Fact]
+    public async Task AcknowledgeAsync_SingleMessage_DelegatesToCommit()
+    {
+        var consumer = new Mock<IConsumer<string>>(MockBehavior.Strict);
+        consumer
+            .Setup(c => c.AcknowledgeAsync(It.IsAny<MessageId>()))
+            .Returns(CompletedUnitTask());
+
+        var id = CreateMessageId(1, 5, 0);
+        var message = new Mock<IPulsarMessageContainer>(MockBehavior.Strict);
+        message.SetupGet(m => m.PulsarMessageId).Returns(id);
+
+        var wrapper = CreateWrapper(consumer.Object);
+        await wrapper.AcknowledgeAsync(message.Object, TestContext.Current.CancellationToken);
+
+        consumer.Verify(c => c.AcknowledgeAsync(id), Times.Once);
+    }
+
+    [Fact]
     public async Task CommitAsync_AcknowledgesEachMessageIndividually()
     {
         var acknowledged = new List<MessageId>();
@@ -180,5 +198,34 @@ public class PulsarConsumerWrapperTests
         await wrapper.DisposeAsync();
 
         consumer.Verify(c => c.DisposeAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task NegativeAcknowledgeAsync_NegativelyAcknowledgesEachMessageIndividually()
+    {
+        var nacked = new List<MessageId>();
+        var consumer = new Mock<IConsumer<string>>(MockBehavior.Strict);
+        consumer
+            .Setup(c => c.NegativeAcknowledge(It.IsAny<MessageId>()))
+            .Returns<MessageId>(id =>
+            {
+                nacked.Add(id);
+                return CompletedUnitTask();
+            });
+
+        var id1 = CreateMessageId(1, 10, 0);
+        var id2 = CreateMessageId(1, 20, 1);
+
+        var message1 = new Mock<IPulsarMessageContainer>(MockBehavior.Strict);
+        message1.SetupGet(m => m.PulsarMessageId).Returns(id1);
+        var message2 = new Mock<IPulsarMessageContainer>(MockBehavior.Strict);
+        message2.SetupGet(m => m.PulsarMessageId).Returns(id2);
+
+        var wrapper = CreateWrapper(consumer.Object);
+        await wrapper.NegativeAcknowledgeAsync([message1.Object, message2.Object],
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal([id1, id2], nacked);
+        consumer.Verify(c => c.NegativeAcknowledge(It.IsAny<MessageId>()), Times.Exactly(2));
     }
 }

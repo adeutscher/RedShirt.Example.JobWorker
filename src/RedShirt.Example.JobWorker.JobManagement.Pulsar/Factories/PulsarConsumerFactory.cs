@@ -1,9 +1,9 @@
-using System.Text;
 using Microsoft.Extensions.Options;
 using Pulsar.Client.Api;
 using Pulsar.Client.Common;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Utility;
+using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.Factories;
 
@@ -16,6 +16,16 @@ internal class PulsarConsumerFactory(
     IPulsarRetryWrapperService retryWrapperService,
     IOptions<PulsarConsumerFactory.ConfigurationModel> options) : IPulsarConsumerFactory
 {
+    private static SubscriptionType ParseSubscriptionType(string? subscriptionType)
+    {
+        if (string.IsNullOrWhiteSpace(subscriptionType))
+        {
+            return SubscriptionType.Shared;
+        }
+
+        return Enum.Parse<SubscriptionType>(subscriptionType, true);
+    }
+
     public IPulsarConsumerWrapper CreateConsumer()
     {
         /*
@@ -44,7 +54,7 @@ internal class PulsarConsumerFactory(
             .DeadLetterPolicy(new DeadLetterPolicy(options.Value.MaxRedeliverCount))
             // Ack timeout is required for the client to increment redelivery counts toward MaxRedeliverCount
             // when messages remain unacknowledged (e.g. worker crash mid-batch).
-            .AckTimeout(TimeSpan.FromMinutes(5));
+            .AckTimeout(TimeSpan.FromSeconds(options.Value.AckTimeoutSeconds));
 
         var consumer = consumerBuilder
             .SubscribeAsync()
@@ -52,16 +62,6 @@ internal class PulsarConsumerFactory(
             .GetResult();
 
         return new PulsarConsumerWrapper(retryWrapperService, client, consumer, options.Value.Topic);
-    }
-
-    private static SubscriptionType ParseSubscriptionType(string? subscriptionType)
-    {
-        if (string.IsNullOrWhiteSpace(subscriptionType))
-        {
-            return SubscriptionType.Shared;
-        }
-
-        return Enum.Parse<SubscriptionType>(subscriptionType, true);
     }
 
     public sealed class ConfigurationModel
@@ -80,5 +80,11 @@ internal class PulsarConsumerFactory(
         ///     moves it to the dead letter topic. Mapped to <see cref="DeadLetterPolicy.MaxRedeliveryCount" />.
         /// </summary>
         public int MaxRedeliverCount { get; init; } = 3;
+
+        /// <summary>
+        ///     Seconds before an unacknowledged message is eligible for redelivery.
+        ///     Mapped to the consumer <c>AckTimeout</c>. Defaults to 300 (5 minutes).
+        /// </summary>
+        public int AckTimeoutSeconds { get; init; } = 300;
     }
 }

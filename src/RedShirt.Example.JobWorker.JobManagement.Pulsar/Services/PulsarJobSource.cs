@@ -26,17 +26,11 @@ internal class PulsarJobSource(
             return;
         }
 
-        // success is intentionally unused: stream cursors advance once the batch gate completes,
-        // matching the Kafka / Kinesis always-ack / batch-complete-before-commit pattern.
-        _ = success;
-
         await _sessionSemaphore.WaitAsync(cancellationToken);
 
         try
         {
-            Session.Increment(pulsarJobModel.MessageId);
-
-            if (!Session.IsComplete)
+            if (!Session.Contains(pulsarJobModel.MessageId))
             {
                 return;
             }
@@ -45,14 +39,29 @@ internal class PulsarJobSource(
              * Confirming that this double-retry is intentional
              * Most of the important code within the consumer wrapper implementation is itself wrapped by the retryWrapper.
              * Wrapping again just in case there's something exception-worthy coming from another part of the code.
+             *
+             * Success acknowledges the message. Failure negatively acknowledges so Pulsar redelivers and the
+             * consumer DeadLetterPolicy can move the message to the DLQ after MaxRedeliverCount.
              */
             await retryWrapperService.RunAsync(async ct =>
             {
                 var consumer = consumerSource.GetConsumer();
-                await consumer.CommitAsync(Session.MessagesToProcess, ct);
+                if (success)
+                {
+                    await consumer.AcknowledgeAsync(pulsarJobModel.Message, ct);
+                }
+                else
+                {
+                    await consumer.NegativeAcknowledgeAsync(pulsarJobModel.Message, ct);
+                }
             }, cancellationToken);
 
-            Session = null;
+            Session.Increment(pulsarJobModel.MessageId);
+
+            if (Session.IsComplete)
+            {
+                Session = null;
+            }
         }
         finally
         {
@@ -84,7 +93,7 @@ internal class PulsarJobSource(
 
         var items = new List<IJobModel>();
         var messagesToProcess = new List<IPulsarMessageContainer>();
-        var skippedMessages = new List<IPulsarMessageContainer>();
+        var deadLetterMessages = new List<IPulsarMessageContainer>();
         var totalMessages = new List<IPulsarMessageContainer>();
 
         foreach (var receivedMessage in messageSourceResponse.Messages)
@@ -95,8 +104,9 @@ internal class PulsarJobSource(
 
             if (string.IsNullOrWhiteSpace(messageBody))
             {
-                logger.LogWarning("Empty Pulsar message body for {MessageId}; skipping", receivedMessage.MessageId);
-                skippedMessages.Add(receivedMessage);
+                logger.LogWarning("Empty Pulsar message body for {MessageId}; negatively acknowledging",
+                    receivedMessage.MessageId);
+                deadLetterMessages.Add(receivedMessage);
                 continue;
             }
 
@@ -107,9 +117,10 @@ internal class PulsarJobSource(
                 var @object = converter.Convert(messageBody);
                 if (@object is null)
                 {
-                    logger.LogWarning("Pulsar message conversion returned null for {MessageId}; skipping",
+                    logger.LogWarning(
+                        "Pulsar message conversion returned null for {MessageId}; negatively acknowledging",
                         receivedMessage.MessageId);
-                    // TODO: At the moment, null results during the parsing results in the message being ignored. Putting a pin in this issue until later, as it suggests a need for a dedicated revisit of handling bad messages for streams. Not great, but consistent with Kafka / Kinesis
+                    deadLetterMessages.Add(receivedMessage);
                     continue;
                 }
 
@@ -126,20 +137,19 @@ internal class PulsarJobSource(
             catch (Exception e)
             {
                 logger.LogWarning(e, "Error parsing Pulsar message: {MessageBody}", messageBody);
-                // TODO: At the moment, exceptions during the parsing results in the message being ignored. Putting a pin in this issue until later, as it suggests a need for a dedicated revisit of handling bad messages for streams. Not great, but consistent with Kafka / Kinesis
-                skippedMessages.Add(receivedMessage);
+                deadLetterMessages.Add(receivedMessage);
             }
         }
 
-        if (skippedMessages.Count > 0 && skippedMessages.Count == messageSourceResponse.Messages.Count)
+        if (deadLetterMessages.Count > 0)
         {
-            // Skipped every single message (ouch)
+            /*
+             * Unparseable / empty messages are negatively acknowledged immediately so they redeliver into
+             * DeadLetterPolicy (same role as Azure Service Bus DeadLetterMessageAsync for poison payloads).
+             */
             await retryWrapperService.RunAsync(
-                ct => consumerSource.GetConsumer().CommitAsync(skippedMessages, ct), cancellationToken);
-            return new JobSourceResponse
-            {
-                Items = []
-            };
+                ct => consumerSource.GetConsumer().NegativeAcknowledgeAsync(deadLetterMessages, ct),
+                cancellationToken);
         }
 
         // ReSharper disable once InvertIf
@@ -165,6 +175,7 @@ internal class PulsarJobSource(
     /// <summary>
     ///     Being from a stream-based message source, Pulsar messages do not need heartbeats.
     ///     Subscription cursor ownership / delivery is managed by the Pulsar protocol.
+    ///     Unacknowledged messages become eligible for redelivery after AckTimeoutSeconds.
     /// </summary>
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
@@ -172,6 +183,7 @@ internal class PulsarJobSource(
     {
         /*
          * Not necessary. Subscription heartbeats / flow control are managed by the underlying Pulsar client.
+         * AckTimeout (see JobSource:Pulsar:AckTimeoutSeconds) covers lease expiry for unacked messages.
          */
         return Task.CompletedTask;
     }

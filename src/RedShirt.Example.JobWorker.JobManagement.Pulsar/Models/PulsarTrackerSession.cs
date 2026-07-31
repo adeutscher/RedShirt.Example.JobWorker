@@ -14,6 +14,11 @@ internal class PulsarTrackerSession(
 
     public bool IsComplete => _acknowledgedMessageIds.Count >= _sessionMessageIds.Count;
 
+    public bool Contains(string messageId)
+    {
+        return _sessionMessageIds.Contains(messageId);
+    }
+
     public void Increment(string messageId)
     {
         if (_sessionMessageIds.Contains(messageId))

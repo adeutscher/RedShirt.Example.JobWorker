@@ -7,7 +7,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.UnitTests.Tests.Factor
 public class PulsarConsumerFactoryTests
 {
     [Fact]
-    public void ConfigurationModel_DefaultsMaxRedeliverCount()
+    public void ConfigurationModel_DefaultsMaxRedeliverCountAndAckTimeout()
     {
         var model = new PulsarConsumerFactory.ConfigurationModel
         {
@@ -17,6 +17,7 @@ public class PulsarConsumerFactoryTests
         };
 
         Assert.Equal(3, model.MaxRedeliverCount);
+        Assert.Equal(300, model.AckTimeoutSeconds);
     }
 
     [Theory]
@@ -34,7 +35,8 @@ public class PulsarConsumerFactoryTests
                 SubscriptionName = "test-group",
                 Topic = "persistent://public/default/test-topic",
                 SubscriptionType = subscriptionType,
-                MaxRedeliverCount = 5
+                MaxRedeliverCount = 5,
+                AckTimeoutSeconds = 120
             }));
 
         // Creating a consumer contacts the broker; only validate configuration binding here when offline.
@@ -44,10 +46,12 @@ public class PulsarConsumerFactoryTests
             SubscriptionName = "test-group",
             Topic = "persistent://public/default/test-topic",
             SubscriptionType = subscriptionType,
-            MaxRedeliverCount = 5
+            MaxRedeliverCount = 5,
+            AckTimeoutSeconds = 120
         });
 
         Assert.Equal(5, options.Value.MaxRedeliverCount);
+        Assert.Equal(120, options.Value.AckTimeoutSeconds);
         Assert.Equal(subscriptionType, options.Value.SubscriptionType);
         Assert.NotNull(factory);
     }

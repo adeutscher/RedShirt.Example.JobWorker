@@ -196,7 +196,7 @@ To initialize Apache Pulsar and queue sample messages:
     docker compose up worker
     ```
 
-Pulsar dead-letter handling uses the client `DeadLetterPolicy` (`JOB_SOURCE__PULSAR__MAX_REDELIVER_COUNT`, default `3`). Undeliverable messages that exceed that redelivery count are moved to Pulsar's dead letter topic (default name `{topic}-{subscription}-DLQ`) rather than an SQS failure queue.
+Pulsar dead-letter handling uses the client `DeadLetterPolicy` (`JOB_SOURCE__PULSAR__MAX_REDELIVER_COUNT`, default `3`). Failed jobs are negatively acknowledged so they redeliver into that policy; unacknowledged messages also become eligible for redelivery after `JOB_SOURCE__PULSAR__ACK_TIMEOUT_SECONDS` (default `300`). Undeliverable messages that exceed the redelivery count are moved to Pulsar's dead letter topic (default name `{topic}-{subscription}-DLQ`).
 ### RabbitMQ
 
 RabbitMQ takes a few more steps to set up than the other input sources.
