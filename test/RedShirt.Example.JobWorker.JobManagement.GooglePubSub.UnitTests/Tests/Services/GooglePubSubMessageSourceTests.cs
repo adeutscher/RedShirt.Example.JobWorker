@@ -24,14 +24,15 @@ public class GooglePubSubMessageSourceTests
         source.Setup(s => s.GetSubscriberClientAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(client.Object);
 
-        var messageSource = new GooglePubSubMessageSource(source.Object, Options.Create(
-            new GooglePubSubConfigurationModel
-            {
-                ProjectId = "local-pubsub",
-                SubscriptionId = "jobs-subscription",
-                MaxMessagesPerRequest = maxPerRequest,
-                VisibilityTimeoutSeconds = 60
-            }));
+        var messageSource = new GooglePubSubMessageSource(source.Object,
+            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object, Options.Create(
+                new GooglePubSubConfigurationModel
+                {
+                    ProjectId = "local-pubsub",
+                    SubscriptionId = "jobs-subscription",
+                    MaxMessagesPerRequest = maxPerRequest,
+                    VisibilityTimeoutSeconds = 60
+                }));
 
         var messages = await messageSource.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 
@@ -52,14 +53,15 @@ public class GooglePubSubMessageSourceTests
         source.Setup(s => s.GetSubscriberClientAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(client.Object);
 
-        var messageSource = new GooglePubSubMessageSource(source.Object, Options.Create(
-            new GooglePubSubConfigurationModel
-            {
-                ProjectId = "local-pubsub",
-                SubscriptionId = "jobs-subscription",
-                MaxMessagesPerRequest = 10,
-                VisibilityTimeoutSeconds = 60
-            }));
+        var messageSource = new GooglePubSubMessageSource(source.Object,
+            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object, Options.Create(
+                new GooglePubSubConfigurationModel
+                {
+                    ProjectId = "local-pubsub",
+                    SubscriptionId = "jobs-subscription",
+                    MaxMessagesPerRequest = 10,
+                    VisibilityTimeoutSeconds = 60
+                }));
 
         var messages = await messageSource.GetMessagesAsync(25, TestContext.Current.CancellationToken);
 

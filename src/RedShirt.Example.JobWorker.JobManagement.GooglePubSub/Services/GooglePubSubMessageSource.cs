@@ -13,14 +13,18 @@ internal interface IGooglePubSubMessageSource
 
 internal class GooglePubSubMessageSource(
     IPubSubSubscriberClientSource clientSource,
+    IGooglePubSubRetryWrapperService retryWrapperService,
     IOptions<GooglePubSubConfigurationModel> options) : IGooglePubSubMessageSource
 {
-    private async Task<List<IPubSubMessageContainer>> GetAsync(int batchSize,
+    private Task<List<IPubSubMessageContainer>> GetAsync(int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var client = await clientSource.GetSubscriberClientAsync(cancellationToken);
-        var rawMessages = await client.GetMessagesAsync(batchSize, cancellationToken);
-        return rawMessages.ToList();
+        return retryWrapperService.RunAsync(async ct =>
+        {
+            var client = await clientSource.GetSubscriberClientAsync(ct);
+            var rawMessages = await client.GetMessagesAsync(batchSize, ct);
+            return rawMessages.ToList();
+        }, cancellationToken);
     }
 
     public async Task<List<IPubSubMessageContainer>> GetMessagesAsync(int batchSize,

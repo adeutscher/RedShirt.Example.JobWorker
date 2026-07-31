@@ -20,6 +20,8 @@ public static class ServiceCollectionExtensions
             .Configure<GooglePubSubConfigurationModel>(configuration.GetSection("JobSource:GooglePubSub"))
             .AddSingleton<IPubSubSubscriberClientFactory, PubSubSubscriberClientFactory>()
             .AddSingleton<IPubSubSubscriberClientSource, PubSubSubscriberClientSource>()
+            .AddSingleton<IGooglePubSubExceptionArbiterService, GooglePubSubExceptionArbiterService>()
+            .AddSingleton<IGooglePubSubRetryWrapperService, GooglePubSubRetryWrapperService>()
             .AddSingleton<IGooglePubSubMessageSource, GooglePubSubMessageSource>()
             .AddSingleton<IGooglePubSubBodyStringRetriever, GooglePubSubBodyStringRetriever>();
     }

@@ -12,6 +12,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services;
 internal class GooglePubSubJobSource(
     IPubSubSubscriberClientSource clientSource,
     IGooglePubSubMessageSource googlePubSubMessageSource,
+    IGooglePubSubRetryWrapperService retryWrapperService,
     ISourceMessageConverter converter,
     IGooglePubSubBodyStringRetriever bodyStringRetriever,
     ILogger<GooglePubSubJobSource> logger,
@@ -26,11 +27,13 @@ internal class GooglePubSubJobSource(
             return;
         }
 
-        var client = await clientSource.GetSubscriberClientAsync(cancellationToken);
-
         if (success)
         {
-            await client.AcknowledgeAsync(messageAsPubSubJobModel.Message, cancellationToken);
+            await retryWrapperService.RunAsync(async ct =>
+            {
+                var client = await clientSource.GetSubscriberClientAsync(ct);
+                await client.AcknowledgeAsync(messageAsPubSubJobModel.Message, ct);
+            }, cancellationToken);
         }
         else
         {
@@ -38,7 +41,11 @@ internal class GooglePubSubJobSource(
              * Failed jobs are nacked (ack deadline set to 0) so they become available for redelivery.
              * Behaviour beyond that defers to the subscription's dead-letter / max-delivery configuration.
              */
-            await client.NackAsync(messageAsPubSubJobModel.Message, cancellationToken);
+            await retryWrapperService.RunAsync(async ct =>
+            {
+                var client = await clientSource.GetSubscriberClientAsync(ct);
+                await client.NackAsync(messageAsPubSubJobModel.Message, ct);
+            }, cancellationToken);
         }
     }
 
@@ -63,16 +70,22 @@ internal class GooglePubSubJobSource(
                  * message so it cannot keep gumming up the subscription. Prefer configuring a dead-letter
                  * topic on the subscription in production.
                  */
-                var client = await clientSource.GetSubscriberClientAsync(cancellationToken);
-                await client.AcknowledgeAsync(receivedMessage, cancellationToken);
+                await retryWrapperService.RunAsync(async ct =>
+                {
+                    var client = await clientSource.GetSubscriberClientAsync(ct);
+                    await client.AcknowledgeAsync(receivedMessage, ct);
+                }, cancellationToken);
 
                 continue;
             }
 
             if (string.IsNullOrWhiteSpace(messageBody))
             {
-                var client = await clientSource.GetSubscriberClientAsync(cancellationToken);
-                await client.AcknowledgeAsync(receivedMessage, cancellationToken);
+                await retryWrapperService.RunAsync(async ct =>
+                {
+                    var client = await clientSource.GetSubscriberClientAsync(ct);
+                    await client.AcknowledgeAsync(receivedMessage, ct);
+                }, cancellationToken);
 
                 continue;
             }
@@ -84,8 +97,11 @@ internal class GooglePubSubJobSource(
                 var @object = converter.Convert(messageBody);
                 if (@object is null)
                 {
-                    var client = await clientSource.GetSubscriberClientAsync(cancellationToken);
-                    await client.AcknowledgeAsync(receivedMessage, cancellationToken);
+                    await retryWrapperService.RunAsync(async ct =>
+                    {
+                        var client = await clientSource.GetSubscriberClientAsync(ct);
+                        await client.AcknowledgeAsync(receivedMessage, ct);
+                    }, cancellationToken);
 
                     continue;
                 }
@@ -122,8 +138,11 @@ internal class GooglePubSubJobSource(
             return;
         }
 
-        var client = await clientSource.GetSubscriberClientAsync(cancellationToken);
-        await client.ModifyAckDeadlineAsync(messageAsPubSubJobModel.Message,
-            options.Value.EffectiveVisibilityTimeoutSeconds, cancellationToken);
+        await retryWrapperService.RunAsync(async ct =>
+        {
+            var client = await clientSource.GetSubscriberClientAsync(ct);
+            await client.ModifyAckDeadlineAsync(messageAsPubSubJobModel.Message,
+                options.Value.EffectiveVisibilityTimeoutSeconds, ct);
+        }, cancellationToken);
     }
 }

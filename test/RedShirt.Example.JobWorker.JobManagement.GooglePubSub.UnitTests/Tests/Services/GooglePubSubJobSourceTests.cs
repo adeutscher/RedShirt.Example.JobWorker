@@ -12,6 +12,84 @@ namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.Tests.
 
 public class GooglePubSubJobSourceTests
 {
+    private static GooglePubSubConfigurationModel DefaultOptions()
+    {
+        return new GooglePubSubConfigurationModel
+        {
+            ProjectId = "local-pubsub",
+            SubscriptionId = "jobs-subscription",
+            VisibilityTimeoutSeconds = 60,
+            MaxMessagesPerRequest = 100
+        };
+    }
+
+    [Fact]
+    public async Task AcknowledgeAndHeartbeat_IgnoreNonPubSubJobs()
+    {
+        var client = new Mock<IPubSubSubscriberClientWrapper>();
+        var source = new Mock<IPubSubSubscriberClientSource>();
+        source
+            .Setup(s => s.GetSubscriberClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
+            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            new Mock<ISourceMessageConverter>().Object,
+            new Mock<IGooglePubSubBodyStringRetriever>().Object,
+            new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
+
+        await jobSource.AcknowledgeCompletionAsync(new Mock<IJobModel>().Object, true,
+            TestContext.Current.CancellationToken);
+        await jobSource.HeartbeatAsync(new Mock<IJobModel>().Object, TestContext.Current.CancellationToken);
+
+        client.Verify(c => c.AcknowledgeAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        client.Verify(
+            c => c.ModifyAckDeadlineAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<int>(),
+                It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TestAcknowledgeCompletionAsync(bool success)
+    {
+        var client = new Mock<IPubSubSubscriberClientWrapper>();
+        var source = new Mock<IPubSubSubscriberClientSource>();
+        source
+            .Setup(s => s.GetSubscriberClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var message = new Mock<IPubSubMessageContainer>();
+        var job = new GooglePubSubJobModel
+        {
+            Message = message.Object,
+            CreatedAtUtc = DateTime.UtcNow,
+            Data = new Mock<IJobDataModel>().Object
+        };
+
+        var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
+            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            new Mock<ISourceMessageConverter>().Object,
+            new Mock<IGooglePubSubBodyStringRetriever>().Object,
+            new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
+
+        await jobSource.AcknowledgeCompletionAsync(job, success, TestContext.Current.CancellationToken);
+
+        if (success)
+        {
+            client.Verify(c => c.AcknowledgeAsync(message.Object, It.IsAny<CancellationToken>()), Times.Once);
+            client.Verify(c => c.NackAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<CancellationToken>()),
+                Times.Never);
+        }
+        else
+        {
+            client.Verify(c => c.NackAsync(message.Object, It.IsAny<CancellationToken>()), Times.Once);
+            client.Verify(c => c.AcknowledgeAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<CancellationToken>()),
+                Times.Never);
+        }
+    }
+
     [Theory]
     [InlineData(2)]
     [InlineData(5)]
@@ -53,15 +131,10 @@ public class GooglePubSubJobSourceTests
         converter.Setup(c => c.Convert(data3)).Returns((IJobDataModel?) null);
         converter.Setup(c => c.Convert(data4)).Returns((string _) => throw new Exception());
 
-        var jobSource = new GooglePubSubJobSource(source.Object, pubSubMessageSource.Object, converter.Object,
+        var jobSource = new GooglePubSubJobSource(source.Object, pubSubMessageSource.Object,
+            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
             bodyRetriever.Object,
-            new NullLogger<GooglePubSubJobSource>(), Options.Create(new GooglePubSubConfigurationModel
-            {
-                ProjectId = "local-pubsub",
-                SubscriptionId = "jobs-subscription",
-                VisibilityTimeoutSeconds = 60,
-                MaxMessagesPerRequest = 100
-            }));
+            new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
 
         var response = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
         Assert.Equal(2, response.Items.Count);
@@ -92,66 +165,15 @@ public class GooglePubSubJobSourceTests
             .ReturnsAsync([message1.Object]);
 
         var jobSource = new GooglePubSubJobSource(source.Object, pubSubMessageSource.Object,
+            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new Mock<ISourceMessageConverter>().Object,
             bodyRetriever.Object,
-            new NullLogger<GooglePubSubJobSource>(), Options.Create(new GooglePubSubConfigurationModel
-            {
-                ProjectId = "local-pubsub",
-                SubscriptionId = "jobs-subscription",
-                VisibilityTimeoutSeconds = 60,
-                MaxMessagesPerRequest = 100
-            }));
+            new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
 
         var response = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         Assert.Empty(response.Items);
         client.Verify(c => c.AcknowledgeAsync(message1.Object, It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task TestAcknowledgeCompletionAsync(bool success)
-    {
-        var client = new Mock<IPubSubSubscriberClientWrapper>();
-        var source = new Mock<IPubSubSubscriberClientSource>();
-        source
-            .Setup(s => s.GetSubscriberClientAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(client.Object);
-
-        var message = new Mock<IPubSubMessageContainer>();
-        var job = new GooglePubSubJobModel
-        {
-            Message = message.Object,
-            CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object
-        };
-
-        var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
-            new Mock<ISourceMessageConverter>().Object,
-            new Mock<IGooglePubSubBodyStringRetriever>().Object,
-            new NullLogger<GooglePubSubJobSource>(), Options.Create(new GooglePubSubConfigurationModel
-            {
-                ProjectId = "local-pubsub",
-                SubscriptionId = "jobs-subscription",
-                VisibilityTimeoutSeconds = 60,
-                MaxMessagesPerRequest = 100
-            }));
-
-        await jobSource.AcknowledgeCompletionAsync(job, success, TestContext.Current.CancellationToken);
-
-        if (success)
-        {
-            client.Verify(c => c.AcknowledgeAsync(message.Object, It.IsAny<CancellationToken>()), Times.Once);
-            client.Verify(c => c.NackAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<CancellationToken>()),
-                Times.Never);
-        }
-        else
-        {
-            client.Verify(c => c.NackAsync(message.Object, It.IsAny<CancellationToken>()), Times.Once);
-            client.Verify(c => c.AcknowledgeAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<CancellationToken>()),
-                Times.Never);
-        }
     }
 
     [Fact]
@@ -172,51 +194,15 @@ public class GooglePubSubJobSourceTests
         };
 
         var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
+            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new Mock<ISourceMessageConverter>().Object,
             new Mock<IGooglePubSubBodyStringRetriever>().Object,
-            new NullLogger<GooglePubSubJobSource>(), Options.Create(new GooglePubSubConfigurationModel
-            {
-                ProjectId = "local-pubsub",
-                SubscriptionId = "jobs-subscription",
-                VisibilityTimeoutSeconds = 60,
-                MaxMessagesPerRequest = 100
-            }));
+            new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
 
         Assert.Equal(45, jobSource.RecommendedHeartbeatIntervalSeconds);
 
         await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken);
 
         client.Verify(c => c.ModifyAckDeadlineAsync(message.Object, 60, It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task AcknowledgeAndHeartbeat_IgnoreNonPubSubJobs()
-    {
-        var client = new Mock<IPubSubSubscriberClientWrapper>();
-        var source = new Mock<IPubSubSubscriberClientSource>();
-        source
-            .Setup(s => s.GetSubscriberClientAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(client.Object);
-
-        var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
-            new Mock<ISourceMessageConverter>().Object,
-            new Mock<IGooglePubSubBodyStringRetriever>().Object,
-            new NullLogger<GooglePubSubJobSource>(), Options.Create(new GooglePubSubConfigurationModel
-            {
-                ProjectId = "local-pubsub",
-                SubscriptionId = "jobs-subscription",
-                VisibilityTimeoutSeconds = 60,
-                MaxMessagesPerRequest = 100
-            }));
-
-        await jobSource.AcknowledgeCompletionAsync(new Mock<IJobModel>().Object, true,
-            TestContext.Current.CancellationToken);
-        await jobSource.HeartbeatAsync(new Mock<IJobModel>().Object, TestContext.Current.CancellationToken);
-
-        client.Verify(c => c.AcknowledgeAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-        client.Verify(
-            c => c.ModifyAckDeadlineAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<int>(),
-                It.IsAny<CancellationToken>()), Times.Never);
     }
 }

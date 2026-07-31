@@ -40,8 +40,8 @@ internal class PubSubSubscriberClientWrapper(
 
         try
         {
-            var response = await Client.PullAsync(subscriptionName, maxMessages: maxMessages,
-                callSettings: callSettings);
+            var response = await Client.PullAsync(subscriptionName, maxMessages,
+                callSettings);
 
             return response.ReceivedMessages.Select<ReceivedMessage, IPubSubMessageContainer>(m =>
                 new PubSubMessageContainer
@@ -49,9 +49,10 @@ internal class PubSubSubscriberClientWrapper(
                     Message = m
                 });
         }
-        catch (RpcException e) when (e.StatusCode is StatusCode.DeadlineExceeded or StatusCode.Unavailable)
+        catch (RpcException e) when (e.StatusCode is StatusCode.DeadlineExceeded)
         {
             // Idle pulls commonly surface as deadline exceeded once ReturnImmediately was deprecated.
+            // Unavailable and other transport failures are left for the retry/arbiter layer.
             return [];
         }
     }
