@@ -55,7 +55,7 @@ public class AzureRetryWrapperService(IAzureExceptionArbiterService exceptionArb
     public bool JudgeIfExceptionCanBeHandled(Exception exception)
     {
         var judgement = exceptionArbiterService.GetJudgement(exception);
-        return judgement is {IsExpected: true, IsTransient: true};
+        return judgement is {IsExpected: true, CouldBeTransient: true};
     }
 
     /// <summary>
@@ -110,7 +110,7 @@ public class AzureRetryWrapperService(IAzureExceptionArbiterService exceptionArb
         catch (Exception exception)
         {
             throw new WorkerAzureException(exception,
-                exceptionArbiterService.GetJudgement(exception).IsTransient);
+                exceptionArbiterService.GetJudgement(exception).CouldBeTransient);
         }
     }
 }

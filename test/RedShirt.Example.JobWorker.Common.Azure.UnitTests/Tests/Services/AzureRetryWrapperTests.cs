@@ -10,13 +10,13 @@ public class AzureRetryWrapperServiceTests
     private static AzureExceptionArbiterReport TransientReport() => new()
     {
         IsExpected = true,
-        IsTransient = true
+        CouldBeTransient = true
     };
 
     private static AzureExceptionArbiterReport UnexpectedReport() => new()
     {
         IsExpected = false,
-        IsTransient = false
+        CouldBeTransient = false
     };
 
     private static Mock<ISleepService> CreateSleepService(
@@ -133,7 +133,7 @@ public class AzureRetryWrapperServiceTests
         var report = new AzureExceptionArbiterReport
         {
             IsExpected = isExpected,
-            IsTransient = isTransient
+            CouldBeTransient = isTransient
         };
 
         var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);

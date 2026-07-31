@@ -18,7 +18,7 @@ public class AzureExceptionArbiterServiceTests
         var judgement = _sut.GetJudgement(exception);
 
         Assert.True(judgement.IsExpected);
-        Assert.False(judgement.IsTransient);
+        Assert.False(judgement.CouldBeTransient);
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public class AzureExceptionArbiterServiceTests
         var judgement = _sut.GetJudgement(exception);
 
         Assert.True(judgement.IsExpected);
-        Assert.False(judgement.IsTransient);
+        Assert.False(judgement.CouldBeTransient);
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public class AzureExceptionArbiterServiceTests
         var judgement = _sut.GetJudgement(exception);
 
         Assert.True(judgement.IsExpected);
-        Assert.True(judgement.IsTransient);
+        Assert.True(judgement.CouldBeTransient);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class AzureExceptionArbiterServiceTests
         var judgement = _sut.GetJudgement(exception);
 
         Assert.True(judgement.IsExpected);
-        Assert.False(judgement.IsTransient);
+        Assert.False(judgement.CouldBeTransient);
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class AzureExceptionArbiterServiceTests
         var judgement = _sut.GetJudgement(exception);
 
         Assert.True(judgement.IsExpected);
-        Assert.True(judgement.IsTransient);
+        Assert.True(judgement.CouldBeTransient);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class AzureExceptionArbiterServiceTests
         var judgement = _sut.GetJudgement(exception);
 
         Assert.True(judgement.IsExpected);
-        Assert.True(judgement.IsTransient);
+        Assert.True(judgement.CouldBeTransient);
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class AzureExceptionArbiterServiceTests
         var judgement = _sut.GetJudgement(exception);
 
         Assert.False(judgement.IsExpected);
-        Assert.False(judgement.IsTransient);
+        Assert.False(judgement.CouldBeTransient);
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class AzureExceptionArbiterServiceTests
         var judgement = _sut.GetJudgement(exception);
 
         Assert.True(judgement.IsExpected);
-        Assert.False(judgement.IsTransient);
+        Assert.False(judgement.CouldBeTransient);
     }
 
     [Theory]
@@ -121,7 +121,7 @@ public class AzureExceptionArbiterServiceTests
         var judgement = _sut.GetJudgement(exception);
 
         Assert.True(judgement.IsExpected);
-        Assert.False(judgement.IsTransient);
+        Assert.False(judgement.CouldBeTransient);
     }
 
     [Theory]
@@ -139,7 +139,7 @@ public class AzureExceptionArbiterServiceTests
         var judgement = _sut.GetJudgement(exception);
 
         Assert.True(judgement.IsExpected);
-        Assert.True(judgement.IsTransient);
+        Assert.True(judgement.CouldBeTransient);
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public class AzureExceptionArbiterServiceTests
         var judgement = _sut.GetJudgement(exception);
 
         Assert.True(judgement.IsExpected);
-        Assert.True(judgement.IsTransient);
+        Assert.True(judgement.CouldBeTransient);
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public class AzureExceptionArbiterServiceTests
         var judgement = _sut.GetJudgement(exception);
 
         Assert.True(judgement.IsExpected);
-        Assert.True(judgement.IsTransient);
+        Assert.True(judgement.CouldBeTransient);
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public class AzureExceptionArbiterServiceTests
         var judgement = _sut.GetJudgement(exception);
 
         Assert.True(judgement.IsExpected);
-        Assert.True(judgement.IsTransient);
+        Assert.True(judgement.CouldBeTransient);
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public class AzureExceptionArbiterServiceTests
         var judgement = _sut.GetJudgement(exception);
 
         Assert.False(judgement.IsExpected);
-        Assert.False(judgement.IsTransient);
+        Assert.False(judgement.CouldBeTransient);
     }
 
     [Fact]
@@ -195,6 +195,6 @@ public class AzureExceptionArbiterServiceTests
         var judgement = _sut.GetJudgement(exception);
 
         Assert.True(judgement.IsExpected);
-        Assert.False(judgement.IsTransient);
+        Assert.False(judgement.CouldBeTransient);
     }
 }

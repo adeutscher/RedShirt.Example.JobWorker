@@ -25,13 +25,20 @@ public class AzureExceptionArbiterService : IAzureExceptionArbiterService
 
     private static Exception Unwrap(Exception exception)
     {
-        while (exception is AggregateException {InnerExceptions.Count: 1, InnerException: not null} aggregate)
+        while (exception is AggregateException { InnerExceptions.Count: 1 } aggregate
+               && aggregate.InnerException is not null)
         {
             exception = aggregate.InnerException;
         }
 
         return exception;
     }
+
+    private static AzureExceptionArbiterReport Fresh(bool isExpected, bool isTransient) => new()
+    {
+        IsExpected = isExpected,
+        CouldBeTransient = isTransient
+    };
 
     public AzureExceptionArbiterReport GetJudgement(Exception exception)
     {
@@ -43,75 +50,32 @@ public class AzureExceptionArbiterService : IAzureExceptionArbiterService
         {
             // Service returned an HTTP error (or no response). Transient only for retryable statuses
             // such as timeout, throttling, and 5xx — not for 401/403/404 and other permanent failures.
-            RequestFailedException requestFailed => new AzureExceptionArbiterReport
-            {
-                IsExpected = true,
-                IsTransient = TransientRequestStatuses.Contains(requestFailed.Status)
-            },
+            RequestFailedException requestFailed =>
+                Fresh(true, TransientRequestStatuses.Contains(requestFailed.Status)),
             // Interactive sign-in is required; a worker process cannot recover by retrying.
-            AuthenticationRequiredException => new AzureExceptionArbiterReport
-            {
-                IsExpected = true,
-                IsTransient = false
-            },
+            AuthenticationRequiredException => Fresh(true, false),
             // No credential in the DefaultAzureCredential chain succeeded. Often misconfiguration,
             // but also brief IMDS/startup unavailability — allow retry.
-            CredentialUnavailableException => new AzureExceptionArbiterReport
-            {
-                IsExpected = true,
-                IsTransient = true
-            },
+            CredentialUnavailableException => Fresh(true, true),
             // A credential was found but token acquisition failed. Often permanent config/RBAC,
             // but token endpoint blips are possible — allow retry.
-            AuthenticationFailedException => new AzureExceptionArbiterReport
-            {
-                IsExpected = true,
-                IsTransient = true
-            },
+            AuthenticationFailedException => Fresh(true, true),
             // Transport-level HTTP failure before a useful Azure response (DNS, TLS, connection drop).
-            HttpRequestException => new AzureExceptionArbiterReport
-            {
-                IsExpected = true,
-                IsTransient = true
-            },
+            HttpRequestException => Fresh(true, true),
             // Low-level network failure; typically intermittent connectivity.
-            SocketException => new AzureExceptionArbiterReport
-            {
-                IsExpected = true,
-                IsTransient = true
-            },
+            SocketException => Fresh(true, true),
             // HttpClient request timeouts commonly surface as TaskCanceledException; treat as retryable.
             // Must be matched before OperationCanceledException (TCE derives from OCE).
-            TaskCanceledException => new AzureExceptionArbiterReport
-            {
-                IsExpected = true,
-                IsTransient = true
-            },
+            TaskCanceledException => Fresh(true, true),
             // Explicit CancellationToken cancellation from the caller — do not retry.
-            OperationCanceledException => new AzureExceptionArbiterReport
-            {
-                IsExpected = true,
-                IsTransient = false
-            },
+            OperationCanceledException => Fresh(true, false),
             // Invalid Azure resource URL (e.g. KeyVaultUrl from configuration) — not retryable.
             // UriFormatException derives from FormatException, not ArgumentException.
-            UriFormatException => new AzureExceptionArbiterReport
-            {
-                IsExpected = true,
-                IsTransient = false
-            },
+            UriFormatException => Fresh(true, false),
             // Client-side argument validation from the Azure SDK / factory (includes ArgumentNullException).
-            ArgumentException => new AzureExceptionArbiterReport
-            {
-                IsExpected = true,
-                IsTransient = false
-            },
+            ArgumentException => Fresh(true, false),
             // Unrecognized exception type — not treated as a known Azure client failure.
-            _ => new AzureExceptionArbiterReport
-            {
-                IsExpected = false,
-                IsTransient = false
-            }
+            _ => Fresh(false, false)
         };
     }
 }
