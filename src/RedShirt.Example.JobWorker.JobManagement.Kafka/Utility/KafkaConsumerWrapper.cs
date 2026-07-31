@@ -73,6 +73,7 @@ internal sealed class KafkaConsumerWrapper(IKafkaRetryWrapperService retryWrappe
 
             try
             {
+                // Running retry wrapper on an individual basis so that problems on one partition don't bog down a working one
                 await retryWrapper.RunAsync(_ =>
                 {
                     consumer.Commit([offset]);
