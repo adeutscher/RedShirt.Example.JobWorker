@@ -14,6 +14,7 @@ Repo features:
     * [Apache Kafka](https://kafka.apache.org/)
     * [Azure Queue Storage](https://learn.microsoft.com/en-us/azure/storage/queues/storage-queues-introduction)
     * [Azure Service Bus](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview)
+    * [Google Pub/Sub](https://cloud.google.com/pubsub/docs)
     * [NATS](https://nats.io/)
     * [RabbitMQ](https://www.rabbitmq.com/)
 * Cache-based idempotency support
