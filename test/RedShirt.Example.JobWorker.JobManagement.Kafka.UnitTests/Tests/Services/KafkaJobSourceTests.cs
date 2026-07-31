@@ -57,7 +57,8 @@ public class KafkaJobSourceTests
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
 
-        var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object, converter.Object,
+        var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
             new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
@@ -81,7 +82,8 @@ public class KafkaJobSourceTests
         var kafkaMessageSource = new Mock<IKafkaMessageSource>(MockBehavior.Strict);
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
-        var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object, converter.Object,
+        var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
             new NullLogger<KafkaJobSource>());
 
         await jobSource.AcknowledgeCompletionAsync(new Mock<IJobModel>().Object, true,
@@ -108,7 +110,8 @@ public class KafkaJobSourceTests
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
 
-        var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object, converter.Object,
+        var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
             new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
@@ -140,7 +143,8 @@ public class KafkaJobSourceTests
 
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
 
-        var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object, converter.Object,
+        var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
             new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
@@ -165,7 +169,8 @@ public class KafkaJobSourceTests
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
-        var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object, converter.Object,
+        var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
             new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(5, TestContext.Current.CancellationToken);
@@ -206,7 +211,8 @@ public class KafkaJobSourceTests
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
 
-        var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object, converter.Object,
+        var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
             new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(5, TestContext.Current.CancellationToken);
@@ -228,6 +234,7 @@ public class KafkaJobSourceTests
         var jobSource = new KafkaJobSource(
             new Mock<IKafkaConsumerSource>().Object,
             new Mock<IKafkaMessageSource>().Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new Mock<ISourceMessageConverter>().Object,
             new NullLogger<KafkaJobSource>());
 

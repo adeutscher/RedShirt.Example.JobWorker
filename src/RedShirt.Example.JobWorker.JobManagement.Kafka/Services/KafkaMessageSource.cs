@@ -9,37 +9,37 @@ internal interface IKafkaMessageSource
         CancellationToken cancellationToken = default);
 }
 
-internal class KafkaMessageSource(IKafkaConsumerSource consumerSource) : IKafkaMessageSource
+internal class KafkaMessageSource(
+    IKafkaConsumerSource consumerSource,
+    IKafkaRetryWrapperService retryWrapperService) : IKafkaMessageSource
 {
     private static readonly TimeSpan ConsumeTimeout = TimeSpan.FromSeconds(1);
 
-    public Task<IKafkaMessageSourceResponse> GetMessagesAsync(int batchSize,
+    public async Task<IKafkaMessageSourceResponse> GetMessagesAsync(int batchSize,
         CancellationToken cancellationToken = default)
     {
         var consumer = consumerSource.GetConsumer();
         var messages = new List<IKafkaMessageContainer>();
 
-        IKafkaMessageContainer? lastMessage = null;
-
         while (messages.Count < batchSize)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var message = consumer.Consume(ConsumeTimeout);
+            var message = await retryWrapperService.RunAsync(
+                _ => Task.FromResult(consumer.Consume(ConsumeTimeout)),
+                cancellationToken);
 
             if (message is null)
             {
                 break;
             }
 
-            lastMessage = message;
             messages.Add(message);
         }
 
-        return Task.FromResult<IKafkaMessageSourceResponse>(new KafkaMessageSourceResponse
+        return new KafkaMessageSourceResponse
         {
-            Messages = messages,
-            LastMessage = lastMessage
-        });
+            Messages = messages
+        };
     }
 }

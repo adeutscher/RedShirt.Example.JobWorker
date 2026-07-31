@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Factories;
@@ -11,6 +10,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.Kafka.Services;
 internal class KafkaJobSource(
     IKafkaConsumerSource consumerSource,
     IKafkaMessageSource kafkaMessageSource,
+    IKafkaRetryWrapperService retryWrapperService,
     ISourceMessageConverter converter,
     ILogger<KafkaJobSource> logger) : IJobSource
 {
@@ -34,7 +34,7 @@ internal class KafkaJobSource(
         try
         {
             var trackerSession = Sessions.FirstOrDefault(s =>
-                s.Messages.Any(m => m.MessageId == kafkaJobModel.MessageId));
+                s.MessagesToProcess.Any(m => m.MessageId == kafkaJobModel.MessageId));
 
             if (trackerSession is null)
             {
@@ -43,12 +43,20 @@ internal class KafkaJobSource(
 
             trackerSession.Increment(kafkaJobModel.MessageId);
 
-            if (trackerSession.IsComplete)
+            if (!trackerSession.IsComplete)
             {
-                var consumer = consumerSource.GetConsumer();
-                consumer.Commit(trackerSession.Messages);
-                Sessions.Remove(trackerSession);
+                return;
             }
+
+            var consumer = consumerSource.GetConsumer();
+            await retryWrapperService.RunAsync(
+                _ =>
+                {
+                    consumer.Commit(trackerSession.MessagesToProcess);
+                    return Task.CompletedTask;
+                },
+                cancellationToken);
+            Sessions.Remove(trackerSession);
         }
         finally
         {
@@ -60,11 +68,14 @@ internal class KafkaJobSource(
     {
         var messageSourceResponse = await kafkaMessageSource.GetMessagesAsync(batchSize, cancellationToken);
         var items = new List<IJobModel>();
-        var sessionMessages = new List<IKafkaMessageContainer>();
+        var messagesToProcess = new List<IKafkaMessageContainer>();
         var skippedMessages = new List<IKafkaMessageContainer>();
+        var totalMessages = new List<IKafkaMessageContainer>();
 
         foreach (var receivedMessage in messageSourceResponse.Messages)
         {
+            totalMessages.Add(receivedMessage);
+            
             var messageBody = receivedMessage.Value;
 
             if (string.IsNullOrWhiteSpace(messageBody))
@@ -73,7 +84,7 @@ internal class KafkaJobSource(
                 skippedMessages.Add(receivedMessage);
                 continue;
             }
-
+            
             try
             {
                 logger.LogTrace("Raw Kafka message: {MessageBody}", messageBody);
@@ -95,7 +106,7 @@ internal class KafkaJobSource(
                 };
 
                 items.Add(data);
-                sessionMessages.Add(receivedMessage);
+                messagesToProcess.Add(receivedMessage);
             }
             catch (Exception e)
             {
@@ -108,7 +119,14 @@ internal class KafkaJobSource(
         if (skippedMessages.Count > 0 && skippedMessages.Count == messageSourceResponse.Messages.Count)
         {
             // Skipped every single message (ouch)
-            consumerSource.GetConsumer().Commit(skippedMessages);
+            await retryWrapperService.RunAsync(
+                _ =>
+                {
+                    var consumer = consumerSource.GetConsumer();
+                    consumer.Commit(skippedMessages);
+                    return Task.CompletedTask;
+                },
+                cancellationToken);
             return new JobSourceResponse
             {
                 Items = []
@@ -116,12 +134,12 @@ internal class KafkaJobSource(
         }
 
         // ReSharper disable once InvertIf
-        if (messageSourceResponse.LastMessage is not null && sessionMessages.Count > 0)
+        if (messagesToProcess.Count > 0)
         {
             await _sessionsSemaphore.WaitAsync(cancellationToken);
             try
             {
-                Sessions.Add(new KafkaTrackerSession(sessionMessages, messageSourceResponse.LastMessage));
+                Sessions.Add(new KafkaTrackerSession(totalMessages, messagesToProcess));
             }
             finally
             {
@@ -135,12 +153,16 @@ internal class KafkaJobSource(
         };
     }
 
+    /// <summary>
+    /// Being from a stream-based message source, Kafka messages do not need heartbeats.
+    /// The ownership of the client over the underlying topic partition for the consumer group is managed by the Kafka protocol. 
+    /// </summary>
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
     public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
     {
         /*
-         * Not necessary. Consumer group heartbeats are managed by underlying Kafka library for the IConsumer lifetime.
+         * Not necessary. Consumer group heartbeats are managed by underlying Kafka protocol for the IConsumer lifetime.
          */
         return Task.CompletedTask;
     }

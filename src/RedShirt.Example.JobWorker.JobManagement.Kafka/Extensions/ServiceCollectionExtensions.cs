@@ -16,6 +16,8 @@ public static class ServiceCollectionExtensions
             .Configure<KafkaConsumerFactory.ConfigurationModel>(configuration.GetSection("JobSource:Kafka"))
             .AddSingleton<IKafkaConsumerFactory, KafkaConsumerFactory>()
             .AddSingleton<IKafkaConsumerSource, KafkaConsumerSource>()
+            .AddSingleton<IKafkaExceptionArbiterService, KafkaExceptionArbiterService>()
+            .AddSingleton<IKafkaRetryWrapperService, KafkaRetryWrapperService>()
             .AddSingleton<IKafkaMessageSource, KafkaMessageSource>();
     }
 }

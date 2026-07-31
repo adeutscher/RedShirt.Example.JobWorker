@@ -1,14 +1,14 @@
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.Models;
 
-internal class KafkaTrackerSession(IReadOnlyList<IKafkaMessageContainer> messages, IKafkaMessageContainer lastMessage)
+internal class KafkaTrackerSession(IReadOnlyList<IKafkaMessageContainer> totalMessages, IReadOnlyList<IKafkaMessageContainer> messagesToProcess)
 {
-    private readonly HashSet<string> _acknowledgedMessageIds = new();
+    private readonly HashSet<string> _acknowledgedMessageIds = [];
 
     private readonly HashSet<string> _sessionMessageIds =
-        messages.Select(m => m.MessageId).ToHashSet();
-
-    public IKafkaMessageContainer? LastMessage => lastMessage;
-    public IReadOnlyList<IKafkaMessageContainer> Messages { get; } = messages;
+        messagesToProcess.Select(m => m.MessageId).ToHashSet();
+    
+    public IReadOnlyList<IKafkaMessageContainer> MessagesToProcess { get; } = messagesToProcess;
+    public IReadOnlyList<IKafkaMessageContainer> TotalMessages => totalMessages;
 
     public bool IsComplete => _acknowledgedMessageIds.Count >= _sessionMessageIds.Count;
 

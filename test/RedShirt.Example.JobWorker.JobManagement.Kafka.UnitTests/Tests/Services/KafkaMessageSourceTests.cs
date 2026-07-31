@@ -29,7 +29,9 @@ public class KafkaMessageSourceTests
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
 
-        return (new KafkaMessageSource(consumerSource.Object), consumer, consumerSource, queuedMessages);
+        return (new KafkaMessageSource(consumerSource.Object,
+                KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object), consumer, consumerSource,
+            queuedMessages);
     }
 
     private static IKafkaMessageContainer CreateMessage(string messageId)
@@ -49,7 +51,8 @@ public class KafkaMessageSourceTests
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
 
-        var messageSource = new KafkaMessageSource(consumerSource.Object);
+        var messageSource = new KafkaMessageSource(consumerSource.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
         var response = await messageSource.GetMessagesAsync(3, TestContext.Current.CancellationToken);
 
         Assert.Empty(response.Messages);
@@ -113,7 +116,8 @@ public class KafkaMessageSourceTests
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
 
-        var messageSource = new KafkaMessageSource(consumerSource.Object);
+        var messageSource = new KafkaMessageSource(consumerSource.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
         var response = await messageSource.GetMessagesAsync(10, TestContext.Current.CancellationToken);
 
         Assert.Equal(2, response.Messages.Count);
@@ -133,7 +137,8 @@ public class KafkaMessageSourceTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        var messageSource = new KafkaMessageSource(consumerSource.Object);
+        var messageSource = new KafkaMessageSource(consumerSource.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
             messageSource.GetMessagesAsync(1, cts.Token));
