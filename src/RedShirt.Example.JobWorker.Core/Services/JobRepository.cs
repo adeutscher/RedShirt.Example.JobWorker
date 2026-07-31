@@ -66,8 +66,8 @@ internal class JobRepository(
     private readonly AsyncManualResetEvent _jobsDemandEvent = new();
 
     /// <summary>
-    ///     Signaled when the repository has no watched jobs.
-    ///     Starts signaled because the repository begins empty.
+    ///     Signalled when the repository has no watched jobs.
+    ///     Starts signalled because the repository begins empty.
     /// </summary>
     private readonly AsyncManualResetEvent _repositoryEmptyEvent = new(true);
 

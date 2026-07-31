@@ -65,7 +65,7 @@ public class AsyncAutoResetEvent(bool setInitially = false)
 
         lock (_waits)
         {
-            // 1. Fast path: Event is already signaled
+            // 1. Fast path: Event is already signalled
             if (_signaled)
             {
                 _signaled = false;
@@ -99,7 +99,7 @@ public class AsyncAutoResetEvent(bool setInitially = false)
         }
 
         // Register a cancellation callback to pull this waiter out of the queue if it times out or gets cancelled
-        using var registration = cts.Token.Register(state =>
+        await using var registration = cts.Token.Register(state =>
         {
             var tuple = ((AsyncAutoResetEvent Event, TaskCompletionSource<bool> Tcs)) state!;
             tuple.Event.RemoveWaiter(tuple.Tcs);

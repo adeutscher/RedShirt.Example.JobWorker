@@ -38,7 +38,7 @@ public class AsyncManualResetEvent
 
     public async Task<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
-        // 1. Fast path: Event is already signaled
+        // 1. Fast path: Event is already signalled
         var eventTask = _tcs.Task;
         if (eventTask.IsCompleted)
         {
