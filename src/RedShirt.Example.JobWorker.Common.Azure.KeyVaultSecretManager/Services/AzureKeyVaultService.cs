@@ -26,18 +26,27 @@ internal partial class AzureKeyVaultService(
     [GeneratedRegex(@"^[a-zA-Z0-9-]{1,127}$")]
     private static partial Regex ValidKeyRegex();
 
-    public Task<string> GetSecretAsync(string key, CancellationToken cancellationToken = default)
+    public async Task<string> GetSecretAsync(string key, CancellationToken cancellationToken = default)
     {
         if (!IsValidKey(key))
         {
-            throw new WorkerSecretManagerException($"Invalid secret path: {key}", false);
+            // ReSharper disable once RedundantArgumentDefaultValue
+            throw new WorkerSecretManagerException($"Invalid secret path: {key}", true);
         }
 
-        return retryWrapperService.RunAsync(ct =>
+        try
         {
-            var client = clientSource.GetKeyVaultClient();
-            return client.GetSecretAsync(key, ct);
-        }, cancellationToken);
+            return await retryWrapperService.RunAsync(ct =>
+            {
+                var client = clientSource.GetKeyVaultClient();
+                return client.GetSecretAsync(key, ct);
+            }, cancellationToken);
+        }
+        catch (WorkerAzureException e)
+        {
+            // Translate
+            throw new WorkerSecretManagerException(e, e.IsCritical, e.IsTransient);
+        }
     }
 
     public async Task<Dictionary<string, string>> GetSecretsAsync(List<string> keys,
@@ -45,6 +54,7 @@ internal partial class AzureKeyVaultService(
     {
         if (keys.FirstOrDefault(key => !IsValidKey(key)) is { } badKey)
         {
+            // ReSharper disable once RedundantArgumentDefaultValue
             throw new WorkerSecretManagerException($"Invalid secret path: {badKey}", true);
         }
 
@@ -63,6 +73,7 @@ internal partial class AzureKeyVaultService(
         }
         catch (WorkerAzureException e)
         {
+            // Translate
             throw new WorkerSecretManagerException(e, e.IsCritical, e.IsTransient);
         }
 
