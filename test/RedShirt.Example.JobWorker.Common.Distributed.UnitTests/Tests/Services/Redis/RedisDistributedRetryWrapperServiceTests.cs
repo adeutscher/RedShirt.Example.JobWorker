@@ -39,6 +39,16 @@ public class RedisDistributedRetryWrapperServiceTests
         };
     }
 
+    private static RedisExceptionArbiterReport CriticalTransientReport()
+    {
+        return new RedisExceptionArbiterReport
+        {
+            AlreadyHandled = false,
+            IsCritical = true,
+            CouldBeTransient = true
+        };
+    }
+
     private static RedisExceptionArbiterReport UnexpectedReport()
     {
         return new RedisExceptionArbiterReport
@@ -149,6 +159,7 @@ public class RedisDistributedRetryWrapperServiceTests
             TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown.InnerException);
+        Assert.False(thrown.IsCritical);
         Assert.True(thrown.IsTransient);
         Assert.Equal(4, attempts);
         Assert.Equal(
@@ -234,6 +245,33 @@ public class RedisDistributedRetryWrapperServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenCriticalEvenIfTransient_DoesNotRetryAndRethrowsRaw()
+    {
+        var attempts = 0;
+        var inner = new InvalidOperationException("critical but looks transient");
+
+        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetReport(inner)).Returns(CriticalTransientReport());
+
+        var sleepService = CreateSleepService();
+        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => wrapper.RunAsync<int>(
+            _ =>
+            {
+                attempts++;
+                throw inner;
+            },
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(1, attempts);
+        Assert.Same(inner, thrown);
+        sleepService.Verify(
+            s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task RunAsync_WhenFuncSucceeds_ReturnsResultWithoutSleeping()
     {
         var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
@@ -273,6 +311,7 @@ public class RedisDistributedRetryWrapperServiceTests
 
         Assert.Equal(1, attempts);
         Assert.Same(inner, thrown.InnerException);
+        Assert.False(thrown.IsCritical);
         Assert.False(thrown.IsTransient);
         sleepService.Verify(
             s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
@@ -313,6 +352,7 @@ public class RedisDistributedRetryWrapperServiceTests
             TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown.InnerException);
+        Assert.False(thrown.IsCritical);
         Assert.True(thrown.IsTransient);
     }
 
@@ -367,6 +407,7 @@ public class RedisDistributedRetryWrapperServiceTests
             TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown.InnerException);
+        Assert.False(thrown.IsCritical);
         Assert.True(thrown.IsTransient);
         // original attempt + 3 retries
         Assert.Equal(4, attempts);

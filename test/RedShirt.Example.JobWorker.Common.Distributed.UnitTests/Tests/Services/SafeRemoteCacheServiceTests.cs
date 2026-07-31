@@ -31,7 +31,7 @@ public class SafeRemoteCacheServiceTests
         var key = Guid.NewGuid().ToString();
 
         remoteCache.SetupSequence(c => c.GetStringAsync(key, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new WorkerDistributedException(new TimeoutException("slow")))
+            .ThrowsAsync(new WorkerDistributedException(new TimeoutException("slow"), false))
             .ReturnsAsync("recovered");
 
         // Zero-second disgrace ends immediately after the failure call returns.
@@ -52,7 +52,7 @@ public class SafeRemoteCacheServiceTests
         var expiry = TimeSpan.FromMinutes(1);
 
         remoteCache.Setup(c => c.GetStringAsync(key, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new WorkerDistributedException(new Exception("offline")));
+            .ThrowsAsync(new WorkerDistributedException(new Exception("offline"), false));
 
         var (service, _) = CreateService(remoteCache);
         await service.GetStringAsync(key, TestContext.Current.CancellationToken);
@@ -95,29 +95,23 @@ public class SafeRemoteCacheServiceTests
         remoteCache.VerifyNoOtherCalls();
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task GetStringAsync_WhenDistributedException_ReturnsNullAndEntersDisgrace(bool isTransient)
+    [Fact]
+    public async Task GetStringAsync_WhenCriticalDistributedException_PropagatesWithoutEnteringDisgrace()
     {
         var remoteCache = new Mock<IRemoteCacheService>(MockBehavior.Strict);
         var key = Guid.NewGuid().ToString();
-        var inner = new Exception("boom");
-        var exception = new WorkerDistributedException(inner, isTransient: isTransient);
+        var exception = new WorkerDistributedException(new Exception("auth failed"));
 
         remoteCache.Setup(c => c.GetStringAsync(key, TestContext.Current.CancellationToken))
             .ThrowsAsync(exception);
 
         var (service, disgraceState) = CreateService(remoteCache);
-        var result = await service.GetStringAsync(key, TestContext.Current.CancellationToken);
 
-        Assert.Null(result);
-        Assert.True(disgraceState.IsInDisgracePeriod());
+        var thrown = await Assert.ThrowsAsync<WorkerDistributedException>(() =>
+            service.GetStringAsync(key, TestContext.Current.CancellationToken));
 
-        // Still in disgrace: subsequent get must not hit the remote cache.
-        var second = await service.GetStringAsync(key, TestContext.Current.CancellationToken);
-
-        Assert.Null(second);
+        Assert.Same(exception, thrown);
+        Assert.False(disgraceState.IsInDisgracePeriod());
         remoteCache.Verify(c => c.GetStringAsync(key, TestContext.Current.CancellationToken), Times.Once);
         remoteCache.VerifyNoOtherCalls();
     }
@@ -135,6 +129,33 @@ public class SafeRemoteCacheServiceTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.GetStringAsync(key, TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetStringAsync_WhenNonCriticalDistributedException_ReturnsNullAndEntersDisgrace(bool isTransient)
+    {
+        var remoteCache = new Mock<IRemoteCacheService>(MockBehavior.Strict);
+        var key = Guid.NewGuid().ToString();
+        var inner = new Exception("boom");
+        var exception = new WorkerDistributedException(inner, false, isTransient);
+
+        remoteCache.Setup(c => c.GetStringAsync(key, TestContext.Current.CancellationToken))
+            .ThrowsAsync(exception);
+
+        var (service, disgraceState) = CreateService(remoteCache);
+        var result = await service.GetStringAsync(key, TestContext.Current.CancellationToken);
+
+        Assert.Null(result);
+        Assert.True(disgraceState.IsInDisgracePeriod());
+
+        // Still in disgrace: subsequent get must not hit the remote cache.
+        var second = await service.GetStringAsync(key, TestContext.Current.CancellationToken);
+
+        Assert.Null(second);
+        remoteCache.Verify(c => c.GetStringAsync(key, TestContext.Current.CancellationToken), Times.Once);
+        remoteCache.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -205,29 +226,25 @@ public class SafeRemoteCacheServiceTests
         remoteCache.VerifyNoOtherCalls();
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task SetStringAsync_WhenDistributedException_SwallowsAndEntersDisgrace(bool isTransient)
+    [Fact]
+    public async Task SetStringAsync_WhenCriticalDistributedException_PropagatesWithoutEnteringDisgrace()
     {
         var remoteCache = new Mock<IRemoteCacheService>(MockBehavior.Strict);
         var key = Guid.NewGuid().ToString();
         var value = Guid.NewGuid().ToString();
         var expiry = TimeSpan.FromSeconds(30);
-        var inner = new Exception("boom");
-        var exception = new WorkerDistributedException(inner, isTransient: isTransient);
+        var exception = new WorkerDistributedException(new Exception("auth failed"));
 
         remoteCache.Setup(c => c.SetStringAsync(key, value, expiry, TestContext.Current.CancellationToken))
             .ThrowsAsync(exception);
 
         var (service, disgraceState) = CreateService(remoteCache);
-        await service.SetStringAsync(key, value, expiry, TestContext.Current.CancellationToken);
 
-        Assert.True(disgraceState.IsInDisgracePeriod());
+        var thrown = await Assert.ThrowsAsync<WorkerDistributedException>(() =>
+            service.SetStringAsync(key, value, expiry, TestContext.Current.CancellationToken));
 
-        // Still in disgrace: subsequent set must not hit the remote cache.
-        await service.SetStringAsync(key, value, expiry, TestContext.Current.CancellationToken);
-
+        Assert.Same(exception, thrown);
+        Assert.False(disgraceState.IsInDisgracePeriod());
         remoteCache.Verify(c => c.SetStringAsync(key, value, expiry, TestContext.Current.CancellationToken),
             Times.Once);
         remoteCache.VerifyNoOtherCalls();
@@ -247,6 +264,34 @@ public class SafeRemoteCacheServiceTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.SetStringAsync(key, "value", expiry, TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SetStringAsync_WhenNonCriticalDistributedException_SwallowsAndEntersDisgrace(bool isTransient)
+    {
+        var remoteCache = new Mock<IRemoteCacheService>(MockBehavior.Strict);
+        var key = Guid.NewGuid().ToString();
+        var value = Guid.NewGuid().ToString();
+        var expiry = TimeSpan.FromSeconds(30);
+        var inner = new Exception("boom");
+        var exception = new WorkerDistributedException(inner, false, isTransient);
+
+        remoteCache.Setup(c => c.SetStringAsync(key, value, expiry, TestContext.Current.CancellationToken))
+            .ThrowsAsync(exception);
+
+        var (service, disgraceState) = CreateService(remoteCache);
+        await service.SetStringAsync(key, value, expiry, TestContext.Current.CancellationToken);
+
+        Assert.True(disgraceState.IsInDisgracePeriod());
+
+        // Still in disgrace: subsequent set must not hit the remote cache.
+        await service.SetStringAsync(key, value, expiry, TestContext.Current.CancellationToken);
+
+        remoteCache.Verify(c => c.SetStringAsync(key, value, expiry, TestContext.Current.CancellationToken),
+            Times.Once);
+        remoteCache.VerifyNoOtherCalls();
     }
 
     [Fact]

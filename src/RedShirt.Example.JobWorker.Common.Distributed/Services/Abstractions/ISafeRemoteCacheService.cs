@@ -1,7 +1,7 @@
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 
 /// <summary>
-///     Safe version of IRemoteCacheService that is guaranteed to leak no exceptions.
+///     Safe version of IRemoteCacheService that will filter out non-critical exceptions.
 ///     Intended for cases where caching is nice to have but not a deal-breaker in a pinch.
 /// </summary>
 public interface ISafeRemoteCacheService

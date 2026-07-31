@@ -9,18 +9,14 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services
 
 public class SafeAbstractedLockServiceTests
 {
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task GetLockAsync_WhenCacheException_EntersDisgraceAndReturnsPermissiveLock(bool isTransient)
+    [Fact]
+    public async Task GetLockAsync_WhenCriticalDistributedException_PropagatesWithoutEnteringDisgrace()
     {
-        var lockName = $"lock-cache-ex-transient-{isTransient}";
-        var inner = new Exception("cache unavailable");
-        var exception = new WorkerDistributedException(inner, isTransient: isTransient);
+        const string lockName = "lock-critical";
+        var exception = new WorkerDistributedException(new Exception("auth failed"));
 
         var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
         disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(false);
-        disgraceState.Setup(s => s.EnterDisgracePeriod());
 
         var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         lockService
@@ -29,15 +25,14 @@ public class SafeAbstractedLockServiceTests
 
         var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object,
             new NullLogger<SafeAbstractedLockService>());
-        var result = await service.GetLockAsync(lockName, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsAcquired);
-        Assert.False(result.IsTrulyAcquired);
-        await result.UnlockAsync(TestContext.Current.CancellationToken);
+        var thrown = await Assert.ThrowsAsync<WorkerDistributedException>(() =>
+            service.GetLockAsync(lockName, TestContext.Current.CancellationToken));
 
+        Assert.Same(exception, thrown);
         lockService.Verify(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken), Times.Once);
         disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
-        disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Once);
+        disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Never);
         disgraceState.VerifyNoOtherCalls();
     }
 
@@ -189,6 +184,39 @@ public class SafeAbstractedLockServiceTests
 
         disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
         disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetLockAsync_WhenNonCriticalDistributedException_EntersDisgraceAndReturnsPermissiveLock(
+        bool isTransient)
+    {
+        var lockName = $"lock-cache-ex-transient-{isTransient}";
+        var inner = new Exception("cache unavailable");
+        var exception = new WorkerDistributedException(inner, false, isTransient);
+
+        var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
+        disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(false);
+        disgraceState.Setup(s => s.EnterDisgracePeriod());
+
+        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        lockService
+            .Setup(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken))
+            .ThrowsAsync(exception);
+
+        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object,
+            new NullLogger<SafeAbstractedLockService>());
+        var result = await service.GetLockAsync(lockName, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsAcquired);
+        Assert.False(result.IsTrulyAcquired);
+        await result.UnlockAsync(TestContext.Current.CancellationToken);
+
+        lockService.Verify(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken), Times.Once);
+        disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
+        disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Once);
+        disgraceState.VerifyNoOtherCalls();
     }
 
     [Fact]

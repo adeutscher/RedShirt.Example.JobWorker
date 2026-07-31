@@ -91,7 +91,8 @@ internal class RedisDistributedRetryWrapperService(
                         return PredicateResult.False();
                     }
 
-                    return exceptionArbiterService.GetReport(exception).CouldBeTransient
+                    var report = exceptionArbiterService.GetReport(exception);
+                    return report is {IsCritical: false, CouldBeTransient: true}
                         ? PredicateResult.True()
                         : PredicateResult.False();
                 },

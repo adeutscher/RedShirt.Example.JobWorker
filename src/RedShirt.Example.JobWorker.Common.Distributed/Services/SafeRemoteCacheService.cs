@@ -26,6 +26,12 @@ internal class SafeRemoteCacheService(
         }
         catch (WorkerDistributedException e)
         {
+            if (e.IsCritical)
+            {
+                // Critical problem: bubble up
+                throw;
+            }
+
             logger.LogWarning(e, "Failure to communicate with cache service: {EMessage}", e.Message);
             safetyDisgraceStateService.EnterDisgracePeriod();
             return null;
@@ -50,6 +56,12 @@ internal class SafeRemoteCacheService(
         }
         catch (WorkerDistributedException e)
         {
+            if (e.IsCritical)
+            {
+                // Critical problem: bubble up
+                throw;
+            }
+
             logger.LogWarning(e, "Failure to communicate with cache service: {EMessage}", e.Message);
             safetyDisgraceStateService.EnterDisgracePeriod();
         }

@@ -66,15 +66,6 @@ This template has support for idempotent operations by way of Redis caches.
 
 For configuration examples, see the `worker` section of the `test/local/docker-compose.yaml` file.
 
-### Stability
-
-Though being a proper idempotent consumer is the overall goal, this general template prioritizes overall stability over
-strict idempotency. Non-critical exceptions encountered while interacting with Redis at the low-level are captured by a
-safety layer.
-
-If the application fails to interact with Redis, then the safety layers will enter a "disgrace" state, in which the
-lower-level Redis services will not be attempted until the "disgrace" period has passed.
-
 ### Idempotency IDs
 
 The Idempotency ID of a message is its unique identifier that allows the idempotency system to function. The application
@@ -87,6 +78,12 @@ will not crash if receives a job with a null idempotency ID, but it won't be abl
 
 For many job sources and configurations, this identifier is automatically generated. However, there are some sources and
 configurations where it is not set.
+
+#### Concerning Idempotency ID Uniqueness
+
+Many message sources can automatically provide Idempotency IDs that are reliably unique. However, some services allow them to be specified by the publisher submitting the message.
+
+If the Idempotency IDs are considered to be reliably unique then a successful acknowledgement of a message shall mean that the cached result for that message will be cleared or not entered into the cache at all in the interest of saving cache resources.
 
 #### RabbitMQ Message IDs
 
@@ -113,6 +110,15 @@ channel.BasicPublish(
     body: body);
 ```
 
+### Redis Connection Instability Tolerance
+
+Though being a proper idempotent consumer is the overall goal, this general template prioritizes overall stability over
+strict idempotency. Non-critical exceptions encountered while interacting with Redis at the low-level are captured by a
+safety layer.
+
+If the application fails to interact with Redis, then the safety layers will enter a "disgrace" state, in which the
+lower-level Redis services will not be attempted until the "disgrace" period has passed.
+
 # Initialisation
 
 Below are the recommended steps for using this as a template:
@@ -136,6 +142,10 @@ Below are the recommended steps for using this as a template:
     * The dependency injection setup in the root project assumes that the chosen Secret Manager is SSM unless the chosen
       job source is explicitly Azure-based (see below for more details).
 
+### Cached Idempotency vs Database
+
+This general template uses Redis to cache results and drive its idempotency. However, if Redis does not meet your needs for message permanence then you will need to implement a service to access another data store.
+
 ## Secret Managers
 
 This general template has support for using a secret manager service. The services within the template interact with the
@@ -151,9 +161,8 @@ At the moment, there are two available implementations of `ISecretManagerService
 The Core library of this general template indirectly makes use of `ISecretManagerService`, requiring it to be configured
 in dependency injection by default. This general template assumes that the chosen secret manager implementation is SSM.
 The exception to this is if the chosen job source is either Azure Queue Storage or Azure Service Bus job sources, which
-configures Azure Key Vault as the secret manager. The Azure-based job sources use Key vault with the assumption that
-mixing
-major cloud platforms would be unusual.
+configures Azure Key Vault as the secret manager. The Azure-based job sources use Key Vault with the assumption that
+mixing major cloud platforms would be unusual. The template chooses a secret manager provider in the `Extensions/ServiceCollectionExtensions.cs` file of the root `RedShirt.Example.JobWorker` project.
 
 Please keep this in mind when adapting this template for your specific application.
 
