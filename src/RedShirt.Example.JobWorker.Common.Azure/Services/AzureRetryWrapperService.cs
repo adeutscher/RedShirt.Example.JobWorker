@@ -39,7 +39,7 @@ public interface IAzureRetryWrapperService
 /// </summary>
 /// <param name="exceptionArbiterService">Classifies Azure-related exceptions as expected/transient.</param>
 /// <param name="sleepService">Provides cancellable backoff delays between retry attempts.</param>
-public class AzureRetryWrapperService(IAzureExceptionArbiterService exceptionArbiterService, ISleepService sleepService)
+internal class AzureRetryWrapperService(IAzureExceptionArbiterService exceptionArbiterService, ISleepService sleepService)
     : IAzureRetryWrapperService
 {
     private const int AzureRetryCount = 3;

@@ -9,7 +9,7 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
 ///     Retries Distributed client operations that fail with expected transient exceptions,
 ///     then surfaces remaining failures as <see cref="WorkerDistributedException" />.
 /// </summary>
-public interface IDistributedRetryWrapperService
+internal interface IDistributedRetryWrapperService
 {
     /// <summary>
     ///     Executes <paramref name="func" /> with retry for expected transient Distributed failures.
@@ -57,7 +57,7 @@ public interface IDistributedRetryWrapperService
 /// </summary>
 /// <param name="exceptionArbiterService">Classifies Redis-related exceptions as possibly transient.</param>
 /// <param name="sleepService">Provides cancellable backoff delays between retry attempts.</param>
-public class RedisDistributedRetryWrapperService(
+internal class RedisDistributedRetryWrapperService(
     IRedisDistributedExceptionArbiterService exceptionArbiterService,
     IDistributedSleepService sleepService)
     : IDistributedRetryWrapperService

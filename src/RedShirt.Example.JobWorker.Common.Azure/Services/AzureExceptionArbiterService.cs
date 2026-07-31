@@ -5,12 +5,12 @@ using System.Net.Sockets;
 
 namespace RedShirt.Example.JobWorker.Common.Azure.Services;
 
-public interface IAzureExceptionArbiterService
+internal interface IAzureExceptionArbiterService
 {
-    public AzureExceptionArbiterReport GetJudgement(Exception exception);
+    AzureExceptionArbiterReport GetJudgement(Exception exception);
 }
 
-public class AzureExceptionArbiterService : IAzureExceptionArbiterService
+internal class AzureExceptionArbiterService : IAzureExceptionArbiterService
 {
     private static readonly HashSet<int> TransientRequestStatuses =
     [

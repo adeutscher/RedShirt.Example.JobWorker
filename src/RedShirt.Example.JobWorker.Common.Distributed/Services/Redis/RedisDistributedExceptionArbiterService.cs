@@ -9,7 +9,7 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 /// <summary>
 ///     Classifies Redis / distributed-cache exceptions for retry decisions.
 /// </summary>
-public interface IRedisDistributedExceptionArbiterService
+internal interface IRedisDistributedExceptionArbiterService
 {
     RedisExceptionArbiterReport GetReport(Exception exception);
 }
@@ -18,7 +18,7 @@ public interface IRedisDistributedExceptionArbiterService
 ///     Redis-oriented exception arbiter modeled after the Azure exception arbiter:
 ///     known infrastructure failures may be transient; caller cancel and bad arguments are not.
 /// </summary>
-public class RedisDistributedExceptionArbiterService : IRedisDistributedExceptionArbiterService
+internal class RedisDistributedExceptionArbiterService : IRedisDistributedExceptionArbiterService
 {
     private static readonly HashSet<ConnectionFailureType> TransientConnectionFailures =
     [

@@ -7,7 +7,7 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
 ///     Its use prevents certain unit tests from greatly increasing test times in Docker builds, CI/CD pipelines, or a
 ///     developer's manual tests.
 /// </summary>
-public interface IDistributedSleepService
+internal interface IDistributedSleepService
 {
     Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken = default);
 }

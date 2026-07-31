@@ -1,6 +1,6 @@
 namespace RedShirt.Example.JobWorker.Common.Azure.Models;
 
-public class AzureExceptionArbiterReport
+internal class AzureExceptionArbiterReport
 {
     public required bool IsExpected { get; init; }
     public required bool CouldBeTransient { get; init; }
