@@ -20,6 +20,14 @@ internal interface IRedisDistributedExceptionArbiterService
 /// </summary>
 internal class RedisDistributedExceptionArbiterService : IRedisDistributedExceptionArbiterService
 {
+    private static readonly HashSet<ConnectionFailureType> CriticalConnectionFailures =
+    [
+        ConnectionFailureType.AuthenticationFailure, // bad password / ACL / AUTH config
+        ConnectionFailureType.ProtocolFailure, // protocol / version mismatch
+        ConnectionFailureType.ConnectionDisposed, // multiplexer used after dispose
+        ConnectionFailureType.InternalFailure
+    ];
+
     private static readonly HashSet<ConnectionFailureType> TransientConnectionFailures =
     [
         ConnectionFailureType.UnableToConnect,
@@ -68,9 +76,11 @@ internal class RedisDistributedExceptionArbiterService : IRedisDistributedExcept
                 Handled(secretManager.IsCritical, secretManager.IsTransient),
             // Command / connection timeouts from StackExchange.Redis.
             RedisTimeoutException => Fresh(false, true),
-            // Connection drop / reconnect scenarios; auth and disposed connections are not retryable.
+            // Connection failures: critical types surface raw; transient types may be retried;
+            // remaining known types are non-critical and non-transient.
             RedisConnectionException connection =>
-                Fresh(false, TransientConnectionFailures.Contains(connection.FailureType)),
+                Fresh(CriticalConnectionFailures.Contains(connection.FailureType),
+                    TransientConnectionFailures.Contains(connection.FailureType)),
             // Server-side conditions (e.g. LOADING) are often brief; treat as possibly transient.
             RedisServerException => Fresh(false, true),
             // Generic Redis failures that were not matched above.

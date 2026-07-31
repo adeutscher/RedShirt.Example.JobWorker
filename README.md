@@ -15,6 +15,7 @@ Repo features:
     * [Azure Service Bus](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview)
     * [NATS](https://nats.io/)
     * [RabbitMQ](https://www.rabbitmq.com/)
+* Idempotency support
 * Documentation for local testing
 
 # Configuration
@@ -55,6 +56,62 @@ for which it was originally designed. This noteworthiness could be a case for "B
 distinction between class roles rather than entirely replaced in the future.
 
 If you choose to apply this template by combining Loader mode and Kinesis, please be aware of this warning.
+
+## Idempotency
+
+In order to properly implement the idempotent consumer pattern, the outcome of processing the same message repeatedly
+must be the same as processing the message once.
+
+This template has support for idempotent operations by way of Redis caches.
+
+For configuration examples, see the `worker` section of the `test/local/docker-compose.yaml` file.
+
+### Stability
+
+Though being a proper idempotent consumer is the overall goal, this general template prioritizes overall stability over
+strict idempotency. Non-critical exceptions encountered while interacting with Redis at the low-level are captured by a
+safety layer.
+
+If the application fails to interact with Redis, then the safety layers will enter a "disgrace" state, in which the
+lower-level Redis services will not be attempted until the "disgrace" period has passed.
+
+### Idempotency IDs
+
+The Idempotency ID of a message is its unique identifier that allows the idempotency system to function. The application
+will not crash if receives a job with a null idempotency ID, but it won't be able to act as an idempotent consumer.
+
+* For message brokers like SQS or Azure Service Bus, the Idempotency ID value is set off of the messages ID from the
+  system.
+* For more stream-based job sources such as Kinesis, the Idempotency ID value is based on an indication of a record's
+  position in the stream.
+
+For many job sources and configurations, this identifier is automatically generated. However, there are some sources and
+configurations where it is not set.
+
+#### RabbitMQ Message IDs
+
+Of the current roster of job sources, RabbitMQ is the only one with no option to automatically generate a message ID for
+the application to take as an idempotency key. If you are using RabbitMQ and wish to make use of idempotency, then you
+will need to make sure that your message publishers are providing a message ID.
+
+In the RabbitMQ browser view, this can be done by manually specifying the `message_id` property.
+
+In C#, this would look like this:
+
+```csharp
+var properties = channel.CreateBasicProperties();
+properties.MessageId = Guid.NewGuid().ToString();
+properties.Persistent = true; // Optional: make message persistent
+
+var body = Encoding.UTF8.GetBytes("Hello RabbitMQ");
+
+channel.BasicPublish(
+    exchange: "my-exchange",
+    routingKey: "my-routing-key",
+    mandatory: false,
+    basicProperties: properties,
+    body: body);
+```
 
 # Initialisation
 

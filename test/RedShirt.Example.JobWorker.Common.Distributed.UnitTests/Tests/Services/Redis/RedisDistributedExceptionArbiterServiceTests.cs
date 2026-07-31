@@ -61,15 +61,18 @@ public class RedisDistributedExceptionArbiterServiceTests
     }
 
     [Theory]
-    [InlineData(ConnectionFailureType.UnableToConnect, true)]
-    [InlineData(ConnectionFailureType.SocketFailure, true)]
-    [InlineData(ConnectionFailureType.SocketClosed, true)]
-    [InlineData(ConnectionFailureType.Loading, true)]
-    [InlineData(ConnectionFailureType.UnableToResolvePhysicalConnection, true)]
-    [InlineData(ConnectionFailureType.AuthenticationFailure, false)]
-    [InlineData(ConnectionFailureType.ProtocolFailure, false)]
-    public void GetReport_RedisConnectionException_IsNotCritical_DependsOnFailureType(
+    [InlineData(ConnectionFailureType.UnableToConnect, false, true)]
+    [InlineData(ConnectionFailureType.SocketFailure, false, true)]
+    [InlineData(ConnectionFailureType.SocketClosed, false, true)]
+    [InlineData(ConnectionFailureType.Loading, false, true)]
+    [InlineData(ConnectionFailureType.UnableToResolvePhysicalConnection, false, true)]
+    [InlineData(ConnectionFailureType.AuthenticationFailure, true, false)]
+    [InlineData(ConnectionFailureType.ProtocolFailure, true, false)]
+    [InlineData(ConnectionFailureType.ConnectionDisposed, true, false)]
+    [InlineData(ConnectionFailureType.InternalFailure, true, false)]
+    public void GetReport_RedisConnectionException_ClassifiesByFailureType(
         ConnectionFailureType failureType,
+        bool expectedCritical,
         bool expectedTransient)
     {
         var exception = new RedisConnectionException(failureType, "connection issue");
@@ -77,7 +80,7 @@ public class RedisDistributedExceptionArbiterServiceTests
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.Equal(expectedCritical, report.IsCritical);
         Assert.Equal(expectedTransient, report.CouldBeTransient);
     }
 
