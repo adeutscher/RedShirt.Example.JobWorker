@@ -33,7 +33,8 @@ public class KafkaConsumerWrapperTests
         var consumer = new Mock<IConsumer<string, string>>(MockBehavior.Strict);
         consumer
             .Setup(c => c.Commit(It.IsAny<IEnumerable<TopicPartitionOffset>>()))
-            .Callback<IEnumerable<TopicPartitionOffset>>(offsets => committed = offsets.ToList());
+            .Callback<IEnumerable<TopicPartitionOffset>>(offsets =>
+                committed = offsets as List<TopicPartitionOffset> ?? offsets.ToList());
 
         var message1 = new Mock<IKafkaMessageContainer>(MockBehavior.Strict);
         message1.SetupGet(m => m.Topic).Returns("t");

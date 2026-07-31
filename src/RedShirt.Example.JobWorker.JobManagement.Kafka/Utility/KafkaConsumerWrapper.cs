@@ -5,7 +5,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.Kafka.Utility;
 
 internal interface IKafkaConsumerWrapper : IDisposable
 {
-    void Commit(IEnumerable<IKafkaMessageContainer> messages);
+    void Commit(List<IKafkaMessageContainer> messages);
     IKafkaMessageContainer? Consume(TimeSpan timeout);
 }
 
@@ -27,7 +27,7 @@ internal class KafkaConsumerWrapper(IConsumer<string, string> consumer) : IKafka
         };
     }
 
-    public void Commit(IEnumerable<IKafkaMessageContainer> messages)
+    public void Commit(List<IKafkaMessageContainer> messages)
     {
         var offsets = messages
             .Select(m => new TopicPartitionOffset(m.Topic, m.Partition, new Offset(m.Offset + 1)))
