@@ -37,7 +37,7 @@ public class IdempotencyExecutionServiceTests
     [InlineData("false", false)]
     public async Task GetCachedResultAsync_WhenCacheValueIsBool_ReturnsParsedValue(string cachedValue, bool expected)
     {
-        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
             .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
@@ -57,7 +57,7 @@ public class IdempotencyExecutionServiceTests
     [InlineData("not-a-bool")]
     public async Task GetCachedResultAsync_WhenCacheValueIsNotBool_ReturnsNull(string? cachedValue)
     {
-        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
             .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
@@ -79,7 +79,7 @@ public class IdempotencyExecutionServiceTests
     public async Task GetCachedResultAsync_WhenIdempotencyCannotProceed_ReturnsNull(bool enabled,
         string? idempotencyId)
     {
-        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         var job = CreateJob(idempotencyId);
 
@@ -95,10 +95,10 @@ public class IdempotencyExecutionServiceTests
     [Fact]
     public async Task GetLockAsync_WhenEnabledWithIdempotencyId_DelegatesToLockService()
     {
-        var expectedLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
+        var expectedLock = new Mock<ISafeAbstractedLock>(MockBehavior.Strict);
         expectedLock.SetupGet(l => l.IsAcquired).Returns(true);
 
-        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         lockService
             .Setup(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken))
             .ReturnsAsync(expectedLock.Object);
@@ -124,7 +124,7 @@ public class IdempotencyExecutionServiceTests
     public async Task GetLockAsync_WhenIdempotencyCannotProceed_ReturnsAcquiredEmptyLock(bool enabled,
         string? idempotencyId)
     {
-        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         var job = CreateJob(idempotencyId);
 
@@ -147,7 +147,7 @@ public class IdempotencyExecutionServiceTests
     public async Task SetResultInCacheAsync_Otherwise_StoresResultString(bool result, bool acknowledgementSuccess,
         bool idempotencyIdsCanRepeat)
     {
-        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
             .Setup(c => c.SetStringAsync("idempotency:idem-1:result", result.ToString(), TimeSpan.FromSeconds(30),
@@ -168,7 +168,7 @@ public class IdempotencyExecutionServiceTests
     [Fact]
     public async Task SetResultInCacheAsync_UsesEffectiveResultCacheDurationSeconds()
     {
-        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
             .Setup(c => c.SetStringAsync("idempotency:idem-1:result", "True", TimeSpan.FromSeconds(10),
@@ -191,7 +191,7 @@ public class IdempotencyExecutionServiceTests
     [InlineData(false)]
     public async Task SetResultInCacheAsync_WhenAcknowledgementSucceededAndIdsCanRepeat_ClearsCache(bool result)
     {
-        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
             .Setup(c => c.SetStringAsync("idempotency:idem-1:result", null, TimeSpan.FromSeconds(30),
@@ -217,7 +217,7 @@ public class IdempotencyExecutionServiceTests
     public async Task SetResultInCacheAsync_WhenIdempotencyCannotProceed_DoesNotTouchCache(bool enabled,
         string? idempotencyId)
     {
-        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,

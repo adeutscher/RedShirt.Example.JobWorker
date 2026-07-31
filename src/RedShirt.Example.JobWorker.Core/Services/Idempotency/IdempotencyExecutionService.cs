@@ -16,7 +16,7 @@ internal interface IIdempotencyExecutionService
 }
 
 internal class IdempotencyExecutionService(
-    IAbstractedLockService abstractedLockService,
+    ISafeAbstractedLockService abstractedLockService,
     ISafeRemoteCacheService cache,
     IOptions<IdempotencyConfigurationModel> options) : IIdempotencyExecutionService
 {
@@ -27,17 +27,17 @@ internal class IdempotencyExecutionService(
         return !options.Value.Enabled || string.IsNullOrWhiteSpace(jobModel.IdempotencyId);
     }
 
-    private string GetKey(IJobModel jobModel, string type)
+    private static string GetKey(IJobModel jobModel, string type)
     {
         return $"{CommonKeyPrefix}:{jobModel.IdempotencyId}:{type}";
     }
 
-    private string GetLockKey(IJobModel jobModel)
+    private static string GetLockKey(IJobModel jobModel)
     {
         return GetKey(jobModel, "lock");
     }
 
-    private string GetResultKey(IJobModel jobModel)
+    private static string GetResultKey(IJobModel jobModel)
     {
         return GetKey(jobModel, "result");
     }
