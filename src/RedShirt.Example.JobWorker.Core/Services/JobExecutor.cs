@@ -83,12 +83,12 @@ internal class JobExecutor(
                 continue;
             }
 
+            logger.LogTrace("Executor {Id} received message {MessageId}", executorId, job.JobModel.MessageId);
+
             var idempotencyLock = await idempotencyExecutionService.GetLockAsync(job.JobModel, cancellationToken);
 
             try
             {
-                logger.LogTrace("Executor {Id} received message {MessageId}", executorId, job.JobModel.MessageId);
-
                 if (!idempotencyLock.IsAcquired)
                 {
                     /*

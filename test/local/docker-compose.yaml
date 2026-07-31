@@ -126,6 +126,7 @@ services:
       JOBS__IDEMPOTENCY__IDEMPOTENCY_IDS_CAN_REPEAT: false
       ## Common Distributed Execution Support Cache Options (Safety Layer Settings)
       COMMON__DISTRIBUTED__SAFETY__DISGRACE_PERIOD_SECONDS: 60
+      COMMON__DISTRIBUTED__LOCKS__TIMEOUT_SECOND: 30
       ## Common Distributed Execution Support Options (Redis)
       COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH: /common/redis
       ## Common Secret Management Library (In-Memory Cache)

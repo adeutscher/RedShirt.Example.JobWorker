@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.Distributed.Configuration;
 using RedShirt.Example.JobWorker.Common.Distributed.Extensions;
 using RedShirt.Example.JobWorker.Common.Distributed.Factories;
 using RedShirt.Example.JobWorker.Common.Distributed.Services;
@@ -10,6 +11,29 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Extensio
 
 public class ServiceCollectionExtensionsTests
 {
+    [Theory]
+    [InlineData(1)]
+    [InlineData(10)]
+    [InlineData(45)]
+    public void AddDistributedServices_ConfiguresLockConfigurationModel(int timeoutSeconds)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Common:Distributed:Locks:TimeoutSeconds"] = timeoutSeconds.ToString()
+            })
+            .Build();
+
+        var services = new ServiceCollection()
+            .AddDistributedServices(configuration);
+
+        using var provider = services.BuildServiceProvider();
+
+        var locks = provider.GetRequiredService<IOptions<LockConfigurationModel>>().Value;
+        Assert.Equal(timeoutSeconds, locks.TimeoutSeconds);
+        Assert.Equal(TimeSpan.FromSeconds(timeoutSeconds), locks.EffectiveTimeout);
+    }
+
     [Theory]
     [InlineData("redis/connection-string")]
     [InlineData("secrets/redis")]
@@ -60,7 +84,8 @@ public class ServiceCollectionExtensionsTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Common:Distributed:Redis:ConnectionStringPath"] = "redis/connection-string",
-                ["Common:Distributed:Safety:DisgracePeriodSeconds"] = "30"
+                ["Common:Distributed:Safety:DisgracePeriodSeconds"] = "30",
+                ["Common:Distributed:Locks:TimeoutSeconds"] = "10"
             })
             .Build();
 
