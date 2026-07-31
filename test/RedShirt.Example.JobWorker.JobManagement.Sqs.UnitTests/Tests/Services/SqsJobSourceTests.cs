@@ -317,7 +317,7 @@ public class SqsJobSourceTests
             source.HeartbeatAsync(job, TestContext.Current.CancellationToken));
 
         Assert.False(ex.IsCritical);
-        Assert.False(ex.IsTransient);
+        Assert.False(ex.CouldBeTransient);
 
         sqs.Verify(
             s => s.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(),

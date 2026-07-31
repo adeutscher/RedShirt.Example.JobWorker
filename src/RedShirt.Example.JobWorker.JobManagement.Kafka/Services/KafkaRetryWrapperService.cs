@@ -27,7 +27,7 @@ internal interface IKafkaRetryWrapperService
     ///     Propagated when <paramref name="cancellationToken" /> is cancelled.
     /// </exception>
     /// <exception cref="WorkerJobSourceException">
-    ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerJobSourceException.IsTransient" />
+    ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerJobSourceException.CouldBeTransient" />
     ///     reflects the arbiter judgement for the final exception;
     ///     <see cref="WorkerJobSourceException.IsHandled" /> is <c>true</c>.
     /// </exception>
@@ -46,7 +46,7 @@ internal interface IKafkaRetryWrapperService
     ///     Propagated when <paramref name="cancellationToken" /> is cancelled.
     /// </exception>
     /// <exception cref="WorkerJobSourceException">
-    ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerJobSourceException.IsTransient" />
+    ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerJobSourceException.CouldBeTransient" />
     ///     reflects the arbiter judgement for the final exception;
     ///     <see cref="WorkerJobSourceException.IsHandled" /> is <c>true</c>.
     /// </exception>
@@ -120,7 +120,7 @@ internal class KafkaRetryWrapperService(
         {
             return exception;
         }
-        
+
         if (report.IsCritical)
         {
             /*

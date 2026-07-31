@@ -90,7 +90,7 @@ internal class KafkaExceptionArbiterService : IKafkaExceptionArbiterService
             // Already classified/wrapped by an earlier job-source layer — do not wrap again.
             // Only allow further retry when the prior wrapper has not already exhausted retries.
             WorkerJobSourceException workerJobSource =>
-                Handled(workerJobSource.IsCritical, workerJobSource is {IsHandled: false, IsTransient: true}),
+                Handled(workerJobSource.IsCritical, workerJobSource is {IsHandled: false, CouldBeTransient: true}),
             // Confluent marks these as explicitly retriable.
             KafkaRetriableException => Fresh(false, true),
             // Critical codes / fatal librdkafka errors surface raw so operators investigate.

@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
+using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -304,5 +306,215 @@ public class LoaderModeJobLoaderTests
         jobRepository
             .Verify(r => r.WaitForJobDemandAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
                 Times.AtLeast(2));
+    }
+
+    [Fact]
+    public async Task RunAsync_ReturnsFinished()
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(false);
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
+        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+
+        var loader = new LoaderModeJobLoader(
+            jobLoaderStateService.Object,
+            executionEndArbiter.Object,
+            new Mock<IJobRepository>(MockBehavior.Strict).Object,
+            new Mock<IJobSource>(MockBehavior.Strict).Object,
+            CreateSleepService().Object,
+            new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new LoopOptionsConfigurationModel { MaxIdleWaitSeconds = 1 }),
+            Options.Create(new JobSourceConfigurationModel { BatchSize = 1 }));
+
+        var result = await loader.RunAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HandlerResponseEnum.Finished, result);
+    }
+
+    [Fact]
+    public async Task TransientWorkerJobSourceException_IsTreatedAsNoJobsAndRetried()
+    {
+        var keepRunning = true;
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(() => keepRunning);
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
+        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+
+        var getJobsCount = 0;
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource
+            .Setup(s => s.GetJobsAsync(1, TestContext.Current.CancellationToken))
+            .Returns<int, CancellationToken>((_, _) =>
+            {
+                getJobsCount++;
+                if (getJobsCount == 1)
+                {
+                    throw new WorkerJobSourceException("transient pull", isCritical: false, couldBeTransient: true);
+                }
+
+                keepRunning = false;
+                return Task.FromResult(new JobSourceResponse { Items = [] });
+            });
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        jobRepository.Setup(r => r.GetBacklogMaxCount()).Returns(1);
+        jobRepository.Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken)).ReturnsAsync(0);
+
+        var sleepService = CreateSleepService();
+
+        var loader = new LoaderModeJobLoader(
+            jobLoaderStateService.Object,
+            executionEndArbiter.Object,
+            jobRepository.Object,
+            jobSource.Object,
+            sleepService.Object,
+            new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new LoopOptionsConfigurationModel { MaxIdleWaitSeconds = 1 }),
+            Options.Create(new JobSourceConfigurationModel { BatchSize = 1 }));
+
+        await loader.RunAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(getJobsCount >= 2);
+        sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), TestContext.Current.CancellationToken),
+            Times.AtLeastOnce);
+        jobRepository.Verify(r => r.LoadAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        jobLoaderStateService.Verify(s => s.ReportLoaderStart(), Times.Once);
+        jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Once);
+    }
+
+    [Fact]
+    public async Task CriticalWorkerJobSourceException_Propagates()
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
+        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+
+        var critical = new WorkerJobSourceException("auth failed", isCritical: true, couldBeTransient: false);
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource
+            .Setup(s => s.GetJobsAsync(1, TestContext.Current.CancellationToken))
+            .ThrowsAsync(critical);
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        jobRepository.Setup(r => r.GetBacklogMaxCount()).Returns(1);
+        jobRepository.Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken)).ReturnsAsync(0);
+
+        var loader = new LoaderModeJobLoader(
+            jobLoaderStateService.Object,
+            executionEndArbiter.Object,
+            jobRepository.Object,
+            jobSource.Object,
+            CreateSleepService().Object,
+            new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new LoopOptionsConfigurationModel { MaxIdleWaitSeconds = 1 }),
+            Options.Create(new JobSourceConfigurationModel { BatchSize = 1 }));
+
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
+            loader.RunAsync(TestContext.Current.CancellationToken));
+
+        Assert.Same(critical, thrown);
+        jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Once);
+    }
+
+    [Fact]
+    public async Task NoBacklog_WaitsForDemandThenLoadsJobs()
+    {
+        var arbiterInvocationsRemaining = 3;
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter
+            .Setup(a => a.ShouldKeepRunning())
+            .Returns(() =>
+            {
+                arbiterInvocationsRemaining--;
+                return arbiterInvocationsRemaining > 0;
+            });
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
+        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+
+        var response = new JobSourceResponse { Items = [new Mock<IJobModel>().Object] };
+        var demandAttempts = 0;
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        jobRepository.Setup(r => r.GetBacklogMaxCount()).Returns(0);
+        jobRepository.Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken)).ReturnsAsync(2);
+        jobRepository
+            .Setup(r => r.WaitForJobDemandAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            {
+                demandAttempts++;
+                return demandAttempts >= 2;
+            });
+        jobRepository
+            .Setup(r => r.LoadAsync(response, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource
+            .Setup(s => s.GetJobsAsync(3, TestContext.Current.CancellationToken))
+            .ReturnsAsync(response);
+
+        var loader = new LoaderModeJobLoader(
+            jobLoaderStateService.Object,
+            executionEndArbiter.Object,
+            jobRepository.Object,
+            jobSource.Object,
+            CreateSleepService().Object,
+            new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new LoopOptionsConfigurationModel { MaxIdleWaitSeconds = 1 }),
+            Options.Create(new JobSourceConfigurationModel { BatchSize = 3 }));
+
+        await loader.RunAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, demandAttempts);
+        jobRepository.Verify(r => r.LoadAsync(response, TestContext.Current.CancellationToken), Times.Once);
+        jobSource.Verify(s => s.GetJobsAsync(3, TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Fact]
+    public async Task PermanentNonCriticalWorkerJobSourceException_Propagates()
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
+        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+
+        var permanent = new WorkerJobSourceException("unknown topic", isCritical: false, couldBeTransient: false);
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource
+            .Setup(s => s.GetJobsAsync(2, TestContext.Current.CancellationToken))
+            .ThrowsAsync(permanent);
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        jobRepository.Setup(r => r.GetBacklogMaxCount()).Returns(2);
+        jobRepository.Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken)).ReturnsAsync(0);
+
+        var loader = new LoaderModeJobLoader(
+            jobLoaderStateService.Object,
+            executionEndArbiter.Object,
+            jobRepository.Object,
+            jobSource.Object,
+            CreateSleepService().Object,
+            new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new LoopOptionsConfigurationModel { MaxIdleWaitSeconds = 1 }),
+            Options.Create(new JobSourceConfigurationModel { BatchSize = 2 }));
+
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
+            loader.RunAsync(TestContext.Current.CancellationToken));
+
+        Assert.Same(permanent, thrown);
+        jobRepository.Verify(r => r.LoadAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }

@@ -10,28 +10,29 @@ public sealed class WorkerJobSourceException : Exception
     ///     underlying cause; outer Core retry layers should not retry again.
     /// </summary>
     public bool IsHandled { get; init; }
+
     public bool IsCritical { get; init; }
-    public bool IsTransient { get; init; }
+    public bool CouldBeTransient { get; init; }
 
     public WorkerJobSourceException(
         Exception innerException,
         bool isCritical = true,
-        bool isTransient = false,
+        bool couldBeTransient = false,
         bool isHandled = false) : base(innerException.Message, innerException)
     {
         IsCritical = isCritical;
-        IsTransient = isTransient;
+        CouldBeTransient = couldBeTransient;
         IsHandled = isHandled;
     }
 
     public WorkerJobSourceException(
         string message,
         bool isCritical = true,
-        bool isTransient = false,
+        bool couldBeTransient = false,
         bool isHandled = false) : base(message)
     {
         IsCritical = isCritical;
-        IsTransient = isTransient;
+        CouldBeTransient = couldBeTransient;
         IsHandled = isHandled;
     }
 }

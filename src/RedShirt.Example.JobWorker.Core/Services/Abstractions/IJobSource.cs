@@ -26,7 +26,7 @@ public interface IJobSource
     /// <returns></returns>
     /// <exception cref="WorkerJobSourceException">
     ///     Thrown when acknowledgement fails against the underlying message source.
-    ///     When <see cref="WorkerJobSourceException.IsTransient" /> is <c>true</c>, callers may retry;
+    ///     When <see cref="WorkerJobSourceException.CouldBeTransient" /> is <c>true</c>, callers may retry;
     ///     when <c>false</c>, the failure should be treated as permanent.
     ///     When <see cref="WorkerJobSourceException.IsHandled" /> is <c>true</c>, a job-source retry wrapper
     ///     has already exhausted retries and callers should not retry again.
@@ -45,7 +45,7 @@ public interface IJobSource
     /// <returns></returns>
     /// <exception cref="WorkerJobSourceException">
     ///     Thrown when the heartbeat / visibility extension fails against the underlying message source.
-    ///     When <see cref="WorkerJobSourceException.IsTransient" /> is <c>true</c>, callers may retry;
+    ///     When <see cref="WorkerJobSourceException.CouldBeTransient" /> is <c>true</c>, callers may retry;
     ///     when <c>false</c>, the failure should be treated as permanent (for example, the message can no longer
     ///     have its flight time extended).
     ///     When <see cref="WorkerJobSourceException.IsHandled" /> is <c>true</c>, a job-source retry wrapper

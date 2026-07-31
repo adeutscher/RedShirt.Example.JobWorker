@@ -56,7 +56,7 @@ public class SafeJobAcknowledgementServiceTests
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
             .Setup(s => s.AcknowledgeCompletionAsync(jobModel.Object, false, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new WorkerJobSourceException(new Exception("permanent"), isCritical: false));
+            .ThrowsAsync(new WorkerJobSourceException(new Exception("permanent"), false));
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
 
@@ -86,7 +86,7 @@ public class SafeJobAcknowledgementServiceTests
                 attempts++;
                 if (attempts < 3)
                 {
-                    throw new WorkerJobSourceException(new Exception($"transient {attempts}"), isCritical: false, isTransient: true);
+                    throw new WorkerJobSourceException(new Exception($"transient {attempts}"), false, true);
                 }
 
                 return Task.CompletedTask;
@@ -116,7 +116,7 @@ public class SafeJobAcknowledgementServiceTests
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
             .Setup(s => s.AcknowledgeCompletionAsync(jobModel.Object, true, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new WorkerJobSourceException(new Exception("transient"), isCritical: false, isTransient: true));
+            .ThrowsAsync(new WorkerJobSourceException(new Exception("transient"), false, true));
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
         sleepService

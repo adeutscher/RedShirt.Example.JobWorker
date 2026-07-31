@@ -39,7 +39,7 @@ internal class Maintainer(
         TimeSpan? timeToWait = null;
 
         var retryPolicy = Policy
-            .Handle<WorkerJobSourceException>(e => !e.IsCritical && !e.IsHandled && e.IsTransient)
+            .Handle<WorkerJobSourceException>(e => e is {IsCritical: false, IsHandled: false, CouldBeTransient: true})
             .RetryAsync(Globals.HeartbeatRetryCount,
                 (_, instanceCount) =>
                     sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount)), cancellationToken));

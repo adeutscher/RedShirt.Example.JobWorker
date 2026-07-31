@@ -12,7 +12,7 @@ public class WorkerJobSourceExceptionTests
         var exception = new WorkerJobSourceException(inner);
 
         Assert.True(exception.IsCritical);
-        Assert.False(exception.IsTransient);
+        Assert.False(exception.CouldBeTransient);
         Assert.False(exception.IsHandled);
         Assert.Same(inner, exception.InnerException);
         Assert.Equal(inner.Message, exception.Message);
@@ -39,7 +39,7 @@ public class WorkerJobSourceExceptionTests
         Assert.Equal(inner.Message, exception.Message);
         Assert.Same(inner, exception.InnerException);
         Assert.Equal(isCritical, exception.IsCritical);
-        Assert.Equal(isTransient, exception.IsTransient);
+        Assert.Equal(isTransient, exception.CouldBeTransient);
         Assert.Equal(isHandled, exception.IsHandled);
     }
 
@@ -50,7 +50,7 @@ public class WorkerJobSourceExceptionTests
 
         Assert.Equal("job source failure", exception.Message);
         Assert.True(exception.IsCritical);
-        Assert.False(exception.IsTransient);
+        Assert.False(exception.CouldBeTransient);
         Assert.False(exception.IsHandled);
         Assert.Null(exception.InnerException);
     }
@@ -71,7 +71,7 @@ public class WorkerJobSourceExceptionTests
         Assert.Equal(message, exception.Message);
         Assert.Null(exception.InnerException);
         Assert.Equal(isCritical, exception.IsCritical);
-        Assert.Equal(isTransient, exception.IsTransient);
+        Assert.Equal(isTransient, exception.CouldBeTransient);
         Assert.Equal(isHandled, exception.IsHandled);
     }
 

@@ -5,6 +5,7 @@ using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions.Loader;
+using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using System.Diagnostics;
@@ -88,10 +89,22 @@ internal class LoaderModeJobLoader(
                                 }
                             }
 
+                            JobSourceResponse jobResponse;
                             var stopwatch = Stopwatch.StartNew();
-                            var jobResponse = await jobSource.GetJobsAsync(
-                                Math.Min(sizeToGet, jobSourceOptions.Value.EffectiveBatchSize),
-                                cancellationToken);
+
+                            try
+                            {
+                                jobResponse = await jobSource.GetJobsAsync(
+                                    Math.Min(sizeToGet, jobSourceOptions.Value.EffectiveBatchSize),
+                                    cancellationToken);
+                            }
+                            catch (WorkerJobSourceException e) when (e is {IsCritical: false, CouldBeTransient: true})
+                            {
+                                logger.LogWarning(e, "Error getting jobs from source");
+                                // Treat an anticipated transient error as a delay reason
+                                throw new NoJobException();
+                            }
+
                             stopwatch.Stop();
                             logger.LogTrace("Fetched {JobResponseItemsCount} jobs in {Elapsed}",
                                 jobResponse.Items.Count,
