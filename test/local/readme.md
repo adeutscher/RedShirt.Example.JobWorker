@@ -42,7 +42,7 @@ docker compose up -d ministack
 ./send-sqs-message.py 12
 ```
 
-4. Before starting the worker, make sure none of the `USE_` environment variables are set to **1**:
+4. Before starting the worker, make sure none of the `USE_` environment variables are set to **1**, and unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
 ```
 export USE_ACTIVEMQ=0
@@ -51,6 +51,7 @@ export USE_AZURE_QUEUE_STORAGE=0
 export USE_AZURE_SERVICE_BUS=0
 export USE_NATS=0
 export USE_RABBITMQ=0
+unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
 ```
 
 5. Bring up the worker:
@@ -81,7 +82,8 @@ To initialize Kinesis and queue sample messages:
     ./put-kinesis-job.py 12
     ```
 
-4. Before starting the worker, make sure that neither the `USE_KINESIS` is set to `1` and that other `USE_` environment variables are not set to `1`:
+4. Before starting the worker, make sure that neither the `USE_KINESIS` is set to `1` and that other `USE_` environment variables are not set to `1`.
+   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
     ```
     export USE_ACTIVEMQ=0
@@ -90,6 +92,7 @@ To initialize Kinesis and queue sample messages:
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
     export USE_RABBITMQ=0
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
 5. Bring up the worker:
@@ -138,7 +141,8 @@ To initialize RabbitMQ and queue messages:
 
     * If you are testing idempotency, then remember to also set an arbitrary value to the `message_id` property.
 
-9. Before starting the worker, make sure that the `USE_RABBITMQ` is set to `1` and that other `USE_` environment variables are not set to `1`:
+9. Before starting the worker, make sure that the `USE_RABBITMQ` is set to `1` and that other `USE_` environment variables are not set to `1`.
+   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
     ```
     export USE_RABBITMQ=0
@@ -147,6 +151,7 @@ To initialize RabbitMQ and queue messages:
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
     export USE_RABBITMQ=1
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
 10. Bring up the worker:
@@ -211,7 +216,8 @@ To initialize RabbitMQ and queue messages:
     {"SleepDurationSeconds": 12}
     ```
 
-14. Before starting the worker, make sure that neither the `USE_ACTIVEMQ` is set to `1` and that other `USE_` environment variables are not set to `1`:
+14. Before starting the worker, make sure that neither the `USE_ACTIVEMQ` is set to `1` and that other `USE_` environment variables are not set to `1`.
+    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
     ```
     export USE_ACTIVEMQ=1
@@ -220,6 +226,7 @@ To initialize RabbitMQ and queue messages:
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
     export USE_RABBITMQ=0
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
 15. Bring up the worker:
@@ -272,7 +279,8 @@ To install the `nats` command:
     ./send-nats-message.sh 5
     ```
 
-6. Before starting the worker, make sure that the `USE_NATS` is set to `1` and that other `USE_` environment variables are not set to `1`:
+6. Before starting the worker, make sure that the `USE_NATS` is set to `1` and that other `USE_` environment variables are not set to `1`.
+   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
     ```
     export USE_NATS=1
@@ -281,6 +289,7 @@ To install the `nats` command:
     export USE_AZURE_SERVICE_BUS=0
     export USE_KINESIS=0
     export USE_RABBITMQ=0
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
 7. Bring up the worker:
