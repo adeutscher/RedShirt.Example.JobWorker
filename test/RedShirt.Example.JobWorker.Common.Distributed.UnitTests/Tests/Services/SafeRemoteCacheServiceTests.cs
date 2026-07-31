@@ -138,6 +138,26 @@ public class SafeRemoteCacheServiceTests
     }
 
     [Fact]
+    public async Task GetStringAsync_WhenOperationCanceledAndTokenCancelled_Propagates()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var remoteCache = new Mock<IRemoteCacheService>(MockBehavior.Strict);
+        remoteCache.Setup(c => c.GetStringAsync("key", cts.Token))
+            .ThrowsAsync(new OperationCanceledException(cts.Token));
+
+        var (service, disgraceState) = CreateService(remoteCache);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.GetStringAsync("key", cts.Token));
+
+        Assert.False(disgraceState.IsInDisgracePeriod());
+        remoteCache.Verify(c => c.GetStringAsync("key", cts.Token), Times.Once);
+        remoteCache.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task GetStringAsync_WhenRemoteReturnsNull_ReturnsNull()
     {
         var remoteCache = new Mock<IRemoteCacheService>(MockBehavior.Strict);
@@ -227,5 +247,26 @@ public class SafeRemoteCacheServiceTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.SetStringAsync(key, "value", expiry, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task SetStringAsync_WhenOperationCanceledAndTokenCancelled_Propagates()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var remoteCache = new Mock<IRemoteCacheService>(MockBehavior.Strict);
+        var expiry = TimeSpan.FromSeconds(5);
+        remoteCache.Setup(c => c.SetStringAsync("key", "value", expiry, cts.Token))
+            .ThrowsAsync(new OperationCanceledException(cts.Token));
+
+        var (service, disgraceState) = CreateService(remoteCache);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.SetStringAsync("key", "value", expiry, cts.Token));
+
+        Assert.False(disgraceState.IsInDisgracePeriod());
+        remoteCache.Verify(c => c.SetStringAsync("key", "value", expiry, cts.Token), Times.Once);
+        remoteCache.VerifyNoOtherCalls();
     }
 }

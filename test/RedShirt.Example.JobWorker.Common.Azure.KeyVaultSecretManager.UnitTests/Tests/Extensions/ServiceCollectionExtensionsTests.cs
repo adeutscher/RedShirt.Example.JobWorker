@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Extensions;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Factories;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
+using RedShirt.Example.JobWorker.Core.Extensions;
 
 namespace RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.UnitTests.Tests.Extensions;
 
@@ -23,6 +24,7 @@ public class ServiceCollectionExtensionsTests
             .Build();
 
         var services = new ServiceCollection()
+            .AddCoreJobManagement(configuration)
             .AddSecretManagerAzureKeyVault(configuration);
 
         using var provider = services.BuildServiceProvider();

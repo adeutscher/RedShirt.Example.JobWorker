@@ -190,4 +190,31 @@ public class SafeAbstractedLockServiceTests
         disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
         disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Never);
     }
+
+    [Fact]
+    public async Task GetLockAsync_WhenOperationCanceledAndTokenCancelled_Propagates()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        const string lockName = "lock-cancelled";
+
+        var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
+        disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(false);
+
+        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        lockService
+            .Setup(s => s.GetLockAsync(lockName, cts.Token))
+            .ThrowsAsync(new OperationCanceledException(cts.Token));
+
+        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object,
+            new NullLogger<SafeAbstractedLockService>());
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.GetLockAsync(lockName, cts.Token));
+
+        lockService.Verify(s => s.GetLockAsync(lockName, cts.Token), Times.Once);
+        disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
+        disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Never);
+        disgraceState.VerifyNoOtherCalls();
+    }
 }
