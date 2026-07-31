@@ -16,12 +16,21 @@ public class AzureRetryWrapperServiceTests
         };
     }
 
-    private static AzureExceptionArbiterReport UnexpectedReport()
+    private static AzureExceptionArbiterReport NonTransientReport()
+    {
+        return new AzureExceptionArbiterReport
+        {
+            IsExpected = true,
+            CouldBeTransient = false
+        };
+    }
+
+    private static AzureExceptionArbiterReport UnexpectedReport(bool couldBeTransient = false)
     {
         return new AzureExceptionArbiterReport
         {
             IsExpected = false,
-            CouldBeTransient = false
+            CouldBeTransient = couldBeTransient
         };
     }
 
@@ -105,25 +114,14 @@ public class AzureRetryWrapperServiceTests
         arbiter.VerifyNoOtherCalls();
     }
 
-    [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    public async Task RunAsync_WhenJudgementIsNotRetryable_DoesNotRetry(bool isExpected, bool isTransient)
+    [Fact]
+    public async Task RunAsync_WhenNonTransient_DoesNotRetry()
     {
-        // Only IsExpected && IsTransient is retryable; every other combination should fail fast.
-        Assert.False(isExpected && isTransient);
-
         var attempts = 0;
         var inner = new InvalidOperationException("not retryable");
-        var report = new AzureExceptionArbiterReport
-        {
-            IsExpected = isExpected,
-            CouldBeTransient = isTransient
-        };
 
         var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(inner)).Returns(report);
+        arbiter.Setup(a => a.GetJudgement(inner)).Returns(NonTransientReport());
 
         var sleepService = CreateSleepService();
         var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
@@ -138,7 +136,7 @@ public class AzureRetryWrapperServiceTests
 
         Assert.Equal(1, attempts);
         Assert.Same(inner, thrown.InnerException);
-        Assert.Equal(isTransient, thrown.IsTransient);
+        Assert.False(thrown.IsTransient);
         sleepService.Verify(
             s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -310,19 +308,21 @@ public class AzureRetryWrapperServiceTests
         arbiter.Verify(a => a.GetJudgement(It.IsAny<Exception>()), Times.Exactly(2));
     }
 
-    [Fact]
-    public async Task RunAsync_WhenUnexpectedException_WrapsAsNonTransientWithoutRetry()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RunAsync_WhenUnexpected_RethrowsRawExceptionWithoutWrapping(bool couldBeTransient)
     {
         var attempts = 0;
         var inner = new NotSupportedException("unexpected");
 
         var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(inner)).Returns(UnexpectedReport());
+        arbiter.Setup(a => a.GetJudgement(inner)).Returns(UnexpectedReport(couldBeTransient));
 
         var sleepService = CreateSleepService();
         var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
 
-        var thrown = await Assert.ThrowsAsync<WorkerAzureException>(() => wrapper.RunAsync<int>(
+        var thrown = await Assert.ThrowsAsync<NotSupportedException>(() => wrapper.RunAsync<int>(
             _ =>
             {
                 attempts++;
@@ -331,7 +331,9 @@ public class AzureRetryWrapperServiceTests
             TestContext.Current.CancellationToken));
 
         Assert.Equal(1, attempts);
-        Assert.False(thrown.IsTransient);
-        Assert.Same(inner, thrown.InnerException);
+        Assert.Same(inner, thrown);
+        sleepService.Verify(
+            s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }
