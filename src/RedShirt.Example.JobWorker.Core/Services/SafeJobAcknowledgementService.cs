@@ -29,7 +29,7 @@ internal class SafeJobAcknowledgementService(
     ///     underlying message source.
     /// </summary>
     private readonly AsyncRetryPolicy _acknowledgementRetryPolicy = Policy
-        .Handle<WorkerJobSourceException>(e => !e.IsCritical && e.IsTransient)
+        .Handle<WorkerJobSourceException>(e => !e.IsCritical && !e.IsHandled && e.IsTransient)
         .RetryAsync(Globals.AcknowledgementRetryCount,
             // Unfortunately, cannot have a common policy declaration AND our cancellationToken.
             // I chose to have the common policy declaration.

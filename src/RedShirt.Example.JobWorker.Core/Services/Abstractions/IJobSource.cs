@@ -28,6 +28,8 @@ public interface IJobSource
     ///     Thrown when acknowledgement fails against the underlying message source.
     ///     When <see cref="WorkerJobSourceException.IsTransient" /> is <c>true</c>, callers may retry;
     ///     when <c>false</c>, the failure should be treated as permanent.
+    ///     When <see cref="WorkerJobSourceException.IsHandled" /> is <c>true</c>, a job-source retry wrapper
+    ///     has already exhausted retries and callers should not retry again.
     ///     When <see cref="WorkerJobSourceException.IsCritical" /> is <c>true</c>, callers should surface the failure.
     /// </exception>
     Task AcknowledgeCompletionAsync(IJobModel message, bool success,
@@ -46,6 +48,8 @@ public interface IJobSource
     ///     When <see cref="WorkerJobSourceException.IsTransient" /> is <c>true</c>, callers may retry;
     ///     when <c>false</c>, the failure should be treated as permanent (for example, the message can no longer
     ///     have its flight time extended).
+    ///     When <see cref="WorkerJobSourceException.IsHandled" /> is <c>true</c>, a job-source retry wrapper
+    ///     has already exhausted retries and callers should not retry again.
     ///     When <see cref="WorkerJobSourceException.IsCritical" /> is <c>true</c>, callers should surface the failure.
     /// </exception>
     Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default);
