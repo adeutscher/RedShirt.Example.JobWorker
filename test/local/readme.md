@@ -323,7 +323,7 @@ VSCode automatically knows how to point to your local `azurite` server after the
     docker compose up -d azure-key-vault-emulator
     ```
 
-3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage and Azure Service Bus in the Azure Key Vault emulator:
+3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage, Azure Service Bus, and Redis (`common-distributed-redis`) in the Azure Key Vault emulator:
 
     ```
     ./set-azure-key-vault-secrets.py
@@ -347,7 +347,8 @@ VSCode automatically knows how to point to your local `azurite` server after the
     {"SleepDurationSeconds": 12}
     ```
 
-9. Before starting the worker, make sure that the `USE_AZURE_QUEUE_STORAGE` is set to `1` and that other `USE_` environment variables are not set to `1`:
+9. Before starting the worker, make sure that the `USE_AZURE_QUEUE_STORAGE` is set to `1` and that other `USE_` environment variables are not set to `1`.
+   You will also point Redis at the Key Vault secret name created by `set-azure-key-vault-secrets.py`, as the compose file's default is to use the SSM path (Azure Key Vault key and SSM Parameter Store path formats are entirely incompatible with one another):
 
     ```
     export USE_AZURE_QUEUE_STORAGE=1
@@ -356,6 +357,7 @@ VSCode automatically knows how to point to your local `azurite` server after the
     export USE_ACTIVEMQ=0
     export USE_KINESIS=0
     export USE_RABBITMQ=0
+    export COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH=common-distributed-redis
     ```
 
 10. Bring up the worker:
@@ -386,7 +388,7 @@ pip install azure.servicebus azure.identity azure.keyvault
     docker compose up -d azure-key-vault-emulator
     ```
 
-3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage and Azure Service Bus in the Azure Key Vault emulator:
+3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage, Azure Service Bus, and Redis (`common-distributed-redis`) in the Azure Key Vault emulator:
 
     ```
     ./set-azure-key-vault-secrets.py
@@ -424,7 +426,8 @@ pip install azure.servicebus azure.identity azure.keyvault
     ./send-azure-service-bus-job.py 12
     ```
 
-10. Before starting the worker, make sure that the `USE_AZURE_SERVICE_BUS` is set to `1` and that other `USE_` environment variables are not set to `1`:
+10. Before starting the worker, make sure that the `USE_AZURE_SERVICE_BUS` is set to `1` and that other `USE_` environment variables are not set to `1`.
+    You will also point Redis at the Key Vault secret name created by `set-azure-key-vault-secrets.py`, as the compose file's default is to use the SSM path (Azure Key Vault key and SSM Parameter Store path formats are entirely incompatible with one another):
 
     ```
     export USE_AZURE_QUEUE_STORAGE=0
@@ -433,6 +436,7 @@ pip install azure.servicebus azure.identity azure.keyvault
     export USE_ACTIVEMQ=0
     export USE_KINESIS=0
     export USE_RABBITMQ=0
+    export COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH=common-distributed-redis
     ```
 
 11. Bring up the worker:
