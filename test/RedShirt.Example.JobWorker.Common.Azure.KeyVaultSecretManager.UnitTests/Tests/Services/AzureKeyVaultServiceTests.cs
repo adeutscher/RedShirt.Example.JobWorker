@@ -43,6 +43,8 @@ public class AzureKeyVaultServiceTests
                 service.GetSecretAsync(key, TestContext.Current.CancellationToken));
 
             Assert.Equal($"Invalid secret path: {key}", thrown.Message);
+            Assert.True(thrown.IsExpected);
+            Assert.False(thrown.IsTransient);
             source.VerifyNoOtherCalls();
             client.VerifyNoOtherCalls();
             retry.VerifyNoOtherCalls();
@@ -60,6 +62,8 @@ public class AzureKeyVaultServiceTests
                 service.GetSecretAsync(key, TestContext.Current.CancellationToken));
 
             Assert.Equal($"Invalid secret path: {key}", thrown.Message);
+            Assert.True(thrown.IsExpected);
+            Assert.False(thrown.IsTransient);
             source.VerifyNoOtherCalls();
             retry.VerifyNoOtherCalls();
         }
@@ -331,7 +335,7 @@ public class AzureKeyVaultServiceTests
         public async Task WhenSecretFetchThrowsWorkerAzureException_WrapsAsSecretManagerException()
         {
             var key = Guid.NewGuid().ToString("N");
-            var azureException = new WorkerAzureException("get failed", false);
+            var azureException = new WorkerAzureException("get failed");
 
             var client = new Mock<IAzureKeyVaultClientWrapper>(MockBehavior.Strict);
             var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
@@ -353,6 +357,7 @@ public class AzureKeyVaultServiceTests
                 service.GetSecretsAsync([key], TestContext.Current.CancellationToken));
 
             Assert.Same(azureException, thrown.InnerException);
+            Assert.True(thrown.IsExpected);
             Assert.False(thrown.IsTransient);
         }
 
@@ -377,6 +382,7 @@ public class AzureKeyVaultServiceTests
                 service.GetSecretsAsync([key], TestContext.Current.CancellationToken));
 
             Assert.Same(azureException, thrown.InnerException);
+            Assert.True(thrown.IsExpected);
             Assert.Equal(isTransient, thrown.IsTransient);
             source.VerifyNoOtherCalls();
         }

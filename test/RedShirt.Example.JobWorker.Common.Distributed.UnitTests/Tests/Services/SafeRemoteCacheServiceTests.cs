@@ -103,7 +103,7 @@ public class SafeRemoteCacheServiceTests
         var remoteCache = new Mock<IRemoteCacheService>(MockBehavior.Strict);
         var key = Guid.NewGuid().ToString();
         var inner = new Exception("boom");
-        var exception = (Exception) Activator.CreateInstance(typeof(WorkerDistributedException), inner, isTransient)!;
+        var exception = new WorkerDistributedException(inner, isTransient: isTransient);
 
         remoteCache.Setup(c => c.GetStringAsync(key, TestContext.Current.CancellationToken))
             .ThrowsAsync(exception);
@@ -215,7 +215,7 @@ public class SafeRemoteCacheServiceTests
         var value = Guid.NewGuid().ToString();
         var expiry = TimeSpan.FromSeconds(30);
         var inner = new Exception("boom");
-        var exception = (Exception) Activator.CreateInstance(typeof(WorkerDistributedException), inner, isTransient)!;
+        var exception = new WorkerDistributedException(inner, isTransient: isTransient);
 
         remoteCache.Setup(c => c.SetStringAsync(key, value, expiry, TestContext.Current.CancellationToken))
             .ThrowsAsync(exception);

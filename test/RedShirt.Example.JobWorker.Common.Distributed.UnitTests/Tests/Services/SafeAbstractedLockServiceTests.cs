@@ -16,7 +16,7 @@ public class SafeAbstractedLockServiceTests
     {
         var lockName = $"lock-cache-ex-transient-{isTransient}";
         var inner = new Exception("cache unavailable");
-        var exception = (Exception) Activator.CreateInstance(typeof(WorkerDistributedException), inner, isTransient)!;
+        var exception = new WorkerDistributedException(inner, isTransient: isTransient);
 
         var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
         disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(false);

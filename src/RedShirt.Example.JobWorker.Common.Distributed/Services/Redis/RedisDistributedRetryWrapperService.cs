@@ -54,7 +54,7 @@ internal interface IDistributedRetryWrapperService
 ///     Retries when <see cref="IDistributedSleepService" /> reports a possibly transient failure,
 ///     using exponential backoff via <see cref="exceptionArbiterService" />.
 /// </summary>
-/// <param name="sleepService">Classifies Redis-related exceptions as possibly transient.</param>
+/// <param name="exceptionArbiterService">Classifies Redis-related exceptions as possibly transient.</param>
 /// <param name="sleepService">Provides cancellable backoff delays between retry attempts.</param>
 internal class RedisDistributedRetryWrapperService(
     IRedisDistributedExceptionArbiterService exceptionArbiterService,
@@ -91,7 +91,7 @@ internal class RedisDistributedRetryWrapperService(
                         return PredicateResult.False();
                     }
 
-                    return JudgeIfExceptionCanBeHandled(exception)
+                    return exceptionArbiterService.GetReport(exception).CouldBeTransient
                         ? PredicateResult.True()
                         : PredicateResult.False();
                 },
@@ -110,20 +110,20 @@ internal class RedisDistributedRetryWrapperService(
     private Exception WrapIfNeeded(Exception exception)
     {
         var report = exceptionArbiterService.GetReport(exception);
+
+        if (!report.IsExpected)
+        {
+            // Unexpected. Throw raw exception.
+            // We absolutely want to raise a massive alert so that the exception gets developer attention and becomes expected.
+            throw exception;
+        }
+
         if (report.AlreadyHandled)
         {
             return exception;
         }
 
-        return new WorkerDistributedException(exception, report.CouldBeTransient);
-    }
-
-    /// <summary>
-    ///     Returns whether the exception should be retried based on the Redis arbiter report.
-    /// </summary>
-    private bool JudgeIfExceptionCanBeHandled(Exception exception)
-    {
-        return exceptionArbiterService.GetReport(exception).CouldBeTransient;
+        return new WorkerDistributedException(exception, true, report.CouldBeTransient);
     }
 
     /// <inheritdoc />

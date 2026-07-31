@@ -79,7 +79,7 @@ public class RedisLockServiceTests
     {
         var source = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
         var retry = new Mock<IDistributedRetryWrapperService>(MockBehavior.Strict);
-        var expected = new WorkerDistributedException("redis unavailable", true);
+        var expected = new WorkerDistributedException("redis unavailable", isTransient: true);
         retry
             .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<IDatabase>>>(),
                 TestContext.Current.CancellationToken))

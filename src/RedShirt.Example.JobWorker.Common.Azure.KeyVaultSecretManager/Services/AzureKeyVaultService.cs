@@ -30,7 +30,7 @@ internal partial class AzureKeyVaultService(
     {
         if (!IsValidKey(key))
         {
-            throw new WorkerSecretManagerException($"Invalid secret path: {key}");
+            throw new WorkerSecretManagerException($"Invalid secret path: {key}", true);
         }
 
         return retryWrapperService.RunAsync(ct =>
@@ -45,7 +45,7 @@ internal partial class AzureKeyVaultService(
     {
         if (keys.FirstOrDefault(key => !IsValidKey(key)) is { } badKey)
         {
-            throw new WorkerSecretManagerException($"Invalid secret path: {badKey}");
+            throw new WorkerSecretManagerException($"Invalid secret path: {badKey}", true);
         }
 
         var items = new Dictionary<string, string>();
@@ -63,7 +63,7 @@ internal partial class AzureKeyVaultService(
         }
         catch (WorkerAzureException e)
         {
-            throw new WorkerSecretManagerException(e, e.IsTransient);
+            throw new WorkerSecretManagerException(e, true, e.IsTransient);
         }
 
         return items;

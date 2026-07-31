@@ -29,7 +29,7 @@ internal class RedisConnectionFactory(
         }
         catch (WorkerSecretManagerException e)
         {
-            throw new WorkerDistributedException(e, e.IsTransient);
+            throw new WorkerDistributedException(e, e.IsExpected, e.IsTransient);
         }
     }
 

@@ -116,8 +116,16 @@ internal class AzureRetryWrapperService(
         }
         catch (Exception exception)
         {
-            throw new WorkerAzureException(exception,
-                exceptionArbiterService.GetJudgement(exception).CouldBeTransient);
+            var report = exceptionArbiterService.GetJudgement(exception);
+
+            if (!report.IsExpected)
+            {
+                // Throw unexpected exception types upwards.
+                // Intentionally creating as big of a problem as possible so that it gets developer attention 
+                throw;
+            }
+
+            throw new WorkerAzureException(exception, report.CouldBeTransient);
         }
     }
 }

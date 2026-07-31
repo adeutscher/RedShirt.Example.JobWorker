@@ -14,6 +14,7 @@ public class RedisDistributedRetryWrapperServiceTests
         return new RedisExceptionArbiterReport
         {
             AlreadyHandled = false,
+            IsExpected = true,
             CouldBeTransient = true
         };
     }
@@ -23,6 +24,7 @@ public class RedisDistributedRetryWrapperServiceTests
         return new RedisExceptionArbiterReport
         {
             AlreadyHandled = false,
+            IsExpected = true,
             CouldBeTransient = false
         };
     }
@@ -32,7 +34,18 @@ public class RedisDistributedRetryWrapperServiceTests
         return new RedisExceptionArbiterReport
         {
             AlreadyHandled = true,
+            IsExpected = true,
             CouldBeTransient = couldBeTransient
+        };
+    }
+
+    private static RedisExceptionArbiterReport UnexpectedReport()
+    {
+        return new RedisExceptionArbiterReport
+        {
+            AlreadyHandled = false,
+            IsExpected = false,
+            CouldBeTransient = false
         };
     }
 
@@ -398,5 +411,32 @@ public class RedisDistributedRetryWrapperServiceTests
             delays);
         // ShouldHandle consults the arbiter once per failed attempt.
         arbiter.Verify(a => a.GetReport(It.IsAny<Exception>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenUnexpected_RethrowsRawExceptionWithoutWrapping()
+    {
+        var attempts = 0;
+        var inner = new InvalidOperationException("unexpected");
+
+        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetReport(inner)).Returns(UnexpectedReport());
+
+        var sleepService = CreateSleepService();
+        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => wrapper.RunAsync<int>(
+            _ =>
+            {
+                attempts++;
+                throw inner;
+            },
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(1, attempts);
+        Assert.Same(inner, thrown);
+        sleepService.Verify(
+            s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }

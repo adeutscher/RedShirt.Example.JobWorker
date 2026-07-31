@@ -41,7 +41,10 @@ public class RedisConnectionFactoryTests
     public async Task GetConnectionAsync_WrapsSecretManagerExceptionAsWorkerDistributedException(bool isTransient)
     {
         const string connectionStringPath = "redis/connection-string";
-        var secretException = new WorkerSecretManagerException("secret lookup failed", isTransient);
+        var secretException = new WorkerSecretManagerException(
+            "secret lookup failed",
+            true,
+            isTransient);
 
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
         secrets
@@ -60,6 +63,7 @@ public class RedisConnectionFactoryTests
 
         Assert.Equal(secretException.Message, thrown.Message);
         Assert.Same(secretException, thrown.InnerException);
+        Assert.True(thrown.IsExpected);
         Assert.Equal(isTransient, thrown.IsTransient);
         secrets.Verify(s => s.GetSecretAsync(connectionStringPath, null, false, TestContext.Current.CancellationToken),
             Times.Once);
