@@ -29,16 +29,6 @@ internal class RedisDistributedExceptionArbiterService : IRedisDistributedExcept
         ConnectionFailureType.UnableToResolvePhysicalConnection
     ];
 
-    private static Exception Unwrap(Exception exception)
-    {
-        while (exception is AggregateException {InnerExceptions.Count: 1, InnerException: not null} aggregate)
-        {
-            exception = aggregate.InnerException;
-        }
-
-        return exception;
-    }
-
     private static RedisExceptionArbiterReport Fresh(bool isCritical, bool couldBeTransient)
     {
         return new RedisExceptionArbiterReport
@@ -63,7 +53,11 @@ internal class RedisDistributedExceptionArbiterService : IRedisDistributedExcept
     {
         ArgumentNullException.ThrowIfNull(exception);
 
-        exception = Unwrap(exception);
+        // Unwrap
+        while (exception is AggregateException {InnerExceptions.Count: 1, InnerException: not null} aggregate)
+        {
+            exception = aggregate.InnerException;
+        }
 
         return exception switch
         {
