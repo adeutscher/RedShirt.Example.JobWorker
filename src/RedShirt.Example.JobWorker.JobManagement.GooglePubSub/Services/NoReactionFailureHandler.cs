@@ -8,7 +8,8 @@ internal class NoReactionFailureHandler : IJobFailureHandler
     public Task HandleFailureAsync(IJobModel jobModel, Exception exception,
         CancellationToken cancellationToken = default)
     {
-        // No action; leave error handling to the subscription's max-delivery / dead-letter settings
+        // No action; leave error handling to poison-message enforcement and/or the subscription's
+        // max-delivery / dead-letter settings
         return Task.CompletedTask;
     }
 }

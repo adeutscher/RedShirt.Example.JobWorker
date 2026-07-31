@@ -1,7 +1,7 @@
+using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Factories;
-using Microsoft.Extensions.Options;
 
 namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.Tests.Factories;
 
@@ -18,7 +18,9 @@ public class PubSubSubscriberClientFactoryTests
             ProjectId = projectId!,
             SubscriptionId = "jobs-subscription",
             MaxMessagesPerRequest = 100,
-            VisibilityTimeoutSeconds = 60
+            VisibilityTimeoutSeconds = 60,
+            DlqNotEnabled = true,
+            MaximumReceives = 3
         }));
 
         await Assert.ThrowsAsync<GooglePubSubSourceException>(() =>
@@ -36,7 +38,9 @@ public class PubSubSubscriberClientFactoryTests
             ProjectId = "local-pubsub",
             SubscriptionId = subscriptionId!,
             MaxMessagesPerRequest = 100,
-            VisibilityTimeoutSeconds = 60
+            VisibilityTimeoutSeconds = 60,
+            DlqNotEnabled = true,
+            MaximumReceives = 3
         }));
 
         await Assert.ThrowsAsync<GooglePubSubSourceException>(() =>

@@ -19,8 +19,20 @@ public class GooglePubSubJobSourceTests
             ProjectId = "local-pubsub",
             SubscriptionId = "jobs-subscription",
             VisibilityTimeoutSeconds = 60,
-            MaxMessagesPerRequest = 100
+            MaxMessagesPerRequest = 100,
+            DlqNotEnabled = true,
+            MaximumReceives = 3
         };
+    }
+
+    private static Mock<IGooglePubSubPoisonMessagesHandler> CreatePassthroughPoisonHandler()
+    {
+        var poison = new Mock<IGooglePubSubPoisonMessagesHandler>(MockBehavior.Strict);
+        poison
+            .Setup(p => p.AttemptPoisonMessageEnforcementAsync(It.IsAny<IPubSubMessageContainer>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        return poison;
     }
 
     [Fact]
@@ -34,6 +46,7 @@ public class GooglePubSubJobSourceTests
 
         var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            CreatePassthroughPoisonHandler().Object,
             new Mock<ISourceMessageConverter>().Object,
             new Mock<IGooglePubSubBodyStringRetriever>().Object,
             new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
@@ -70,6 +83,7 @@ public class GooglePubSubJobSourceTests
 
         var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            CreatePassthroughPoisonHandler().Object,
             new Mock<ISourceMessageConverter>().Object,
             new Mock<IGooglePubSubBodyStringRetriever>().Object,
             new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
@@ -88,6 +102,42 @@ public class GooglePubSubJobSourceTests
             client.Verify(c => c.AcknowledgeAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<CancellationToken>()),
                 Times.Never);
         }
+    }
+
+    [Fact]
+    public async Task TestAcknowledgeCompletionAsync_WhenPoisonHandled_DoesNotNack()
+    {
+        var client = new Mock<IPubSubSubscriberClientWrapper>(MockBehavior.Strict);
+        var source = new Mock<IPubSubSubscriberClientSource>();
+        source
+            .Setup(s => s.GetSubscriberClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var message = new Mock<IPubSubMessageContainer>();
+        var job = new GooglePubSubJobModel
+        {
+            Message = message.Object,
+            CreatedAtUtc = DateTime.UtcNow,
+            Data = new Mock<IJobDataModel>().Object
+        };
+
+        var poison = new Mock<IGooglePubSubPoisonMessagesHandler>(MockBehavior.Strict);
+        poison
+            .Setup(p => p.AttemptPoisonMessageEnforcementAsync(message.Object, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
+            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            poison.Object,
+            new Mock<ISourceMessageConverter>().Object,
+            new Mock<IGooglePubSubBodyStringRetriever>().Object,
+            new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
+
+        await jobSource.AcknowledgeCompletionAsync(job, false, TestContext.Current.CancellationToken);
+
+        poison.Verify(p => p.AttemptPoisonMessageEnforcementAsync(message.Object, It.IsAny<CancellationToken>()),
+            Times.Once);
+        Assert.Empty(client.Invocations);
     }
 
     [Theory]
@@ -132,7 +182,8 @@ public class GooglePubSubJobSourceTests
         converter.Setup(c => c.Convert(data4)).Returns((string _) => throw new Exception());
 
         var jobSource = new GooglePubSubJobSource(source.Object, pubSubMessageSource.Object,
-            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
+            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            CreatePassthroughPoisonHandler().Object, converter.Object,
             bodyRetriever.Object,
             new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
 
@@ -140,14 +191,16 @@ public class GooglePubSubJobSourceTests
         Assert.Equal(2, response.Items.Count);
 
         pubSubMessageSource.Verify(a => a.GetMessagesAsync(batchSize, It.IsAny<CancellationToken>()), Times.Once);
+        // Unusable messages without a DeliveryAttempt are acknowledged to avoid infinite loops
         client.Verify(c => c.AcknowledgeAsync(message3.Object, It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(c => c.AcknowledgeAsync(message4.Object, It.IsAny<CancellationToken>()), Times.Once);
 
         Assert.Same(mock1, response.Items[0].Data);
         Assert.Same(mock2, response.Items[1].Data);
     }
 
     [Fact]
-    public async Task TestGetJobsAsync_FailedToGetBody_AcknowledgesPoison()
+    public async Task TestGetJobsAsync_FailedToGetBody_AcknowledgesWhenDeliveryAttemptUnavailable()
     {
         var client = new Mock<IPubSubSubscriberClientWrapper>();
         var source = new Mock<IPubSubSubscriberClientSource>();
@@ -166,6 +219,7 @@ public class GooglePubSubJobSourceTests
 
         var jobSource = new GooglePubSubJobSource(source.Object, pubSubMessageSource.Object,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            CreatePassthroughPoisonHandler().Object,
             new Mock<ISourceMessageConverter>().Object,
             bodyRetriever.Object,
             new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
@@ -195,6 +249,7 @@ public class GooglePubSubJobSourceTests
 
         var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            CreatePassthroughPoisonHandler().Object,
             new Mock<ISourceMessageConverter>().Object,
             new Mock<IGooglePubSubBodyStringRetriever>().Object,
             new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));

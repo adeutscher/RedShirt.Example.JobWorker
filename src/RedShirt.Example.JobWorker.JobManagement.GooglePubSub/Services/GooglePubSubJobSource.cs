@@ -6,6 +6,7 @@ using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Factories;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Models;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services;
 
@@ -13,11 +14,42 @@ internal class GooglePubSubJobSource(
     IPubSubSubscriberClientSource clientSource,
     IGooglePubSubMessageSource googlePubSubMessageSource,
     IGooglePubSubRetryWrapperService retryWrapperService,
+    IGooglePubSubPoisonMessagesHandler poisonMessagesHandler,
     ISourceMessageConverter converter,
     IGooglePubSubBodyStringRetriever bodyStringRetriever,
     ILogger<GooglePubSubJobSource> logger,
     IOptions<GooglePubSubConfigurationModel> options) : IJobSource
 {
+    private async Task HandleUnusableMessageAsync(IPubSubMessageContainer receivedMessage,
+        CancellationToken cancellationToken)
+    {
+        if (await poisonMessagesHandler.AttemptPoisonMessageEnforcementAsync(receivedMessage, cancellationToken))
+        {
+            return;
+        }
+
+        if (options.Value.DlqNotEnabled &&
+            PubSubMessageAttributeRetriever.TryGetDeliveryAttempt(receivedMessage) is null)
+        {
+            /*
+             * Pub/Sub only populates DeliveryAttempt when a dead-letter policy exists.
+             * Without a usable receive count, acknowledging prevents unparseable messages from looping forever.
+             */
+            await retryWrapperService.RunAsync(async ct =>
+            {
+                var client = await clientSource.GetSubscriberClientAsync(ct);
+                await client.AcknowledgeAsync(receivedMessage, ct);
+            }, cancellationToken);
+            return;
+        }
+
+        await retryWrapperService.RunAsync(async ct =>
+        {
+            var client = await clientSource.GetSubscriberClientAsync(ct);
+            await client.NackAsync(receivedMessage, ct);
+        }, cancellationToken);
+    }
+
     public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
@@ -27,26 +59,32 @@ internal class GooglePubSubJobSource(
             return;
         }
 
-        if (success)
+        if (!success)
         {
-            await retryWrapperService.RunAsync(async ct =>
+            if (await poisonMessagesHandler.AttemptPoisonMessageEnforcementAsync(messageAsPubSubJobModel.Message,
+                    cancellationToken))
             {
-                var client = await clientSource.GetSubscriberClientAsync(ct);
-                await client.AcknowledgeAsync(messageAsPubSubJobModel.Message, ct);
-            }, cancellationToken);
-        }
-        else
-        {
+                return;
+            }
+
             /*
              * Failed jobs are nacked (ack deadline set to 0) so they become available for redelivery.
-             * Behaviour beyond that defers to the subscription's dead-letter / max-delivery configuration.
+             * Behaviour beyond that defers to the subscription's dead-letter / max-delivery configuration
+             * when DlqNotEnabled is false.
              */
             await retryWrapperService.RunAsync(async ct =>
             {
                 var client = await clientSource.GetSubscriberClientAsync(ct);
                 await client.NackAsync(messageAsPubSubJobModel.Message, ct);
             }, cancellationToken);
+            return;
         }
+
+        await retryWrapperService.RunAsync(async ct =>
+        {
+            var client = await clientSource.GetSubscriberClientAsync(ct);
+            await client.AcknowledgeAsync(messageAsPubSubJobModel.Message, ct);
+        }, cancellationToken);
     }
 
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -65,28 +103,13 @@ internal class GooglePubSubJobSource(
             {
                 logger.LogWarning(e, "Error parsing Google Pub/Sub message: {MessageBody}", e.Message);
 
-                /*
-                 * Pub/Sub has no per-message dead-letter API on pull; acknowledging removes the poison
-                 * message so it cannot keep gumming up the subscription. Prefer configuring a dead-letter
-                 * topic on the subscription in production.
-                 */
-                await retryWrapperService.RunAsync(async ct =>
-                {
-                    var client = await clientSource.GetSubscriberClientAsync(ct);
-                    await client.AcknowledgeAsync(receivedMessage, ct);
-                }, cancellationToken);
-
+                await HandleUnusableMessageAsync(receivedMessage, cancellationToken);
                 continue;
             }
 
             if (string.IsNullOrWhiteSpace(messageBody))
             {
-                await retryWrapperService.RunAsync(async ct =>
-                {
-                    var client = await clientSource.GetSubscriberClientAsync(ct);
-                    await client.AcknowledgeAsync(receivedMessage, ct);
-                }, cancellationToken);
-
+                await HandleUnusableMessageAsync(receivedMessage, cancellationToken);
                 continue;
             }
 
@@ -97,12 +120,7 @@ internal class GooglePubSubJobSource(
                 var @object = converter.Convert(messageBody);
                 if (@object is null)
                 {
-                    await retryWrapperService.RunAsync(async ct =>
-                    {
-                        var client = await clientSource.GetSubscriberClientAsync(ct);
-                        await client.AcknowledgeAsync(receivedMessage, ct);
-                    }, cancellationToken);
-
+                    await HandleUnusableMessageAsync(receivedMessage, cancellationToken);
                     continue;
                 }
 
@@ -118,6 +136,8 @@ internal class GooglePubSubJobSource(
             catch (Exception e)
             {
                 logger.LogWarning(e, "Error parsing Google Pub/Sub message: {MessageBody}", messageBody);
+
+                await HandleUnusableMessageAsync(receivedMessage, cancellationToken);
             }
         }
 

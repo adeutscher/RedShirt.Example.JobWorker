@@ -22,6 +22,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IPubSubSubscriberClientSource, PubSubSubscriberClientSource>()
             .AddSingleton<IGooglePubSubExceptionArbiterService, GooglePubSubExceptionArbiterService>()
             .AddSingleton<IGooglePubSubRetryWrapperService, GooglePubSubRetryWrapperService>()
+            .AddSingleton<IGooglePubSubPoisonMessagesHandler, GooglePubSubPoisonMessagesHandler>()
             .AddSingleton<IGooglePubSubMessageSource, GooglePubSubMessageSource>()
             .AddSingleton<IGooglePubSubBodyStringRetriever, GooglePubSubBodyStringRetriever>();
     }

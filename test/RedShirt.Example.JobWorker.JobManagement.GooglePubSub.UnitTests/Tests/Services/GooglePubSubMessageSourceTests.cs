@@ -31,7 +31,9 @@ public class GooglePubSubMessageSourceTests
                     ProjectId = "local-pubsub",
                     SubscriptionId = "jobs-subscription",
                     MaxMessagesPerRequest = maxPerRequest,
-                    VisibilityTimeoutSeconds = 60
+                    VisibilityTimeoutSeconds = 60,
+                    DlqNotEnabled = true,
+                    MaximumReceives = 3
                 }));
 
         var messages = await messageSource.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken);
@@ -60,7 +62,9 @@ public class GooglePubSubMessageSourceTests
                     ProjectId = "local-pubsub",
                     SubscriptionId = "jobs-subscription",
                     MaxMessagesPerRequest = 10,
-                    VisibilityTimeoutSeconds = 60
+                    VisibilityTimeoutSeconds = 60,
+                    DlqNotEnabled = true,
+                    MaximumReceives = 3
                 }));
 
         var messages = await messageSource.GetMessagesAsync(25, TestContext.Current.CancellationToken);
