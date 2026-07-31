@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 
@@ -10,10 +11,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.Idempotency;
 ///     The idempotency monitor is responsible for periodically following up on tasks that were previously blocked due to
 ///     idempotency issues.
 /// </summary>
-internal interface IIdempotencyMonitor
-{
-    Task RunAsync(CancellationToken cancellationToken = default);
-}
+internal interface IIdempotencyMonitor : IHandlerSubComponent;
 
 internal class IdempotencyMonitor(
     IExecutionEndArbiter executionEndArbiter,
@@ -105,12 +103,12 @@ internal class IdempotencyMonitor(
         }
     }
 
-    public async Task RunAsync(CancellationToken cancellationToken = default)
+    public async Task<HandlerResponseEnum> RunAsync(CancellationToken cancellationToken = default)
     {
         if (!options.Value.Enabled)
         {
             // Not enabled, immediately abort
-            return;
+            return HandlerResponseEnum.NotEnabled;
         }
 
         var intervalTimeSpan = TimeSpan.FromSeconds(options.Value.EffectiveMonitorIntervalSeconds);
@@ -120,5 +118,7 @@ internal class IdempotencyMonitor(
             await CheckBlockedJobsAsync(cancellationToken);
             await sleepService.DelayAsync(intervalTimeSpan, cancellationToken);
         }
+
+        return HandlerResponseEnum.Finished;
     }
 }

@@ -11,10 +11,7 @@ namespace RedShirt.Example.JobWorker.Core.Services;
 /// <summary>
 ///     The maintainer is responsible for making sure that messages checked out from the job source remain 'in flight'.
 /// </summary>
-internal interface IMaintainer
-{
-    Task RunAsync(CancellationToken cancellationToken = default);
-}
+internal interface IMaintainer : IHandlerSubComponent;
 
 internal class Maintainer(
     IHeartbeatCalculator heartbeatCalculator,
@@ -135,12 +132,12 @@ internal class Maintainer(
         return timeToWait.Value;
     }
 
-    public async Task RunAsync(CancellationToken cancellationToken = default)
+    public async Task<HandlerResponseEnum> RunAsync(CancellationToken cancellationToken = default)
     {
         if (jobSource.RecommendedHeartbeatIntervalSeconds <= 0)
         {
             // Not needed by implementation, abort immediately.
-            return;
+            return HandlerResponseEnum.NotEnabled;
         }
 
         while (await appliedExecutionEndArbiter.MaintainerShouldKeepRunningAsync(cancellationToken))
@@ -157,5 +154,7 @@ internal class Maintainer(
             var timeToWait = await MaintainJobsAsync(jobs, cancellationToken);
             await LogAndWaitAsync(timeToWait, cancellationToken);
         }
+
+        return HandlerResponseEnum.Finished;
     }
 }

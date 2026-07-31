@@ -17,7 +17,7 @@ internal interface IJobExecutor
     /// <param name="executorId"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    Task RunAsync(int executorId, CancellationToken cancellationToken = default);
+    Task<HandlerResponseEnum> RunAsync(int executorId, CancellationToken cancellationToken = default);
 }
 
 internal class JobExecutor(
@@ -72,7 +72,7 @@ internal class JobExecutor(
             cancellationToken);
     }
 
-    public async Task RunAsync(int executorId, CancellationToken cancellationToken = default)
+    public async Task<HandlerResponseEnum> RunAsync(int executorId, CancellationToken cancellationToken = default)
     {
         while (await appliedExecutionEndArbiter.ExecutorsShouldKeepRunningAsync(cancellationToken))
         {
@@ -112,5 +112,7 @@ internal class JobExecutor(
                 idempotencyLock.Unlock();
             }
         }
+
+        return HandlerResponseEnum.Finished;
     }
 }
