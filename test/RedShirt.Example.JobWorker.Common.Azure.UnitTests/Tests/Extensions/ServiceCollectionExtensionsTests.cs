@@ -16,13 +16,9 @@ public class ServiceCollectionExtensionsTests
 
         var arbiter1 = provider.GetRequiredService<IAzureExceptionArbiterService>();
         var arbiter2 = provider.GetRequiredService<IAzureExceptionArbiterService>();
-        var packager1 = provider.GetRequiredService<IAzureExceptionPackager>();
-        var packager2 = provider.GetRequiredService<IAzureExceptionPackager>();
 
         Assert.IsType<AzureExceptionArbiterService>(arbiter1);
         Assert.Same(arbiter1, arbiter2);
-        Assert.IsType<AzureExceptionPackager>(packager1);
-        Assert.Same(packager1, packager2);
     }
 
     [Fact]

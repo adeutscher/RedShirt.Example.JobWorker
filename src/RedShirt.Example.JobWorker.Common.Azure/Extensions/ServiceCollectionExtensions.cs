@@ -8,7 +8,6 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddCommonAzureServices(this IServiceCollection services)
     {
         return services
-            .AddSingleton<IAzureExceptionArbiterService, AzureExceptionArbiterService>()
-            .AddSingleton<IAzureExceptionPackager, AzureExceptionPackager>();
+            .AddSingleton<IAzureExceptionArbiterService, AzureExceptionArbiterService>();
     }
 }
