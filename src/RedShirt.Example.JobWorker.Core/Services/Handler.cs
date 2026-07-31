@@ -116,6 +116,11 @@ internal class Handler(
         // Idempotency monitor thread
         await addToTaskFunc(() => idempotencyMonitor.RunAsync(cancellationToken));
 
+        /*
+         * Wait for the worker done event to be triggered, indicating the first component to finish.
+         * Once it has triggered, one of two things is expected to happen:
+         *  * The finished worker was on account of an exception, which shall soon thrown upwards with the intent of crashing the entire program.
+         */
         await _workerDoneEvent.WaitAsync(cancellationToken);
 
         await _exceptionLock.WaitAsync(cancellationToken);

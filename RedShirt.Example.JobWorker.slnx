@@ -14,6 +14,7 @@
         <Project Path="src/RedShirt.Example.JobWorker.Common.Aws/RedShirt.Example.JobWorker.Common.Aws.csproj"/>
         <Project
                 Path="src/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.csproj"/>
+        <Project Path="src/RedShirt.Example.JobWorker.Common.Azure/RedShirt.Example.JobWorker.Common.Azure.csproj"/>
         <Project
                 Path="src/RedShirt.Example.JobWorker.Common.Distributed/RedShirt.Example.JobWorker.Common.Distributed.csproj"/>
         <Project
@@ -43,6 +44,8 @@
                 Path="test/RedShirt.Example.JobWorker.Common.Aws.UnitTests/RedShirt.Example.JobWorker.Common.Aws.UnitTests.csproj"/>
         <Project
                 Path="test/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.UnitTests/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Common.Azure.UnitTests/RedShirt.Example.JobWorker.Common.Azure.UnitTests.csproj"/>
         <Project
                 Path="test/RedShirt.Example.JobWorker.Common.Distributed.UnitTests/RedShirt.Example.JobWorker.Common.Distributed.UnitTests.csproj"/>
         <Project
