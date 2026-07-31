@@ -120,8 +120,8 @@ internal class AzureRetryWrapperService(
 
             if (!report.IsExpected)
             {
-                // Throw unexpected exception types upwards.
-                // Intentionally creating as big of a problem as possible so that it gets developer attention 
+                // Unexpected. Throw raw exception.
+                // We absolutely want to raise a massive alert so that the exception gets developer attention and becomes expected. 
                 throw;
             }
 

@@ -51,8 +51,8 @@ internal interface IDistributedRetryWrapperService
 
 /// <summary>
 ///     Polly v8-based retry wrapper for Redis / distributed-cache calls.
-///     Retries when <see cref="IDistributedSleepService" /> reports a possibly transient failure,
-///     using exponential backoff via <see cref="exceptionArbiterService" />.
+///     Retries when <see cref="IRedisDistributedExceptionArbiterService" /> reports a possibly transient failure,
+///     using exponential backoff via <see cref="IDistributedSleepService" />.
 /// </summary>
 /// <param name="exceptionArbiterService">Classifies Redis-related exceptions as possibly transient.</param>
 /// <param name="sleepService">Provides cancellable backoff delays between retry attempts.</param>

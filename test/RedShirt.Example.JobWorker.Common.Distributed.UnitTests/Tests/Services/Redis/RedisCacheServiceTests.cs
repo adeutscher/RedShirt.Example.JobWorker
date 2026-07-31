@@ -1,5 +1,4 @@
 using Moq;
-using RedShirt.Example.JobWorker.Common.Distributed.Services;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 using StackExchange.Redis;
 
