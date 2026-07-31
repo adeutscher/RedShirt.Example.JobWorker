@@ -13,6 +13,7 @@ using RedShirt.Example.JobWorker.JobManagement.Kafka.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.Pulsar.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Extensions;
 
@@ -42,6 +43,7 @@ public static class ServiceCollectionExtensions
          */
         var useKinesisRaw = configuration.GetValue("UseKinesis", "0");
         var useKafkaRaw = configuration.GetValue("UseKafka", "0");
+        var usePulsarRaw = configuration.GetValue("UsePulsar", "0");
         var useActiveMqRaw = configuration.GetValue("UseActiveMq", "0");
         var useAzureQueueStorageRaw = configuration.GetValue("UseAzureQueueStorage", "0");
         var useAzureServiceBusRaw = configuration.GetValue("UseAzureServiceBus", "0");
@@ -88,6 +90,11 @@ public static class ServiceCollectionExtensions
             services = services
                 .AddKafkaJobManagement(configuration)
                 .AddKafkaSqsFailureHandling(configuration);
+        }
+        else if (int.TryParse(usePulsarRaw, out var usePulsar) && usePulsar == 1)
+        {
+            services = services
+                .AddPulsarJobManagement(configuration);
         }
         else
         {
