@@ -145,6 +145,76 @@ public class AzureRetryWrapperServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenOperationCanceledAndTokenCancelled_PropagatesWithoutWrapping()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
+        var sleepService = CreateSleepService();
+        var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync<int>(
+            _ => throw new OperationCanceledException(cts.Token),
+            cts.Token));
+
+        arbiter.VerifyNoOtherCalls();
+        sleepService.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenSleepCancelledDuringRetry_PropagatesCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        var attempts = 0;
+
+        var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetJudgement(It.IsAny<Exception>())).Returns(TransientReport());
+
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        sleepService
+            .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .Returns<TimeSpan, CancellationToken>((_, token) =>
+            {
+                cts.Cancel();
+                return Task.FromCanceled(token);
+            });
+
+        var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync<string>(
+            _ =>
+            {
+                attempts++;
+                throw new HttpRequestException("transient");
+            },
+            cts.Token));
+
+        Assert.Equal(1, attempts);
+        sleepService.Verify(
+            s => s.DelayAsync(TimeSpan.FromSeconds(1), cts.Token),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenTaskCanceledWithoutCallerCancel_WrapsUsingArbiterJudgement()
+    {
+        var inner = new TaskCanceledException("http-style timeout");
+        var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetJudgement(inner)).Returns(TransientReport());
+
+        var sleepService = CreateSleepService();
+        var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
+
+        var thrown = await Assert.ThrowsAsync<WorkerAzureException>(() => wrapper.RunAsync<string>(
+            _ => throw inner,
+            TestContext.Current.CancellationToken));
+
+        Assert.Same(inner, thrown.InnerException);
+        Assert.True(thrown.IsTransient);
+    }
+
+    [Fact]
     public async Task RunAsync_WhenTokenCancelledBeforeRetryDecision_DoesNotRetry()
     {
         using var cts = new CancellationTokenSource();

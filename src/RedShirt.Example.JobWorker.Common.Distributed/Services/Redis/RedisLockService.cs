@@ -25,7 +25,7 @@ internal class RedisLockService(
         return new DistributedLock(retryWrapper, await redisLock.TryAcquireAsync(Timeout, cancellationToken));
     }
 
-    private sealed class DistributedLock(
+    internal sealed class DistributedLock(
         IDistributedRetryWrapperService retryWrapper,
         RedisDistributedLockHandle? lockHandle) : IAbstractedLock
     {

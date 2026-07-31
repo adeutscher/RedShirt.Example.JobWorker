@@ -1,3 +1,4 @@
+using RedShirt.Example.JobWorker.Common.Azure.Exceptions;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Clients;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Factories;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Services;
@@ -120,6 +121,52 @@ public class AzureKeyVaultServiceTests
             source.VerifyNoOtherCalls();
             client.VerifyNoOtherCalls();
         }
+
+        [Theory]
+        [InlineData("a")]
+        [InlineData("secret-name")]
+        [InlineData("Secret-Name-123")]
+        public async Task ValidKey_ReturnsSecretValue(string key)
+        {
+            var value = Guid.NewGuid().ToString("N");
+
+            var client = new Mock<IAzureKeyVaultClientWrapper>(MockBehavior.Strict);
+            client.Setup(c => c.GetSecretAsync(key, TestContext.Current.CancellationToken))
+                .ReturnsAsync(value);
+
+            var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
+            source.Setup(s => s.GetKeyVaultClient()).Returns(client.Object);
+
+            var retry = CreatePassthroughRetryWrapper();
+            var service = new AzureKeyVaultService(retry.Object, source.Object);
+
+            var result = await service.GetSecretAsync(key, TestContext.Current.CancellationToken);
+
+            Assert.Equal(value, result);
+            client.Verify(c => c.GetSecretAsync(key, TestContext.Current.CancellationToken), Times.Once);
+        }
+
+        [Fact]
+        public async Task WhenRetryWrapperThrowsWorkerAzureException_Propagates()
+        {
+            var key = Guid.NewGuid().ToString("N");
+            var inner = new WorkerAzureException("vault unavailable", true);
+
+            var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
+            var retry = new Mock<IAzureRetryWrapperService>(MockBehavior.Strict);
+            retry
+                .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<string>>>(),
+                    TestContext.Current.CancellationToken))
+                .ThrowsAsync(inner);
+
+            var service = new AzureKeyVaultService(retry.Object, source.Object);
+
+            var thrown = await Assert.ThrowsAsync<WorkerAzureException>(() =>
+                service.GetSecretAsync(key, TestContext.Current.CancellationToken));
+
+            Assert.Same(inner, thrown);
+            source.VerifyNoOtherCalls();
+        }
     }
 
     public class GetSecretsAsync
@@ -206,6 +253,45 @@ public class AzureKeyVaultServiceTests
         }
 
         [Fact]
+        public async Task PassesCancellationTokenToRetryWrapper()
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            var key = Guid.NewGuid().ToString("N");
+            var seenTokens = new List<CancellationToken>();
+
+            var client = new Mock<IAzureKeyVaultClientWrapper>(MockBehavior.Strict);
+            client.Setup(c => c.GetSecretAsync(key, cts.Token)).ReturnsAsync("value");
+
+            var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
+            source.Setup(s => s.GetKeyVaultClient()).Returns(client.Object);
+
+            var retry = new Mock<IAzureRetryWrapperService>(MockBehavior.Strict);
+            retry
+                .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<IAzureKeyVaultClientWrapper>>>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns<Func<CancellationToken, Task<IAzureKeyVaultClientWrapper>>, CancellationToken>((func, ct) =>
+                {
+                    seenTokens.Add(ct);
+                    return func(ct);
+                });
+            retry
+                .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<string>>>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns<Func<CancellationToken, Task<string>>, CancellationToken>((func, ct) =>
+                {
+                    seenTokens.Add(ct);
+                    return func(ct);
+                });
+
+            var service = new AzureKeyVaultService(retry.Object, source.Object);
+
+            await service.GetSecretsAsync([key], cts.Token);
+
+            Assert.Equal(2, seenTokens.Count);
+            Assert.All(seenTokens, token => Assert.Equal(cts.Token, token));
+        }
+
+        [Fact]
         public async Task ReturnsSecretValuesForEachKey()
         {
             var keyA = Guid.NewGuid().ToString("N");
@@ -239,6 +325,60 @@ public class AzureKeyVaultServiceTests
             retry.Verify(
                 r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<string>>>(),
                     TestContext.Current.CancellationToken), Times.Exactly(2));
+        }
+
+        [Fact]
+        public async Task WhenSecretFetchThrowsWorkerAzureException_WrapsAsSecretManagerException()
+        {
+            var key = Guid.NewGuid().ToString("N");
+            var azureException = new WorkerAzureException("get failed", false);
+
+            var client = new Mock<IAzureKeyVaultClientWrapper>(MockBehavior.Strict);
+            var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
+            source.Setup(s => s.GetKeyVaultClient()).Returns(client.Object);
+
+            var retry = new Mock<IAzureRetryWrapperService>(MockBehavior.Strict);
+            retry
+                .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<IAzureKeyVaultClientWrapper>>>(),
+                    TestContext.Current.CancellationToken))
+                .ReturnsAsync(client.Object);
+            retry
+                .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<string>>>(),
+                    TestContext.Current.CancellationToken))
+                .ThrowsAsync(azureException);
+
+            var service = new AzureKeyVaultService(retry.Object, source.Object);
+
+            var thrown = await Assert.ThrowsAsync<WorkerSecretManagerException>(() =>
+                service.GetSecretsAsync([key], TestContext.Current.CancellationToken));
+
+            Assert.Same(azureException, thrown.InnerException);
+            Assert.False(thrown.IsTransient);
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task WhenWorkerAzureException_WrapsAsSecretManagerException(bool isTransient)
+        {
+            var key = Guid.NewGuid().ToString("N");
+            var azureException = new WorkerAzureException("vault unavailable", isTransient);
+
+            var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
+            var retry = new Mock<IAzureRetryWrapperService>(MockBehavior.Strict);
+            retry
+                .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<IAzureKeyVaultClientWrapper>>>(),
+                    TestContext.Current.CancellationToken))
+                .ThrowsAsync(azureException);
+
+            var service = new AzureKeyVaultService(retry.Object, source.Object);
+
+            var thrown = await Assert.ThrowsAsync<WorkerSecretManagerException>(() =>
+                service.GetSecretsAsync([key], TestContext.Current.CancellationToken));
+
+            Assert.Same(azureException, thrown.InnerException);
+            Assert.Equal(isTransient, thrown.IsTransient);
+            source.VerifyNoOtherCalls();
         }
     }
 }

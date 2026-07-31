@@ -7,14 +7,21 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services
 
 public class RedisConnectionCacheServiceTests
 {
+    private static Mock<IConnectionMultiplexer> CreateConnectedMultiplexer(Mock<IDatabase> database)
+    {
+        var multiplexer = new Mock<IConnectionMultiplexer>(MockBehavior.Strict);
+        multiplexer.SetupGet(m => m.IsConnected).Returns(true);
+        multiplexer
+            .Setup(m => m.GetDatabase(It.IsAny<int>(), It.IsAny<object?>()))
+            .Returns(database.Object);
+        return multiplexer;
+    }
+
     private static (Mock<IRedisConnectionFactory> Factory, Mock<IConnectionMultiplexer> Multiplexer, Mock<IDatabase>
         Database) CreateMocks()
     {
         var database = new Mock<IDatabase>(MockBehavior.Strict);
-        var multiplexer = new Mock<IConnectionMultiplexer>(MockBehavior.Strict);
-        multiplexer
-            .Setup(m => m.GetDatabase(It.IsAny<int>(), It.IsAny<object?>()))
-            .Returns(database.Object);
+        var multiplexer = CreateConnectedMultiplexer(database);
 
         var factory = new Mock<IRedisConnectionFactory>(MockBehavior.Strict);
         factory
@@ -28,10 +35,7 @@ public class RedisConnectionCacheServiceTests
     public async Task GetDatabaseAsync_ConcurrentCallers_CreateConnectionOnce()
     {
         var database = new Mock<IDatabase>(MockBehavior.Strict);
-        var multiplexer = new Mock<IConnectionMultiplexer>(MockBehavior.Strict);
-        multiplexer
-            .Setup(m => m.GetDatabase(It.IsAny<int>(), It.IsAny<object?>()))
-            .Returns(database.Object);
+        var multiplexer = CreateConnectedMultiplexer(database);
 
         var factoryEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseFactory = new TaskCompletionSource<IConnectionMultiplexer>(
@@ -86,10 +90,7 @@ public class RedisConnectionCacheServiceTests
     public async Task GetDatabaseAsync_PropagatesFactoryException_AndAllowsRetry()
     {
         var database = new Mock<IDatabase>(MockBehavior.Strict);
-        var multiplexer = new Mock<IConnectionMultiplexer>(MockBehavior.Strict);
-        multiplexer
-            .Setup(m => m.GetDatabase(It.IsAny<int>(), It.IsAny<object?>()))
-            .Returns(database.Object);
+        var multiplexer = CreateConnectedMultiplexer(database);
 
         var factory = new Mock<IRedisConnectionFactory>(MockBehavior.Strict);
         factory

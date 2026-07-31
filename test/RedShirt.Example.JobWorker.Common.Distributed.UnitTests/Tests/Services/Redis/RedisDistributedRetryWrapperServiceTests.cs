@@ -53,6 +53,27 @@ public class RedisDistributedRetryWrapperServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_NonGeneric_WhenAlreadyHandled_RethrowsWithoutWrapping()
+    {
+        var inner = new WorkerDistributedException("already wrapped");
+
+        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport(false));
+
+        var sleepService = CreateSleepService();
+        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+
+        var thrown = await Assert.ThrowsAsync<WorkerDistributedException>(() => wrapper.RunAsync(
+            _ => throw inner,
+            TestContext.Current.CancellationToken));
+
+        Assert.Same(inner, thrown);
+        sleepService.Verify(
+            s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task RunAsync_NonGeneric_WhenFuncSucceeds_CompletesWithoutSleeping()
     {
         var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
@@ -73,6 +94,57 @@ public class RedisDistributedRetryWrapperServiceTests
             s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
             Times.Never);
         arbiter.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task RunAsync_NonGeneric_WhenOperationCanceledAndTokenCancelled_PropagatesWithoutWrapping()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var sleepService = CreateSleepService();
+        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync(
+            _ => throw new OperationCanceledException(cts.Token),
+            cts.Token));
+
+        arbiter.VerifyNoOtherCalls();
+        sleepService.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task RunAsync_NonGeneric_WhenTransientFailuresExhaustRetries_Wraps()
+    {
+        var attempts = 0;
+        var delays = new List<TimeSpan>();
+        var inner = new TimeoutException("still failing");
+
+        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
+
+        var sleepService = CreateSleepService(delays);
+        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+
+        var thrown = await Assert.ThrowsAsync<WorkerDistributedException>(() => wrapper.RunAsync(
+            _ =>
+            {
+                attempts++;
+                throw inner;
+            },
+            TestContext.Current.CancellationToken));
+
+        Assert.Same(inner, thrown.InnerException);
+        Assert.True(thrown.IsTransient);
+        Assert.Equal(4, attempts);
+        Assert.Equal(
+            [
+                TimeSpan.FromSeconds(1),
+                TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(4)
+            ],
+            delays);
     }
 
     [Fact]
@@ -125,7 +197,7 @@ public class RedisDistributedRetryWrapperServiceTests
     public async Task RunAsync_WhenAlreadyHandled_RethrowsWithoutWrapping()
     {
         var attempts = 0;
-        var inner = new WorkerDistributedException("already wrapped", false);
+        var inner = new WorkerDistributedException("already wrapped");
 
         var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport(false));
@@ -210,6 +282,25 @@ public class RedisDistributedRetryWrapperServiceTests
 
         arbiter.VerifyNoOtherCalls();
         sleepService.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenTaskCanceledWithoutCallerCancel_WrapsAsTransient()
+    {
+        var inner = new TaskCanceledException("http-style timeout");
+
+        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetReport(inner)).Returns(TransientReport());
+
+        var sleepService = CreateSleepService();
+        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+
+        var thrown = await Assert.ThrowsAsync<WorkerDistributedException>(() => wrapper.RunAsync<string>(
+            _ => throw inner,
+            TestContext.Current.CancellationToken));
+
+        Assert.Same(inner, thrown.InnerException);
+        Assert.True(thrown.IsTransient);
     }
 
     [Fact]
