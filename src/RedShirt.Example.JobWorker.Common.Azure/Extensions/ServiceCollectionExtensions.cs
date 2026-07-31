@@ -9,6 +9,6 @@ public static class ServiceCollectionExtensions
     {
         return services
             .AddSingleton<IAzureExceptionArbiterService, AzureExceptionArbiterService>()
-            .AddSingleton<IAzureRetryWrapper, AzureRetryWrapper>();
+            .AddSingleton<IAzureRetryWrapperService, AzureRetryWrapperService>();
     }
 }

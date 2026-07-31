@@ -9,7 +9,7 @@ namespace RedShirt.Example.JobWorker.Common.Azure.Services;
 ///     Retries Azure client operations that fail with expected transient exceptions,
 ///     then surfaces remaining failures as <see cref="AzureExceptionWrapper" />.
 /// </summary>
-public interface IAzureRetryWrapper
+public interface IAzureRetryWrapperService
 {
     /// <summary>
     ///     Executes <paramref name="func" /> with retry for expected transient Azure failures.
@@ -36,8 +36,8 @@ public interface IAzureRetryWrapper
 /// </summary>
 /// <param name="exceptionArbiterService">Classifies Azure-related exceptions as expected/transient.</param>
 /// <param name="sleepService">Provides cancellable backoff delays between retry attempts.</param>
-public class AzureRetryWrapper(IAzureExceptionArbiterService exceptionArbiterService, ISleepService sleepService)
-    : IAzureRetryWrapper
+public class AzureRetryWrapperService(IAzureExceptionArbiterService exceptionArbiterService, ISleepService sleepService)
+    : IAzureRetryWrapperService
 {
     private const int AzureRetryCount = 3;
 
