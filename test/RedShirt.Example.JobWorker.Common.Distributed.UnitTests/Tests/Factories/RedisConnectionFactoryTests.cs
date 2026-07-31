@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Options;
 using Moq;
+using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Common.Distributed.Factories;
+using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Exceptions;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 using StackExchange.Redis;
 
@@ -28,6 +30,37 @@ public class RedisConnectionFactoryTests
         await Assert.ThrowsAsync<RedisConnectionException>(() =>
             factory.GetConnectionAsync(TestContext.Current.CancellationToken));
 
+        secrets.Verify(s => s.GetSecretAsync(connectionStringPath, null, false, TestContext.Current.CancellationToken),
+            Times.Once);
+        secrets.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetConnectionAsync_WrapsSecretManagerExceptionAsWorkerDistributedException(bool isTransient)
+    {
+        const string connectionStringPath = "redis/connection-string";
+        var secretException = new WorkerSecretManagerException("secret lookup failed", isTransient);
+
+        var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
+        secrets
+            .Setup(s => s.GetSecretAsync(connectionStringPath, null, false, TestContext.Current.CancellationToken))
+            .ThrowsAsync(secretException);
+
+        var factory = new RedisConnectionFactory(
+            secrets.Object,
+            Options.Create(new RedisConnectionFactory.ConfigurationModel
+            {
+                ConnectionStringPath = connectionStringPath
+            }));
+
+        var thrown = await Assert.ThrowsAsync<WorkerDistributedException>(() =>
+            factory.GetConnectionAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(secretException.Message, thrown.Message);
+        Assert.Same(secretException, thrown.InnerException);
+        Assert.Equal(isTransient, thrown.IsTransient);
         secrets.Verify(s => s.GetSecretAsync(connectionStringPath, null, false, TestContext.Current.CancellationToken),
             Times.Once);
         secrets.VerifyNoOtherCalls();

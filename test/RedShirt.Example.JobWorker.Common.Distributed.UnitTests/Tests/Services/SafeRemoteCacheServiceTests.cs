@@ -31,7 +31,7 @@ public class SafeRemoteCacheServiceTests
         var key = Guid.NewGuid().ToString();
 
         remoteCache.SetupSequence(c => c.GetStringAsync(key, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new CacheTimeoutException(new TimeoutException("slow")))
+            .ThrowsAsync(new WorkerDistributedException(new TimeoutException("slow")))
             .ReturnsAsync("recovered");
 
         // Zero-second disgrace ends immediately after the failure call returns.
@@ -52,14 +52,14 @@ public class SafeRemoteCacheServiceTests
         var expiry = TimeSpan.FromMinutes(1);
 
         remoteCache.Setup(c => c.GetStringAsync(key, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new CacheConnectionException(new Exception("offline")));
+            .ThrowsAsync(new WorkerDistributedException(new Exception("offline")));
 
         var (service, _) = CreateService(remoteCache);
         await service.GetStringAsync(key, TestContext.Current.CancellationToken);
         await service.SetStringAsync(key, "value", expiry, TestContext.Current.CancellationToken);
 
         remoteCache.Verify(c => c.GetStringAsync(key, TestContext.Current.CancellationToken), Times.Once);
-        remoteCache.Verify(c => c.SetStringAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<TimeSpan>(),
+        remoteCache.Verify(c => c.SetStringAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<TimeSpan>(),
             It.IsAny<CancellationToken>()), Times.Never);
         remoteCache.VerifyNoOtherCalls();
     }
@@ -96,14 +96,14 @@ public class SafeRemoteCacheServiceTests
     }
 
     [Theory]
-    [InlineData(typeof(CacheConnectionException))]
-    [InlineData(typeof(CacheTimeoutException))]
-    public async Task GetStringAsync_WhenCacheException_ReturnsNullAndEntersDisgrace(Type exceptionType)
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetStringAsync_WhenDistributedException_ReturnsNullAndEntersDisgrace(bool isTransient)
     {
         var remoteCache = new Mock<IRemoteCacheService>(MockBehavior.Strict);
         var key = Guid.NewGuid().ToString();
         var inner = new Exception("boom");
-        var exception = (Exception) Activator.CreateInstance(exceptionType, inner)!;
+        var exception = (Exception) Activator.CreateInstance(typeof(WorkerDistributedException), inner, isTransient)!;
 
         remoteCache.Setup(c => c.GetStringAsync(key, TestContext.Current.CancellationToken))
             .ThrowsAsync(exception);
@@ -186,16 +186,16 @@ public class SafeRemoteCacheServiceTests
     }
 
     [Theory]
-    [InlineData(typeof(CacheConnectionException))]
-    [InlineData(typeof(CacheTimeoutException))]
-    public async Task SetStringAsync_WhenCacheException_SwallowsAndEntersDisgrace(Type exceptionType)
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SetStringAsync_WhenDistributedException_SwallowsAndEntersDisgrace(bool isTransient)
     {
         var remoteCache = new Mock<IRemoteCacheService>(MockBehavior.Strict);
         var key = Guid.NewGuid().ToString();
         var value = Guid.NewGuid().ToString();
         var expiry = TimeSpan.FromSeconds(30);
         var inner = new Exception("boom");
-        var exception = (Exception) Activator.CreateInstance(exceptionType, inner)!;
+        var exception = (Exception) Activator.CreateInstance(typeof(WorkerDistributedException), inner, isTransient)!;
 
         remoteCache.Setup(c => c.SetStringAsync(key, value, expiry, TestContext.Current.CancellationToken))
             .ThrowsAsync(exception);

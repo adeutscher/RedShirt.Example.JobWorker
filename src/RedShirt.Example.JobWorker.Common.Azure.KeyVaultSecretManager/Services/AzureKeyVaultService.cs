@@ -1,3 +1,4 @@
+using RedShirt.Example.JobWorker.Common.Azure.Exceptions;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Factories;
 using RedShirt.Example.JobWorker.Common.Azure.Services;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Exceptions;
@@ -29,7 +30,7 @@ internal partial class AzureKeyVaultService(
     {
         if (!IsValidKey(key))
         {
-            throw new SecretManagerException($"Invalid secret path: {key}");
+            throw new WorkerSecretManagerException($"Invalid secret path: {key}");
         }
 
         return retryWrapperService.RunAsync(ct =>
@@ -44,17 +45,25 @@ internal partial class AzureKeyVaultService(
     {
         if (keys.FirstOrDefault(key => !IsValidKey(key)) is { } badKey)
         {
-            throw new SecretManagerException($"Invalid secret path: {badKey}");
+            throw new WorkerSecretManagerException($"Invalid secret path: {badKey}");
         }
 
         var items = new Dictionary<string, string>();
 
-        var source = await retryWrapperService.RunAsync(_ => Task.FromResult(clientSource.GetKeyVaultClient()),
-            cancellationToken);
-        // ReSharper disable once LoopCanBeConvertedToQuery
-        foreach (var key in keys.Distinct())
+        try
         {
-            items.Add(key, await retryWrapperService.RunAsync(ct => source.GetSecretAsync(key, ct), cancellationToken));
+            var source = await retryWrapperService.RunAsync(_ => Task.FromResult(clientSource.GetKeyVaultClient()),
+                cancellationToken);
+            // ReSharper disable once LoopCanBeConvertedToQuery
+            foreach (var key in keys.Distinct())
+            {
+                items.Add(key,
+                    await retryWrapperService.RunAsync(ct => source.GetSecretAsync(key, ct), cancellationToken));
+            }
+        }
+        catch (WorkerAzureException e)
+        {
+            throw new WorkerSecretManagerException(e, e.IsTransient);
         }
 
         return items;

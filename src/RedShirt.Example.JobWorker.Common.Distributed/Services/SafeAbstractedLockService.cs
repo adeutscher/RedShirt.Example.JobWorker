@@ -40,7 +40,7 @@ internal class SafeAbstractedLockService(
 
             return new SafeLockWrapper(innerLock, timeExceeded);
         }
-        catch (CacheException e)
+        catch (WorkerDistributedException e)
         {
             logger.LogWarning(e, "Failure to communicate with lock service: {EMessage}", e.Message);
             safetyDisgraceStateService.EnterDisgracePeriod();
@@ -48,7 +48,7 @@ internal class SafeAbstractedLockService(
         }
     }
 
-    private class PermissiveLock : ISafeAbstractedLock
+    private sealed class PermissiveLock : ISafeAbstractedLock
     {
         public bool IsAcquired => true;
         public bool IsTrulyAcquired => false;

@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
+using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Exceptions;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 using StackExchange.Redis;
 
@@ -15,9 +17,16 @@ internal class RedisConnectionFactory(
 {
     public async Task<IConnectionMultiplexer> GetConnectionAsync(CancellationToken cancellationToken = default)
     {
-        return await ConnectionMultiplexer.ConnectAsync(
-            await secretManager.GetSecretAsync(options.Value.ConnectionStringPath,
-                cancellationToken: cancellationToken));
+        try
+        {
+            return await ConnectionMultiplexer.ConnectAsync(
+                await secretManager.GetSecretAsync(options.Value.ConnectionStringPath,
+                    cancellationToken: cancellationToken));
+        }
+        catch (WorkerSecretManagerException e)
+        {
+            throw new WorkerDistributedException(e, e.IsTransient);
+        }
     }
 
     public sealed class ConfigurationModel

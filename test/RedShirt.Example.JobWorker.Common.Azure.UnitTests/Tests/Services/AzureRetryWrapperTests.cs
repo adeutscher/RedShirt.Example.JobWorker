@@ -98,7 +98,7 @@ public class AzureRetryWrapperServiceTests
         var sleepService = CreateSleepService(delays);
         var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
 
-        var thrown = await Assert.ThrowsAsync<AzureExceptionWrapper>(() => wrapper.RunAsync<string>(
+        var thrown = await Assert.ThrowsAsync<WorkerAzureException>(() => wrapper.RunAsync<string>(
             _ =>
             {
                 attempts++;
@@ -142,7 +142,7 @@ public class AzureRetryWrapperServiceTests
         var sleepService = CreateSleepService();
         var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
 
-        var thrown = await Assert.ThrowsAsync<AzureExceptionWrapper>(() => wrapper.RunAsync<int>(
+        var thrown = await Assert.ThrowsAsync<WorkerAzureException>(() => wrapper.RunAsync<int>(
             _ =>
             {
                 attempts++;
@@ -170,7 +170,7 @@ public class AzureRetryWrapperServiceTests
         var sleepService = CreateSleepService();
         var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
 
-        var thrown = await Assert.ThrowsAsync<AzureExceptionWrapper>(() => wrapper.RunAsync<int>(
+        var thrown = await Assert.ThrowsAsync<WorkerAzureException>(() => wrapper.RunAsync<int>(
             _ =>
             {
                 attempts++;
@@ -231,7 +231,7 @@ public class AzureRetryWrapperServiceTests
         var sleepService = CreateSleepService();
         var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
 
-        var thrown = await Assert.ThrowsAsync<AzureExceptionWrapper>(() => wrapper.RunAsync<string>(
+        var thrown = await Assert.ThrowsAsync<WorkerAzureException>(() => wrapper.RunAsync<string>(
             _ =>
             {
                 attempts++;

@@ -20,7 +20,7 @@ internal class SafeRemoteCacheService(
         {
             return await remoteCacheService.GetStringAsync(key, cancellationToken);
         }
-        catch (CacheException e)
+        catch (WorkerDistributedException e)
         {
             logger.LogWarning(e, "Failure to communicate with cache service: {EMessage}", e.Message);
             safetyDisgraceStateService.EnterDisgracePeriod();
@@ -28,7 +28,7 @@ internal class SafeRemoteCacheService(
         }
     }
 
-    public async Task SetStringAsync(string? key, string? value, TimeSpan expiry,
+    public async Task SetStringAsync(string key, string? value, TimeSpan expiry,
         CancellationToken cancellationToken = default)
     {
         if (safetyDisgraceStateService.IsInDisgracePeriod())
@@ -40,7 +40,7 @@ internal class SafeRemoteCacheService(
         {
             await remoteCacheService.SetStringAsync(key, value, expiry, cancellationToken);
         }
-        catch (CacheException e)
+        catch (WorkerDistributedException e)
         {
             logger.LogWarning(e, "Failure to communicate with cache service: {EMessage}", e.Message);
             safetyDisgraceStateService.EnterDisgracePeriod();

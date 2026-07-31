@@ -23,5 +23,5 @@ public interface IRemoteCacheService
     /// <param name="expiry"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    Task SetStringAsync(string? key, string? value, TimeSpan expiry, CancellationToken cancellationToken = default);
+    Task SetStringAsync(string key, string? value, TimeSpan expiry, CancellationToken cancellationToken = default);
 }

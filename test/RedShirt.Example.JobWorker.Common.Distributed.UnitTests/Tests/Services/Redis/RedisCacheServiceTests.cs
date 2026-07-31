@@ -1,5 +1,5 @@
 using Moq;
-using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
+using RedShirt.Example.JobWorker.Common.Distributed.Services;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 using StackExchange.Redis;
 
@@ -7,21 +7,35 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services
 
 public class RedisCacheServiceTests
 {
-    private static (RedisCacheService Service, Mock<IDatabase> Database, Mock<IRedisConnectionCacheService> Connection)
-        CreateService()
+    private static Mock<IDistributedRetryWrapperService> CreatePassthroughRetryWrapper()
+    {
+        var retry = new Mock<IDistributedRetryWrapperService>(MockBehavior.Strict);
+        retry
+            .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<string?>>>(), It.IsAny<CancellationToken>()))
+            .Returns<Func<CancellationToken, Task<string?>>, CancellationToken>((func, ct) => func(ct));
+        retry
+            .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task>>(), It.IsAny<CancellationToken>()))
+            .Returns<Func<CancellationToken, Task>, CancellationToken>((func, ct) => func(ct));
+        return retry;
+    }
+
+    private static (RedisCacheService Service, Mock<IDatabase> Database, Mock<IRedisConnectionCacheService> Connection,
+        Mock<IDistributedRetryWrapperService> Retry) CreateService()
     {
         var database = new Mock<IDatabase>(MockBehavior.Strict);
         var connection = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
         connection.Setup(c => c.GetDatabaseAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(database.Object);
 
-        return (new RedisCacheService(connection.Object), database, connection);
+        var retry = CreatePassthroughRetryWrapper();
+        var service = new RedisCacheService(retry.Object, connection.Object);
+        return (service, database, connection, retry);
     }
 
     [Fact]
-    public async Task GetStringAsync_ReturnsValue()
+    public async Task GetStringAsync_ReturnsValueThroughRetryWrapper()
     {
-        var (service, database, connection) = CreateService();
+        var (service, database, connection, retry) = CreateService();
         var key = Guid.NewGuid().ToString();
         var value = Guid.NewGuid().ToString();
 
@@ -34,22 +48,9 @@ public class RedisCacheServiceTests
         connection.Verify(c => c.GetDatabaseAsync(TestContext.Current.CancellationToken), Times.Once);
         database.Verify(
             d => d.StringGetAsync(It.Is<RedisKey>(k => k == key), It.IsAny<CommandFlags>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task GetStringAsync_WhenConnectionSourceFails_ThrowsCacheConnectionException()
-    {
-        var connection = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
-        var redisException = new RedisConnectionException(ConnectionFailureType.SocketFailure, "socket");
-        connection.Setup(c => c.GetDatabaseAsync(TestContext.Current.CancellationToken))
-            .ThrowsAsync(redisException);
-
-        var service = new RedisCacheService(connection.Object);
-
-        var exception = await Assert.ThrowsAsync<CacheConnectionException>(() =>
-            service.GetStringAsync("key", TestContext.Current.CancellationToken));
-
-        Assert.Same(redisException, exception.InnerException);
+        retry.Verify(
+            r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<string?>>>(),
+                TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Theory]
@@ -59,7 +60,7 @@ public class RedisCacheServiceTests
     [InlineData("\t")]
     public async Task GetStringAsync_WhenMissingOrWhitespace_ReturnsNull(string? value)
     {
-        var (service, database, _) = CreateService();
+        var (service, database, _, _) = CreateService();
         var key = Guid.NewGuid().ToString();
 
         database.Setup(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
@@ -73,41 +74,53 @@ public class RedisCacheServiceTests
     }
 
     [Fact]
-    public async Task GetStringAsync_WhenRedisConnectionFails_ThrowsCacheConnectionException()
+    public async Task GetStringAsync_PassesCancellationTokenToRetryWrapper()
     {
-        var (service, database, _) = CreateService();
-        var key = Guid.NewGuid().ToString();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        CancellationToken? seenToken = null;
+
+        var database = new Mock<IDatabase>(MockBehavior.Strict);
+        database.Setup(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
+            .ReturnsAsync("value");
+
+        var connection = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
+        connection.Setup(c => c.GetDatabaseAsync(cts.Token)).ReturnsAsync(database.Object);
+
+        var retry = new Mock<IDistributedRetryWrapperService>(MockBehavior.Strict);
+        retry
+            .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<string?>>>(), It.IsAny<CancellationToken>()))
+            .Returns<Func<CancellationToken, Task<string?>>, CancellationToken>((func, ct) =>
+            {
+                seenToken = ct;
+                return func(ct);
+            });
+
+        var service = new RedisCacheService(retry.Object, connection.Object);
+
+        await service.GetStringAsync("key", cts.Token);
+
+        Assert.Equal(cts.Token, seenToken);
+    }
+
+    [Fact]
+    public async Task GetStringAsync_WhenDatabaseThrows_PropagatesThroughRetryWrapper()
+    {
+        var (service, database, _, _) = CreateService();
         var redisException = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "offline");
 
         database.Setup(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
             .ThrowsAsync(redisException);
 
-        var exception = await Assert.ThrowsAsync<CacheConnectionException>(() =>
-            service.GetStringAsync(key, TestContext.Current.CancellationToken));
+        var thrown = await Assert.ThrowsAsync<RedisConnectionException>(() =>
+            service.GetStringAsync("key", TestContext.Current.CancellationToken));
 
-        Assert.Same(redisException, exception.InnerException);
+        Assert.Same(redisException, thrown);
     }
 
     [Fact]
-    public async Task GetStringAsync_WhenTimedOut_ThrowsCacheTimeoutException()
+    public async Task SetStringAsync_SetsValueWithExpiryThroughRetryWrapper()
     {
-        var (service, database, _) = CreateService();
-        var key = Guid.NewGuid().ToString();
-        var timeout = new TimeoutException("slow redis");
-
-        database.Setup(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
-            .ThrowsAsync(timeout);
-
-        var exception = await Assert.ThrowsAsync<CacheTimeoutException>(() =>
-            service.GetStringAsync(key, TestContext.Current.CancellationToken));
-
-        Assert.Same(timeout, exception.InnerException);
-    }
-
-    [Fact]
-    public async Task SetStringAsync_SetsValueWithExpiry()
-    {
-        var (service, database, connection) = CreateService();
+        var (service, database, connection, retry) = CreateService();
         var key = Guid.NewGuid().ToString();
         var value = Guid.NewGuid().ToString();
         var expiry = TimeSpan.FromMinutes(4);
@@ -126,21 +139,9 @@ public class RedisCacheServiceTests
             It.IsAny<ValueCondition>(),
             It.IsAny<CommandFlags>()), Times.Once);
         database.Verify(d => d.StringGetDeleteAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task SetStringAsync_WhenDeleteTimedOut_ThrowsCacheTimeoutException()
-    {
-        var (service, database, _) = CreateService();
-        var timeout = new TimeoutException("slow delete");
-
-        database.Setup(d => d.StringGetDeleteAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
-            .ThrowsAsync(timeout);
-
-        var exception = await Assert.ThrowsAsync<CacheTimeoutException>(() =>
-            service.SetStringAsync("key", null, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
-
-        Assert.Same(timeout, exception.InnerException);
+        retry.Verify(
+            r => r.RunAsync(It.IsAny<Func<CancellationToken, Task>>(), TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Theory]
@@ -148,7 +149,7 @@ public class RedisCacheServiceTests
     [InlineData("")]
     public async Task SetStringAsync_WhenNullOrEmpty_DeletesKey(string? value)
     {
-        var (service, database, connection) = CreateService();
+        var (service, database, connection, retry) = CreateService();
         var key = Guid.NewGuid().ToString();
 
         database.Setup(d => d.StringGetDeleteAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
@@ -161,37 +162,39 @@ public class RedisCacheServiceTests
             d => d.StringGetDeleteAsync(It.Is<RedisKey>(k => k == key), It.IsAny<CommandFlags>()), Times.Once);
         database.Verify(d => d.StringSetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<Expiration>(),
             It.IsAny<ValueCondition>(), It.IsAny<CommandFlags>()), Times.Never);
+        retry.Verify(
+            r => r.RunAsync(It.IsAny<Func<CancellationToken, Task>>(), TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Fact]
-    public async Task SetStringAsync_WhenRedisConnectionFails_ThrowsCacheConnectionException()
+    public async Task SetStringAsync_WhenDeleteFails_PropagatesThroughRetryWrapper()
     {
-        var (service, database, _) = CreateService();
+        var (service, database, _, _) = CreateService();
+        var timeout = new TimeoutException("slow delete");
+
+        database.Setup(d => d.StringGetDeleteAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
+            .ThrowsAsync(timeout);
+
+        var thrown = await Assert.ThrowsAsync<TimeoutException>(() =>
+            service.SetStringAsync("key", null, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+        Assert.Same(timeout, thrown);
+    }
+
+    [Fact]
+    public async Task SetStringAsync_WhenSetFails_PropagatesThroughRetryWrapper()
+    {
+        var (service, database, _, _) = CreateService();
         var redisException = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "offline");
 
         database.Setup(d => d.StringSetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<Expiration>(),
                 It.IsAny<ValueCondition>(), It.IsAny<CommandFlags>()))
             .ThrowsAsync(redisException);
 
-        var exception = await Assert.ThrowsAsync<CacheConnectionException>(() =>
+        var thrown = await Assert.ThrowsAsync<RedisConnectionException>(() =>
             service.SetStringAsync("key", "value", TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
 
-        Assert.Same(redisException, exception.InnerException);
-    }
-
-    [Fact]
-    public async Task SetStringAsync_WhenTimedOut_ThrowsCacheTimeoutException()
-    {
-        var (service, database, _) = CreateService();
-        var timeout = new TimeoutException("slow redis");
-
-        database.Setup(d => d.StringSetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<Expiration>(),
-                It.IsAny<ValueCondition>(), It.IsAny<CommandFlags>()))
-            .ThrowsAsync(timeout);
-
-        var exception = await Assert.ThrowsAsync<CacheTimeoutException>(() =>
-            service.SetStringAsync("key", "value", TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
-
-        Assert.Same(timeout, exception.InnerException);
+        Assert.Same(redisException, thrown);
     }
 }

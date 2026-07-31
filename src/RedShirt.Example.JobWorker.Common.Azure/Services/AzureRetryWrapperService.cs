@@ -7,10 +7,12 @@ namespace RedShirt.Example.JobWorker.Common.Azure.Services;
 
 /// <summary>
 ///     Retries Azure client operations that fail with expected transient exceptions,
-///     then surfaces remaining failures as <see cref="AzureExceptionWrapper" />.
+///     then surfaces remaining failures as <see cref="WorkerAzureException" />.
 /// </summary>
 public interface IAzureRetryWrapperService
 {
+    bool JudgeIfExceptionCanBeHandled(Exception exception);
+    
     /// <summary>
     ///     Executes <paramref name="func" /> with retry for expected transient Azure failures.
     /// </summary>
@@ -22,8 +24,8 @@ public interface IAzureRetryWrapperService
     ///     Token used to cancel the operation, retry attempts, and backoff delays.
     /// </param>
     /// <returns>The successful result of <paramref name="func" />.</returns>
-    /// <exception cref="AzureExceptionWrapper">
-    ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="AzureExceptionWrapper.IsTransient" />
+    /// <exception cref="WorkerAzureException">
+    ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerAzureException.IsTransient" />
     ///     reflects the arbiter judgement for the final exception.
     /// </exception>
     Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default);
@@ -47,17 +49,11 @@ public class AzureRetryWrapperService(IAzureExceptionArbiterService exceptionArb
     private ResiliencePipeline? _retryPipeline;
 
     /// <summary>
-    ///     Returns whether the exception should be retried: cancellation is not active, and the arbiter
+    ///     Returns whether the exception should be retried based on if the arbiter
     ///     marks the exception as both expected and transient.
     /// </summary>
-    private bool JudgeIfExceptionCanBeHandled(Exception exception, ResilienceContext context)
+    public bool JudgeIfExceptionCanBeHandled(Exception exception)
     {
-        // Cancellation is honoured via ResilienceContext rather than a classic Polly Context bag.
-        if (context.CancellationToken.IsCancellationRequested)
-        {
-            return false;
-        }
-
         var judgement = exceptionArbiterService.GetJudgement(exception);
         return judgement is {IsExpected: true, IsTransient: true};
     }
@@ -78,8 +74,14 @@ public class AzureRetryWrapperService(IAzureExceptionArbiterService exceptionArb
                     {
                         return PredicateResult.False();
                     }
+                    
+                    // Cancellation is honoured via ResilienceContext rather than a classic Polly Context bag.
+                    if (args.Context.CancellationToken.IsCancellationRequested)
+                    {
+                        return PredicateResult.False();
+                    }
 
-                    return JudgeIfExceptionCanBeHandled(exception, args.Context)
+                    return JudgeIfExceptionCanBeHandled(exception)
                         ? PredicateResult.True()
                         : PredicateResult.False();
                 },
@@ -107,7 +109,7 @@ public class AzureRetryWrapperService(IAzureExceptionArbiterService exceptionArb
         }
         catch (Exception exception)
         {
-            throw new AzureExceptionWrapper(exception,
+            throw new WorkerAzureException(exception,
                 exceptionArbiterService.GetJudgement(exception).IsTransient);
         }
     }

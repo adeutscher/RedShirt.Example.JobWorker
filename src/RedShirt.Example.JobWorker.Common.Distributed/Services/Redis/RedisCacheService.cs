@@ -4,56 +4,43 @@ using StackExchange.Redis;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 
-internal class RedisCacheService(IRedisConnectionCacheService redisConnectionCacheService) : IRemoteCacheService
+internal class RedisCacheService(IDistributedRetryWrapperService retryWrapper, IRedisConnectionCacheService redisConnectionCacheService) : IRemoteCacheService
 {
-    public async Task<string?> GetStringAsync(string key, CancellationToken cancellationToken = default)
+    private async Task<string?> GetStringInnerAsync(string key, CancellationToken cancellationToken)
     {
-        try
-        {
-            var redis = await redisConnectionCacheService.GetDatabaseAsync(cancellationToken);
+        var redis = await redisConnectionCacheService.GetDatabaseAsync(cancellationToken);
 
-            var value = await redis.StringGetAsync(key);
-            // ReSharper disable once ConvertIfStatementToReturnStatement
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return null;
-            }
+        var value = await redis.StringGetAsync(key);
+        // ReSharper disable once ConvertIfStatementToReturnStatement
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
 
-            return value.ToString();
-        }
-        catch (RedisConnectionException redisConnectionException)
-        {
-            throw new CacheConnectionException(redisConnectionException);
-        }
-        catch (TimeoutException timeoutException)
-        {
-            throw new CacheTimeoutException(timeoutException);
-        }
+        return value.ToString();
     }
 
-    public async Task SetStringAsync(string? key, string? value, TimeSpan expiry,
+    public Task<string?> GetStringAsync(string key, CancellationToken cancellationToken = default)
+    {
+        return retryWrapper.RunAsync(ct => GetStringInnerAsync(key, ct), cancellationToken);
+    }
+
+    private async Task SetStringInnerAsync(string key, string? value, TimeSpan expiry, CancellationToken cancellationToken)
+    {
+        var db = await redisConnectionCacheService.GetDatabaseAsync(cancellationToken);
+
+        if (string.IsNullOrEmpty(value))
+        {
+            await db.StringGetDeleteAsync(key);
+            return;
+        }
+
+        await db.StringSetAsync(key: key, value: value, expiry);
+    }
+    
+    public Task SetStringAsync(string key, string? value, TimeSpan expiry,
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var db = await redisConnectionCacheService.GetDatabaseAsync(cancellationToken);
-
-            if (string.IsNullOrEmpty(value))
-            {
-                await db.StringGetDeleteAsync(key);
-                return;
-            }
-
-            await db.StringSetAsync(key, value,
-                expiry);
-        }
-        catch (RedisConnectionException redisConnectionException)
-        {
-            throw new CacheConnectionException(redisConnectionException);
-        }
-        catch (TimeoutException timeoutException)
-        {
-            throw new CacheTimeoutException(timeoutException);
-        }
+        return retryWrapper.RunAsync(ct => SetStringInnerAsync(key, value, expiry, ct), cancellationToken);
     }
 }

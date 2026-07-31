@@ -10,13 +10,13 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services
 public class SafeAbstractedLockServiceTests
 {
     [Theory]
-    [InlineData(typeof(CacheConnectionException))]
-    [InlineData(typeof(CacheTimeoutException))]
-    public async Task GetLockAsync_WhenCacheException_EntersDisgraceAndReturnsPermissiveLock(Type exceptionType)
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetLockAsync_WhenCacheException_EntersDisgraceAndReturnsPermissiveLock(bool isTransient)
     {
-        var lockName = $"lock-cache-ex-{exceptionType.Name}";
+        var lockName = $"lock-cache-ex-transient-{isTransient}";
         var inner = new Exception("cache unavailable");
-        var exception = (Exception) Activator.CreateInstance(exceptionType, inner)!;
+        var exception = (Exception) Activator.CreateInstance(typeof(WorkerDistributedException), inner, isTransient)!;
 
         var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
         disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(false);

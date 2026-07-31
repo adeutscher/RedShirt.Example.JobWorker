@@ -38,7 +38,7 @@ public class AzureKeyVaultServiceTests
 
             var service = new AzureKeyVaultService(retry.Object, source.Object);
 
-            var thrown = await Assert.ThrowsAsync<SecretManagerException>(() =>
+            var thrown = await Assert.ThrowsAsync<WorkerSecretManagerException>(() =>
                 service.GetSecretAsync(key, TestContext.Current.CancellationToken));
 
             Assert.Equal($"Invalid secret path: {key}", thrown.Message);
@@ -55,7 +55,7 @@ public class AzureKeyVaultServiceTests
             var retry = new Mock<IAzureRetryWrapperService>(MockBehavior.Strict);
             var service = new AzureKeyVaultService(retry.Object, source.Object);
 
-            var thrown = await Assert.ThrowsAsync<SecretManagerException>(() =>
+            var thrown = await Assert.ThrowsAsync<WorkerSecretManagerException>(() =>
                 service.GetSecretAsync(key, TestContext.Current.CancellationToken));
 
             Assert.Equal($"Invalid secret path: {key}", thrown.Message);
@@ -180,7 +180,7 @@ public class AzureKeyVaultServiceTests
             var retry = new Mock<IAzureRetryWrapperService>(MockBehavior.Strict);
             var service = new AzureKeyVaultService(retry.Object, source.Object);
 
-            var thrown = await Assert.ThrowsAsync<SecretManagerException>(() =>
+            var thrown = await Assert.ThrowsAsync<WorkerSecretManagerException>(() =>
                 service.GetSecretsAsync(["ok-key", "bad key", "also bad!"], TestContext.Current.CancellationToken));
 
             Assert.Equal("Invalid secret path: bad key", thrown.Message);
@@ -197,7 +197,7 @@ public class AzureKeyVaultServiceTests
             var retry = new Mock<IAzureRetryWrapperService>(MockBehavior.Strict);
             var service = new AzureKeyVaultService(retry.Object, source.Object);
 
-            var thrown = await Assert.ThrowsAsync<SecretManagerException>(() =>
+            var thrown = await Assert.ThrowsAsync<WorkerSecretManagerException>(() =>
                 service.GetSecretsAsync([validKey, badKey], TestContext.Current.CancellationToken));
 
             Assert.Equal($"Invalid secret path: {badKey}", thrown.Message);
