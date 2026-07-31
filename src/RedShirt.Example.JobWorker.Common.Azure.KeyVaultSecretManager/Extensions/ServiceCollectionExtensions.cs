@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using RedShirt.Example.JobWorker.Common.Azure.Extensions;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Factories;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Services;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
@@ -12,6 +13,9 @@ public static class ServiceCollectionExtensions
         IConfigurationRoot configuration)
     {
         return services
+            // Ensure that common Azure services are wired up
+            .AddCommonAzureServices()
+            // Azure Key Vault
             .Configure<AzureKeyVaultClientFactory.ConfigurationModel>(
                 configuration.GetSection("Common:Secrets:AzureKeyVault"))
             .AddSingleton<IAzureKeyVaultClientFactory, AzureKeyVaultClientFactory>()

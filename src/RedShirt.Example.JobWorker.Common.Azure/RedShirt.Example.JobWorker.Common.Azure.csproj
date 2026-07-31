@@ -9,6 +9,11 @@
     <ItemGroup>
       <PackageReference Include="Azure.Core" Version="1.60.0" />
       <PackageReference Include="Azure.Identity" Version="1.21.0" />
+      <PackageReference Include="Polly" Version="8.7.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\RedShirt.Example.JobWorker.Core\RedShirt.Example.JobWorker.Core.csproj" />
     </ItemGroup>
 
 </Project>
