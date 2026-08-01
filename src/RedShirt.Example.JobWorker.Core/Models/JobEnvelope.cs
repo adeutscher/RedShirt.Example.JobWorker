@@ -3,7 +3,7 @@ namespace RedShirt.Example.JobWorker.Core.Models;
 /// <summary>
 ///     Temporary envelope for loading converted job models into IJobRepository
 /// </summary>
-public interface IJobEnvelope
+internal interface IJobEnvelope
 {
     /// <summary>
     ///     Converted job model.
@@ -17,7 +17,7 @@ public interface IJobEnvelope
     IRawJobModel RawJobModel { get; init; }
 }
 
-public class JobEnvelope : IJobEnvelope
+internal class JobEnvelope : IJobEnvelope
 {
     public required IJobModel JobModel { get; init; }
     public required IRawJobModel RawJobModel { get; init; }

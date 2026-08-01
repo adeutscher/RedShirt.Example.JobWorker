@@ -32,7 +32,7 @@ public class KafkaJobSourceTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task AcknowledgeCompletionAsync_CommitsMessagesOnlyAfterEntireBatch(bool lastSuccess)
+    public async Task AcknowledgeAsync_CommitsMessagesOnlyAfterEntireBatch(bool lastSuccess)
     {
         var data1 = Guid.NewGuid().ToString();
         var data2 = Guid.NewGuid().ToString();
@@ -58,12 +58,12 @@ public class KafkaJobSourceTests
         var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
         Assert.Equal(2, response.Items.Count);
 
-        await jobSource.AcknowledgeCompletionAsync(response.Items[0], true, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeAsync(response.Items[0], true, TestContext.Current.CancellationToken);
         consumer.Verify(c => c.CommitAsync(It.IsAny<List<IKafkaMessageContainer>>(), It.IsAny<CancellationToken>()),
             Times.Never);
         Assert.NotNull(jobSource.Session);
 
-        await jobSource.AcknowledgeCompletionAsync(response.Items[1], lastSuccess,
+        await jobSource.AcknowledgeAsync(response.Items[1], lastSuccess,
             TestContext.Current.CancellationToken);
         consumer.Verify(c => c.CommitAsync(It.Is<List<IKafkaMessageContainer>>(m =>
             m.Count == 2 && m.Contains(message1) && m.Contains(message2)), It.IsAny<CancellationToken>()), Times.Once);
@@ -71,7 +71,7 @@ public class KafkaJobSourceTests
     }
 
     [Fact]
-    public async Task AcknowledgeCompletionAsync_IgnoresNonKafkaModels()
+    public async Task AcknowledgeAsync_IgnoresNonKafkaModels()
     {
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         var kafkaMessageSource = new Mock<IKafkaMessageSource>(MockBehavior.Strict);
@@ -80,7 +80,7 @@ public class KafkaJobSourceTests
             KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new NullLogger<KafkaJobSource>());
 
-        await jobSource.AcknowledgeCompletionAsync(new Mock<IRawJobModel>().Object, true,
+        await jobSource.AcknowledgeAsync(new Mock<IRawJobModel>().Object, true,
             TestContext.Current.CancellationToken);
 
         Assert.Empty(consumerSource.Invocations);
@@ -88,7 +88,7 @@ public class KafkaJobSourceTests
     }
 
     [Fact]
-    public async Task AcknowledgeCompletionAsync_RoutesCommitThroughRetryWrapper()
+    public async Task AcknowledgeAsync_RoutesCommitThroughRetryWrapper()
     {
         var data = Guid.NewGuid().ToString();
         var message = CreateMessage("t:0:1", data);
@@ -117,7 +117,7 @@ public class KafkaJobSourceTests
             new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
-        await jobSource.AcknowledgeCompletionAsync(response.Items[0], true, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeAsync(response.Items[0], true, TestContext.Current.CancellationToken);
 
         Assert.True(retryInvoked);
         consumer.Verify(c => c.CommitAsync(It.Is<List<IKafkaMessageContainer>>(m => m.Single() == message),
@@ -127,7 +127,7 @@ public class KafkaJobSourceTests
     }
 
     [Fact]
-    public async Task AcknowledgeCompletionAsync_UnknownMessageId_DoesNotCommitOrClearSession()
+    public async Task AcknowledgeAsync_UnknownMessageId_DoesNotCommitOrClearSession()
     {
         var data = Guid.NewGuid().ToString();
         var message = CreateMessage("t:0:1", data);
@@ -154,7 +154,7 @@ public class KafkaJobSourceTests
             Body = "x"
         };
 
-        await jobSource.AcknowledgeCompletionAsync(unknownKafkaJob, true, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeAsync(unknownKafkaJob, true, TestContext.Current.CancellationToken);
 
         Assert.NotNull(jobSource.Session);
         Assert.False(jobSource.Session.IsComplete);
@@ -163,7 +163,7 @@ public class KafkaJobSourceTests
     }
 
     [Fact]
-    public async Task AcknowledgeCompletionAsync_WhenCommitFails_PropagatesWorkerJobSourceException()
+    public async Task AcknowledgeAsync_WhenCommitFails_PropagatesWorkerJobSourceException()
     {
         var data1 = Guid.NewGuid().ToString();
         var data2 = Guid.NewGuid().ToString();
@@ -188,17 +188,17 @@ public class KafkaJobSourceTests
             new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
-        await jobSource.AcknowledgeCompletionAsync(response.Items[0], true, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeAsync(response.Items[0], true, TestContext.Current.CancellationToken);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
-            jobSource.AcknowledgeCompletionAsync(response.Items[1], true, TestContext.Current.CancellationToken));
+            jobSource.AcknowledgeAsync(response.Items[1], true, TestContext.Current.CancellationToken));
 
         Assert.Same(failure, thrown);
         Assert.NotNull(jobSource.Session);
     }
 
     [Fact]
-    public async Task AcknowledgeCompletionAsync_WhenSessionIsNull_DoesNothing()
+    public async Task AcknowledgeAsync_WhenSessionIsNull_DoesNothing()
     {
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         var kafkaMessageSource = new Mock<IKafkaMessageSource>(MockBehavior.Strict);
@@ -209,7 +209,7 @@ public class KafkaJobSourceTests
 
         Assert.Null(jobSource.Session);
 
-        await jobSource.AcknowledgeCompletionAsync(new KafkaJobModel
+        await jobSource.AcknowledgeAsync(new KafkaJobModel
         {
             Message = CreateMessage("t:0:1", "x"),
             CreatedAtUtc = DateTime.UtcNow,

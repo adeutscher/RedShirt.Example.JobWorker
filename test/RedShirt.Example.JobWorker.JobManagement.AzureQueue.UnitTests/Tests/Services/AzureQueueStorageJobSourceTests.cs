@@ -112,7 +112,7 @@ public class AzureQueueStorageJobSourceTests
         };
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
-                        Options.Create(config));
+            Options.Create(config));
 
         var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
         var job = new AzureQueueStorageRawJobModel
@@ -121,7 +121,7 @@ public class AzureQueueStorageJobSourceTests
             CreatedAtUtc = DateTime.UtcNow
         };
 
-        await jobSource.AcknowledgeCompletionAsync(job, success,
+        await jobSource.AcknowledgeAsync(job, success,
             TestContext.Current.CancellationToken);
 
         client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),
@@ -147,11 +147,11 @@ public class AzureQueueStorageJobSourceTests
         };
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
-                        Options.Create(config));
+            Options.Create(config));
 
         var job = new Mock<IRawJobModel>();
 
-        await jobSource.AcknowledgeCompletionAsync(job.Object, success,
+        await jobSource.AcknowledgeAsync(job.Object, success,
             TestContext.Current.CancellationToken);
 
         client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),
@@ -176,7 +176,7 @@ public class AzureQueueStorageJobSourceTests
         };
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
-                        Options.Create(config));
+            Options.Create(config));
 
         var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
         var job = new AzureQueueStorageRawJobModel
@@ -216,7 +216,7 @@ public class AzureQueueStorageJobSourceTests
         };
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
-                        Options.Create(config));
+            Options.Create(config));
 
         var job = new Mock<IRawJobModel>();
 

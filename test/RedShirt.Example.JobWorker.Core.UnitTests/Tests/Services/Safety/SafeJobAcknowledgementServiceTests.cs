@@ -41,7 +41,7 @@ public class SafeJobAcknowledgementServiceTests
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
-            .Setup(s => s.AcknowledgeCompletionAsync(rawJobModel.Object, success,
+            .Setup(s => s.AcknowledgeAsync(rawJobModel.Object, success,
                 TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
@@ -53,7 +53,7 @@ public class SafeJobAcknowledgementServiceTests
 
         Assert.True(result.Success);
         jobSource.Verify(
-            s => s.AcknowledgeCompletionAsync(rawJobModel.Object, success, TestContext.Current.CancellationToken),
+            s => s.AcknowledgeAsync(rawJobModel.Object, success, TestContext.Current.CancellationToken),
             Times.Once);
     }
 
@@ -69,7 +69,7 @@ public class SafeJobAcknowledgementServiceTests
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
-            .Setup(s => s.AcknowledgeCompletionAsync(rawJobModel.Object, false, TestContext.Current.CancellationToken))
+            .Setup(s => s.AcknowledgeAsync(rawJobModel.Object, false, TestContext.Current.CancellationToken))
             .ThrowsAsync(new WorkerJobSourceException(new Exception("permanent"), false));
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
@@ -82,7 +82,7 @@ public class SafeJobAcknowledgementServiceTests
 
         Assert.False(result.Success);
         jobSource.Verify(
-            s => s.AcknowledgeCompletionAsync(rawJobModel.Object, false, TestContext.Current.CancellationToken),
+            s => s.AcknowledgeAsync(rawJobModel.Object, false, TestContext.Current.CancellationToken),
             Times.Once);
         Assert.Empty(sleepService.Invocations);
     }
@@ -95,7 +95,7 @@ public class SafeJobAcknowledgementServiceTests
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
-            .Setup(s => s.AcknowledgeCompletionAsync(rawJobModel.Object, true, TestContext.Current.CancellationToken))
+            .Setup(s => s.AcknowledgeAsync(rawJobModel.Object, true, TestContext.Current.CancellationToken))
             .Returns(() =>
             {
                 attempts++;
@@ -132,7 +132,7 @@ public class SafeJobAcknowledgementServiceTests
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
-            .Setup(s => s.AcknowledgeCompletionAsync(rawJobModel.Object, true, TestContext.Current.CancellationToken))
+            .Setup(s => s.AcknowledgeAsync(rawJobModel.Object, true, TestContext.Current.CancellationToken))
             .ThrowsAsync(new WorkerJobSourceException(new Exception("transient"), false, true));
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
@@ -149,7 +149,7 @@ public class SafeJobAcknowledgementServiceTests
 
         Assert.False(result.Success);
         jobSource.Verify(
-            s => s.AcknowledgeCompletionAsync(rawJobModel.Object, true, TestContext.Current.CancellationToken),
+            s => s.AcknowledgeAsync(rawJobModel.Object, true, TestContext.Current.CancellationToken),
             Times.Exactly(Globals.AcknowledgementRetryCount + 1));
         sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
             Times.Exactly(Globals.AcknowledgementRetryCount));
@@ -162,7 +162,7 @@ public class SafeJobAcknowledgementServiceTests
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
-            .Setup(s => s.AcknowledgeCompletionAsync(rawJobModel.Object, true, TestContext.Current.CancellationToken))
+            .Setup(s => s.AcknowledgeAsync(rawJobModel.Object, true, TestContext.Current.CancellationToken))
             .ThrowsAsync(new InvalidOperationException("unexpected"));
 
         var service = new SafeJobAcknowledgementService(jobSource.Object,

@@ -109,12 +109,12 @@ internal class IdempotencyMonitor(
         }
     }
 
-    public async Task<HandlerResponseEnum> RunAsync(CancellationToken cancellationToken = default)
+    public async Task<HandlerComponentResponse> RunAsync(CancellationToken cancellationToken = default)
     {
         if (!options.Value.Enabled)
         {
             // Not enabled, immediately abort
-            return HandlerResponseEnum.NotEnabled;
+            return HandlerComponentResponse.NotEnabled;
         }
 
         var intervalTimeSpan = TimeSpan.FromSeconds(options.Value.EffectiveMonitorIntervalSeconds);
@@ -125,6 +125,6 @@ internal class IdempotencyMonitor(
             await sleepService.DelayAsync(intervalTimeSpan, cancellationToken);
         }
 
-        return HandlerResponseEnum.Finished;
+        return HandlerComponentResponse.Finished;
     }
 }

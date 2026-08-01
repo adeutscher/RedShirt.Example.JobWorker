@@ -15,7 +15,7 @@ internal class KafkaJobSource(
     private readonly SemaphoreSlim _sessionSemaphore = new(1, 1);
     internal KafkaTrackerSession? Session;
 
-    public async Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not KafkaJobModel kafkaJobModel

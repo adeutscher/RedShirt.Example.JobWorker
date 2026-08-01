@@ -128,7 +128,7 @@ public class SqsJobSourceTests
             Body = Guid.NewGuid().ToString()
         };
 
-        await source.AcknowledgeCompletionAsync(job, success, TestContext.Current.CancellationToken);
+        await source.AcknowledgeAsync(job, success, TestContext.Current.CancellationToken);
 
         Assert.Empty(sqs.Invocations);
         Assert.Empty(poisonMessageHandler.Invocations);
@@ -156,7 +156,7 @@ public class SqsJobSourceTests
             RawMessage = rawMessage
         };
 
-        await source.AcknowledgeCompletionAsync(job, false, TestContext.Current.CancellationToken);
+        await source.AcknowledgeAsync(job, false, TestContext.Current.CancellationToken);
 
         Assert.Empty(sqs.Invocations);
         poisonMessageHandler.Verify(
@@ -184,7 +184,7 @@ public class SqsJobSourceTests
             RawMessage = new Message {ReceiptHandle = receiptHandle}
         };
 
-        await source.AcknowledgeCompletionAsync(job, true, TestContext.Current.CancellationToken);
+        await source.AcknowledgeAsync(job, true, TestContext.Current.CancellationToken);
 
         sqs.Verify(s => s.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(), It.IsAny<CancellationToken>()),
             Times.Once);

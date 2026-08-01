@@ -69,7 +69,7 @@ internal class JobLoaderLoop(
             .Build();
     }
 
-    public async Task<HandlerResponseEnum> RunAsync(CancellationToken cancellationToken = default)
+    public async Task<HandlerComponentResponse> RunAsync(CancellationToken cancellationToken = default)
     {
         try
         {
@@ -95,6 +95,6 @@ internal class JobLoaderLoop(
             jobLoaderStateService.ReportLoaderStop();
         }
 
-        return HandlerResponseEnum.Finished;
+        return HandlerComponentResponse.Finished;
     }
 }

@@ -23,20 +23,20 @@ public class HandlerTests
             .Returns(async (CancellationToken ct) =>
             {
                 await Task.Delay(Timeout.InfiniteTimeSpan, ct);
-                return HandlerResponseEnum.Finished;
+                return HandlerComponentResponse.Finished;
             });
 
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
         executor.Setup(e => e.RunAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(HandlerResponseEnum.NotEnabled);
+            .ReturnsAsync(HandlerComponentResponse.NotEnabled);
 
         var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
         maintainer.Setup(m => m.RunAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(HandlerResponseEnum.NotEnabled);
+            .ReturnsAsync(HandlerComponentResponse.NotEnabled);
 
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
         idempotencyMonitor.Setup(m => m.RunAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(HandlerResponseEnum.NotEnabled);
+            .ReturnsAsync(HandlerComponentResponse.NotEnabled);
 
         var handler = new Handler(jobLoaderLoop.Object, maintainer.Object, executor.Object, idempotencyMonitor.Object,
             Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}), new NullLogger<Handler>());
@@ -67,15 +67,15 @@ public class HandlerTests
 
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
         executor.Setup(e => e.RunAsync(It.IsAny<int>(), TestContext.Current.CancellationToken))
-            .ReturnsAsync(HandlerResponseEnum.NotEnabled);
+            .ReturnsAsync(HandlerComponentResponse.NotEnabled);
 
         var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
         maintainer.Setup(m => m.RunAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(HandlerResponseEnum.NotEnabled);
+            .ReturnsAsync(HandlerComponentResponse.NotEnabled);
 
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
         idempotencyMonitor.Setup(m => m.RunAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(HandlerResponseEnum.NotEnabled);
+            .ReturnsAsync(HandlerComponentResponse.NotEnabled);
 
         var handler = new Handler(jobLoaderLoop.Object, maintainer.Object, executor.Object, idempotencyMonitor.Object,
             Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}), new NullLogger<Handler>());
@@ -95,19 +95,19 @@ public class HandlerTests
         var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
         jobLoaderLoop
             .Setup(l => l.RunAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(HandlerResponseEnum.Finished);
+            .ReturnsAsync(HandlerComponentResponse.Finished);
 
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
         executor.Setup(e => e.RunAsync(It.IsAny<int>(), TestContext.Current.CancellationToken))
-            .ReturnsAsync(HandlerResponseEnum.Finished);
+            .ReturnsAsync(HandlerComponentResponse.Finished);
 
         var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
         maintainer.Setup(m => m.RunAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(HandlerResponseEnum.NotEnabled);
+            .ReturnsAsync(HandlerComponentResponse.NotEnabled);
 
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
         idempotencyMonitor.Setup(m => m.RunAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(HandlerResponseEnum.NotEnabled);
+            .ReturnsAsync(HandlerComponentResponse.NotEnabled);
 
         var options = new ThreadConfigurationModel
         {

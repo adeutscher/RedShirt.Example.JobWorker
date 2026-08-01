@@ -99,7 +99,7 @@ public class AzureServiceBusJobSourceTests
             CreatedAtUtc = DateTime.UtcNow
         };
 
-        await jobSource.AcknowledgeCompletionAsync(job, false,
+        await jobSource.AcknowledgeAsync(job, false,
             TestContext.Current.CancellationToken);
 
         client.Verify(
@@ -131,7 +131,7 @@ public class AzureServiceBusJobSourceTests
 
         var job = new Mock<IRawJobModel>();
 
-        await jobSource.AcknowledgeCompletionAsync(job.Object, success,
+        await jobSource.AcknowledgeAsync(job.Object, success,
             TestContext.Current.CancellationToken);
 
         client.Verify(
@@ -157,7 +157,7 @@ public class AzureServiceBusJobSourceTests
             CreatedAtUtc = DateTime.UtcNow
         };
 
-        await jobSource.AcknowledgeCompletionAsync(job, true,
+        await jobSource.AcknowledgeAsync(job, true,
             TestContext.Current.CancellationToken);
 
         client.Verify(

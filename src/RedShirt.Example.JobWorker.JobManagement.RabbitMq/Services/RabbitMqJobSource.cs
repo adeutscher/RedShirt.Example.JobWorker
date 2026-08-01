@@ -33,7 +33,7 @@ internal class RabbitMqJobSource : IJobSource
         });
     }
 
-    public async Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not RabbitMqJobModel rabbitMqJobModel)

@@ -2,7 +2,6 @@ using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
-using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
@@ -38,7 +37,7 @@ internal class BusReceiverClientFactory(
         }
         else
         {
-            throw new ServiceBusSourceException("No service bus address has been set");
+            throw new InvalidOperationException("No service bus address has been set");
         }
 
         return new ServiceBusClientWrapper(innerClient.CreateReceiver(options.Value.QueueName));

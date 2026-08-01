@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
-using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
@@ -84,7 +83,7 @@ public class BusReceiverClientFactoryTests
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
         var factory = new BusReceiverClientFactory(secrets.Object, Options.Create(config));
 
-        await Assert.ThrowsAsync<ServiceBusSourceException>(() =>
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
             factory.GetQueueClientAsync(TestContext.Current.CancellationToken));
 
         secrets.VerifyNoOtherCalls();
@@ -103,7 +102,7 @@ public class BusReceiverClientFactoryTests
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
         var factory = new BusReceiverClientFactory(secrets.Object, Options.Create(config));
 
-        var exception = await Assert.ThrowsAsync<ServiceBusSourceException>(() =>
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             factory.GetQueueClientAsync(TestContext.Current.CancellationToken));
 
         Assert.Equal("No service bus address has been set", exception.Message);

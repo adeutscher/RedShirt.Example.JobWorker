@@ -12,7 +12,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.ActiveMq.UnitTests.Tests.Serv
 public class ActiveMqJobSourceTests
 {
     [Fact]
-    public async Task Test_AcknowledgeCompletionAsync()
+    public async Task Test_AcknowledgeAsync()
     {
         var message = new Mock<IMessage>();
 
@@ -31,14 +31,14 @@ public class ActiveMqJobSourceTests
             CreatedAtUtc = DateTime.UtcNow
         };
 
-        await activeMqJobSource.AcknowledgeCompletionAsync(jobModel, true,
+        await activeMqJobSource.AcknowledgeAsync(jobModel, true,
             TestContext.Current.CancellationToken);
 
         message.Verify(m => m.AcknowledgeAsync(), Times.Once);
     }
 
     [Fact]
-    public async Task Test_AcknowledgeCompletionAsync_Incompatible()
+    public async Task Test_AcknowledgeAsync_Incompatible()
     {
         var job = new Mock<IRawJobModel>();
 
@@ -50,7 +50,7 @@ public class ActiveMqJobSourceTests
         var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration),
             new NullLogger<ActiveMqJobSource>());
 
-        await activeMqJobSource.AcknowledgeCompletionAsync(job.Object, true,
+        await activeMqJobSource.AcknowledgeAsync(job.Object, true,
             TestContext.Current.CancellationToken);
     }
 

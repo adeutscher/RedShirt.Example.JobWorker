@@ -83,7 +83,7 @@ internal class SafeJobAcknowledgementService(
             }
 
             await GetRetryPipeline().ExecuteAsync(
-                async token => await jobSource.AcknowledgeCompletionAsync(job, success, token),
+                async token => await jobSource.AcknowledgeAsync(job, success, token),
                 cancellationToken);
             acknowledgedSuccessfully = true;
         }

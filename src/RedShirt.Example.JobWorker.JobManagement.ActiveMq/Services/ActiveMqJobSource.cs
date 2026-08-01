@@ -62,7 +62,7 @@ internal class ActiveMqJobSource : IJobSource
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
-    public Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
+    public Task AcknowledgeAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         // ReSharper disable once ConvertIfStatementToReturnStatement

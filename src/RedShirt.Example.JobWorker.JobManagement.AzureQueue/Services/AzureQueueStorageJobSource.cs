@@ -12,7 +12,7 @@ internal class AzureQueueStorageJobSource(
     IAzureQueueStorageMessageSource azureQueueStorageMessageSource,
     IOptions<AzureQueueStorageConfigurationModel> options) : IJobSource
 {
-    public async Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not AzureQueueStorageRawJobModel messageAsAzureJobModel)

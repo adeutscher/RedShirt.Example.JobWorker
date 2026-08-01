@@ -24,7 +24,7 @@ public interface IHandler
 /// </summary>
 internal interface IHandlerSubComponent
 {
-    Task<HandlerResponseEnum> RunAsync(CancellationToken cancellationToken = default);
+    Task<HandlerComponentResponse> RunAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -49,9 +49,9 @@ internal class Handler(
     private readonly AsyncManualResetEvent _workerDoneEvent = new();
     private Exception? _workerException;
 
-    private async Task RunWorkerAsync(Func<Task<HandlerResponseEnum>> callback)
+    private async Task RunWorkerAsync(Func<Task<HandlerComponentResponse>> callback)
     {
-        var handlerResponse = HandlerResponseEnum.Finished;
+        var handlerResponse = HandlerComponentResponse.Finished;
 
         try
         {
@@ -72,7 +72,7 @@ internal class Handler(
         }
         finally
         {
-            if (handlerResponse == HandlerResponseEnum.Finished)
+            if (handlerResponse == HandlerComponentResponse.Finished)
             {
                 // A noteworthy handler has finished
                 _workerDoneEvent.Set();
@@ -85,7 +85,7 @@ internal class Handler(
         var tasksLock = new SemaphoreSlim(1, 1);
         var tasks = new List<Task>();
 
-        var addToTaskFunc = new Func<Func<Task<HandlerResponseEnum>>, Task>(async callback =>
+        var addToTaskFunc = new Func<Func<Task<HandlerComponentResponse>>, Task>(async callback =>
         {
             await tasksLock.WaitAsync(cancellationToken);
             try

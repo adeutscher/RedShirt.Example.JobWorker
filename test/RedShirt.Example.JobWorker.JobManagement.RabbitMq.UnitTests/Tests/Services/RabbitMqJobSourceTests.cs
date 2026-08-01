@@ -17,7 +17,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Serv
 public class RabbitMqJobSourceTests
 {
     [Fact]
-    public async Task Test_AcknowledgeCompletionAsync()
+    public async Task Test_AcknowledgeAsync()
     {
         // Set up Mocks
 
@@ -53,7 +53,7 @@ public class RabbitMqJobSourceTests
             Body = "body"
         };
 
-        await jobSource.AcknowledgeCompletionAsync(job, true,
+        await jobSource.AcknowledgeAsync(job, true,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -65,7 +65,7 @@ public class RabbitMqJobSourceTests
     }
 
     [Fact]
-    public async Task Test_AcknowledgeCompletionAsync_Incompatible()
+    public async Task Test_AcknowledgeAsync_Incompatible()
     {
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
 
@@ -87,7 +87,7 @@ public class RabbitMqJobSourceTests
 
         var job = new Mock<IRawJobModel>();
 
-        await jobSource.AcknowledgeCompletionAsync(job.Object, true,
+        await jobSource.AcknowledgeAsync(job.Object, true,
             TestContext.Current.CancellationToken);
 
         Assert.Empty(rabbitConnectionFactory.Invocations);
@@ -103,7 +103,7 @@ public class RabbitMqJobSourceTests
     ///     Failed work is expected to be handled by the failure handler / poison path, not by nack/requeue here.
     /// </summary>
     [Fact]
-    public async Task Test_AcknowledgeCompletionAsync_NonSuccessStillAcks()
+    public async Task Test_AcknowledgeAsync_NonSuccessStillAcks()
     {
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
 
@@ -135,7 +135,7 @@ public class RabbitMqJobSourceTests
             Body = "body"
         };
 
-        await jobSource.AcknowledgeCompletionAsync(job, false,
+        await jobSource.AcknowledgeAsync(job, false,
             TestContext.Current.CancellationToken);
 
         mockChannel.Verify(c => c.BasicAckAsync(9999, false, TestContext.Current.CancellationToken), Times.Once);
@@ -145,7 +145,7 @@ public class RabbitMqJobSourceTests
     }
 
     [Fact]
-    public async Task Test_AcknowledgeCompletionAsync_ObjectDisposedExceptionIgnored()
+    public async Task Test_AcknowledgeAsync_ObjectDisposedExceptionIgnored()
     {
         // Set up Mocks
 
@@ -181,7 +181,7 @@ public class RabbitMqJobSourceTests
             Body = "body"
         };
 
-        await jobSource.AcknowledgeCompletionAsync(job, true,
+        await jobSource.AcknowledgeAsync(job, true,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -193,7 +193,7 @@ public class RabbitMqJobSourceTests
     }
 
     [Fact]
-    public async Task Test_AcknowledgeCompletionAsync_RegularExceptionNotIgnored()
+    public async Task Test_AcknowledgeAsync_RegularExceptionNotIgnored()
     {
         // Set up Mocks
 
@@ -230,7 +230,7 @@ public class RabbitMqJobSourceTests
         };
 
         await Assert.ThrowsAsync<Exception>(async () =>
-            await jobSource.AcknowledgeCompletionAsync(job, true, TestContext.Current.CancellationToken));
+            await jobSource.AcknowledgeAsync(job, true, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Single(rabbitConnectionFactory.Invocations);

@@ -23,7 +23,7 @@ public class NatsJobSourceTests
     }
 
     [Fact]
-    public async Task Test_AcknowledgeCompletionAsync()
+    public async Task Test_AcknowledgeAsync()
     {
         var message = new Mock<INatsJSMsg<NatsMemoryOwner<byte>>>();
 
@@ -42,14 +42,14 @@ public class NatsJobSourceTests
             CreatedAtUtc = DateTime.UtcNow
         };
 
-        await natsJobSource.AcknowledgeCompletionAsync(jobModel, true,
+        await natsJobSource.AcknowledgeAsync(jobModel, true,
             TestContext.Current.CancellationToken);
 
         message.Verify(m => m.AckAsync(It.IsAny<AckOpts?>(), TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Fact]
-    public async Task Test_AcknowledgeCompletionAsync_Incompatible()
+    public async Task Test_AcknowledgeAsync_Incompatible()
     {
         var job = new Mock<IRawJobModel>();
 
@@ -61,7 +61,7 @@ public class NatsJobSourceTests
         var natsJobSource = new NatsJobSource(null!, null!,
             new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
-        await natsJobSource.AcknowledgeCompletionAsync(job.Object, true,
+        await natsJobSource.AcknowledgeAsync(job.Object, true,
             TestContext.Current.CancellationToken);
     }
 

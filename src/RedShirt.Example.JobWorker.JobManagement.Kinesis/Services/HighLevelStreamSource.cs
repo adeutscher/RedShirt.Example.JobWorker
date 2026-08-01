@@ -17,7 +17,7 @@ internal class HighLevelStreamSource(
     internal readonly Dictionary<string, KinesisTrackerSession> Sessions = new();
     private readonly SemaphoreSlim _sessionsSemaphore = new(1, 1);
 
-    public async Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not KinesisJobModel kinesisJobModel)

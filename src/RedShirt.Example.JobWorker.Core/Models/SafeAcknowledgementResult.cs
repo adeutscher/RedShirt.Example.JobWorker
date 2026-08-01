@@ -1,6 +1,6 @@
 namespace RedShirt.Example.JobWorker.Core.Models;
 
-public interface ISafeAcknowledgementResult
+internal interface ISafeAcknowledgementResult
 {
     bool? LoggedFailureSuccessfully { get; init; }
     bool AcknowledgedSuccessfully { get; init; }
@@ -12,7 +12,7 @@ public interface ISafeAcknowledgementResult
     bool Success { get; }
 }
 
-public class SafeAcknowledgementResult : ISafeAcknowledgementResult
+internal class SafeAcknowledgementResult : ISafeAcknowledgementResult
 {
     public required bool? LoggedFailureSuccessfully { get; init; }
     public required bool AcknowledgedSuccessfully { get; init; }

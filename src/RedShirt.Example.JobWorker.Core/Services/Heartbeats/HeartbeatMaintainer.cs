@@ -150,12 +150,12 @@ internal class HeartbeatMaintainer(
         return timeToWaitForNextLoop.Value;
     }
 
-    public async Task<HandlerResponseEnum> RunAsync(CancellationToken cancellationToken = default)
+    public async Task<HandlerComponentResponse> RunAsync(CancellationToken cancellationToken = default)
     {
         if (jobSource.RecommendedHeartbeatIntervalSeconds <= 0)
         {
             // Not needed by implementation, abort immediately.
-            return HandlerResponseEnum.NotEnabled;
+            return HandlerComponentResponse.NotEnabled;
         }
 
         while (await appliedExecutionEndArbiter.MaintainerShouldKeepRunningAsync(cancellationToken))
@@ -173,6 +173,6 @@ internal class HeartbeatMaintainer(
             await LogAndWaitAsync(timeToWait, cancellationToken);
         }
 
-        return HandlerResponseEnum.Finished;
+        return HandlerComponentResponse.Finished;
     }
 }

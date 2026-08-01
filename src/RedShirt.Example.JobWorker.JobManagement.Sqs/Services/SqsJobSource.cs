@@ -16,7 +16,7 @@ internal class SqsJobSource(
     ISqsPoisonMessagesHandler poisonMessagesHandler,
     IOptions<SqsConfigurationModel> options) : IJobSource
 {
-    public async Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not SqsJobModel sqsJobModel)

@@ -39,7 +39,7 @@ public class JobLoaderLoopTests
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(HandlerResponseEnum.Finished, result);
+        Assert.Equal(HandlerComponentResponse.Finished, result);
         jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Once);
     }
 
@@ -67,7 +67,7 @@ public class JobLoaderLoopTests
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(HandlerResponseEnum.Finished, result);
+        Assert.Equal(HandlerComponentResponse.Finished, result);
         jobLoaderStateService.Verify(s => s.ReportLoaderStart(), Times.Once);
         jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Once);
         Assert.Empty(jobLoader.Invocations);
@@ -120,7 +120,7 @@ public class JobLoaderLoopTests
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(HandlerResponseEnum.Finished, result);
+        Assert.Equal(HandlerComponentResponse.Finished, result);
         sleepService.Verify(
             s => s.DelayAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken),
             Times.Once);
@@ -173,7 +173,7 @@ public class JobLoaderLoopTests
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(HandlerResponseEnum.Finished, result);
+        Assert.Equal(HandlerComponentResponse.Finished, result);
         Assert.Equal(["Start", "Loader", "Stop"], callLog);
     }
 
@@ -221,7 +221,7 @@ public class JobLoaderLoopTests
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(HandlerResponseEnum.Finished, result);
+        Assert.Equal(HandlerComponentResponse.Finished, result);
         sleepService.Verify(
             s => s.DelayAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken),
             Times.Once);
@@ -270,7 +270,7 @@ public class JobLoaderLoopTests
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(HandlerResponseEnum.Finished, result);
+        Assert.Equal(HandlerComponentResponse.Finished, result);
         Assert.Equal(3, loaderCalls);
     }
 
@@ -310,7 +310,7 @@ public class JobLoaderLoopTests
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(HandlerResponseEnum.Finished, result);
+        Assert.Equal(HandlerComponentResponse.Finished, result);
         jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Once);
     }
 
@@ -361,7 +361,7 @@ public class JobLoaderLoopTests
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(HandlerResponseEnum.Finished, result);
+        Assert.Equal(HandlerComponentResponse.Finished, result);
         sleepService.Verify(
             s => s.DelayAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken),
             Times.Once);
