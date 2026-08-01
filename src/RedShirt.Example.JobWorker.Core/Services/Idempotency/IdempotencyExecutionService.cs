@@ -3,43 +3,69 @@ using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Models;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Idempotency;
 
 internal interface IIdempotencyExecutionService
 {
-    Task<bool?> GetCachedResultAsync(IJobModel jobModel, CancellationToken cancellationToken = default);
+    Task<IdempotencyCacheResult?> GetCachedResultAsync(IJobModel jobModel,
+        CancellationToken cancellationToken = default);
+
     Task<IAbstractedLock> GetLockAsync(IJobModel jobModel, CancellationToken token);
 
-    Task SetResultInCacheAsync(IJobModel jobModel, bool result, bool acknowledgementSuccess,
+    Task SetResultInCacheAsync(IRawJobModel jobModel, bool jobSuccess, ISafeAcknowledgementResult acknowledgementResult,
         CancellationToken cancellationToken = default);
 }
 
-internal class IdempotencyExecutionService(
+internal sealed class IdempotencyExecutionService(
     ISafeAbstractedLockService abstractedLockService,
     ISafeRemoteCacheService cache,
     IOptions<IdempotencyConfigurationModel> options) : IIdempotencyExecutionService
 {
     private const string CommonKeyPrefix = "idempotency";
 
-    private bool IdempotencyCannotProceed(IJobModel jobModel)
+    private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        return !options.Value.Enabled || string.IsNullOrWhiteSpace(jobModel.IdempotencyId);
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    private bool IdempotencyCannotProceed(string? idempotencyId)
+    {
+        return !options.Value.Enabled || string.IsNullOrWhiteSpace(idempotencyId);
     }
 
-    private static string GetKey(IJobModel jobModel, string type)
+    private static string GetKey(string idempotencyId, string type)
     {
-        return $"{CommonKeyPrefix}:{jobModel.IdempotencyId}:{type}";
+        return $"{CommonKeyPrefix}:{idempotencyId}:{type}";
     }
 
-    private static string GetLockKey(IJobModel jobModel)
+    private static string GetLockKey(string idempotencyId)
     {
-        return GetKey(jobModel, "lock");
+        return GetKey(idempotencyId, "lock");
     }
 
-    private static string GetResultKey(IJobModel jobModel)
+    private static string GetResultKey(string idempotencyId)
     {
-        return GetKey(jobModel, "result");
+        return GetKey(idempotencyId, "result");
+    }
+
+    private static CachedAcknowledgeReport? Deserialize(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<CachedAcknowledgeReport>(input, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     public async Task<IAbstractedLock> GetLockAsync(IJobModel jobModel, CancellationToken token)
@@ -53,43 +79,71 @@ internal class IdempotencyExecutionService(
             return new EmptyIdempotencyLock();
         }
 
-        return await abstractedLockService.GetLockAsync(GetLockKey(jobModel), token);
+        return await abstractedLockService.GetLockAsync(GetLockKey(jobModel.IdempotencyId!), token);
     }
 
-    public async Task<bool?> GetCachedResultAsync(IJobModel jobModel, CancellationToken cancellationToken = default)
+    public async Task<IdempotencyCacheResult?> GetCachedResultAsync(IJobModel jobModel,
+        CancellationToken cancellationToken = default)
     {
-        if (IdempotencyCannotProceed(jobModel))
+        if (IdempotencyCannotProceed(jobModel.IdempotencyId))
         {
             return null;
         }
 
-        var rawResult = await cache.GetStringAsync(GetResultKey(jobModel), cancellationToken);
+        var rawResult = await cache.GetStringAsync(GetResultKey(jobModel.IdempotencyId!), cancellationToken);
 
-        if (!bool.TryParse(rawResult, out var result))
+        if (Deserialize(rawResult) is not { } cachedResult)
         {
             return null;
         }
 
-        return result;
+        return new IdempotencyCacheResult
+        {
+            JobSuccess = cachedResult.TaskSuccess,
+            AcknowledgementResult = new SafeAcknowledgementResult
+            {
+                LoggedFailureSuccessfully = cachedResult.LoggedFailureSuccessfully,
+                AcknowledgedSuccessfully = cachedResult.AcknowledgedSuccessfully
+            }
+        };
     }
 
-    public Task SetResultInCacheAsync(IJobModel jobModel, bool result, bool acknowledgementSuccess,
+    public Task SetResultInCacheAsync(IRawJobModel jobModel, bool jobSuccess,
+        ISafeAcknowledgementResult acknowledgementResult,
         CancellationToken cancellationToken = default)
     {
         // ReSharper disable once ConvertIfStatementToReturnStatement
-        if (IdempotencyCannotProceed(jobModel))
+        if (IdempotencyCannotProceed(jobModel.IdempotencyId))
         {
             return Task.CompletedTask;
         }
 
         var timeSpan = TimeSpan.FromSeconds(options.Value.EffectiveResultCacheDurationSeconds);
 
-        if (acknowledgementSuccess && options.Value.IdempotencyIdsCanRepeat)
+        if (acknowledgementResult.Success && options.Value.IdempotencyIdsCanRepeat)
         {
-            return cache.SetStringAsync(GetResultKey(jobModel), null, timeSpan, cancellationToken);
+            return cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), null, timeSpan, cancellationToken);
         }
 
-        return cache.SetStringAsync(GetResultKey(jobModel), result.ToString(), timeSpan, cancellationToken);
+        return cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), JsonSerializer.Serialize(
+            new CachedAcknowledgeReport
+            {
+                TaskSuccess = jobSuccess,
+                LoggedFailureSuccessfully = acknowledgementResult.LoggedFailureSuccessfully,
+                AcknowledgedSuccessfully = acknowledgementResult.AcknowledgedSuccessfully
+            }, JsonOptions), timeSpan, cancellationToken);
+    }
+
+    internal sealed class CachedAcknowledgeReport
+    {
+        [JsonPropertyName("s")]
+        public bool TaskSuccess { get; init; }
+
+        [JsonPropertyName("f")]
+        public bool? LoggedFailureSuccessfully { get; init; }
+
+        [JsonPropertyName("a")]
+        public bool AcknowledgedSuccessfully { get; init; }
     }
 
     /// <summary>

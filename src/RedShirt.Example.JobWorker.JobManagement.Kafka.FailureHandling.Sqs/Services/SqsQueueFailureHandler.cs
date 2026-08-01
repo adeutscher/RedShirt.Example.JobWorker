@@ -3,14 +3,13 @@ using Amazon.SQS.Model;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using System.Text.Json;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Services;
 
 internal class SqsQueueFailureHandler(IAmazonSQS sqs, IOptions<SqsQueueFailureHandler.ConfigurationModel> options)
     : IJobFailureHandler
 {
-    public Task HandleFailureAsync(IJobModel jobModel, Exception exception,
+    public Task HandleFailureAsync(IRawJobModel rawJobModel, Exception? exception,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(options.Value.QueueUrl))
@@ -21,7 +20,7 @@ internal class SqsQueueFailureHandler(IAmazonSQS sqs, IOptions<SqsQueueFailureHa
         return sqs.SendMessageAsync(new SendMessageRequest
         {
             QueueUrl = options.Value.QueueUrl,
-            MessageBody = JsonSerializer.Serialize(jobModel.Data)
+            MessageBody = rawJobModel.Body
         }, cancellationToken);
     }
 

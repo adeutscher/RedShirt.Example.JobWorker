@@ -1,5 +1,5 @@
-using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Jobs;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.ExecutionState;
 

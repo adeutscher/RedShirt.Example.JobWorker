@@ -1,6 +1,11 @@
 namespace RedShirt.Example.JobWorker.Core.Models;
 
-public sealed class JobSourceResponse
+public interface IJobSourceResponse
 {
-    public required List<IJobModel> Items { get; init; }
+    List<IRawJobModel> Items { get; }
+}
+
+public sealed class JobSourceResponse : IJobSourceResponse
+{
+    public required List<IRawJobModel> Items { get; init; }
 }

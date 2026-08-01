@@ -1,3 +1,5 @@
+using RedShirt.Example.JobWorker.Core.Services.Jobs;
+
 namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 
 /// <summary>
@@ -12,7 +14,7 @@ internal interface IAppliedExecutionEndArbiter
     Task<bool> MaintainerShouldKeepRunningAsync(CancellationToken cancellationToken = default);
 }
 
-internal class AppliedExecutionEndArbiter(IExecutionEndArbiter executionEndArbiter, IJobRepository jobRepository)
+internal sealed class AppliedExecutionEndArbiter(IExecutionEndArbiter executionEndArbiter, IJobRepository jobRepository)
     : IAppliedExecutionEndArbiter
 {
     public async Task<bool> MaintainerShouldKeepRunningAsync(CancellationToken cancellationToken = default)

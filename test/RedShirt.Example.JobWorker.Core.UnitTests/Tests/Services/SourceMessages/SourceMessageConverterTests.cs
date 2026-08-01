@@ -41,4 +41,21 @@ public class SourceMessageConverterTests
         Assert.NotNull(output);
         Assert.Equal(input.SleepDurationSeconds, output.SleepDurationSeconds);
     }
+
+    [Fact]
+    public void TestConvert_InvalidJson_ThrowsJsonException()
+    {
+        var converter = new SourceMessageConverter();
+
+        Assert.Throws<JsonException>(() => converter.Convert("not-json"));
+    }
+
+    [Fact]
+    public void TestConvert_NullBytesPrefix_ThrowsJsonException()
+    {
+        // Mimics a mis-read ActiveMQ BytesMessage body that starts with NUL.
+        var converter = new SourceMessageConverter();
+
+        Assert.Throws<JsonException>(() => converter.Convert("\0{\"SleepDurationSeconds\":1}"));
+    }
 }

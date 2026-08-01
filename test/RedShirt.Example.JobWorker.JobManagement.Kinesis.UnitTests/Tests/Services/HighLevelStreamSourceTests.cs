@@ -45,12 +45,12 @@ public class HighLevelStreamSourceTests
             ShardId = shardId,
             MessageId = messageId ?? Guid.NewGuid().ToString(),
             CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>(MockBehavior.Strict).Object
+            Body = Guid.NewGuid().ToString()
         };
     }
 
     [Fact]
-    public async Task AcknowledgeCompletionAsync_WhenBatchComplete_MovesTrackerReleasesLockAndRemovesSession()
+    public async Task AcknowledgeAsync_WhenBatchComplete_MovesTrackerReleasesLockAndRemovesSession()
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lockHandle = CreateAcquiredLock();
@@ -74,11 +74,11 @@ public class HighLevelStreamSourceTests
                 Items = [job1, job2]
             }, lockHandle.Object);
 
-        await streamSource.AcknowledgeCompletionAsync(job1, false,
+        await streamSource.AcknowledgeAsync(job1, false,
             TestContext.Current.CancellationToken);
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
 
-        await streamSource.AcknowledgeCompletionAsync(job2, true,
+        await streamSource.AcknowledgeAsync(job2, true,
             TestContext.Current.CancellationToken);
 
         Assert.False(streamSource.Sessions.ContainsKey("shard-a"));
@@ -90,7 +90,7 @@ public class HighLevelStreamSourceTests
     }
 
     [Fact]
-    public async Task AcknowledgeCompletionAsync_WhenBatchIncomplete_KeepsSessionAndLock()
+    public async Task AcknowledgeAsync_WhenBatchIncomplete_KeepsSessionAndLock()
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lockHandle = CreateAcquiredLock();
@@ -106,7 +106,7 @@ public class HighLevelStreamSourceTests
                 Items = [job1, job2]
             }, lockHandle.Object);
 
-        await streamSource.AcknowledgeCompletionAsync(job1, true,
+        await streamSource.AcknowledgeAsync(job1, true,
             TestContext.Current.CancellationToken);
 
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
@@ -116,7 +116,7 @@ public class HighLevelStreamSourceTests
     }
 
     [Fact]
-    public async Task AcknowledgeCompletionAsync_WhenMessageIsNotKinesisJobModel_DoesNothing()
+    public async Task AcknowledgeAsync_WhenMessageIsNotKinesisJobModel_DoesNothing()
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var lockHandle = CreateAcquiredLock();
@@ -129,9 +129,9 @@ public class HighLevelStreamSourceTests
                 Items = [CreateKinesisJob("shard-a")]
             }, lockHandle.Object);
 
-        var nonKinesisJob = new Mock<IJobModel>(MockBehavior.Strict).Object;
+        var nonKinesisJob = new Mock<IRawJobModel>(MockBehavior.Strict).Object;
 
-        await streamSource.AcknowledgeCompletionAsync(nonKinesisJob, true,
+        await streamSource.AcknowledgeAsync(nonKinesisJob, true,
             TestContext.Current.CancellationToken);
 
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
@@ -140,12 +140,12 @@ public class HighLevelStreamSourceTests
     }
 
     [Fact]
-    public async Task AcknowledgeCompletionAsync_WhenShardSessionMissing_DoesNothing()
+    public async Task AcknowledgeAsync_WhenShardSessionMissing_DoesNothing()
     {
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var streamSource = CreateStreamSource(checkpointStorage);
 
-        await streamSource.AcknowledgeCompletionAsync(CreateKinesisJob("missing-shard"), true,
+        await streamSource.AcknowledgeAsync(CreateKinesisJob("missing-shard"), true,
             TestContext.Current.CancellationToken);
 
         Assert.Empty(streamSource.Sessions);

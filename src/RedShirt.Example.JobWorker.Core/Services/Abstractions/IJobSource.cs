@@ -32,10 +32,10 @@ public interface IJobSource
     ///     has already exhausted retries and callers should not retry again.
     ///     When <see cref="WorkerJobSourceException.IsCritical" /> is <c>true</c>, callers should surface the failure.
     /// </exception>
-    Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    Task AcknowledgeAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default);
 
-    Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default);
+    Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Extend the in-flight / visibility window for a job record, if the underlying message source supports it.
@@ -52,5 +52,5 @@ public interface IJobSource
     ///     has already exhausted retries and callers should not retry again.
     ///     When <see cref="WorkerJobSourceException.IsCritical" /> is <c>true</c>, callers should surface the failure.
     /// </exception>
-    Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default);
+    Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default);
 }

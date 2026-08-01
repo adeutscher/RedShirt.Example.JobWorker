@@ -5,7 +5,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.Nats.Services;
 
 internal class NoReactionFailureHandler : IJobFailureHandler
 {
-    public Task HandleFailureAsync(IJobModel jobModel, Exception exception,
+    public Task HandleFailureAsync(IRawJobModel rawJobModel, Exception? exception,
         CancellationToken cancellationToken = default)
     {
         // No action

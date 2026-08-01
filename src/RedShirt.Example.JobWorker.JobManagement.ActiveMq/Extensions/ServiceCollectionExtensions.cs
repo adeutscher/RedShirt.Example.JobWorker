@@ -20,7 +20,6 @@ public static class ServiceCollectionExtensions
             .Configure<ActiveMqServerConfigurationSource.ConfigurationModel>(
                 configuration.GetSection("JobSource:ActiveMq"))
             .AddSingleton<IActiveMqServerConfigurationSource, ActiveMqServerConfigurationSource>()
-            .AddSingleton<IActiveMqMessageBodyRetriever, ActiveMqMessageBodyRetriever>()
             .AddSingleton<IInnerActiveMqConnectionFactory, InnerActiveMqConnectionFactory>()
             .AddSingleton<IActiveMqConnectionFactory, ActiveMqConnectionFactory>();
     }

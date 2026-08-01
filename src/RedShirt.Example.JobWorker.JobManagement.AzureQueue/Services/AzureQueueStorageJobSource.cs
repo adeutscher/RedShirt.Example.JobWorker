@@ -1,8 +1,6 @@
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Models;
@@ -12,14 +10,12 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services;
 internal class AzureQueueStorageJobSource(
     IQueueConsumerClientSource clientSource,
     IAzureQueueStorageMessageSource azureQueueStorageMessageSource,
-    ISourceMessageConverter converter,
-    ILogger<AzureQueueStorageJobSource> logger,
     IOptions<AzureQueueStorageConfigurationModel> options) : IJobSource
 {
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
-        if (message is not AzureJobModel messageAsAzureJobModel)
+        if (message is not AzureQueueStorageRawJobModel messageAsAzureJobModel)
             // For consideration: Throw some kind of exception?
         {
             return;
@@ -33,37 +29,14 @@ internal class AzureQueueStorageJobSource(
         await client.DeleteMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
     }
 
-    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
+    public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         var messages = await azureQueueStorageMessageSource.GetMessagesAsync(batchSize, cancellationToken);
-        var items = new List<IJobModel>();
-
-        foreach (var message in messages)
+        var items = messages.Select(IRawJobModel (message) => new AzureQueueStorageRawJobModel
         {
-            try
-            {
-                logger.LogTrace("Raw Azure Queue Storage message: {MessageBody}", message.Body);
-
-                var @object = converter.Convert(message.Body);
-                if (@object is null)
-                {
-                    continue;
-                }
-
-                var data = new AzureJobModel
-                {
-                    Message = message,
-                    CreatedAtUtc = DateTime.UtcNow,
-                    Data = @object
-                };
-
-                items.Add(data);
-            }
-            catch (Exception e)
-            {
-                logger.LogWarning(e, "Error parsing Azure Queue Storage message: {MessageBody}", message.Body);
-            }
-        }
+            Message = message,
+            CreatedAtUtc = DateTime.UtcNow
+        }).ToList();
 
         var response = new JobSourceResponse
         {
@@ -76,9 +49,9 @@ internal class AzureQueueStorageJobSource(
     public int RecommendedHeartbeatIntervalSeconds =>
         (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
-    public async Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
-        if (message is not AzureJobModel messageAsAzureJobModel)
+        if (message is not AzureQueueStorageRawJobModel messageAsAzureJobModel)
             // For consideration: Throw some kind of exception?
         {
             return;

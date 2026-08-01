@@ -4,6 +4,9 @@ using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Jobs;
+using RedShirt.Example.JobWorker.Core.Services.Safety;
+using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Idempotency;
 
@@ -13,7 +16,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.Idempotency;
 /// </summary>
 internal interface IIdempotencyMonitor : IHandlerSubComponent;
 
-internal class IdempotencyMonitor(
+internal sealed class IdempotencyMonitor(
     IExecutionEndArbiter executionEndArbiter,
     IJobRepository jobRepository,
     IIdempotencyExecutionService idempotencyExecutionService,
@@ -41,7 +44,7 @@ internal class IdempotencyMonitor(
 
                 var cachedResult =
                     await idempotencyExecutionService.GetCachedResultAsync(blockedJob.JobModel, cancellationToken);
-                if (cachedResult is null or false)
+                if (cachedResult is null || !cachedResult.JobSuccess)
                 {
                     /*
                      * If no cached result, then nothing to acknowledge (did the other worker instance fail to cache it?).
@@ -56,8 +59,11 @@ internal class IdempotencyMonitor(
                 else
                 {
                     // Cached result is true. We are attempting to retry.
-                    var acknowledgeResult = await safeJobAcknowledgementService.AcknowledgeSafelyAsync(blockedJob,
-                        cachedResult.Value,
+                    var acknowledgeResult = await safeJobAcknowledgementService.AcknowledgeSafelyAsync(
+                        blockedJob.RawJobModel,
+                        cachedResult.JobSuccess,
+                        null,
+                        cachedResult.AcknowledgementResult,
                         cancellationToken);
                     /*
                      * If the acknowledgement was successful, then the message is complete and can be removed from the repository.
@@ -67,14 +73,14 @@ internal class IdempotencyMonitor(
                      */
                     logger.LogTrace(
                         "Idempotency Monitor has attempted to acknowledge message {MessageId} . Success: {Success}",
-                        blockedJob.JobModel.MessageId, acknowledgeResult);
-                    if (acknowledgeResult)
+                        blockedJob.JobModel.MessageId, acknowledgeResult.Success);
+                    if (acknowledgeResult.Success)
                     {
                         // Above comment aside, if acknowledgement was successful then call SetResult once more.
                         // If messageIds are configured to be considered unique, then current implementation shall
                         //  set cached value to null to attempt to free up cache resources faster
-                        await idempotencyExecutionService.SetResultInCacheAsync(blockedJob.JobModel, cachedResult.Value,
-                            acknowledgeResult, cancellationToken);
+                        await idempotencyExecutionService.SetResultInCacheAsync(blockedJob.RawJobModel,
+                            cachedResult.JobSuccess, cachedResult.AcknowledgementResult, cancellationToken);
                     }
 
                     await jobRepository.RemoveJobAsync(blockedJob, cancellationToken);
@@ -103,12 +109,12 @@ internal class IdempotencyMonitor(
         }
     }
 
-    public async Task<HandlerResponseEnum> RunAsync(CancellationToken cancellationToken = default)
+    public async Task<HandlerComponentResponse> RunAsync(CancellationToken cancellationToken = default)
     {
         if (!options.Value.Enabled)
         {
             // Not enabled, immediately abort
-            return HandlerResponseEnum.NotEnabled;
+            return HandlerComponentResponse.NotEnabled;
         }
 
         var intervalTimeSpan = TimeSpan.FromSeconds(options.Value.EffectiveMonitorIntervalSeconds);
@@ -119,6 +125,6 @@ internal class IdempotencyMonitor(
             await sleepService.DelayAsync(intervalTimeSpan, cancellationToken);
         }
 
-        return HandlerResponseEnum.Finished;
+        return HandlerComponentResponse.Finished;
     }
 }

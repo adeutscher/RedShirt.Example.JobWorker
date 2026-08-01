@@ -6,12 +6,12 @@ namespace RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 /// <summary>
 ///     Convert from raw string data into a job model.
 /// </summary>
-public interface ISourceMessageConverter
+internal interface ISourceMessageConverter
 {
     IJobDataModel? Convert(string input);
 }
 
-internal class SourceMessageConverter : ISourceMessageConverter
+internal sealed class SourceMessageConverter : ISourceMessageConverter
 {
     private readonly JsonSerializerOptions _options = new()
     {

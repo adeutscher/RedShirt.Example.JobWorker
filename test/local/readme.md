@@ -5,18 +5,26 @@ Instructions for local testing.
 
 ## General
 
-The scripts below assume that certain Python modules are installed in your environment.
+The scripts described below assume that certain Python modules are installed in your environment.
 
-Run the following to install the assumed modules:
+Run the following to install all of the assumed modules at once:
 
 ```
-pip install --user boto3 awscli awslocal stomp.py azure.servicebus azure.identity azure.keyvault kafka-python
+pip install --user boto3 awscli awslocal stomp.py azure-cli azure.servicebus azure-storage-queue azure.identity azure.keyvault kafka-python
 ```
 
 ## Idempotency
 
 Idempotency testing relies on having a reliable way of setting a message ID.
 If this template is still in general form, then I would advise testing using the RabbitMQ job source.
+
+## Loader Mode
+
+To enable loader mode in the general template, set `JOBS__USE_LOADER_MODE` to `true`:
+
+```bash
+export JOBS__USE_LOADER_MODE=true
+```
 
 ## Message Sources
 
@@ -94,6 +102,7 @@ To initialize Kinesis and queue sample messages:
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
     export USE_RABBITMQ=0
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
 5. Bring up the worker:
@@ -346,21 +355,25 @@ To install the `nats` command:
 
 ### Azure Queue Storage
 
-Testing `Azure Queue Storage` will require:
+Testing `Azure Queue Storage` with the below instructions will require the various Azure-related python module to be installed:
+
+```
+pip install azure-cli azure-storage-queue azure.identity azure.keyvault
+```
+
+#### VSCode
+
+An option for testing `Azure Queue Storage` is to use Visual Studio Code (VSCode):
 
 * Visual Studio Code to be installed
-* Within Visual Studio Code (VSCode), the `Azure Tools` and `Azureite` extensions must be installed.
+* Within Visual Studio Code (VSCode), the `Azure Tools` and `azurite` extensions must be installed.
 * Azure Storage Explorer to be downloaded from [here](https://azure.microsoft.com/en-us/products/storage/storage-explorer)
 
 For more information on using Visual Studio Code to interact with `azurite`, see [here](https://rajeevpentyala.com/2025/08/16/azurite-build-azure-queues-and-functions-locally-with-c/)
 
-Testing `Azure Queue Storage` will require the various Azure-related python module to be installed:
+Using VSCode *used* to be the documented way of testing Azure Queue Storage messages, but after my own VSCode installation was uncooperative I opted to make a script-based setup. It's more consistent this way too.
 
-```
-pip install azure.identity azure.keyvault
-```
-
-#### VSCode Configuration
+##### VSCode Configuration
 
 VSCode automatically knows how to point to your local `azurite` server after the service is started.
 
@@ -384,25 +397,21 @@ VSCode automatically knows how to point to your local `azurite` server after the
     ./set-azure-key-vault-secrets.py
     ```
 
-4. Bring up `azureite`:
+4. Bring up `azurite`:
 
     ```
     docker compose up -d azurite
     ```
 
-5. In VSCode, go to the Azure tab.
-
-6. Look down in the `Workspace` section
-
-7. Create the `test-azure-queue` queue.
-
-8. Azure Storage Explorer should allow you to access the storage account for Azurite's `devstoreaccount1` without any configuration. After selecting the `test-azure-queue` queue, you can add a message to the queue. Please note that Storage Explorer's Add menu **stores the message as a Base64-encoded string by default**. So far, this seems to be unique to Storage Explorer. Because of this, **this template does not go out of its way to account for Base64**. However, but you may wish to consider it if you are adapting this into an application that uses Azure Queue Storage. Any messages added via Storage Explorer should be stored as **Plain UTF-8**. Message format.
+5. Create the `test-azure-queue` queue (if it does not already exist) and send a job that will tell the worker to sleep for the specified number of seconds:
 
     ```
-    {"SleepDurationSeconds": 12}
+    ./send-azure-queue-job.py 12
     ```
 
-9. Before starting the worker, make sure that the `USE_AZURE_QUEUE_STORAGE` is set to `1` and that other `USE_` environment variables are not set to `1`.
+    The script sends a plain UTF-8 JSON body (`{"SleepDurationSeconds": 12}`). If you instead add messages with Azure Storage Explorer, note that its Add menu **stores the message as a Base64-encoded string by default**. So far, this seems to be unique to Storage Explorer. Because of this, **this template does not go out of its way to account for Base64**. However, you may wish to consider it if you are adapting this into an application that uses Azure Queue Storage. Any messages added via Storage Explorer should be stored as **Plain UTF-8**.
+
+6. Before starting the worker, make sure that the `USE_AZURE_QUEUE_STORAGE` is set to `1` and that other `USE_` environment variables are not set to `1`.
    You will also point Redis at the Key Vault secret name created by `set-azure-key-vault-secrets.py`, as the compose file's default is to use the SSM path (Azure Key Vault key and SSM Parameter Store path formats are entirely incompatible with one another):
 
     ```
@@ -416,7 +425,7 @@ VSCode automatically knows how to point to your local `azurite` server after the
     export COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH=common-distributed-redis
     ```
 
-10. Bring up the worker:
+7. Bring up the worker:
 
     ```
     docker compose up worker
