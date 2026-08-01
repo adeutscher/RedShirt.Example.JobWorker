@@ -96,7 +96,7 @@ services:
     container_name: azurite
     ports:
       - "10001:10001" # Queue service
-    command: "azurite --queueHost 0.0.0.0 --loose"
+    command: "azurite --queueHost 0.0.0.0 --loose --skipApiVersionCheck"
 
   azure-service-bus-mssql:
       image: "mcr.microsoft.com/mssql/server:2022-latest"
