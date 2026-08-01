@@ -9,7 +9,7 @@ using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.Utility;
 
-namespace RedShirt.Example.JobWorker.Core.Services.Maintenance;
+namespace RedShirt.Example.JobWorker.Core.Services.Heartbeats;
 
 /// <summary>
 ///     The maintainer is responsible for making sure that messages checked out from the job source remain 'in flight'.

@@ -1,8 +1,8 @@
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.Maintenance;
+using RedShirt.Example.JobWorker.Core.Services.Heartbeats;
 
-namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Maintenance;
+namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Heartbeats;
 
 public class HeartbeatCalculatorTests
 {
