@@ -4,7 +4,7 @@ using Polly;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
-using RedShirt.Example.JobWorker.Core.Exceptions.Loader;
+using RedShirt.Example.JobWorker.Core.Exceptions.MessagePolling;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 
 namespace RedShirt.Example.JobWorker.Core.Services.MessagePolling;

@@ -1,5 +1,5 @@
 using RedShirt.Example.JobWorker.Core.Enums;
-using RedShirt.Example.JobWorker.Core.Exceptions.Loader;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Models;

@@ -1,3 +1,5 @@
+using RedShirt.Example.JobWorker.Core.Exceptions.MessagePolling;
+
 namespace RedShirt.Example.JobWorker.Core.Exceptions;
 
 /// <summary>
