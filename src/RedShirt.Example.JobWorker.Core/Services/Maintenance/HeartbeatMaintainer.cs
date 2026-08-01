@@ -13,15 +13,15 @@ namespace RedShirt.Example.JobWorker.Core.Services.Maintenance;
 /// <summary>
 ///     The maintainer is responsible for making sure that messages checked out from the job source remain 'in flight'.
 /// </summary>
-internal interface IMaintainer : IHandlerSubComponent;
+internal interface IHeartbeatMaintainer : IHandlerSubComponent;
 
-internal class Maintainer(
+internal class HeartbeatMaintainer(
     IHeartbeatCalculator heartbeatCalculator,
     IAppliedExecutionEndArbiter appliedExecutionEndArbiter,
     IJobRepository jobRepository,
     IJobSource jobSource,
-    ILogger<Maintainer> logger,
-    ISleepService sleepService) : IMaintainer
+    ILogger<HeartbeatMaintainer> logger,
+    ISleepService sleepService) : IHeartbeatMaintainer
 {
     private const int MinimumTimeToWaitMilliseconds = 500;
 

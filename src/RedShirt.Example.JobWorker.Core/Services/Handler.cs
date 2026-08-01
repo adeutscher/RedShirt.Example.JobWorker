@@ -32,13 +32,13 @@ internal interface IHandlerSubComponent
 ///     It is responsible for starting all worker threads.
 /// </summary>
 /// <param name="jobLoaderLoop"></param>
-/// <param name="maintainer"></param>
+/// <param name="heartbeatMaintainer"></param>
 /// <param name="jobExecutor"></param>
 /// <param name="idempotencyMonitor"></param>
 /// <param name="threadOptions"></param>
 internal class Handler(
     IJobLoaderLoop jobLoaderLoop,
-    IMaintainer maintainer,
+    IHeartbeatMaintainer heartbeatMaintainer,
     IJobExecutor jobExecutor,
     IIdempotencyMonitor idempotencyMonitor,
     IOptions<ThreadConfigurationModel> threadOptions,
@@ -113,7 +113,7 @@ internal class Handler(
          */
 
         // Maintainer thread
-        await addToTaskFunc(() => maintainer.RunAsync(cancellationToken));
+        await addToTaskFunc(() => heartbeatMaintainer.RunAsync(cancellationToken));
 
         // Idempotency monitor thread
         await addToTaskFunc(() => idempotencyMonitor.RunAsync(cancellationToken));

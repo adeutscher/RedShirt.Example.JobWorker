@@ -10,7 +10,7 @@ using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Maintenance;
 
-public class MaintainerTests
+public class HeartbeatMaintainerTests
 {
     private static ISleepService CreateSleepService()
     {
@@ -32,8 +32,8 @@ public class MaintainerTests
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(intervalSeconds);
 
-        var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
-            jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
+        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object, new NullLogger<HeartbeatMaintainer>(), CreateSleepService());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -115,8 +115,8 @@ public class MaintainerTests
             .Setup(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
-        var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
-            jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
+        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object, new NullLogger<HeartbeatMaintainer>(), CreateSleepService());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -165,8 +165,8 @@ public class MaintainerTests
             .Setup(s => s.RecommendedHeartbeatIntervalSeconds)
             .Returns(1);
 
-        var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
-            jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
+        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object, new NullLogger<HeartbeatMaintainer>(), CreateSleepService());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -238,8 +238,8 @@ public class MaintainerTests
             .Setup(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
-        var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
-            jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
+        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object, new NullLogger<HeartbeatMaintainer>(), CreateSleepService());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -316,8 +316,8 @@ public class MaintainerTests
             .Setup(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken))
             .Returns(() => throw new WorkerJobSourceException("Test", false));
 
-        var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
-            jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
+        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object, new NullLogger<HeartbeatMaintainer>(), CreateSleepService());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -389,8 +389,8 @@ public class MaintainerTests
             .Setup(s => s.RecommendedHeartbeatIntervalSeconds)
             .Returns(1);
 
-        var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
-            jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
+        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object, new NullLogger<HeartbeatMaintainer>(), CreateSleepService());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -458,8 +458,8 @@ public class MaintainerTests
             .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
-            jobSource.Object, new NullLogger<Maintainer>(), sleepService.Object);
+        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object, new NullLogger<HeartbeatMaintainer>(), sleepService.Object);
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -528,8 +528,8 @@ public class MaintainerTests
             .Setup(s => s.RecommendedHeartbeatIntervalSeconds)
             .Returns(1);
 
-        var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
-            jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
+        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object, new NullLogger<HeartbeatMaintainer>(), CreateSleepService());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -604,8 +604,8 @@ public class MaintainerTests
             .Setup(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
-        var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
-            jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
+        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object, new NullLogger<HeartbeatMaintainer>(), CreateSleepService());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -682,8 +682,8 @@ public class MaintainerTests
             .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
-            jobSource.Object, new NullLogger<Maintainer>(), sleepService.Object);
+        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object, new NullLogger<HeartbeatMaintainer>(), sleepService.Object);
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -787,8 +787,8 @@ public class MaintainerTests
             .Setup(s => s.HeartbeatAsync(rawJobModel2.Object, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
-        var maintainer = new Maintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
-            jobSource.Object, new NullLogger<Maintainer>(), CreateSleepService());
+        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object, jobRepository.Object,
+            jobSource.Object, new NullLogger<HeartbeatMaintainer>(), CreateSleepService());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 

@@ -30,7 +30,7 @@ public class HandlerTests
         executor.Setup(e => e.RunAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(HandlerResponseEnum.NotEnabled);
 
-        var maintainer = new Mock<IMaintainer>(MockBehavior.Strict);
+        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
         maintainer.Setup(m => m.RunAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(HandlerResponseEnum.NotEnabled);
 
@@ -69,7 +69,7 @@ public class HandlerTests
         executor.Setup(e => e.RunAsync(It.IsAny<int>(), TestContext.Current.CancellationToken))
             .ReturnsAsync(HandlerResponseEnum.NotEnabled);
 
-        var maintainer = new Mock<IMaintainer>(MockBehavior.Strict);
+        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
         maintainer.Setup(m => m.RunAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(HandlerResponseEnum.NotEnabled);
 
@@ -101,7 +101,7 @@ public class HandlerTests
         executor.Setup(e => e.RunAsync(It.IsAny<int>(), TestContext.Current.CancellationToken))
             .ReturnsAsync(HandlerResponseEnum.Finished);
 
-        var maintainer = new Mock<IMaintainer>(MockBehavior.Strict);
+        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
         maintainer.Setup(m => m.RunAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(HandlerResponseEnum.NotEnabled);
 
