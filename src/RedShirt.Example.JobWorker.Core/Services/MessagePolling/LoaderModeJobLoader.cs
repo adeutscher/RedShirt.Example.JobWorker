@@ -11,7 +11,7 @@ using System.Diagnostics;
 
 namespace RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 
-internal class LoaderModeJobLoader(
+internal sealed class LoaderModeJobLoader(
     IJobSource jobSource,
     IExecutionEndArbiter executionEndArbiter,
     IJobRepository jobRepository,

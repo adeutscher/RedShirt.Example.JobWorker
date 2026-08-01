@@ -12,7 +12,7 @@ internal interface ISafeAcknowledgementResult
     bool Success { get; }
 }
 
-internal class SafeAcknowledgementResult : ISafeAcknowledgementResult
+internal sealed class SafeAcknowledgementResult : ISafeAcknowledgementResult
 {
     public required bool? LoggedFailureSuccessfully { get; init; }
     public required bool AcknowledgedSuccessfully { get; init; }

@@ -1,6 +1,6 @@
 namespace RedShirt.Example.JobWorker.Core.Utility;
 
-public class AsyncManualResetEvent
+public sealed class AsyncManualResetEvent
 {
     private volatile TaskCompletionSource<object?> _tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 

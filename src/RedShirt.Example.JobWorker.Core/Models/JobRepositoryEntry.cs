@@ -19,7 +19,7 @@ internal interface IJobRepositoryEntry : ISortableJobWrapper
     Task SetStateAsync(JobState state, CancellationToken cancellationToken = default);
 }
 
-internal class JobRepositoryEntry : IJobRepositoryEntry
+internal sealed class JobRepositoryEntry : IJobRepositoryEntry
 {
     /// <summary>
     ///     Thread-safety for mutable field access from maintainer, executor, and repository threads.

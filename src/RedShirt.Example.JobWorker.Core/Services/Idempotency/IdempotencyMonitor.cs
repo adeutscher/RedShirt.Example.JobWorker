@@ -16,7 +16,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.Idempotency;
 /// </summary>
 internal interface IIdempotencyMonitor : IHandlerSubComponent;
 
-internal class IdempotencyMonitor(
+internal sealed class IdempotencyMonitor(
     IExecutionEndArbiter executionEndArbiter,
     IJobRepository jobRepository,
     IIdempotencyExecutionService idempotencyExecutionService,

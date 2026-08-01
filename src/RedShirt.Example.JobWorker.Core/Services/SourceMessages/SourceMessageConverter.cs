@@ -11,7 +11,7 @@ internal interface ISourceMessageConverter
     IJobDataModel? Convert(string input);
 }
 
-internal class SourceMessageConverter : ISourceMessageConverter
+internal sealed class SourceMessageConverter : ISourceMessageConverter
 {
     private readonly JsonSerializerOptions _options = new()
     {

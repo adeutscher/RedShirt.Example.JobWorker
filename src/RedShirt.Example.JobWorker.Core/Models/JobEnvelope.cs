@@ -17,7 +17,7 @@ internal interface IJobEnvelope
     IRawJobModel RawJobModel { get; init; }
 }
 
-internal class JobEnvelope : IJobEnvelope
+internal sealed class JobEnvelope : IJobEnvelope
 {
     public required IJobModel JobModel { get; init; }
     public required IRawJobModel RawJobModel { get; init; }

@@ -45,7 +45,7 @@ internal interface IJobRepository
     Task<bool> WaitForJobDemandAsync(TimeSpan waitDuration, CancellationToken cancellationToken = default);
 }
 
-internal class JobRepository(
+internal sealed class JobRepository(
     IExecutionEndArbiter executionEndArbiter,
     IJobLoaderStateReaderService jobLoaderStateService,
     ISourceMessageSorter sorter,

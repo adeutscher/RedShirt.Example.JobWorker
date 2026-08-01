@@ -36,7 +36,7 @@ internal interface IHandlerSubComponent
 /// <param name="jobExecutor"></param>
 /// <param name="idempotencyMonitor"></param>
 /// <param name="threadOptions"></param>
-internal class Handler(
+internal sealed class Handler(
     IJobLoaderLoop jobLoaderLoop,
     IHeartbeatMaintainer heartbeatMaintainer,
     IJobExecutor jobExecutor,

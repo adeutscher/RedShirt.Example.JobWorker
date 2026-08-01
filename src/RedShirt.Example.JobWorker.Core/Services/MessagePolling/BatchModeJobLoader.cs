@@ -13,7 +13,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 ///     Fetches jobs and passes them along to the Job Manager.
 ///     If no jobs are retrieved, then back off before trying again
 /// </summary>
-internal class BatchModeJobLoader(
+internal sealed class BatchModeJobLoader(
     IJobSource jobSource,
     IJobRepository jobRepository,
     IJobIntakeService jobIntakeService,

@@ -12,7 +12,7 @@ internal interface IHeartbeatCalculator
     TimeSpan TimeUntilNextHeartbeat(IJobRepositoryEntry entry);
 }
 
-internal class HeartbeatCalculator(IJobSource jobSource) : IHeartbeatCalculator
+internal sealed class HeartbeatCalculator(IJobSource jobSource) : IHeartbeatCalculator
 {
     public bool IsReadyForHeartbeat(IJobRepositoryEntry entry)
     {

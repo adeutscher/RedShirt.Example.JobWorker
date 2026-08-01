@@ -16,7 +16,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 /// </summary>
 internal interface IJobLoaderLoop : IHandlerSubComponent;
 
-internal class JobLoaderLoop(
+internal sealed class JobLoaderLoop(
     IJobLoaderStateService jobLoaderStateService,
     // Confirming that it is intentional to use the base IExecutionEndArbiter
     IExecutionEndArbiter executionEndArbiter,

@@ -19,7 +19,7 @@ internal interface IJobLoaderStateService : IJobLoaderStateReaderService
     void ReportLoaderStop();
 }
 
-internal class JobLoaderStateService : IJobLoaderStateService
+internal sealed class JobLoaderStateService : IJobLoaderStateService
 {
     /// <summary>
     ///     Multithreading protection.

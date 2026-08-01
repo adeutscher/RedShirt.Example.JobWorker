@@ -18,7 +18,7 @@ internal interface ISafeJobAcknowledgementService
         SafeAcknowledgementResult? previousAttempt = null, CancellationToken cancellationToken = default);
 }
 
-internal class SafeJobAcknowledgementService(
+internal sealed class SafeJobAcknowledgementService(
     IJobSource jobSource,
     IJobFailureHandler jobFailureHandler,
     ISleepService sleepService,

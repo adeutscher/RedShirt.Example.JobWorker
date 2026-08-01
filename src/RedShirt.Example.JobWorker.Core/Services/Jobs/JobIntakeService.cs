@@ -11,7 +11,7 @@ internal interface IJobIntakeService
     Task SubmitAsync(IJobSourceResponse jobSourceResponse, CancellationToken cancellationToken);
 }
 
-internal class JobIntakeService(
+internal sealed class JobIntakeService(
     IJobRepository jobRepository,
     ISourceMessageConverter sourceMessageConverter,
     ISafeJobAcknowledgementService safeJobAcknowledgementService,

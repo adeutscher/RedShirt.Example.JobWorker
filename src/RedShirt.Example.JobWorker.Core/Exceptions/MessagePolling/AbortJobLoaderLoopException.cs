@@ -1,3 +1,3 @@
 namespace RedShirt.Example.JobWorker.Core.Exceptions.MessagePolling;
 
-internal class AbortJobLoaderLoopException : Exception;
+internal sealed class AbortJobLoaderLoopException : Exception;

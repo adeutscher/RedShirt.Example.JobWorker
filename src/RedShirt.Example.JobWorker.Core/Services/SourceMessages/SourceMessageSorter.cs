@@ -11,7 +11,7 @@ internal interface ISourceMessageSorter
     List<T> GetSortedListOfJobs<T>(List<T> input) where T : ISortableJobWrapper;
 }
 
-internal class SourceMessageSorter : ISourceMessageSorter
+internal sealed class SourceMessageSorter : ISourceMessageSorter
 {
     public List<T> GetSortedListOfJobs<T>(List<T> input) where T : ISortableJobWrapper
     {

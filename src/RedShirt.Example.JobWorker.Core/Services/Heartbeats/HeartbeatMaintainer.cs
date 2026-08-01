@@ -16,7 +16,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.Heartbeats;
 /// </summary>
 internal interface IHeartbeatMaintainer : IHandlerSubComponent;
 
-internal class HeartbeatMaintainer(
+internal sealed class HeartbeatMaintainer(
     IHeartbeatCalculator heartbeatCalculator,
     IAppliedExecutionEndArbiter appliedExecutionEndArbiter,
     IJobRepository jobRepository,

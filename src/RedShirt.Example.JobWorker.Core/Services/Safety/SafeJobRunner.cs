@@ -26,7 +26,7 @@ internal interface ISafeJobRunner
 /// <param name="sleepService"></param>
 /// <param name="logger"></param>
 /// <param name="options"></param>
-internal class SafeJobRunner(
+internal sealed class SafeJobRunner(
     IJobLogicRunner jobLogicRunner,
     ISleepService sleepService,
     ILogger<SafeJobRunner> logger,

@@ -19,7 +19,7 @@ internal interface IIdempotencyExecutionService
         CancellationToken cancellationToken = default);
 }
 
-internal class IdempotencyExecutionService(
+internal sealed class IdempotencyExecutionService(
     ISafeAbstractedLockService abstractedLockService,
     ISafeRemoteCacheService cache,
     IOptions<IdempotencyConfigurationModel> options) : IIdempotencyExecutionService
@@ -134,7 +134,7 @@ internal class IdempotencyExecutionService(
             }, JsonOptions), timeSpan, cancellationToken);
     }
 
-    internal class CachedAcknowledgeReport
+    internal sealed class CachedAcknowledgeReport
     {
         [JsonPropertyName("s")]
         public bool TaskSuccess { get; init; }

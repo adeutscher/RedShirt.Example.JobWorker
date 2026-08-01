@@ -11,7 +11,7 @@ public interface IJobModel
     IJobDataModel Data { get; }
 }
 
-public class JobModel : IJobModel
+public sealed class JobModel : IJobModel
 {
     public required string MessageId { get; init; }
     public required string? IdempotencyId { get; init; }

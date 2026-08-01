@@ -21,7 +21,7 @@ internal interface IJobExecutor
     Task<HandlerComponentResponse> RunAsync(int executorId, CancellationToken cancellationToken = default);
 }
 
-internal class JobExecutor(
+internal sealed class JobExecutor(
     IAppliedExecutionEndArbiter appliedExecutionEndArbiter,
     IJobRepository jobRepository,
     IIdempotencyExecutionService idempotencyExecutionService,
