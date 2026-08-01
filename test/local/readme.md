@@ -350,7 +350,7 @@ To install the `nats` command:
 Testing `Azure Queue Storage` will require:
 
 * Visual Studio Code to be installed
-* Within Visual Studio Code (VSCode), the `Azure Tools` and `Azureite` extensions must be installed.
+* Within Visual Studio Code (VSCode), the `Azure Tools` and `azurite` extensions must be installed.
 * Azure Storage Explorer to be downloaded from [here](https://azure.microsoft.com/en-us/products/storage/storage-explorer)
 
 For more information on using Visual Studio Code to interact with `azurite`, see [here](https://rajeevpentyala.com/2025/08/16/azurite-build-azure-queues-and-functions-locally-with-c/)
@@ -385,7 +385,7 @@ VSCode automatically knows how to point to your local `azurite` server after the
     ./set-azure-key-vault-secrets.py
     ```
 
-4. Bring up `azureite`:
+4. Bring up `azurite`:
 
     ```
     docker compose up -d azurite

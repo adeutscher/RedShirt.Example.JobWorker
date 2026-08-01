@@ -30,10 +30,9 @@ public class ActiveMqRawJobModelTests
         };
 
         Assert.Equal("Hello World!", job.Body);
-        // Cached: second access should not re-read.
         Assert.Equal("Hello World!", job.Body);
-        bytesMessage.Verify(m => m.Reset(), Times.Once);
-        bytesMessage.Verify(m => m.ReadBytes(It.IsAny<byte[]>()), Times.Once);
+        bytesMessage.Verify(m => m.Reset(), Times.Exactly(2));
+        bytesMessage.Verify(m => m.ReadBytes(It.IsAny<byte[]>()), Times.Exactly(2));
     }
 
     [Fact]

@@ -26,7 +26,6 @@ internal class ActiveMqRawJobModel : IRawJobModel
                 var content = new byte[bytesMsg.BodyLength];
                 var bytesRead = bytesMsg.ReadBytes(content);
                 return Encoding.UTF8.GetString(content, 0, bytesRead);
-                break;
             }
             default:
                 // Ran out of options.
