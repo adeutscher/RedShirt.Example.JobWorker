@@ -1,6 +1,5 @@
 using Amazon.SQS;
 using Amazon.SQS.Model;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
@@ -15,7 +14,6 @@ internal class SqsJobSource(
     IAmazonSQS sqs,
     ISqsMessageSource sqsMessageSource,
     ISqsPoisonMessagesHandler poisonMessagesHandler,
-    ILogger<SqsJobSource> logger,
     IOptions<SqsConfigurationModel> options) : IJobSource
 {
     public async Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
@@ -47,8 +45,6 @@ internal class SqsJobSource(
 
         foreach (var message in messages)
         {
-            logger.LogTrace("Raw SQS message: {MessageBody}", message.Body);
-
             var data = new SqsJobModel
             {
                 MessageId = message.MessageId,

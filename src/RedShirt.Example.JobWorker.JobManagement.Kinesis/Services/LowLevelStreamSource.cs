@@ -1,6 +1,5 @@
 using Amazon.Kinesis;
 using Amazon.Kinesis.Model;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
@@ -25,7 +24,6 @@ internal interface ILowLevelStreamSource
 
 internal class LowLevelStreamSource(
     IAmazonKinesis kinesisClient,
-    ILogger<LowLevelStreamSource> logger,
     IOptions<KinesisConfiguration> options) : ILowLevelStreamSource
 {
     public async Task<StreamSourceResponse> GetJobsAsync(int batchSize, string shardName, string iteratorString,
@@ -64,8 +62,6 @@ internal class LowLevelStreamSource(
             // Update last sequence number.
             // Can only do this because the result of GetRecordsAsync is in the correct order raw from the shard. 
             lastSequenceNumber = item.SequenceNumber;
-
-            logger.LogTrace("Raw Kinesis message: {MessageBody}", body);
 
             var data = new KinesisJobModel
             {

@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Configuration;
@@ -61,7 +60,7 @@ public class AzureQueueStorageJobSourceTests
             ]);
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, azureMessageSource.Object,
-            new NullLogger<AzureQueueStorageJobSource>(), Options.Create(new AzureQueueStorageConfigurationModel
+            Options.Create(new AzureQueueStorageConfigurationModel
             {
                 VisibilityTimeoutSeconds = 100
             }));
@@ -91,7 +90,7 @@ public class AzureQueueStorageJobSourceTests
         };
 
         var jobSource = new AzureQueueStorageJobSource(null!, null!,
-            new NullLogger<AzureQueueStorageJobSource>(), Options.Create(options));
+            Options.Create(options));
 
         Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
     }
@@ -113,8 +112,7 @@ public class AzureQueueStorageJobSourceTests
         };
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
-            new NullLogger<AzureQueueStorageJobSource>(),
-            Options.Create(config));
+                        Options.Create(config));
 
         var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
         var job = new AzureJobModel
@@ -150,8 +148,7 @@ public class AzureQueueStorageJobSourceTests
         };
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
-            new NullLogger<AzureQueueStorageJobSource>(),
-            Options.Create(config));
+                        Options.Create(config));
 
         var job = new Mock<IRawJobModel>();
 
@@ -180,8 +177,7 @@ public class AzureQueueStorageJobSourceTests
         };
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
-            new NullLogger<AzureQueueStorageJobSource>(),
-            Options.Create(config));
+                        Options.Create(config));
 
         var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
         var job = new AzureJobModel
@@ -222,8 +218,7 @@ public class AzureQueueStorageJobSourceTests
         };
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
-            new NullLogger<AzureQueueStorageJobSource>(),
-            Options.Create(config));
+                        Options.Create(config));
 
         var job = new Mock<IRawJobModel>();
 

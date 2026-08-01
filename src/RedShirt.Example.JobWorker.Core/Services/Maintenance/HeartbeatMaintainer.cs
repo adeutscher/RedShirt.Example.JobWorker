@@ -117,7 +117,7 @@ internal class HeartbeatMaintainer(
             //  by the time the next loop iteration comes around.
             //
             // The documented recommendation for a heartbeat interval is ~75% of the time until message expiry
-            await jobRepositoryEntry.SetIfFlightTimeCanBeExtendedAsync(false, cancellationToken);
+            await jobRepositoryEntry.SetAsCannotHeartbeatAsync(cancellationToken);
         }
 
         return heartbeatCalculator.TimeUntilNextHeartbeat(jobRepositoryEntry);

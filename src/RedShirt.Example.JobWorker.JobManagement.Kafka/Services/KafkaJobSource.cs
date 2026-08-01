@@ -99,8 +99,6 @@ internal class KafkaJobSource(
                 continue;
             }
 
-            logger.LogTrace("Raw Kafka message: {MessageBody}", messageBody);
-
             var data = new KafkaJobModel
             {
                 Message = receivedMessage,

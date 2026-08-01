@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -11,7 +10,6 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services;
 internal class AzureQueueStorageJobSource(
     IQueueConsumerClientSource clientSource,
     IAzureQueueStorageMessageSource azureQueueStorageMessageSource,
-    ILogger<AzureQueueStorageJobSource> logger,
     IOptions<AzureQueueStorageConfigurationModel> options) : IJobSource
 {
     public async Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
@@ -38,8 +36,6 @@ internal class AzureQueueStorageJobSource(
 
         foreach (var message in messages)
         {
-            logger.LogTrace("Raw Azure Queue Storage message: {MessageBody}", message.Body);
-
             var data = new AzureJobModel
             {
                 Message = message,

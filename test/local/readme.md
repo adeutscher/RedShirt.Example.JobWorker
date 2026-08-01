@@ -94,6 +94,7 @@ To initialize Kinesis and queue sample messages:
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
     export USE_RABBITMQ=0
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
 5. Bring up the worker:

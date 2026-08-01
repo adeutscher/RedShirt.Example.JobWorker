@@ -85,8 +85,6 @@ internal class AzureServiceBusJobSource(
                 continue;
             }
 
-            logger.LogTrace("Raw Azure Service Bus message: {MessageBody}", messageBody);
-
             var data = new AzureJobModel
             {
                 Message = receivedMessage,

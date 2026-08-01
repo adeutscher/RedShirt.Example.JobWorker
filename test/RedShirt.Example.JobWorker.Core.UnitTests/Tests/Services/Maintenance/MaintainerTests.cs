@@ -236,7 +236,7 @@ public class HeartbeatMaintainerTests
         var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
-        entry.Setup(e => e.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken))
+        entry.Setup(e => e.SetAsCannotHeartbeatAsync(TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
         entry.Setup(e => e.State).Returns(JobState.Active);
         entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
@@ -290,7 +290,7 @@ public class HeartbeatMaintainerTests
 
         jobSource.Verify(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken), Times.Once);
 
-        entry.Verify(e => e.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken),
+        entry.Verify(e => e.SetAsCannotHeartbeatAsync(TestContext.Current.CancellationToken),
             Times.Once);
     }
 
@@ -366,7 +366,7 @@ public class HeartbeatMaintainerTests
         var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
-        entry.Setup(e => e.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken))
+        entry.Setup(e => e.SetAsCannotHeartbeatAsync(TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
         entry.Setup(e => e.State).Returns(JobState.Active);
 
@@ -412,7 +412,7 @@ public class HeartbeatMaintainerTests
 
         jobSource.Verify(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken),
             Times.Exactly(Globals.HeartbeatRetryCount + 1));
-        entry.Verify(e => e.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken),
+        entry.Verify(e => e.SetAsCannotHeartbeatAsync(TestContext.Current.CancellationToken),
             Times.Once);
     }
 
@@ -611,7 +611,7 @@ public class HeartbeatMaintainerTests
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(3, attempts);
-        entry.Verify(e => e.SetIfFlightTimeCanBeExtendedAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+        entry.Verify(e => e.SetAsCannotHeartbeatAsync(It.IsAny<CancellationToken>()),
             Times.Never);
         entry.VerifySet(e => e.LastHeartbeatTime = It.IsAny<DateTime>(), Times.Once);
     }

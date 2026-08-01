@@ -1,6 +1,5 @@
 using Amazon.Kinesis;
 using Amazon.Kinesis.Model;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
@@ -27,8 +26,7 @@ public class LowLevelStreamSourceTests
                 NextShardIterator = nextIterator
             });
 
-        var source = new LowLevelStreamSource(kinesis.Object,
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
+        var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
             {
                 StreamArn = streamArn,
                 RoundRobinShards = false,
@@ -58,8 +56,7 @@ public class LowLevelStreamSourceTests
         kinesis.Setup(a => a.GetRecordsAsync(It.IsAny<GetRecordsRequest>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidArgumentException("bad request"));
 
-        var source = new LowLevelStreamSource(kinesis.Object,
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
+        var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
             {
                 StreamArn = Guid.NewGuid().ToString(),
                 RoundRobinShards = false,
@@ -87,8 +84,7 @@ public class LowLevelStreamSourceTests
                 NextShardIterator = "x"
             });
 
-        var source = new LowLevelStreamSource(kinesis.Object,
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
+        var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
             {
                 StreamArn = streamArn,
                 RoundRobinShards = false,
@@ -136,8 +132,7 @@ public class LowLevelStreamSourceTests
                 ]
             });
 
-        var source = new LowLevelStreamSource(kinesis.Object,
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
+        var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
             {
                 StreamArn = streamArn,
                 RoundRobinShards = false,
@@ -195,8 +190,7 @@ public class LowLevelStreamSourceTests
                 ]
             });
 
-        var source = new LowLevelStreamSource(kinesis.Object,
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
+        var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
             {
                 StreamArn = streamArn,
                 RoundRobinShards = false,
@@ -255,8 +249,7 @@ public class LowLevelStreamSourceTests
         var streamArn = Guid.NewGuid().ToString();
         const int batchSize = 10;
 
-        var source = new LowLevelStreamSource(kinesis.Object,
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
+        var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
             {
                 StreamArn = streamArn,
                 RoundRobinShards = false,
@@ -297,8 +290,7 @@ public class LowLevelStreamSourceTests
         var streamArn = Guid.NewGuid().ToString();
         var batchSize = 10;
 
-        var source = new LowLevelStreamSource(kinesis.Object,
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
+        var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
             {
                 StreamArn = streamArn,
                 RoundRobinShards = false,
@@ -334,8 +326,7 @@ public class LowLevelStreamSourceTests
 
         var streamArn = Guid.NewGuid().ToString();
 
-        var source = new LowLevelStreamSource(kinesis.Object,
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
+        var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
             {
                 StreamArn = streamArn,
                 RoundRobinShards = false,

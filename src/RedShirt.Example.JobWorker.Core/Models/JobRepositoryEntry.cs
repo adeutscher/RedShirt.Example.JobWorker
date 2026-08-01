@@ -13,7 +13,7 @@ internal interface IJobRepositoryEntry : ISortableJobWrapper
     bool CanHeartbeat { get; }
     DateTime LastHeartbeatTime { get; set; }
     JobState State { get; }
-    Task SetIfFlightTimeCanBeExtendedAsync(bool flightTime, CancellationToken cancellationToken = default);
+    Task SetAsCannotHeartbeatAsync(CancellationToken cancellationToken = default);
     Task SetStateAsync(JobState state, CancellationToken cancellationToken = default);
 }
 
@@ -26,10 +26,10 @@ internal class JobRepositoryEntry : IJobRepositoryEntry
     public required DateTime LastHeartbeatTime { get; set; }
     public required IJobModel JobModel { get; init; }
 
-    public async Task SetIfFlightTimeCanBeExtendedAsync(bool flightTime, CancellationToken cancellationToken = default)
+    public async Task SetAsCannotHeartbeatAsync(CancellationToken cancellationToken = default)
     {
         await _semaphoreSlim.WaitAsync(cancellationToken);
-        CanHeartbeat = flightTime;
+        CanHeartbeat = false;
         _semaphoreSlim.Release();
     }
 

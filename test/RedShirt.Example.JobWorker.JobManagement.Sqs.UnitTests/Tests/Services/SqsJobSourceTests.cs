@@ -1,6 +1,5 @@
 using Amazon.SQS;
 using Amazon.SQS.Model;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
@@ -78,7 +77,7 @@ public class SqsJobSourceTests
         const int visibilityTimeoutInSeconds = 100;
 
         var source = new SqsJobSource(sqs.Object, sqsMessageSource.Object,
-            poisonMessageHandler.Object, new NullLogger<SqsJobSource>(),
+            poisonMessageHandler.Object,
             Options.Create(CreateConfig(queueUrl, visibilityTimeoutInSeconds)));
 
         var response = await source.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
@@ -105,7 +104,7 @@ public class SqsJobSourceTests
         var options = CreateConfig(visibilityTimeoutSeconds: 20);
 
         var jobSource = new SqsJobSource(null!, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
-            new NullLogger<SqsJobSource>(), Options.Create(options));
+            Options.Create(options));
 
         Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
     }
@@ -120,7 +119,7 @@ public class SqsJobSourceTests
         var config = CreateConfig();
 
         var source = new SqsJobSource(sqs.Object, null!, poisonMessageHandler.Object,
-            new NullLogger<SqsJobSource>(), Options.Create(config));
+            Options.Create(config));
 
         var job = new OutsideContextJobModel
         {
@@ -146,7 +145,7 @@ public class SqsJobSourceTests
 
         var config = CreateConfig();
         var source = new SqsJobSource(sqs.Object, null!, poisonMessageHandler.Object,
-            new NullLogger<SqsJobSource>(), Options.Create(config));
+            Options.Create(config));
 
         var rawMessage = new Message {ReceiptHandle = Guid.NewGuid().ToString()};
         var job = new SqsJobModel
@@ -173,7 +172,7 @@ public class SqsJobSourceTests
         var config = CreateConfig();
 
         var source = new SqsJobSource(sqs.Object, null!, poisonMessageHandler.Object,
-            new NullLogger<SqsJobSource>(), Options.Create(config));
+            Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
         var receiptHandle = Guid.NewGuid().ToString();
@@ -220,7 +219,7 @@ public class SqsJobSourceTests
 
         var config = CreateConfig(visibilityTimeoutSeconds: timeoutSeconds);
         var source = new SqsJobSource(sqs.Object, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
-            new NullLogger<SqsJobSource>(), Options.Create(config));
+            Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
         var receiptHandle = Guid.NewGuid().ToString();
@@ -268,7 +267,7 @@ public class SqsJobSourceTests
 
         var config = CreateConfig(visibilityTimeoutSeconds: timeoutSeconds);
         var source = new SqsJobSource(sqs.Object, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
-            new NullLogger<SqsJobSource>(), Options.Create(config));
+            Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
         var receiptHandle = Guid.NewGuid().ToString();
@@ -311,7 +310,7 @@ public class SqsJobSourceTests
         var config = CreateConfig(visibilityTimeoutSeconds: 30);
 
         var source = new SqsJobSource(sqs.Object, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
-            new NullLogger<SqsJobSource>(), Options.Create(config));
+            Options.Create(config));
 
         var job = new OutsideContextJobModel
         {
