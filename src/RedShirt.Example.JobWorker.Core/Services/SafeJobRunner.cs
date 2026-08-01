@@ -10,6 +10,7 @@ namespace RedShirt.Example.JobWorker.Core.Services;
 
 /// <summary>
 ///     Ensures a safe execution of a job with no thrown exceptions.
+///     If an exception is thrown, then it is returned gently in the return object.
 /// </summary>
 internal interface ISafeJobRunner
 {
