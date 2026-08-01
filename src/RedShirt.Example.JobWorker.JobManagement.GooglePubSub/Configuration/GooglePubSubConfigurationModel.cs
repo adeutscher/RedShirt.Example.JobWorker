@@ -6,18 +6,20 @@ namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Configuration;
 internal sealed class GooglePubSubConfigurationModel
 {
     /// <summary>
-    ///     Pub/Sub ack deadlines are capped at 600 seconds by the service.
+    ///     Pub/Sub visibility timeout requests are capped at 600 seconds by the service.
+    ///     To confirm phrasing, there isn't a set maximum total time that a PubSub message can be in flight, but you are only
+    ///     allowed to extend the flight time in increments of up to 600 seconds.
     /// </summary>
-    public const int MaximumAckDeadlineSeconds = 600;
+    private const int MaximumHeartbeatAmountSeconds = 600;
 
     /// <summary>
-    ///     Pub/Sub rejects custom ack deadlines below 10 seconds.
+    ///     Pub/Sub rejects visibility timeout requests below 10 seconds.
     /// </summary>
-    public const int MinimumAckDeadlineSeconds = 10;
+    private const int MinimumHeartbeatAmountSeconds = 10;
 
     public required string ProjectId { get; init; }
     public required string SubscriptionId { get; init; }
-    public required int MaxMessagesPerRequest { get; set; }
+    public required int MaxMessagesPerRequest { get; init; }
     public required int VisibilityTimeoutSeconds { get; init; }
 
     /// <summary>
@@ -42,5 +44,5 @@ internal sealed class GooglePubSubConfigurationModel
     public int EffectiveMaximumReceives => Math.Max(1, MaximumReceives);
 
     public int EffectiveVisibilityTimeoutSeconds =>
-        Math.Min(Math.Max(MinimumAckDeadlineSeconds, VisibilityTimeoutSeconds), MaximumAckDeadlineSeconds);
+        Math.Min(Math.Max(MinimumHeartbeatAmountSeconds, VisibilityTimeoutSeconds), MaximumHeartbeatAmountSeconds);
 }

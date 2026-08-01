@@ -1,6 +1,5 @@
 using Grpc.Core;
 using RedShirt.Example.JobWorker.Core.Exceptions;
-using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Models;
 using System.Net.Sockets;
 
@@ -82,8 +81,6 @@ internal class GooglePubSubExceptionArbiterService : IGooglePubSubExceptionArbit
             RpcException rpc => PermanentStatusCodes.Contains(rpc.StatusCode)
                 ? Fresh(false, false)
                 : Fresh(false, TransientStatusCodes.Contains(rpc.StatusCode)),
-            // Local configuration / addressing mistakes — not retryable.
-            GooglePubSubSourceException => Fresh(false, false),
             TimeoutException or SocketException or HttpRequestException => Fresh(false, true),
             // HttpClient-style timeouts sometimes surface as TaskCanceledException.
             // Must be matched before OperationCanceledException (TCE derives from OCE).

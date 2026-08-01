@@ -1,8 +1,8 @@
 using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Configuration;
-using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Factories;
@@ -20,12 +20,12 @@ internal class PubSubSubscriberClientFactory(IOptions<GooglePubSubConfigurationM
     {
         if (string.IsNullOrWhiteSpace(options.Value.ProjectId))
         {
-            throw new GooglePubSubSourceException("No Google Pub/Sub project ID has been set");
+            throw new WorkerJobSourceException("No Google Pub/Sub project ID has been set", false);
         }
 
         if (string.IsNullOrWhiteSpace(options.Value.SubscriptionId))
         {
-            throw new GooglePubSubSourceException("No Google Pub/Sub subscription ID has been set");
+            throw new WorkerJobSourceException("No Google Pub/Sub subscription ID has been set", false);
         }
 
         /*

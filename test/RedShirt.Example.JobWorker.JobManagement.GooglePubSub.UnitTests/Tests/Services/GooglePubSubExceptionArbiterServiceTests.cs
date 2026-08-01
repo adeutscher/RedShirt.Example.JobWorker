@@ -1,6 +1,5 @@
 using Grpc.Core;
 using RedShirt.Example.JobWorker.Core.Exceptions;
-using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services;
 using System.Net.Sockets;
 
@@ -14,51 +13,6 @@ public class GooglePubSubExceptionArbiterServiceTests
     public void GetReport_ArgumentException_IsNotCriticalAndNotTransient()
     {
         var report = _sut.GetReport(new ArgumentException("bad subscription", "subscriptionId"));
-
-        Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
-        Assert.False(report.CouldBeTransient);
-    }
-
-    [Theory]
-    [InlineData(StatusCode.InvalidArgument)]
-    [InlineData(StatusCode.NotFound)]
-    [InlineData(StatusCode.AlreadyExists)]
-    [InlineData(StatusCode.PermissionDenied)]
-    [InlineData(StatusCode.Unauthenticated)]
-    [InlineData(StatusCode.FailedPrecondition)]
-    [InlineData(StatusCode.OutOfRange)]
-    [InlineData(StatusCode.Unimplemented)]
-    [InlineData(StatusCode.DataLoss)]
-    public void GetReport_RpcException_PermanentCodes_IsNotCriticalAndNotTransient(StatusCode statusCode)
-    {
-        var report = _sut.GetReport(new RpcException(new Status(statusCode, "permanent")));
-
-        Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
-        Assert.False(report.CouldBeTransient);
-    }
-
-    [Theory]
-    [InlineData(StatusCode.Unavailable)]
-    [InlineData(StatusCode.DeadlineExceeded)]
-    [InlineData(StatusCode.ResourceExhausted)]
-    [InlineData(StatusCode.Aborted)]
-    [InlineData(StatusCode.Internal)]
-    [InlineData(StatusCode.Unknown)]
-    public void GetReport_RpcException_TransientCodes_IsNotCriticalAndTransient(StatusCode statusCode)
-    {
-        var report = _sut.GetReport(new RpcException(new Status(statusCode, "transient")));
-
-        Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
-        Assert.True(report.CouldBeTransient);
-    }
-
-    [Fact]
-    public void GetReport_GooglePubSubSourceException_IsNotCriticalAndNotTransient()
-    {
-        var report = _sut.GetReport(new GooglePubSubSourceException("missing project"));
 
         Assert.False(report.AlreadyHandled);
         Assert.False(report.IsCritical);
@@ -103,6 +57,41 @@ public class GooglePubSubExceptionArbiterServiceTests
         Assert.False(report.AlreadyHandled);
         Assert.False(report.IsCritical);
         Assert.False(report.CouldBeTransient);
+    }
+
+    [Theory]
+    [InlineData(StatusCode.InvalidArgument)]
+    [InlineData(StatusCode.NotFound)]
+    [InlineData(StatusCode.AlreadyExists)]
+    [InlineData(StatusCode.PermissionDenied)]
+    [InlineData(StatusCode.Unauthenticated)]
+    [InlineData(StatusCode.FailedPrecondition)]
+    [InlineData(StatusCode.OutOfRange)]
+    [InlineData(StatusCode.Unimplemented)]
+    [InlineData(StatusCode.DataLoss)]
+    public void GetReport_RpcException_PermanentCodes_IsNotCriticalAndNotTransient(StatusCode statusCode)
+    {
+        var report = _sut.GetReport(new RpcException(new Status(statusCode, "permanent")));
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.False(report.CouldBeTransient);
+    }
+
+    [Theory]
+    [InlineData(StatusCode.Unavailable)]
+    [InlineData(StatusCode.DeadlineExceeded)]
+    [InlineData(StatusCode.ResourceExhausted)]
+    [InlineData(StatusCode.Aborted)]
+    [InlineData(StatusCode.Internal)]
+    [InlineData(StatusCode.Unknown)]
+    public void GetReport_RpcException_TransientCodes_IsNotCriticalAndTransient(StatusCode statusCode)
+    {
+        var report = _sut.GetReport(new RpcException(new Status(statusCode, "transient")));
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.True(report.CouldBeTransient);
     }
 
     [Fact]

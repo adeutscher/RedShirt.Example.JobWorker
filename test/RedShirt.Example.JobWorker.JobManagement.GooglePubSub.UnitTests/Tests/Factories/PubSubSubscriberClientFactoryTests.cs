@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Configuration;
-using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Factories;
 
 namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.Tests.Factories;
@@ -23,7 +23,7 @@ public class PubSubSubscriberClientFactoryTests
             MaximumReceives = 3
         }));
 
-        await Assert.ThrowsAsync<GooglePubSubSourceException>(() =>
+        await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             factory.GetSubscriberClientAsync(TestContext.Current.CancellationToken));
     }
 
@@ -43,7 +43,7 @@ public class PubSubSubscriberClientFactoryTests
             MaximumReceives = 3
         }));
 
-        await Assert.ThrowsAsync<GooglePubSubSourceException>(() =>
+        await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             factory.GetSubscriberClientAsync(TestContext.Current.CancellationToken));
     }
 }
