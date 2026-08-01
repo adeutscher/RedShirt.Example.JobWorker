@@ -78,7 +78,7 @@ public class JobIntakeServiceTests
         Assert.NotNull(loaded);
         Assert.Single(loaded);
         Assert.Same(rawJob.Object, loaded[0].RawJobModel);
-        Assert.IsType<RawActiveMqJobModel>(loaded[0].JobModel);
+        Assert.IsType<JobModel>(loaded[0].JobModel);
         Assert.Equal("msg-1", loaded[0].JobModel.MessageId);
         Assert.Equal("idem-1", loaded[0].JobModel.IdempotencyId);
         Assert.Equal(createdAt, loaded[0].JobModel.CreatedAtUtc);

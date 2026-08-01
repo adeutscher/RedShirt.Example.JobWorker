@@ -51,7 +51,7 @@ internal class JobIntakeService(
             {
                 convertedMessages.Add(new JobEnvelope
                 {
-                    JobModel = new RawActiveMqJobModel
+                    JobModel = new JobModel
                     {
                         MessageId = rawMessage.MessageId,
                         IdempotencyId = rawMessage.IdempotencyId,
