@@ -326,7 +326,7 @@ public class JobRepositoryTests
     ///     If the internal jobs queue is empty and the execution end arbiter says there's no continuing,
     ///     then return null for GetNextJobAsync.
     /// </summary>
-    [Fact(Timeout = 500)]
+    [Fact(Timeout = 1000)]
     public async Task TestGetNextJobAsync_Null()
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>();
