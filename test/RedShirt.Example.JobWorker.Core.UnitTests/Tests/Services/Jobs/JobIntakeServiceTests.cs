@@ -17,37 +17,6 @@ public class JobIntakeServiceTests
     }
 
     [Fact]
-    public async Task SubmitAsync_WhenNoItems_DoesNotLoadOrAcknowledge()
-    {
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        var acknowledgement = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
-        var idempotency = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
-
-        var service = new JobIntakeService(
-            jobRepository.Object,
-            converter.Object,
-            acknowledgement.Object,
-            idempotency.Object,
-            new NullLogger<JobIntakeService>());
-
-        await service.SubmitAsync(CreateJobSourceResponse([]), TestContext.Current.CancellationToken);
-
-        jobRepository.Verify(
-            r => r.LoadAsync(It.IsAny<IReadOnlyList<IJobEnvelope>>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-        acknowledgement.Verify(
-            a => a.AcknowledgeSafelyAsync(It.IsAny<IRawJobModel>(), It.IsAny<bool>(), It.IsAny<Exception?>(),
-                It.IsAny<SafeAcknowledgementResult?>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-        idempotency.Verify(
-            i => i.SetResultInCacheAsync(It.IsAny<IRawJobModel>(), It.IsAny<bool>(),
-                It.IsAny<ISafeAcknowledgementResult>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-        converter.Verify(c => c.Convert(It.IsAny<string>()), Times.Never);
-    }
-
-    [Fact]
     public async Task SubmitAsync_WhenBodyConverts_LoadsEnvelopeAndSkipsFailureHandling()
     {
         var createdAt = new DateTime(2024, 7, 8, 9, 10, 11, DateTimeKind.Utc);
@@ -103,6 +72,58 @@ public class JobIntakeServiceTests
     }
 
     [Fact]
+    public async Task SubmitAsync_WhenBodyGetterThrows_AcknowledgesFailureWithException()
+    {
+        var bodyException = new InvalidOperationException("could not read body");
+        var rawJob = new Mock<IRawJobModel>(MockBehavior.Strict);
+        rawJob.Setup(r => r.Body).Throws(bodyException);
+
+        var ackResult = new SafeAcknowledgementResult
+        {
+            LoggedFailureSuccessfully = true,
+            AcknowledgedSuccessfully = true
+        };
+
+        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
+
+        var acknowledgement = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
+        acknowledgement
+            .Setup(a => a.AcknowledgeSafelyAsync(rawJob.Object, false, bodyException, null,
+                TestContext.Current.CancellationToken))
+            .ReturnsAsync(ackResult);
+
+        var idempotency = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
+        idempotency
+            .Setup(i => i.SetResultInCacheAsync(rawJob.Object, false, ackResult, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+
+        var service = new JobIntakeService(
+            jobRepository.Object,
+            converter.Object,
+            acknowledgement.Object,
+            idempotency.Object,
+            new NullLogger<JobIntakeService>());
+
+        await service.SubmitAsync(
+            CreateJobSourceResponse([rawJob.Object]),
+            TestContext.Current.CancellationToken);
+
+        converter.Verify(c => c.Convert(It.IsAny<string>()), Times.Never);
+        acknowledgement.Verify(
+            a => a.AcknowledgeSafelyAsync(rawJob.Object, false, bodyException, null,
+                TestContext.Current.CancellationToken),
+            Times.Once);
+        idempotency.Verify(
+            i => i.SetResultInCacheAsync(rawJob.Object, false, ackResult, TestContext.Current.CancellationToken),
+            Times.Once);
+        jobRepository.Verify(
+            r => r.LoadAsync(It.IsAny<IReadOnlyList<IJobEnvelope>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task SubmitAsync_WhenBodyIsEmpty_AcknowledgesFailureWithoutCallingConverter()
     {
         var rawJob = new Mock<IRawJobModel>(MockBehavior.Strict);
@@ -153,6 +174,53 @@ public class JobIntakeServiceTests
     }
 
     [Fact]
+    public async Task SubmitAsync_WhenConverterReturnsNull_AcknowledgesFailureWithoutException()
+    {
+        var rawJob = new Mock<IRawJobModel>(MockBehavior.Strict);
+        rawJob.Setup(r => r.Body).Returns("{}");
+
+        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
+        converter.Setup(c => c.Convert("{}")).Returns((IJobDataModel?) null);
+
+        var ackResult = new SafeAcknowledgementResult
+        {
+            LoggedFailureSuccessfully = true,
+            AcknowledgedSuccessfully = false
+        };
+
+        var acknowledgement = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
+        acknowledgement
+            .Setup(a => a.AcknowledgeSafelyAsync(rawJob.Object, false, null, null,
+                TestContext.Current.CancellationToken))
+            .ReturnsAsync(ackResult);
+
+        var idempotency = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
+        idempotency
+            .Setup(i => i.SetResultInCacheAsync(rawJob.Object, false, ackResult, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+
+        var service = new JobIntakeService(
+            jobRepository.Object,
+            converter.Object,
+            acknowledgement.Object,
+            idempotency.Object,
+            new NullLogger<JobIntakeService>());
+
+        await service.SubmitAsync(
+            CreateJobSourceResponse([rawJob.Object]),
+            TestContext.Current.CancellationToken);
+
+        acknowledgement.Verify(
+            a => a.AcknowledgeSafelyAsync(rawJob.Object, false, null, null, TestContext.Current.CancellationToken),
+            Times.Once);
+        jobRepository.Verify(
+            r => r.LoadAsync(It.IsAny<IReadOnlyList<IJobEnvelope>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task SubmitAsync_WhenConverterThrows_AcknowledgesFailureWithException()
     {
         var rawJob = new Mock<IRawJobModel>(MockBehavior.Strict);
@@ -199,53 +267,6 @@ public class JobIntakeServiceTests
             Times.Once);
         idempotency.Verify(
             i => i.SetResultInCacheAsync(rawJob.Object, false, ackResult, TestContext.Current.CancellationToken),
-            Times.Once);
-        jobRepository.Verify(
-            r => r.LoadAsync(It.IsAny<IReadOnlyList<IJobEnvelope>>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
-
-    [Fact]
-    public async Task SubmitAsync_WhenConverterReturnsNull_AcknowledgesFailureWithoutException()
-    {
-        var rawJob = new Mock<IRawJobModel>(MockBehavior.Strict);
-        rawJob.Setup(r => r.Body).Returns("{}");
-
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert("{}")).Returns((IJobDataModel?) null);
-
-        var ackResult = new SafeAcknowledgementResult
-        {
-            LoggedFailureSuccessfully = true,
-            AcknowledgedSuccessfully = false
-        };
-
-        var acknowledgement = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
-        acknowledgement
-            .Setup(a => a.AcknowledgeSafelyAsync(rawJob.Object, false, null, null,
-                TestContext.Current.CancellationToken))
-            .ReturnsAsync(ackResult);
-
-        var idempotency = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
-        idempotency
-            .Setup(i => i.SetResultInCacheAsync(rawJob.Object, false, ackResult, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
-
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-
-        var service = new JobIntakeService(
-            jobRepository.Object,
-            converter.Object,
-            acknowledgement.Object,
-            idempotency.Object,
-            new NullLogger<JobIntakeService>());
-
-        await service.SubmitAsync(
-            CreateJobSourceResponse([rawJob.Object]),
-            TestContext.Current.CancellationToken);
-
-        acknowledgement.Verify(
-            a => a.AcknowledgeSafelyAsync(rawJob.Object, false, null, null, TestContext.Current.CancellationToken),
             Times.Once);
         jobRepository.Verify(
             r => r.LoadAsync(It.IsAny<IReadOnlyList<IJobEnvelope>>(), It.IsAny<CancellationToken>()),
@@ -322,5 +343,36 @@ public class JobIntakeServiceTests
         idempotency.Verify(
             i => i.SetResultInCacheAsync(badRaw.Object, false, ackResult, TestContext.Current.CancellationToken),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task SubmitAsync_WhenNoItems_DoesNotLoadOrAcknowledge()
+    {
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
+        var acknowledgement = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
+        var idempotency = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
+
+        var service = new JobIntakeService(
+            jobRepository.Object,
+            converter.Object,
+            acknowledgement.Object,
+            idempotency.Object,
+            new NullLogger<JobIntakeService>());
+
+        await service.SubmitAsync(CreateJobSourceResponse([]), TestContext.Current.CancellationToken);
+
+        jobRepository.Verify(
+            r => r.LoadAsync(It.IsAny<IReadOnlyList<IJobEnvelope>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        acknowledgement.Verify(
+            a => a.AcknowledgeSafelyAsync(It.IsAny<IRawJobModel>(), It.IsAny<bool>(), It.IsAny<Exception?>(),
+                It.IsAny<SafeAcknowledgementResult?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        idempotency.Verify(
+            i => i.SetResultInCacheAsync(It.IsAny<IRawJobModel>(), It.IsAny<bool>(),
+                It.IsAny<ISafeAcknowledgementResult>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        converter.Verify(c => c.Convert(It.IsAny<string>()), Times.Never);
     }
 }

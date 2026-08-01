@@ -23,14 +23,16 @@ internal class JobIntakeService(
         convertedData = null;
         exception = null;
 
-        if (string.IsNullOrWhiteSpace(input.Body))
-        {
-            return false;
-        }
-
         try
         {
-            convertedData = sourceMessageConverter.Convert(input.Body);
+            var body = input.Body;
+
+            if (string.IsNullOrWhiteSpace(body))
+            {
+                return false;
+            }
+
+            convertedData = sourceMessageConverter.Convert(body);
             return true;
         }
         catch (Exception e)

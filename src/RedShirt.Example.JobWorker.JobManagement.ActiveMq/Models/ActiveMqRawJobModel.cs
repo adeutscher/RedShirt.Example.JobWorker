@@ -7,6 +7,11 @@ namespace RedShirt.Example.JobWorker.JobManagement.ActiveMq.Models;
 
 internal class ActiveMqRawJobModel : IRawJobModel
 {
+    /// <summary>
+    ///     Get message body.
+    /// </summary>
+    /// <returns>The message body</returns>
+    /// <exception cref="CouldNotRetrieveMessageBodyException"></exception>
     private string? GetBody()
     {
         switch (Message)
@@ -15,10 +20,13 @@ internal class ActiveMqRawJobModel : IRawJobModel
                 return textMsg.Text;
             case IBytesMessage bytesMsg:
             {
-                // Read bytes and convert to string manually
+                // After receive, the read cursor may already be at EOF. Reset before reading
+                // so we don't decode an untouched zero-filled buffer as NUL characters.
+                bytesMsg.Reset();
                 var content = new byte[bytesMsg.BodyLength];
-                bytesMsg.ReadBytes(content);
-                return Encoding.UTF8.GetString(content);
+                var bytesRead = bytesMsg.ReadBytes(content);
+                return Encoding.UTF8.GetString(content, 0, bytesRead);
+                break;
             }
             default:
                 // Ran out of options.

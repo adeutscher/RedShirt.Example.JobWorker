@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using RedShirt.Example.JobWorker.Core.Models;
 using System.Text.Json;
 
@@ -11,7 +12,7 @@ internal interface ISourceMessageConverter
     IJobDataModel? Convert(string input);
 }
 
-internal class SourceMessageConverter : ISourceMessageConverter
+internal class SourceMessageConverter(ILogger<SourceMessageConverter> logger) : ISourceMessageConverter
 {
     private readonly JsonSerializerOptions _options = new()
     {
@@ -20,6 +21,7 @@ internal class SourceMessageConverter : ISourceMessageConverter
 
     public IJobDataModel? Convert(string input)
     {
+        logger.LogDebug("Raw message: {Input}", input);
         return JsonSerializer.Deserialize<JobDataModel>(input, _options);
     }
 }

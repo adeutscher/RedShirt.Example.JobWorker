@@ -13,6 +13,7 @@ public class ActiveMqRawJobModelTests
     {
         var bytesMessage = new Mock<IBytesMessage>();
         bytesMessage.Setup(m => m.BodyLength).Returns(12);
+        bytesMessage.Setup(m => m.Reset());
         bytesMessage.Setup(m => m.ReadBytes(It.IsAny<byte[]>())).Returns((byte[] output) =>
         {
             const string msg = "Hello World!";
@@ -29,6 +30,10 @@ public class ActiveMqRawJobModelTests
         };
 
         Assert.Equal("Hello World!", job.Body);
+        // Cached: second access should not re-read.
+        Assert.Equal("Hello World!", job.Body);
+        bytesMessage.Verify(m => m.Reset(), Times.Once);
+        bytesMessage.Verify(m => m.ReadBytes(It.IsAny<byte[]>()), Times.Once);
     }
 
     [Fact]
