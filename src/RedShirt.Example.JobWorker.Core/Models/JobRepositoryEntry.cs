@@ -13,6 +13,7 @@ internal interface IJobRepositoryEntry : ISortableJobWrapper
     bool CanHeartbeat { get; }
     DateTime LastHeartbeatTime { get; }
     JobState State { get; }
+
     Task SetAsCannotHeartbeatAsync(CancellationToken cancellationToken = default);
     Task SetLastHeartbeatTimeAsync(DateTime lastHeartbeatTime, CancellationToken cancellationToken = default);
     Task SetStateAsync(JobState state, CancellationToken cancellationToken = default);
@@ -21,54 +22,81 @@ internal interface IJobRepositoryEntry : ISortableJobWrapper
 internal class JobRepositoryEntry : IJobRepositoryEntry
 {
     /// <summary>
-    /// Thread-safety measure for field updates.
+    ///     Thread-safety for mutable field access from maintainer, executor, and repository threads.
     /// </summary>
-    private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
+    private readonly Lock _lock = new();
+
+    private bool _canHeartbeat = true;
+    private DateTime _lastHeartbeatTime;
+    private JobState _state = JobState.Inactive;
 
     public required IRawJobModel RawJobModel { get; init; }
-    public bool CanHeartbeat { get; private set; } = true;
-    public DateTime LastHeartbeatTime { get; private set; }
     public required IJobModel JobModel { get; init; }
 
-    public async Task SetAsCannotHeartbeatAsync(CancellationToken cancellationToken = default)
+    public bool CanHeartbeat
     {
-        await _semaphoreSlim.WaitAsync(cancellationToken);
-        try
+        get
         {
-            CanHeartbeat = false;
-        }
-        finally
-        {
-            _semaphoreSlim.Release();
+            lock (_lock)
+            {
+                return _canHeartbeat;
+            }
         }
     }
 
-    public async Task SetLastHeartbeatTimeAsync(DateTime lastHeartbeatTime,
+    public DateTime LastHeartbeatTime
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _lastHeartbeatTime;
+            }
+        }
+    }
+
+    public JobState State
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _state;
+            }
+        }
+    }
+
+    public Task SetAsCannotHeartbeatAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_lock)
+        {
+            _canHeartbeat = false;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task SetLastHeartbeatTimeAsync(DateTime lastHeartbeatTime,
         CancellationToken cancellationToken = default)
     {
-        await _semaphoreSlim.WaitAsync(cancellationToken);
-        try
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_lock)
         {
-            LastHeartbeatTime = lastHeartbeatTime;
+            _lastHeartbeatTime = lastHeartbeatTime;
         }
-        finally
-        {
-            _semaphoreSlim.Release();
-        }
+
+        return Task.CompletedTask;
     }
 
-    public async Task SetStateAsync(JobState state, CancellationToken cancellationToken = default)
+    public Task SetStateAsync(JobState state, CancellationToken cancellationToken = default)
     {
-        await _semaphoreSlim.WaitAsync(cancellationToken);
-        try
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_lock)
         {
-            State = state;
+            _state = state;
         }
-        finally
-        {
-            _semaphoreSlim.Release();
-        }
-    }
 
-    public JobState State { get; private set; } = JobState.Inactive;
+        return Task.CompletedTask;
+    }
 }

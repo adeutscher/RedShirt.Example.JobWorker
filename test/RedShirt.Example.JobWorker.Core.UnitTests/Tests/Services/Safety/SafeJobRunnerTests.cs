@@ -115,8 +115,8 @@ public class SafeJobRunnerTests
         sleepService.Verify(
             s => s.DelayAsync(TimeSpan.FromMilliseconds(delayMilliseconds), It.IsAny<CancellationToken>()),
             Times.Once);
-        // Must not fall through to exponential backoff (2^0 = 1s).
-        sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(1), It.IsAny<CancellationToken>()), Times.Never);
+        // Must not fall through to exponential backoff (2^1 = 2s).
+        sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(2), It.IsAny<CancellationToken>()), Times.Never);
         logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
@@ -256,16 +256,16 @@ public class SafeJobRunnerTests
             .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
             .ThrowsAsync(expected);
 
-        // Polly v8 AttemptNumber is 0-based on the failed attempt → 2^0, 2^1, 2^2.
+        // Polly v8 AttemptNumber is 0-based; +1 → 2^1, 2^2, 2^3.
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
-        sleepService
-            .Setup(s => s.DelayAsync(TimeSpan.FromSeconds(1), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
         sleepService
             .Setup(s => s.DelayAsync(TimeSpan.FromSeconds(2), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         sleepService
             .Setup(s => s.DelayAsync(TimeSpan.FromSeconds(4), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        sleepService
+            .Setup(s => s.DelayAsync(TimeSpan.FromSeconds(8), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var runner = new SafeJobRunner(
@@ -281,9 +281,9 @@ public class SafeJobRunnerTests
 
         Assert.False(result.JobSuccess);
         Assert.Same(expected, result.Exception);
-        sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(1), It.IsAny<CancellationToken>()), Times.Once);
         sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(2), It.IsAny<CancellationToken>()), Times.Once);
         sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(4), It.IsAny<CancellationToken>()), Times.Once);
+        sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(8), It.IsAny<CancellationToken>()), Times.Once);
         sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Exactly(3));
     }
 }

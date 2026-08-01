@@ -70,8 +70,8 @@ internal class HeartbeatMaintainer(
                 OnRetry = async args =>
                 {
                     // Delay is performed via ISleepService in OnRetry so tests can mock sleeps.
-                    // Polly v8 AttemptNumber is 0-based on the failed attempt → 2^0, 2^1, 2^2.
-                    await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber)),
+                    // Polly v8 AttemptNumber is 0-based; +1 → 2^1, 2^2, 2^3.
+                    await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber + 1)),
                         args.Context.CancellationToken);
                 }
             })

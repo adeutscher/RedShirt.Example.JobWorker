@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using System.Text.Json;
@@ -7,11 +6,6 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.SourceMessage
 
 public class SourceMessageConverterTests
 {
-    private static SourceMessageConverter CreateConverter()
-    {
-        return new SourceMessageConverter(NullLogger<SourceMessageConverter>.Instance);
-    }
-
     /// <summary>
     ///     Confirm conversion
     /// </summary>
@@ -23,7 +17,7 @@ public class SourceMessageConverterTests
             SleepDurationSeconds = 123
         };
 
-        var converter = CreateConverter();
+        var converter = new SourceMessageConverter();
         var output = converter.Convert(JsonSerializer.Serialize(input));
 
         Assert.NotNull(output);
@@ -41,7 +35,7 @@ public class SourceMessageConverterTests
             SleepDurationSeconds = 123
         };
 
-        var converter = CreateConverter();
+        var converter = new SourceMessageConverter();
         var output = converter.Convert(JsonSerializer.Serialize(input).ToLower());
 
         Assert.NotNull(output);
@@ -51,7 +45,7 @@ public class SourceMessageConverterTests
     [Fact]
     public void TestConvert_InvalidJson_ThrowsJsonException()
     {
-        var converter = CreateConverter();
+        var converter = new SourceMessageConverter();
 
         Assert.Throws<JsonException>(() => converter.Convert("not-json"));
     }
@@ -60,7 +54,7 @@ public class SourceMessageConverterTests
     public void TestConvert_NullBytesPrefix_ThrowsJsonException()
     {
         // Mimics a mis-read ActiveMQ BytesMessage body that starts with NUL.
-        var converter = CreateConverter();
+        var converter = new SourceMessageConverter();
 
         Assert.Throws<JsonException>(() => converter.Convert("\0{\"SleepDurationSeconds\":1}"));
     }

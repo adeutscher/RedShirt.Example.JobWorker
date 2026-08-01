@@ -73,7 +73,8 @@ internal class SafeJobRunner(
                     }
 
                     // Incremental back-off between retries when no explicit delay was requested.
-                    await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber)),
+                    // Polly v8 AttemptNumber is 0-based; +1 → 2^1, 2^2, 2^3.
+                    await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber + 1)),
                         args.Context.CancellationToken);
                 }
             });

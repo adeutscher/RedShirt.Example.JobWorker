@@ -60,7 +60,8 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.SetLastHeartbeatTimeAsync(It.Is<DateTime>(dt =>
             dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
             dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)), TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);        var redHerringEntry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
+            .Returns(Task.CompletedTask);
+        var redHerringEntry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         redHerringEntry.Setup(e => e.State).Returns(JobState.Active);
         redHerringEntry.Setup(e => e.CanHeartbeat).Returns(false);
 
