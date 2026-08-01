@@ -1,3 +1,3 @@
 namespace RedShirt.Example.JobWorker.Core.Exceptions.Loader;
 
-public class BacklogFullException : ReasonToWaitException;
+internal class BacklogFullException : ReasonToWaitException;

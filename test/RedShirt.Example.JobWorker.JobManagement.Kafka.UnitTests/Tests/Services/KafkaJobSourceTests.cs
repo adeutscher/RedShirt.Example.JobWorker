@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Services;
@@ -37,8 +36,6 @@ public class KafkaJobSourceTests
     {
         var data1 = Guid.NewGuid().ToString();
         var data2 = Guid.NewGuid().ToString();
-        var mock1 = new Mock<IJobDataModel>().Object;
-        var mock2 = new Mock<IJobDataModel>().Object;
 
         var message1 = CreateMessage("t:0:1", data1);
         var message2 = CreateMessage("t:0:2", data2);
@@ -46,10 +43,6 @@ public class KafkaJobSourceTests
         var kafkaMessageSource = new Mock<IKafkaMessageSource>(MockBehavior.Strict);
         kafkaMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateResponse(message1, message2));
-
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(data1)).Returns(mock1);
-        converter.Setup(c => c.Convert(data2)).Returns(mock2);
 
         var consumer = new Mock<IKafkaConsumerWrapper>(MockBehavior.Strict);
         consumer.Setup(c => c.CommitAsync(It.IsAny<List<IKafkaMessageContainer>>(), It.IsAny<CancellationToken>()))
@@ -59,7 +52,7 @@ public class KafkaJobSourceTests
         consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
 
         var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
-            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
@@ -82,13 +75,12 @@ public class KafkaJobSourceTests
     {
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         var kafkaMessageSource = new Mock<IKafkaMessageSource>(MockBehavior.Strict);
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
         var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
-            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new NullLogger<KafkaJobSource>());
 
-        await jobSource.AcknowledgeCompletionAsync(new Mock<IJobModel>().Object, true,
+        await jobSource.AcknowledgeCompletionAsync(new Mock<IRawJobModel>().Object, true,
             TestContext.Current.CancellationToken);
 
         Assert.Empty(consumerSource.Invocations);
@@ -104,9 +96,6 @@ public class KafkaJobSourceTests
         var kafkaMessageSource = new Mock<IKafkaMessageSource>(MockBehavior.Strict);
         kafkaMessageSource.Setup(a => a.GetMessagesAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateResponse(message));
-
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(data)).Returns(new Mock<IJobDataModel>().Object);
 
         var consumer = new Mock<IKafkaConsumerWrapper>(MockBehavior.Strict);
         consumer.Setup(c => c.CommitAsync(It.IsAny<List<IKafkaMessageContainer>>(), It.IsAny<CancellationToken>()))
@@ -125,7 +114,7 @@ public class KafkaJobSourceTests
             });
 
         var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object, retry.Object,
-            converter.Object, new NullLogger<KafkaJobSource>());
+            new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
         await jobSource.AcknowledgeCompletionAsync(response.Items[0], true, TestContext.Current.CancellationToken);
@@ -147,15 +136,12 @@ public class KafkaJobSourceTests
         kafkaMessageSource.Setup(a => a.GetMessagesAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateResponse(message));
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(data)).Returns(new Mock<IJobDataModel>().Object);
-
         var consumer = new Mock<IKafkaConsumerWrapper>(MockBehavior.Strict);
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
 
         var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
-            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new NullLogger<KafkaJobSource>());
 
         await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
@@ -165,7 +151,7 @@ public class KafkaJobSourceTests
         {
             Message = CreateMessage("t:0:999", "x"),
             CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object
+            Body = "x"
         };
 
         await jobSource.AcknowledgeCompletionAsync(unknownKafkaJob, true, TestContext.Current.CancellationToken);
@@ -188,10 +174,6 @@ public class KafkaJobSourceTests
         kafkaMessageSource.Setup(a => a.GetMessagesAsync(2, It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateResponse(message1, message2));
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(data1)).Returns(new Mock<IJobDataModel>().Object);
-        converter.Setup(c => c.Convert(data2)).Returns(new Mock<IJobDataModel>().Object);
-
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(new Mock<IKafkaConsumerWrapper>(MockBehavior.Strict).Object);
 
@@ -203,7 +185,7 @@ public class KafkaJobSourceTests
             .ThrowsAsync(failure);
 
         var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object, retry.Object,
-            converter.Object, new NullLogger<KafkaJobSource>());
+            new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
         await jobSource.AcknowledgeCompletionAsync(response.Items[0], true, TestContext.Current.CancellationToken);
@@ -220,10 +202,9 @@ public class KafkaJobSourceTests
     {
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         var kafkaMessageSource = new Mock<IKafkaMessageSource>(MockBehavior.Strict);
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
         var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
-            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new NullLogger<KafkaJobSource>());
 
         Assert.Null(jobSource.Session);
@@ -232,7 +213,7 @@ public class KafkaJobSourceTests
         {
             Message = CreateMessage("t:0:1", "x"),
             CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object
+            Body = "x"
         }, true, TestContext.Current.CancellationToken);
 
         Assert.Null(jobSource.Session);
@@ -240,59 +221,23 @@ public class KafkaJobSourceTests
     }
 
     [Fact]
-    public async Task GetJobsAsync_AllNullConverts_DoesNotCommitOrOpenSession()
+    public async Task GetJobsAsync_AllEmptyBodies_CommitsSkippedAndReturnsEmpty()
     {
-        var data1 = Guid.NewGuid().ToString();
-        var data2 = Guid.NewGuid().ToString();
-        var message1 = CreateMessage("t:0:1", data1);
-        var message2 = CreateMessage("t:0:2", data2);
+        var message1 = CreateMessage("t:0:1", "   ");
+        var message2 = CreateMessage("t:0:2", "\t");
 
         var kafkaMessageSource = new Mock<IKafkaMessageSource>(MockBehavior.Strict);
         kafkaMessageSource.Setup(a => a.GetMessagesAsync(2, It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateResponse(message1, message2));
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(It.IsAny<string>())).Returns((IJobDataModel?) null);
-
-        var consumer = new Mock<IKafkaConsumerWrapper>(MockBehavior.Strict);
-        var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
-        consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
-
-        var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
-            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
-            new NullLogger<KafkaJobSource>());
-
-        var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
-
-        Assert.Empty(response.Items);
-        Assert.Null(jobSource.Session);
-        consumer.Verify(c => c.CommitAsync(It.IsAny<List<IKafkaMessageContainer>>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
-
-    [Fact]
-    public async Task GetJobsAsync_CommitsSkippedMessages_WhenEveryMessageIsSkipped()
-    {
-        var data1 = Guid.NewGuid().ToString();
-        var message1 = CreateMessage("t:0:1", "   ");
-        var message2 = CreateMessage("t:0:2", data1);
-
-        var kafkaMessageSource = new Mock<IKafkaMessageSource>(MockBehavior.Strict);
-        kafkaMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateResponse(message1, message2));
-
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(data1)).Throws(new Exception("Controlled Test Blast"));
-
         var consumer = new Mock<IKafkaConsumerWrapper>(MockBehavior.Strict);
         consumer.Setup(c => c.CommitAsync(It.IsAny<List<IKafkaMessageContainer>>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
 
         var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
-            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
@@ -304,42 +249,32 @@ public class KafkaJobSourceTests
     }
 
     [Fact]
-    public async Task GetJobsAsync_ConvertsValidMessages_AndOpensSession()
+    public async Task GetJobsAsync_CommitsSkippedMessages_WhenEveryMessageIsSkipped()
     {
-        var data1 = Guid.NewGuid().ToString();
-        var data2 = Guid.NewGuid().ToString();
-        var mock1 = new Mock<IJobDataModel>().Object;
-        var mock2 = new Mock<IJobDataModel>().Object;
-
-        var message1 = CreateMessage("t:0:1", data1);
-        var message2 = CreateMessage("t:0:2", data2);
+        var message1 = CreateMessage("t:0:1", "   ");
+        var message2 = CreateMessage("t:0:2", "");
 
         var kafkaMessageSource = new Mock<IKafkaMessageSource>(MockBehavior.Strict);
-        kafkaMessageSource.Setup(a => a.GetMessagesAsync(2, It.IsAny<CancellationToken>()))
+        kafkaMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateResponse(message1, message2));
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(data1)).Returns(mock1);
-        converter.Setup(c => c.Convert(data2)).Returns(mock2);
+        var consumer = new Mock<IKafkaConsumerWrapper>(MockBehavior.Strict);
+        consumer.Setup(c => c.CommitAsync(It.IsAny<List<IKafkaMessageContainer>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
+        consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
 
         var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
-            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, response.Items.Count);
-        Assert.Same(mock1, response.Items[0].Data);
-        Assert.Same(mock2, response.Items[1].Data);
-        Assert.Equal("t:0:1", response.Items[0].MessageId);
-        Assert.Equal("t:0:2", response.Items[1].MessageId);
-        Assert.NotNull(jobSource.Session);
-        Assert.Equal(2, jobSource.Session.MessagesToProcess.Count);
-        Assert.Same(message1, jobSource.Session.MessagesToProcess[0]);
-        Assert.Same(message2, jobSource.Session.MessagesToProcess[1]);
-        consumerSource.Verify(s => s.GetConsumer(), Times.Never);
+        Assert.Empty(response.Items);
+        Assert.Null(jobSource.Session);
+        consumer.Verify(c => c.CommitAsync(It.Is<List<IKafkaMessageContainer>>(m =>
+            m.Count == 2 && m.Contains(message1) && m.Contains(message2)), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -350,10 +285,9 @@ public class KafkaJobSourceTests
             .ReturnsAsync(CreateResponse());
 
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
 
         var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
-            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(5, TestContext.Current.CancellationToken);
@@ -361,17 +295,48 @@ public class KafkaJobSourceTests
         Assert.Empty(response.Items);
         Assert.Null(jobSource.Session);
         consumerSource.Verify(s => s.GetConsumer(), Times.Never);
-        converter.Verify(c => c.Convert(It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
-    public async Task GetJobsAsync_SkipsBadMessages_WithoutImmediateCommit_WhenSomeSucceed()
+    public async Task GetJobsAsync_ReturnsRawBodies_AndOpensSession()
+    {
+        var data1 = Guid.NewGuid().ToString();
+        var data2 = Guid.NewGuid().ToString();
+
+        var message1 = CreateMessage("t:0:1", data1);
+        var message2 = CreateMessage("t:0:2", data2);
+
+        var kafkaMessageSource = new Mock<IKafkaMessageSource>(MockBehavior.Strict);
+        kafkaMessageSource.Setup(a => a.GetMessagesAsync(2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateResponse(message1, message2));
+
+        var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
+
+        var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            new NullLogger<KafkaJobSource>());
+
+        var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, response.Items.Count);
+        Assert.Equal(data1, response.Items[0].Body);
+        Assert.Equal(data2, response.Items[1].Body);
+        Assert.Equal("t:0:1", response.Items[0].MessageId);
+        Assert.Equal("t:0:2", response.Items[1].MessageId);
+        Assert.NotNull(jobSource.Session);
+        Assert.Equal(2, jobSource.Session.MessagesToProcess.Count);
+        Assert.Same(message1, jobSource.Session.MessagesToProcess[0]);
+        Assert.Same(message2, jobSource.Session.MessagesToProcess[1]);
+        consumerSource.Verify(s => s.GetConsumer(), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetJobsAsync_SkipsEmptyBodies_WithoutImmediateCommit_WhenSomeSucceed()
     {
         var data1 = Guid.NewGuid().ToString();
         var data2 = Guid.NewGuid().ToString();
         var data3 = Guid.NewGuid().ToString();
         var data4 = Guid.NewGuid().ToString();
-        var mock1 = new Mock<IJobDataModel>().Object;
 
         var message1 = CreateMessage("t:0:1", data1);
         var message2 = CreateMessage("t:0:2", data2);
@@ -383,34 +348,25 @@ public class KafkaJobSourceTests
         kafkaMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateResponse(message1, message2, message3, message4, emptyMessage));
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(data1)).Returns(mock1);
-        converter.Setup(c => c.Convert(data2)).Returns((IJobDataModel?) null);
-        converter.Setup(c => c.Convert(data3)).Throws(new Exception("Controlled Test Blast"));
-        // data4 unused because empty body is skipped before convert; message4 is still converted if value is non-empty
-        converter.Setup(c => c.Convert(data4)).Returns(new Mock<IJobDataModel>().Object);
-
         var consumer = new Mock<IKafkaConsumerWrapper>(MockBehavior.Strict);
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
 
         var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
-            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object, converter.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(5, TestContext.Current.CancellationToken);
 
-        // message1 converted, message2 null convert ignored, message3 exception->skipped
-        // message4 converted, and emptyMessage skipped for empty body
-        Assert.Equal(2, response.Items.Count);
-        Assert.Same(mock1, response.Items[0].Data);
+        Assert.Equal(4, response.Items.Count);
+        Assert.Equal(data1, response.Items[0].Body);
+        Assert.Equal(data4, response.Items[3].Body);
         Assert.NotNull(jobSource.Session);
-        Assert.Equal(2, jobSource.Session.MessagesToProcess.Count);
+        Assert.Equal(4, jobSource.Session.MessagesToProcess.Count);
         Assert.Same(message1, jobSource.Session.MessagesToProcess[0]);
-        Assert.Same(message4, jobSource.Session.MessagesToProcess[1]);
+        Assert.Same(message4, jobSource.Session.MessagesToProcess[3]);
         Assert.Equal(5, jobSource.Session.TotalMessages.Count);
 
-        // Mixed success/failure does not commit during GetJobsAsync
         consumer.Verify(c => c.CommitAsync(It.IsAny<List<IKafkaMessageContainer>>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -424,7 +380,6 @@ public class KafkaJobSourceTests
         kafkaMessageSource.Setup(a => a.GetMessagesAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateResponse(message));
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(new Mock<IKafkaConsumerWrapper>(MockBehavior.Strict).Object);
 
@@ -436,7 +391,7 @@ public class KafkaJobSourceTests
             .ThrowsAsync(failure);
 
         var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object, retry.Object,
-            converter.Object, new NullLogger<KafkaJobSource>());
+            new NullLogger<KafkaJobSource>());
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken));
@@ -451,10 +406,9 @@ public class KafkaJobSourceTests
             new Mock<IKafkaConsumerSource>().Object,
             new Mock<IKafkaMessageSource>().Object,
             KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new Mock<ISourceMessageConverter>().Object,
             new NullLogger<KafkaJobSource>());
 
         Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
-        await jobSource.HeartbeatAsync(new Mock<IJobModel>().Object, TestContext.Current.CancellationToken);
+        await jobSource.HeartbeatAsync(new Mock<IRawJobModel>().Object, TestContext.Current.CancellationToken);
     }
 }

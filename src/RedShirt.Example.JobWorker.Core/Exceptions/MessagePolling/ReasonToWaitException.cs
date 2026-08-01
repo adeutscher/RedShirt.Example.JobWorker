@@ -1,3 +1,3 @@
 namespace RedShirt.Example.JobWorker.Core.Exceptions;
 
-public class ReasonToWaitException : Exception;
+internal class ReasonToWaitException : Exception;

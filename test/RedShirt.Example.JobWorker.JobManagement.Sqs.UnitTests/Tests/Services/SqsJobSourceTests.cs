@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Models;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
@@ -34,21 +33,20 @@ public class SqsJobSourceTests
         var messageId1 = Guid.NewGuid().ToString();
         var receiptHandle1 = Guid.NewGuid().ToString();
         var data1 = Guid.NewGuid().ToString();
-        var mock1 = new Mock<IJobDataModel>().Object;
         var messageId2 = Guid.NewGuid().ToString();
         var receiptHandle2 = Guid.NewGuid().ToString();
         var data2 = Guid.NewGuid().ToString();
-        var mock2 = new Mock<IJobDataModel>().Object;
-
         var data3 = Guid.NewGuid().ToString();
-        var data3PoisonMessage = new Message
+        var data3Message = new Message
         {
+            MessageId = Guid.NewGuid().ToString(),
             ReceiptHandle = Guid.NewGuid().ToString(),
             Body = data3
         };
         var data4 = Guid.NewGuid().ToString();
-        var data4PoisonMessage = new Message
+        var data4Message = new Message
         {
+            MessageId = Guid.NewGuid().ToString(),
             ReceiptHandle = Guid.NewGuid().ToString(),
             Body = data4
         };
@@ -70,63 +68,35 @@ public class SqsJobSourceTests
                     ReceiptHandle = receiptHandle2,
                     Body = data2
                 },
-                data3PoisonMessage,
-                data4PoisonMessage
+                data3Message,
+                data4Message
             ]);
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(data1))
-            .Returns(mock1);
-        converter.Setup(c => c.Convert(data2))
-            .Returns(mock2);
-        converter.Setup(c => c.Convert(data3))
-            .Returns((IJobDataModel?) null);
-        converter.Setup(c => c.Convert(data4))
-            .Returns((string _) => throw new Exception());
-
         var poisonMessageHandler = new Mock<ISqsPoisonMessagesHandler>(MockBehavior.Strict);
-        poisonMessageHandler
-            .Setup(p => p.AttemptPoisonMessageEnforcementAsync(data3PoisonMessage, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        poisonMessageHandler
-            .Setup(p => p.AttemptPoisonMessageEnforcementAsync(data4PoisonMessage, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
 
         var queueUrl = Guid.NewGuid().ToString();
         const int visibilityTimeoutInSeconds = 100;
 
-        var source = new SqsJobSource(sqs.Object, sqsMessageSource.Object, converter.Object,
+        var source = new SqsJobSource(sqs.Object, sqsMessageSource.Object,
             poisonMessageHandler.Object, new NullLogger<SqsJobSource>(),
             Options.Create(CreateConfig(queueUrl, visibilityTimeoutInSeconds)));
 
         var response = await source.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
-        Assert.Equal(2, response.Items.Count);
+        Assert.Equal(4, response.Items.Count);
 
         sqs.Verify(a => a.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
         sqsMessageSource.Verify(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
         sqsMessageSource.Verify(a => a.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken), Times.Once);
 
-        converter.Verify(c => c.Convert(data1), Times.Once);
-        converter.Verify(c => c.Convert(data2), Times.Once);
-        converter.Verify(c => c.Convert(data3), Times.Once);
-        converter.Verify(c => c.Convert(data4), Times.Once);
-        poisonMessageHandler.Verify(
-            p => p.AttemptPoisonMessageEnforcementAsync(It.IsAny<Message>(), TestContext.Current.CancellationToken),
-            Times.Exactly(2));
-        poisonMessageHandler.Verify(
-            p => p.AttemptPoisonMessageEnforcementAsync(data3PoisonMessage, TestContext.Current.CancellationToken),
-            Times.Once);
-        poisonMessageHandler.Verify(
-            p => p.AttemptPoisonMessageEnforcementAsync(data4PoisonMessage, TestContext.Current.CancellationToken),
-            Times.Once);
-
         Assert.Equal(messageId1, response.Items[0].MessageId);
         Assert.Equal(receiptHandle1, (response.Items[0] as SqsJobModel)!.RawMessage.ReceiptHandle);
-        Assert.Same(mock1, response.Items[0].Data);
+        Assert.Equal(data1, response.Items[0].Body);
         Assert.Equal(messageId2, response.Items[1].MessageId);
         Assert.Equal(receiptHandle2, (response.Items[1] as SqsJobModel)!.RawMessage.ReceiptHandle);
-        Assert.Same(mock2, response.Items[1].Data);
+        Assert.Equal(data2, response.Items[1].Body);
+        Assert.Equal(data3, response.Items[2].Body);
+        Assert.Equal(data4, response.Items[3].Body);
     }
 
     [Fact]
@@ -134,7 +104,7 @@ public class SqsJobSourceTests
     {
         var options = CreateConfig(visibilityTimeoutSeconds: 20);
 
-        var jobSource = new SqsJobSource(null!, null!, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
+        var jobSource = new SqsJobSource(null!, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
             new NullLogger<SqsJobSource>(), Options.Create(options));
 
         Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
@@ -149,14 +119,14 @@ public class SqsJobSourceTests
         var poisonMessageHandler = new Mock<ISqsPoisonMessagesHandler>(MockBehavior.Strict);
         var config = CreateConfig();
 
-        var source = new SqsJobSource(sqs.Object, null!, null!, poisonMessageHandler.Object,
+        var source = new SqsJobSource(sqs.Object, null!, poisonMessageHandler.Object,
             new NullLogger<SqsJobSource>(), Options.Create(config));
 
         var job = new OutsideContextJobModel
         {
             MessageId = Guid.NewGuid().ToString(),
             CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object
+            Body = Guid.NewGuid().ToString()
         };
 
         await source.AcknowledgeCompletionAsync(job, success, TestContext.Current.CancellationToken);
@@ -175,7 +145,7 @@ public class SqsJobSourceTests
             .Returns(Task.CompletedTask);
 
         var config = CreateConfig();
-        var source = new SqsJobSource(sqs.Object, null!, null!, poisonMessageHandler.Object,
+        var source = new SqsJobSource(sqs.Object, null!, poisonMessageHandler.Object,
             new NullLogger<SqsJobSource>(), Options.Create(config));
 
         var rawMessage = new Message {ReceiptHandle = Guid.NewGuid().ToString()};
@@ -183,7 +153,7 @@ public class SqsJobSourceTests
         {
             MessageId = rawMessage.ReceiptHandle,
             CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object,
+            Body = Guid.NewGuid().ToString(),
             RawMessage = rawMessage
         };
 
@@ -202,7 +172,7 @@ public class SqsJobSourceTests
         var poisonMessageHandler = new Mock<ISqsPoisonMessagesHandler>();
         var config = CreateConfig();
 
-        var source = new SqsJobSource(sqs.Object, null!, null!, poisonMessageHandler.Object,
+        var source = new SqsJobSource(sqs.Object, null!, poisonMessageHandler.Object,
             new NullLogger<SqsJobSource>(), Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
@@ -211,7 +181,7 @@ public class SqsJobSourceTests
         {
             MessageId = messageId,
             CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object,
+            Body = Guid.NewGuid().ToString(),
             RawMessage = new Message {ReceiptHandle = receiptHandle}
         };
 
@@ -249,7 +219,7 @@ public class SqsJobSourceTests
             });
 
         var config = CreateConfig(visibilityTimeoutSeconds: timeoutSeconds);
-        var source = new SqsJobSource(sqs.Object, null!, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
+        var source = new SqsJobSource(sqs.Object, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
             new NullLogger<SqsJobSource>(), Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
@@ -262,7 +232,7 @@ public class SqsJobSourceTests
             {
                 ReceiptHandle = receiptHandle
             },
-            Data = null!
+            Body = Guid.NewGuid().ToString()
         };
 
         await source.HeartbeatAsync(job, TestContext.Current.CancellationToken);
@@ -297,7 +267,7 @@ public class SqsJobSourceTests
             });
 
         var config = CreateConfig(visibilityTimeoutSeconds: timeoutSeconds);
-        var source = new SqsJobSource(sqs.Object, null!, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
+        var source = new SqsJobSource(sqs.Object, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
             new NullLogger<SqsJobSource>(), Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
@@ -310,7 +280,7 @@ public class SqsJobSourceTests
             {
                 ReceiptHandle = receiptHandle
             },
-            Data = null!
+            Body = Guid.NewGuid().ToString()
         };
 
         var ex = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
@@ -340,14 +310,14 @@ public class SqsJobSourceTests
         var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
         var config = CreateConfig(visibilityTimeoutSeconds: 30);
 
-        var source = new SqsJobSource(sqs.Object, null!, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
+        var source = new SqsJobSource(sqs.Object, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
             new NullLogger<SqsJobSource>(), Options.Create(config));
 
         var job = new OutsideContextJobModel
         {
             MessageId = Guid.NewGuid().ToString(),
             CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object
+            Body = Guid.NewGuid().ToString()
         };
 
         await source.HeartbeatAsync(job, TestContext.Current.CancellationToken);
@@ -358,16 +328,16 @@ public class SqsJobSourceTests
     public class OutsideContextJobModelTests
     {
         [Fact]
-        public void ImplementsIJobModel()
+        public void ImplementsIRawJobModel()
         {
             var model = new OutsideContextJobModel
             {
                 MessageId = Guid.NewGuid().ToString(),
                 CreatedAtUtc = DateTime.UtcNow,
-                Data = new Mock<IJobDataModel>().Object
+                Body = Guid.NewGuid().ToString()
             };
 
-            Assert.IsType<IJobModel>(model, false);
+            Assert.IsType<IRawJobModel>(model, false);
         }
 
         [Fact]
@@ -375,33 +345,33 @@ public class SqsJobSourceTests
         {
             var messageId = Guid.NewGuid().ToString();
             var date = DateTime.UtcNow - TimeSpan.FromDays(1);
-            var data = new Mock<IJobDataModel>(MockBehavior.Strict);
+            var body = Guid.NewGuid().ToString();
 
             var model = new OutsideContextJobModel
             {
                 MessageId = messageId,
                 CreatedAtUtc = date,
-                Data = data.Object
+                Body = body
             };
 
             Assert.Equal(messageId, model.MessageId);
             Assert.Equal(messageId, model.IdempotencyId);
             Assert.Equal(date, model.CreatedAtUtc);
-            Assert.Same(data.Object, model.Data);
+            Assert.Equal(body, model.Body);
         }
     }
 
     /// <summary>
-    ///     Stand-in IJobModel that is not an <see cref="SqsJobModel" />, used to exercise
+    ///     Stand-in IRawJobModel that is not an <see cref="SqsJobModel" />, used to exercise
     ///     SqsJobSource paths that ignore messages from outside this job source.
     /// </summary>
-    private class OutsideContextJobModel : IJobModel
+    private class OutsideContextJobModel : IRawJobModel
     {
         public required string MessageId { get; init; }
 
         // ReSharper disable once ReturnTypeCanBeNotNullable
         public string? IdempotencyId => MessageId;
         public required DateTime CreatedAtUtc { get; init; }
-        public required IJobDataModel Data { get; init; }
+        public required string? Body { get; init; }
     }
 }

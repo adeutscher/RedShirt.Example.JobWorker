@@ -17,12 +17,9 @@ public class SafeJobAcknowledgementServiceTests
         return sleepService.Object;
     }
 
-    private static (Mock<IJobRepositoryEntry> Entry, Mock<IJobModel> JobModel) CreateJob()
+    private static Mock<IRawJobModel> CreateRawJob()
     {
-        var jobModel = new Mock<IJobModel>(MockBehavior.Strict);
-        var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
-        entry.Setup(e => e.JobModel).Returns(jobModel.Object);
-        return (entry, jobModel);
+        return TestJobHelpers.CreateRawJobModel();
     }
 
     [Theory]
@@ -30,44 +27,60 @@ public class SafeJobAcknowledgementServiceTests
     [InlineData(false)]
     public async Task AcknowledgeSafelyAsync_WhenJobSourceSucceeds_ReturnsTrue(bool success)
     {
-        var (entry, jobModel) = CreateJob();
+        var rawJobModel = CreateRawJob();
+
+        var jobFailureHandler = new Mock<IJobFailureHandler>(MockBehavior.Strict);
+        if (!success)
+        {
+            jobFailureHandler
+                .Setup(h => h.HandleFailureAsync(rawJobModel.Object, null, TestContext.Current.CancellationToken))
+                .Returns(Task.CompletedTask);
+        }
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
-            .Setup(s => s.AcknowledgeCompletionAsync(jobModel.Object, success, TestContext.Current.CancellationToken))
+            .Setup(s => s.AcknowledgeCompletionAsync(rawJobModel.Object, success,
+                TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
-        var service = new SafeJobAcknowledgementService(jobSource.Object, CreateSleepService(),
-            new NullLogger<SafeJobAcknowledgementService>());
+        var service = new SafeJobAcknowledgementService(jobSource.Object, jobFailureHandler.Object,
+            CreateSleepService(), new NullLogger<SafeJobAcknowledgementService>());
 
-        var result = await service.AcknowledgeSafelyAsync(entry.Object, success, TestContext.Current.CancellationToken);
+        var result = await service.AcknowledgeSafelyAsync(rawJobModel.Object, success,
+            cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result);
+        Assert.True(result.Success);
         jobSource.Verify(
-            s => s.AcknowledgeCompletionAsync(jobModel.Object, success, TestContext.Current.CancellationToken),
+            s => s.AcknowledgeCompletionAsync(rawJobModel.Object, success, TestContext.Current.CancellationToken),
             Times.Once);
     }
 
     [Fact]
     public async Task AcknowledgeSafelyAsync_WhenPermanentFailure_ReturnsFalseWithoutRetry()
     {
-        var (entry, jobModel) = CreateJob();
+        var rawJobModel = CreateRawJob();
+
+        var jobFailureHandler = new Mock<IJobFailureHandler>(MockBehavior.Strict);
+        jobFailureHandler
+            .Setup(h => h.HandleFailureAsync(rawJobModel.Object, null, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
-            .Setup(s => s.AcknowledgeCompletionAsync(jobModel.Object, false, TestContext.Current.CancellationToken))
+            .Setup(s => s.AcknowledgeCompletionAsync(rawJobModel.Object, false, TestContext.Current.CancellationToken))
             .ThrowsAsync(new WorkerJobSourceException(new Exception("permanent"), false));
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
 
-        var service = new SafeJobAcknowledgementService(jobSource.Object, sleepService.Object,
+        var service = new SafeJobAcknowledgementService(jobSource.Object, jobFailureHandler.Object, sleepService.Object,
             new NullLogger<SafeJobAcknowledgementService>());
 
-        var result = await service.AcknowledgeSafelyAsync(entry.Object, false, TestContext.Current.CancellationToken);
+        var result = await service.AcknowledgeSafelyAsync(rawJobModel.Object, false,
+            cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.False(result);
+        Assert.False(result.Success);
         jobSource.Verify(
-            s => s.AcknowledgeCompletionAsync(jobModel.Object, false, TestContext.Current.CancellationToken),
+            s => s.AcknowledgeCompletionAsync(rawJobModel.Object, false, TestContext.Current.CancellationToken),
             Times.Once);
         Assert.Empty(sleepService.Invocations);
     }
@@ -75,12 +88,12 @@ public class SafeJobAcknowledgementServiceTests
     [Fact]
     public async Task AcknowledgeSafelyAsync_WhenTransientFailureThenSucceeds_RetriesAndReturnsTrue()
     {
-        var (entry, jobModel) = CreateJob();
+        var rawJobModel = CreateRawJob();
         var attempts = 0;
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
-            .Setup(s => s.AcknowledgeCompletionAsync(jobModel.Object, true, TestContext.Current.CancellationToken))
+            .Setup(s => s.AcknowledgeCompletionAsync(rawJobModel.Object, true, TestContext.Current.CancellationToken))
             .Returns(() =>
             {
                 attempts++;
@@ -97,12 +110,14 @@ public class SafeJobAcknowledgementServiceTests
             .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var service = new SafeJobAcknowledgementService(jobSource.Object, sleepService.Object,
+        var service = new SafeJobAcknowledgementService(jobSource.Object,
+            new Mock<IJobFailureHandler>(MockBehavior.Strict).Object, sleepService.Object,
             new NullLogger<SafeJobAcknowledgementService>());
 
-        var result = await service.AcknowledgeSafelyAsync(entry.Object, true, TestContext.Current.CancellationToken);
+        var result = await service.AcknowledgeSafelyAsync(rawJobModel.Object, true,
+            cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result);
+        Assert.True(result.Success);
         Assert.Equal(3, attempts);
         sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(2), default), Times.Once);
         sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(4), default), Times.Once);
@@ -111,11 +126,11 @@ public class SafeJobAcknowledgementServiceTests
     [Fact]
     public async Task AcknowledgeSafelyAsync_WhenTransientFailuresExhaustRetries_ReturnsFalse()
     {
-        var (entry, jobModel) = CreateJob();
+        var rawJobModel = CreateRawJob();
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
-            .Setup(s => s.AcknowledgeCompletionAsync(jobModel.Object, true, TestContext.Current.CancellationToken))
+            .Setup(s => s.AcknowledgeCompletionAsync(rawJobModel.Object, true, TestContext.Current.CancellationToken))
             .ThrowsAsync(new WorkerJobSourceException(new Exception("transient"), false, true));
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
@@ -123,15 +138,16 @@ public class SafeJobAcknowledgementServiceTests
             .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var service = new SafeJobAcknowledgementService(jobSource.Object, sleepService.Object,
+        var service = new SafeJobAcknowledgementService(jobSource.Object,
+            new Mock<IJobFailureHandler>(MockBehavior.Strict).Object, sleepService.Object,
             new NullLogger<SafeJobAcknowledgementService>());
 
-        var result = await service.AcknowledgeSafelyAsync(entry.Object, true, TestContext.Current.CancellationToken);
+        var result = await service.AcknowledgeSafelyAsync(rawJobModel.Object, true,
+            cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.False(result);
-        // Initial attempt + Globals.AcknowledgementRetryCount retries
+        Assert.False(result.Success);
         jobSource.Verify(
-            s => s.AcknowledgeCompletionAsync(jobModel.Object, true, TestContext.Current.CancellationToken),
+            s => s.AcknowledgeCompletionAsync(rawJobModel.Object, true, TestContext.Current.CancellationToken),
             Times.Exactly(Globals.AcknowledgementRetryCount + 1));
         sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
             Times.Exactly(Globals.AcknowledgementRetryCount));
@@ -140,17 +156,19 @@ public class SafeJobAcknowledgementServiceTests
     [Fact]
     public async Task AcknowledgeSafelyAsync_WhenUnplannedException_BubblesUp()
     {
-        var (entry, jobModel) = CreateJob();
+        var rawJobModel = CreateRawJob();
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
-            .Setup(s => s.AcknowledgeCompletionAsync(jobModel.Object, true, TestContext.Current.CancellationToken))
+            .Setup(s => s.AcknowledgeCompletionAsync(rawJobModel.Object, true, TestContext.Current.CancellationToken))
             .ThrowsAsync(new InvalidOperationException("unexpected"));
 
-        var service = new SafeJobAcknowledgementService(jobSource.Object, CreateSleepService(),
+        var service = new SafeJobAcknowledgementService(jobSource.Object,
+            new Mock<IJobFailureHandler>(MockBehavior.Strict).Object, CreateSleepService(),
             new NullLogger<SafeJobAcknowledgementService>());
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.AcknowledgeSafelyAsync(entry.Object, true, TestContext.Current.CancellationToken));
+            service.AcknowledgeSafelyAsync(rawJobModel.Object, true,
+                cancellationToken: TestContext.Current.CancellationToken));
     }
 }

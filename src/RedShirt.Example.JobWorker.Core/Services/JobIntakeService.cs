@@ -15,7 +15,7 @@ internal class JobIntakeService(
     ISourceMessageConverter sourceMessageConverter,
     ISafeJobAcknowledgementService safeJobAcknowledgementService,
     IIdempotencyExecutionService idempotencyExecutionService,
-    ILogger<JobIntakeService> logger)
+    ILogger<JobIntakeService> logger) : IJobIntakeService
 {
     private bool ConvertData(IRawJobModel input, out IJobDataModel? convertedData, out Exception? exception)
     {

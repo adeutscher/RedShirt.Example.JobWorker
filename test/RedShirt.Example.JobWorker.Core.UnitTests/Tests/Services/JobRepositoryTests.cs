@@ -27,10 +27,7 @@ public class JobRepositoryTests
                 BacklogSize = 0
             }));
 
-        await jobRepository.LoadAsync(new JobSourceResponse
-        {
-            Items = []
-        }, TestContext.Current.CancellationToken);
+        await jobRepository.LoadAsync([], TestContext.Current.CancellationToken);
 
         Assert.Empty(jobRepository.WatchedJobs);
         Assert.Empty(sorter.Invocations);
@@ -62,10 +59,8 @@ public class JobRepositoryTests
         var unblockedModel = new Mock<IJobModel>(MockBehavior.Strict);
         unblockedModel.Setup(m => m.MessageId).Returns("unblocked");
 
-        await jobRepository.LoadAsync(new JobSourceResponse
-        {
-            Items = [queuedModel.Object]
-        }, TestContext.Current.CancellationToken);
+        await jobRepository.LoadAsync(TestJobHelpers.EnvelopesFromJobModels(queuedModel.Object),
+            TestContext.Current.CancellationToken);
 
         var blockedEntry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         blockedEntry.Setup(e => e.JobModel).Returns(unblockedModel.Object);
@@ -379,10 +374,7 @@ public class JobRepositoryTests
             sorter.Object,
             Options.Create(options));
 
-        var response = new JobSourceResponse
-        {
-            Items = []
-        };
+        var envelopes = new List<IJobEnvelope>();
 
         var items = new List<Mock<IJobModel>>();
 
@@ -391,10 +383,10 @@ public class JobRepositoryTests
             var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
             currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
             items.Add(currentItem);
-            response.Items.Add(currentItem.Object);
+            envelopes.Add(TestJobHelpers.CreateEnvelope(currentItem));
         }
 
-        await jobRepository.LoadAsync(response, TestContext.Current.CancellationToken);
+        await jobRepository.LoadAsync(envelopes, TestContext.Current.CancellationToken);
 
         Assert.Equal(responseSize, jobRepository.WatchedJobs.Count);
         for (var i = 0; i < responseSize; i++)
@@ -445,10 +437,7 @@ public class JobRepositoryTests
             sorter.Object,
             Options.Create(options));
 
-        var response = new JobSourceResponse
-        {
-            Items = []
-        };
+        var envelopes = new List<IJobEnvelope>();
 
         var mockJobs = new List<Mock<IJobModel>>();
 
@@ -457,14 +446,14 @@ public class JobRepositoryTests
             var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
             currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
             mockJobs.Add(currentItem);
-            response.Items.Add(currentItem.Object);
+            envelopes.Add(TestJobHelpers.CreateEnvelope(currentItem));
         }
 
         // Notably doing this BEFORE loading in jobs
         // Also intentionally not awaiting it just yet
         var getJobTask = Task.Run(() => jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken));
 
-        await jobRepository.LoadAsync(response, TestContext.Current.CancellationToken);
+        await jobRepository.LoadAsync(envelopes, TestContext.Current.CancellationToken);
 
         Assert.Equal(responseSize, jobRepository.WatchedJobs.Count);
         for (var i = 0; i < responseSize; i++)
@@ -514,10 +503,7 @@ public class JobRepositoryTests
             sorter.Object,
             Options.Create(options));
 
-        var response = new JobSourceResponse
-        {
-            Items = []
-        };
+        var envelopes = new List<IJobEnvelope>();
 
         var mockJobs = new List<Mock<IJobModel>>();
 
@@ -528,14 +514,14 @@ public class JobRepositoryTests
             var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
             currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
             mockJobs.Add(currentItem);
-            response.Items.Add(currentItem.Object);
+            envelopes.Add(TestJobHelpers.CreateEnvelope(currentItem));
         }
 
         // Notably doing this BEFORE loading in jobs
         // Also intentionally not awaiting it just yet
         var getJobTask = Task.Run(() => jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken));
 
-        await jobRepository.LoadAsync(response, TestContext.Current.CancellationToken);
+        await jobRepository.LoadAsync(envelopes, TestContext.Current.CancellationToken);
 
         Assert.Equal(responseSize, jobRepository.WatchedJobs.Count);
         for (var i = 0; i < responseSize; i++)
@@ -608,10 +594,7 @@ public class JobRepositoryTests
             sorter.Object,
             Options.Create(options));
 
-        var response = new JobSourceResponse
-        {
-            Items = []
-        };
+        var envelopes = new List<IJobEnvelope>();
 
         var mockJobs = new List<Mock<IJobModel>>();
 
@@ -622,7 +605,7 @@ public class JobRepositoryTests
             var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
             currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
             mockJobs.Add(currentItem);
-            response.Items.Add(currentItem.Object);
+            envelopes.Add(TestJobHelpers.CreateEnvelope(currentItem));
         }
 
         // Notably doing this BEFORE loading in jobs
@@ -648,7 +631,7 @@ public class JobRepositoryTests
             getJobTask3
         };
 
-        await jobRepository.LoadAsync(response, TestContext.Current.CancellationToken);
+        await jobRepository.LoadAsync(envelopes, TestContext.Current.CancellationToken);
 
         Assert.Single(jobRepository.WatchedJobs);
         for (var i = 0; i < responseSize; i++)
@@ -734,10 +717,7 @@ public class JobRepositoryTests
             sorter.Object,
             Options.Create(options));
 
-        var response = new JobSourceResponse
-        {
-            Items = []
-        };
+        var envelopes = new List<IJobEnvelope>();
 
         var mockJobs = new List<Mock<IJobModel>>();
 
@@ -748,14 +728,14 @@ public class JobRepositoryTests
             var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
             currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
             mockJobs.Add(currentItem);
-            response.Items.Add(currentItem.Object);
+            envelopes.Add(TestJobHelpers.CreateEnvelope(currentItem));
         }
 
         // Notably doing this BEFORE loading in jobs
         // Also intentionally not awaiting it just yet
         var getJobTask = Task.Run(() => jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken));
 
-        await jobRepository.LoadAsync(response, TestContext.Current.CancellationToken);
+        await jobRepository.LoadAsync(envelopes, TestContext.Current.CancellationToken);
 
         Assert.Single(jobRepository.WatchedJobs);
         for (var i = 0; i < responseSize; i++)
@@ -829,10 +809,7 @@ public class JobRepositoryTests
             sorter.Object,
             Options.Create(options));
 
-        var response = new JobSourceResponse
-        {
-            Items = []
-        };
+        var envelopes = new List<IJobEnvelope>();
 
         var items = new List<Mock<IJobModel>>();
         var jobIdentifiersTracked = new HashSet<string>();
@@ -844,7 +821,7 @@ public class JobRepositoryTests
             currentItem.Setup(ci => ci.MessageId).Returns(currentId);
             jobIdentifiersTracked.Add(currentId);
             items.Add(currentItem);
-            response.Items.Add(currentItem.Object);
+            envelopes.Add(TestJobHelpers.CreateEnvelope(currentItem));
         }
 
         // Compile a list of retrieved jobs
@@ -867,7 +844,7 @@ public class JobRepositoryTests
             return jobs;
         });
 
-        await jobRepository.LoadAsync(response, TestContext.Current.CancellationToken);
+        await jobRepository.LoadAsync(envelopes, TestContext.Current.CancellationToken);
 
         Assert.Equal(responseSize, jobRepository.WatchedJobs.Count);
         for (var i = 0; i < responseSize; i++)
@@ -933,10 +910,7 @@ public class JobRepositoryTests
             sorter.Object,
             Options.Create(options));
 
-        var response = new JobSourceResponse
-        {
-            Items = []
-        };
+        var envelopes = new List<IJobEnvelope>();
 
         var mockJobs = new List<Mock<IJobModel>>();
 
@@ -945,10 +919,10 @@ public class JobRepositoryTests
             var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
             currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
             mockJobs.Add(currentItem);
-            response.Items.Add(currentItem.Object);
+            envelopes.Add(TestJobHelpers.CreateEnvelope(currentItem));
         }
 
-        await jobRepository.LoadAsync(response, TestContext.Current.CancellationToken);
+        await jobRepository.LoadAsync(envelopes, TestContext.Current.CancellationToken);
 
         Assert.Equal(responseSize, jobRepository.WatchedJobs.Count);
         for (var i = 0; i < responseSize; i++)
@@ -1151,10 +1125,8 @@ public class JobRepositoryTests
         var jobModel2 = new Mock<IJobModel>(MockBehavior.Strict);
         jobModel2.Setup(m => m.MessageId).Returns(Guid.NewGuid().ToString());
 
-        await jobRepository.LoadAsync(new JobSourceResponse
-        {
-            Items = [jobModel1.Object, jobModel2.Object]
-        }, TestContext.Current.CancellationToken);
+        await jobRepository.LoadAsync(TestJobHelpers.EnvelopesFromJobModels(jobModel1.Object, jobModel2.Object),
+            TestContext.Current.CancellationToken);
 
         Assert.Equal(2, await jobRepository.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken));
 
@@ -1202,10 +1174,8 @@ public class JobRepositoryTests
         var jobModel = new Mock<IJobModel>(MockBehavior.Strict);
         jobModel.Setup(m => m.MessageId).Returns(Guid.NewGuid().ToString());
 
-        await jobRepository.LoadAsync(new JobSourceResponse
-        {
-            Items = [jobModel.Object]
-        }, TestContext.Current.CancellationToken);
+        await jobRepository.LoadAsync(TestJobHelpers.EnvelopesFromJobModels(jobModel.Object),
+            TestContext.Current.CancellationToken);
 
         using var cts = new CancellationTokenSource();
         var waitTask = jobRepository.WaitForEmptyRepositoryAsync(cts.Token);

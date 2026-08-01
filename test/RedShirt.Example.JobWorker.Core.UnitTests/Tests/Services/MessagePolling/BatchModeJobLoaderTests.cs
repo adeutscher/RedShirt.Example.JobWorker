@@ -7,6 +7,7 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Intake;
 using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.MessagePolling;
@@ -22,30 +23,36 @@ public class BatchModeJobLoaderTests
         return sleepService;
     }
 
-    private static BatchModeJobLoader CreateLoader(
+    private static (Mock<IJobLoaderStateService> StateService, IJobLoaderLoop Loop) CreateJobLoaderLoop(
         IExecutionEndArbiter executionEndArbiter,
-        IJobLoaderStateService jobLoaderStateService,
+        Mock<ISleepService>? sleepService = null,
+        int maxIdleWaitSeconds = 1)
+    {
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
+        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+        var loop = TestJobHelpers.CreateJobLoaderLoop(
+            jobLoaderStateService.Object,
+            executionEndArbiter,
+            (sleepService ?? CreateSleepService()).Object,
+            maxIdleWaitSeconds);
+        return (jobLoaderStateService, loop);
+    }
+
+    private static BatchModeJobLoader CreateLoader(
+        IJobLoaderLoop jobLoaderLoop,
         IJobRepository jobRepository,
         IJobSource jobSource,
-        int batchSize = 10,
-        int maxIdleWaitSeconds = 1,
-        ISleepService? sleepService = null)
+        IJobIntakeService jobIntakeService,
+        int batchSize = 10)
     {
         return new BatchModeJobLoader(
-            executionEndArbiter,
-            jobLoaderStateService,
-            jobRepository,
             jobSource,
+            jobRepository,
+            jobIntakeService,
             new NullLogger<BatchModeJobLoader>(),
-            Options.Create(new JobSourceConfigurationModel
-            {
-                BatchSize = batchSize
-            }),
-            Options.Create(new LoopOptionsConfigurationModel
-            {
-                MaxIdleWaitSeconds = maxIdleWaitSeconds
-            }),
-            sleepService ?? CreateSleepService().Object);
+            Options.Create(new JobSourceConfigurationModel {BatchSize = batchSize}),
+            jobLoaderLoop);
     }
 
     [Fact]
@@ -54,9 +61,7 @@ public class BatchModeJobLoaderTests
         var executionEndArbiter = new Mock<IExecutionEndArbiter>();
         executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
-        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
-        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+        var (jobLoaderStateService, jobLoaderLoop) = CreateJobLoaderLoop(executionEndArbiter.Object);
 
         var critical = new WorkerJobSourceException("auth failed");
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
@@ -65,10 +70,10 @@ public class BatchModeJobLoaderTests
             .ThrowsAsync(critical);
 
         var loader = CreateLoader(
-            executionEndArbiter.Object,
-            jobLoaderStateService.Object,
+            jobLoaderLoop,
             new Mock<IJobRepository>(MockBehavior.Strict).Object,
-            jobSource.Object);
+            jobSource.Object,
+            new Mock<IJobIntakeService>(MockBehavior.Strict).Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             loader.RunAsync(TestContext.Current.CancellationToken));
@@ -81,27 +86,20 @@ public class BatchModeJobLoaderTests
     public async Task DoesNotStartProcessingWhenAlreadyStopping()
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        executionEndArbiter
-            .Setup(a => a.ShouldKeepRunning())
-            .Returns(false);
+        executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(false);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
-        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
-        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+        var (jobLoaderStateService, jobLoaderLoop) = CreateJobLoaderLoop(executionEndArbiter.Object);
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
 
-        var loader = CreateLoader(
-            executionEndArbiter.Object,
-            jobLoaderStateService.Object,
-            jobRepository.Object,
-            jobSource.Object);
+        var loader = CreateLoader(jobLoaderLoop, jobRepository.Object, jobSource.Object, jobIntakeService.Object);
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
         jobSource.Verify(s => s.GetJobsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
-        jobRepository.Verify(r => r.LoadAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()),
+        jobIntakeService.Verify(s => s.SubmitAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()),
             Times.Never);
         jobRepository.Verify(r => r.WaitForEmptyRepositoryAsync(It.IsAny<CancellationToken>()), Times.Never);
         jobLoaderStateService.Verify(s => s.ReportLoaderStart(), Times.Once);
@@ -111,15 +109,12 @@ public class BatchModeJobLoaderTests
     [Fact]
     public async Task EmptySourceExitsCleanlyWhenExecutionEnds()
     {
-        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
         var keepRunning = true;
-        executionEndArbiter
-            .Setup(a => a.ShouldKeepRunning())
-            .Returns(() => keepRunning);
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>();
+        executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(() => keepRunning);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
-        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
-        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+        var sleepService = CreateSleepService();
+        var (jobLoaderStateService, jobLoaderLoop) = CreateJobLoaderLoop(executionEndArbiter.Object, sleepService);
 
         var getJobsCount = 0;
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
@@ -130,34 +125,27 @@ public class BatchModeJobLoaderTests
                 getJobsCount++;
                 if (getJobsCount >= 2)
                 {
-                    // On the retry predicate after the next NoJobException, stop handling/retrying.
                     keepRunning = false;
                 }
 
-                return new JobSourceResponse
-                {
-                    Items = []
-                };
+                return new JobSourceResponse {Items = []};
             });
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        var sleepService = CreateSleepService();
+        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
 
         var loader = CreateLoader(
-            executionEndArbiter.Object,
-            jobLoaderStateService.Object,
-            jobRepository.Object,
+            jobLoaderLoop,
+            new Mock<IJobRepository>(MockBehavior.Strict).Object,
             jobSource.Object,
-            sleepService: sleepService.Object);
+            jobIntakeService.Object);
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.True(getJobsCount >= 2);
         sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), TestContext.Current.CancellationToken),
             Times.AtLeastOnce);
-        jobRepository.Verify(r => r.LoadAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()),
+        jobIntakeService.Verify(s => s.SubmitAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()),
             Times.Never);
-        jobRepository.Verify(r => r.WaitForEmptyRepositoryAsync(It.IsAny<CancellationToken>()), Times.Never);
         jobLoaderStateService.Verify(s => s.ReportLoaderStart(), Times.Once);
         jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Once);
     }
@@ -175,14 +163,10 @@ public class BatchModeJobLoaderTests
                 return arbiterInvocationsRemaining >= 0;
             });
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
-        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
-        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+        var sleepService = CreateSleepService();
+        var (jobLoaderStateService, jobLoaderLoop) = CreateJobLoaderLoop(executionEndArbiter.Object, sleepService);
 
-        var response = new JobSourceResponse
-        {
-            Items = [new Mock<IJobModel>().Object]
-        };
+        var response = TestJobHelpers.CreateJobSourceResponse(TestJobHelpers.CreateRawJobModel().Object);
 
         var getJobsCount = 0;
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
@@ -193,40 +177,31 @@ public class BatchModeJobLoaderTests
                 getJobsCount++;
                 if (getJobsCount < 3)
                 {
-                    return new JobSourceResponse
-                    {
-                        Items = []
-                    };
+                    return new JobSourceResponse {Items = []};
                 }
 
-                // Stop the outer loop after this successful batch finishes.
                 arbiterInvocationsRemaining = 0;
                 return response;
             });
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.LoadAsync(response, TestContext.Current.CancellationToken))
+        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
+        jobIntakeService
+            .Setup(s => s.SubmitAsync(response, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         jobRepository
             .Setup(r => r.WaitForEmptyRepositoryAsync(TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
-        var sleepService = CreateSleepService();
-
-        var loader = CreateLoader(
-            executionEndArbiter.Object,
-            jobLoaderStateService.Object,
-            jobRepository.Object,
-            jobSource.Object,
-            sleepService: sleepService.Object);
+        var loader = CreateLoader(jobLoaderLoop, jobRepository.Object, jobSource.Object, jobIntakeService.Object);
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(3, getJobsCount);
         sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), TestContext.Current.CancellationToken),
             Times.Exactly(2));
-        jobRepository.Verify(r => r.LoadAsync(response, TestContext.Current.CancellationToken), Times.Once);
+        jobIntakeService.Verify(s => s.SubmitAsync(response, TestContext.Current.CancellationToken), Times.Once);
         jobRepository.Verify(r => r.WaitForEmptyRepositoryAsync(TestContext.Current.CancellationToken), Times.Once);
         jobLoaderStateService.Verify(s => s.ReportLoaderStart(), Times.Once);
         jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Once);
@@ -238,10 +213,6 @@ public class BatchModeJobLoaderTests
         var keepRunning = true;
         var executionEndArbiter = new Mock<IExecutionEndArbiter>();
         executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(() => keepRunning);
-
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
-        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
-        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
 
         var delays = new List<TimeSpan>();
         var sleepService = CreateSleepService();
@@ -258,18 +229,18 @@ public class BatchModeJobLoaderTests
                 return Task.CompletedTask;
             });
 
+        var (_, jobLoaderLoop) = CreateJobLoaderLoop(executionEndArbiter.Object, sleepService, 3);
+
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
             .Setup(s => s.GetJobsAsync(10, TestContext.Current.CancellationToken))
             .ReturnsAsync(new JobSourceResponse {Items = []});
 
         var loader = CreateLoader(
-            executionEndArbiter.Object,
-            jobLoaderStateService.Object,
+            jobLoaderLoop,
             new Mock<IJobRepository>(MockBehavior.Strict).Object,
             jobSource.Object,
-            maxIdleWaitSeconds: 3,
-            sleepService: sleepService.Object);
+            new Mock<IJobIntakeService>(MockBehavior.Strict).Object);
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
@@ -297,42 +268,36 @@ public class BatchModeJobLoaderTests
                 return arbiterInvocationsRemaining > 0;
             });
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
-        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
-        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+        var (jobLoaderStateService, jobLoaderLoop) = CreateJobLoaderLoop(executionEndArbiter.Object);
 
-        var response = new JobSourceResponse
-        {
-            Items =
-            [
-                new Mock<IJobModel>().Object
-            ]
-        };
+        var response = TestJobHelpers.CreateJobSourceResponse(TestJobHelpers.CreateRawJobModel().Object);
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
             .Setup(s => s.GetJobsAsync(expectedBatchSize, TestContext.Current.CancellationToken))
             .ReturnsAsync(response);
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.LoadAsync(response, TestContext.Current.CancellationToken))
+        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
+        jobIntakeService
+            .Setup(s => s.SubmitAsync(response, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         jobRepository
             .Setup(r => r.WaitForEmptyRepositoryAsync(TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
         var loader = CreateLoader(
-            executionEndArbiter.Object,
-            jobLoaderStateService.Object,
+            jobLoaderLoop,
             jobRepository.Object,
             jobSource.Object,
+            jobIntakeService.Object,
             configuredBatchSize);
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
         jobSource.Verify(s => s.GetJobsAsync(expectedBatchSize, TestContext.Current.CancellationToken), Times.Once);
-        jobRepository.Verify(r => r.LoadAsync(response, TestContext.Current.CancellationToken), Times.Once);
+        jobIntakeService.Verify(s => s.SubmitAsync(response, TestContext.Current.CancellationToken), Times.Once);
         jobRepository.Verify(r => r.WaitForEmptyRepositoryAsync(TestContext.Current.CancellationToken), Times.Once);
         jobLoaderStateService.Verify(s => s.ReportLoaderStart(), Times.Once);
         jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Once);
@@ -344,9 +309,7 @@ public class BatchModeJobLoaderTests
         var executionEndArbiter = new Mock<IExecutionEndArbiter>();
         executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
-        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
-        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+        var (_, jobLoaderLoop) = CreateJobLoaderLoop(executionEndArbiter.Object);
 
         var permanent = new WorkerJobSourceException("unknown topic", false);
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
@@ -355,18 +318,15 @@ public class BatchModeJobLoaderTests
             .ThrowsAsync(permanent);
 
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
 
-        var loader = CreateLoader(
-            executionEndArbiter.Object,
-            jobLoaderStateService.Object,
-            jobRepository.Object,
-            jobSource.Object);
+        var loader = CreateLoader(jobLoaderLoop, jobRepository.Object, jobSource.Object, jobIntakeService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             loader.RunAsync(TestContext.Current.CancellationToken));
 
         Assert.Same(permanent, thrown);
-        jobRepository.Verify(r => r.LoadAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()),
+        jobIntakeService.Verify(s => s.SubmitAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()),
             Times.Never);
         jobRepository.Verify(r => r.WaitForEmptyRepositoryAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -384,22 +344,12 @@ public class BatchModeJobLoaderTests
                 return arbiterInvocationsRemaining > 0;
             });
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
-        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
-        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+        var (jobLoaderStateService, jobLoaderLoop) = CreateJobLoaderLoop(executionEndArbiter.Object);
 
-        var firstBatch = new JobSourceResponse
-        {
-            Items = [new Mock<IJobModel>().Object]
-        };
-        var secondBatch = new JobSourceResponse
-        {
-            Items =
-            [
-                new Mock<IJobModel>().Object,
-                new Mock<IJobModel>().Object
-            ]
-        };
+        var firstBatch = TestJobHelpers.CreateJobSourceResponse(TestJobHelpers.CreateRawJobModel().Object);
+        var secondBatch = TestJobHelpers.CreateJobSourceResponse(
+            TestJobHelpers.CreateRawJobModel().Object,
+            TestJobHelpers.CreateRawJobModel().Object);
 
         var responses = new Queue<JobSourceResponse>([firstBatch, secondBatch]);
 
@@ -408,25 +358,23 @@ public class BatchModeJobLoaderTests
             .Setup(s => s.GetJobsAsync(10, TestContext.Current.CancellationToken))
             .ReturnsAsync(() => responses.Dequeue());
 
-        var loadOrder = new List<JobSourceResponse>();
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.LoadAsync(It.IsAny<JobSourceResponse>(), TestContext.Current.CancellationToken))
-            .Callback<JobSourceResponse, CancellationToken>((response, _) => loadOrder.Add(response))
+        var submitOrder = new List<JobSourceResponse>();
+        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
+        jobIntakeService
+            .Setup(s => s.SubmitAsync(It.IsAny<JobSourceResponse>(), TestContext.Current.CancellationToken))
+            .Callback<JobSourceResponse, CancellationToken>((response, _) => submitOrder.Add(response))
             .Returns(Task.CompletedTask);
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         jobRepository
             .Setup(r => r.WaitForEmptyRepositoryAsync(TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
-        var loader = CreateLoader(
-            executionEndArbiter.Object,
-            jobLoaderStateService.Object,
-            jobRepository.Object,
-            jobSource.Object);
+        var loader = CreateLoader(jobLoaderLoop, jobRepository.Object, jobSource.Object, jobIntakeService.Object);
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal([firstBatch, secondBatch], loadOrder);
+        Assert.Equal([firstBatch, secondBatch], submitOrder);
         jobRepository.Verify(r => r.WaitForEmptyRepositoryAsync(TestContext.Current.CancellationToken),
             Times.Exactly(2));
         jobLoaderStateService.Verify(s => s.ReportLoaderStart(), Times.Once);
@@ -439,15 +387,13 @@ public class BatchModeJobLoaderTests
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(false);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
-        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
-        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+        var (_, jobLoaderLoop) = CreateJobLoaderLoop(executionEndArbiter.Object);
 
         var loader = CreateLoader(
-            executionEndArbiter.Object,
-            jobLoaderStateService.Object,
+            jobLoaderLoop,
             new Mock<IJobRepository>(MockBehavior.Strict).Object,
-            new Mock<IJobSource>(MockBehavior.Strict).Object);
+            new Mock<IJobSource>(MockBehavior.Strict).Object,
+            new Mock<IJobIntakeService>(MockBehavior.Strict).Object);
 
         var result = await loader.RunAsync(TestContext.Current.CancellationToken);
 
@@ -461,9 +407,8 @@ public class BatchModeJobLoaderTests
         var executionEndArbiter = new Mock<IExecutionEndArbiter>();
         executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(() => keepRunning);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
-        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
-        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+        var sleepService = CreateSleepService();
+        var (jobLoaderStateService, jobLoaderLoop) = CreateJobLoaderLoop(executionEndArbiter.Object, sleepService);
 
         var getJobsCount = 0;
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
@@ -481,13 +426,11 @@ public class BatchModeJobLoaderTests
                 return Task.FromResult(new JobSourceResponse {Items = []});
             });
 
-        var sleepService = CreateSleepService();
         var loader = CreateLoader(
-            executionEndArbiter.Object,
-            jobLoaderStateService.Object,
+            jobLoaderLoop,
             new Mock<IJobRepository>(MockBehavior.Strict).Object,
             jobSource.Object,
-            sleepService: sleepService.Object);
+            new Mock<IJobIntakeService>(MockBehavior.Strict).Object);
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
@@ -503,23 +446,12 @@ public class BatchModeJobLoaderTests
     {
         var phase = 0;
         var executionEndArbiter = new Mock<IExecutionEndArbiter>();
-        executionEndArbiter
-            .Setup(a => a.ShouldKeepRunning())
-            .Returns(() => phase < 2);
+        executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(() => phase < 2);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
-        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
-        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+        var (_, jobLoaderLoop) = CreateJobLoaderLoop(executionEndArbiter.Object);
 
-        var firstBatch = new JobSourceResponse
-        {
-            Items = [new Mock<IJobModel>().Object]
-        };
-        var secondBatch = new JobSourceResponse
-        {
-            Items = [new Mock<IJobModel>().Object]
-        };
-
+        var firstBatch = TestJobHelpers.CreateJobSourceResponse(TestJobHelpers.CreateRawJobModel().Object);
+        var secondBatch = TestJobHelpers.CreateJobSourceResponse(TestJobHelpers.CreateRawJobModel().Object);
         var responses = new Queue<JobSourceResponse>([firstBatch, secondBatch]);
         var callLog = new List<string>();
 
@@ -532,11 +464,13 @@ public class BatchModeJobLoaderTests
                 return responses.Dequeue();
             });
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.LoadAsync(It.IsAny<JobSourceResponse>(), TestContext.Current.CancellationToken))
-            .Callback(() => callLog.Add("Load"))
+        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
+        jobIntakeService
+            .Setup(s => s.SubmitAsync(It.IsAny<JobSourceResponse>(), TestContext.Current.CancellationToken))
+            .Callback(() => callLog.Add("Submit"))
             .Returns(Task.CompletedTask);
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         jobRepository
             .Setup(r => r.WaitForEmptyRepositoryAsync(TestContext.Current.CancellationToken))
             .Callback(() =>
@@ -546,16 +480,12 @@ public class BatchModeJobLoaderTests
             })
             .Returns(Task.CompletedTask);
 
-        var loader = CreateLoader(
-            executionEndArbiter.Object,
-            jobLoaderStateService.Object,
-            jobRepository.Object,
-            jobSource.Object);
+        var loader = CreateLoader(jobLoaderLoop, jobRepository.Object, jobSource.Object, jobIntakeService.Object);
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(
-            ["GetJobs", "Load", "WaitForEmpty", "GetJobs", "Load", "WaitForEmpty"],
+            ["GetJobs", "Submit", "WaitForEmpty", "GetJobs", "Submit", "WaitForEmpty"],
             callLog);
     }
 }

@@ -45,7 +45,7 @@ public class HighLevelStreamSourceTests
             ShardId = shardId,
             MessageId = messageId ?? Guid.NewGuid().ToString(),
             CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>(MockBehavior.Strict).Object
+            Body = Guid.NewGuid().ToString()
         };
     }
 
@@ -129,7 +129,7 @@ public class HighLevelStreamSourceTests
                 Items = [CreateKinesisJob("shard-a")]
             }, lockHandle.Object);
 
-        var nonKinesisJob = new Mock<IJobModel>(MockBehavior.Strict).Object;
+        var nonKinesisJob = new Mock<IRawJobModel>(MockBehavior.Strict).Object;
 
         await streamSource.AcknowledgeCompletionAsync(nonKinesisJob, true,
             TestContext.Current.CancellationToken);

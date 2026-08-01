@@ -10,11 +10,13 @@ public class JobRepositoryEntryTests
     public async Task TestGettersSetters()
     {
         var jobModel = new Mock<IJobModel>(MockBehavior.Strict).Object;
+        var rawJobModel = TestJobHelpers.CreateRawJobModel().Object;
 
         var jre = new JobRepositoryEntry
         {
             LastHeartbeatTime = default,
-            JobModel = jobModel
+            JobModel = jobModel,
+            RawJobModel = rawJobModel
         };
 
         Assert.True(jre.CanHeartbeat);
@@ -41,7 +43,8 @@ public class JobRepositoryEntryTests
         var jre = new JobRepositoryEntry
         {
             LastHeartbeatTime = default,
-            JobModel = null!
+            JobModel = null!,
+            RawJobModel = TestJobHelpers.CreateRawJobModel().Object
         };
 
         var lockId = await jre.AcquireLockAsync(TestContext.Current.CancellationToken);
@@ -63,7 +66,8 @@ public class JobRepositoryEntryTests
         var jre = new JobRepositoryEntry
         {
             LastHeartbeatTime = default,
-            JobModel = null!
+            JobModel = null!,
+            RawJobModel = TestJobHelpers.CreateRawJobModel().Object
         };
 
         await jre.AcquireLockAsync(TestContext.Current.CancellationToken); // Don't care about storing this lock id.
@@ -79,7 +83,8 @@ public class JobRepositoryEntryTests
         var jre = new JobRepositoryEntry
         {
             LastHeartbeatTime = default,
-            JobModel = null!
+            JobModel = null!,
+            RawJobModel = TestJobHelpers.CreateRawJobModel().Object
         };
 
         var fakeLockId = Guid.NewGuid();

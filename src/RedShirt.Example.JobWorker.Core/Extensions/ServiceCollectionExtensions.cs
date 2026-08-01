@@ -4,6 +4,7 @@ using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
+using RedShirt.Example.JobWorker.Core.Services.Intake;
 using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 
@@ -19,12 +20,14 @@ public static class ServiceCollectionExtensions
         services = services
             // General
             .AddSingleton<IHandler, Handler>()
+            .AddSingleton<IJobLoaderLoop, JobLoaderLoop>()
             .AddSingleton<IJobExecutor, JobExecutor>()
             .AddSingleton<IAppliedExecutionEndArbiter, AppliedExecutionEndArbiter>()
             .AddSingleton<IMaintainer, Maintainer>()
             .AddSingleton<IHeartbeatCalculator, HeartbeatCalculator>()
             .AddSingleton<ISafeJobRunner, SafeJobRunner>()
             .AddSingleton<ISafeJobAcknowledgementService, SafeJobAcknowledgementService>()
+            .AddSingleton<IJobIntakeService, JobIntakeService>()
             .AddSingleton<ISleepService, SleepService>()
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
             .AddSingleton<IJobRepository, JobRepository>()

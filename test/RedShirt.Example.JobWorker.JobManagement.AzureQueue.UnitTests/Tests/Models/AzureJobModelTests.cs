@@ -16,7 +16,7 @@ public class AzureJobModelTests
         {
             Message = message.Object,
             CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object
+            Body = "body"
         };
 
         Assert.Equal(messageId, job.IdempotencyId);
@@ -24,16 +24,16 @@ public class AzureJobModelTests
     }
 
     [Fact]
-    public void ImplementsIJobModel()
+    public void ImplementsIRawJobModel()
     {
         var job = new AzureJobModel
         {
             Message = new Mock<IQueueMessageModel>().Object,
             CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object
+            Body = "body"
         };
 
-        Assert.IsAssignableFrom<IJobModel>(job);
+        Assert.IsAssignableFrom<IRawJobModel>(job);
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class AzureJobModelTests
         {
             Message = message.Object,
             CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object
+            Body = "body"
         };
 
         Assert.Equal(messageId, job.MessageId);
@@ -59,20 +59,20 @@ public class AzureJobModelTests
     {
         var message = new Mock<IQueueMessageModel>();
         message.SetupGet(m => m.MessageId).Returns("round-trip-id");
-        var data = new Mock<IJobDataModel>();
+        const string body = "round-trip-body";
         var createdAt = DateTime.UtcNow.AddMinutes(-5);
 
         var job = new AzureJobModel
         {
             Message = message.Object,
             CreatedAtUtc = createdAt,
-            Data = data.Object
+            Body = body
         };
 
         Assert.Same(message.Object, job.Message);
         Assert.Equal("round-trip-id", job.MessageId);
         Assert.Equal("round-trip-id", job.IdempotencyId);
         Assert.Equal(createdAt, job.CreatedAtUtc);
-        Assert.Same(data.Object, job.Data);
+        Assert.Equal(body, job.Body);
     }
 }

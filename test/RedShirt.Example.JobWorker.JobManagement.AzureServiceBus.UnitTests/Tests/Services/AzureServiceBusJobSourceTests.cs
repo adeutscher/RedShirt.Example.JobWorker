@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Models;
@@ -19,10 +18,7 @@ public class AzureServiceBusJobSourceTests
     public async Task TestGetJobsAsync(int batchSize)
     {
         var data1 = Guid.NewGuid().ToString();
-        var mock1 = new Mock<IJobDataModel>().Object;
         var data2 = Guid.NewGuid().ToString();
-        var mock2 = new Mock<IJobDataModel>().Object;
-
         var data3 = Guid.NewGuid().ToString();
         var data4 = Guid.NewGuid().ToString();
 
@@ -57,17 +53,7 @@ public class AzureServiceBusJobSourceTests
                 message4.Object
             ]);
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(data1))
-            .Returns(mock1);
-        converter.Setup(c => c.Convert(data2))
-            .Returns(mock2);
-        converter.Setup(c => c.Convert(data3))
-            .Returns((IJobDataModel?) null);
-        converter.Setup(c => c.Convert(data4))
-            .Returns((string _) => throw new Exception());
-
-        var jobSource = new AzureServiceBusJobSource(source.Object, azureMessageSource.Object, converter.Object,
+        var jobSource = new AzureServiceBusJobSource(source.Object, azureMessageSource.Object,
             bodyRetriever.Object,
             new NullLogger<AzureServiceBusJobSource>(), Options.Create(new AzureServiceBusConfigurationModel
             {
@@ -77,7 +63,7 @@ public class AzureServiceBusJobSourceTests
 
         using var cts = new CancellationTokenSource();
         var response = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
-        Assert.Equal(2, response.Items.Count);
+        Assert.Equal(4, response.Items.Count);
 
         client.Verify(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -89,13 +75,10 @@ public class AzureServiceBusJobSourceTests
         bodyRetriever.Verify(r => r.GetBody(message3.Object), Times.Once);
         bodyRetriever.Verify(r => r.GetBody(message4.Object), Times.Once);
 
-        converter.Verify(c => c.Convert(data1), Times.Once);
-        converter.Verify(c => c.Convert(data2), Times.Once);
-        converter.Verify(c => c.Convert(data3), Times.Once);
-        converter.Verify(c => c.Convert(data4), Times.Once);
-
-        Assert.Same(mock1, response.Items[0].Data);
-        Assert.Same(mock2, response.Items[1].Data);
+        Assert.Equal(data1, response.Items[0].Body);
+        Assert.Equal(data2, response.Items[1].Body);
+        Assert.Equal(data3, response.Items[2].Body);
+        Assert.Equal(data4, response.Items[3].Body);
     }
 
     [Theory]
@@ -123,9 +106,7 @@ public class AzureServiceBusJobSourceTests
                 message1.Object
             ]);
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-
-        var jobSource = new AzureServiceBusJobSource(source.Object, azureMessageSource.Object, converter.Object,
+        var jobSource = new AzureServiceBusJobSource(source.Object, azureMessageSource.Object,
             bodyRetriever.Object,
             new NullLogger<AzureServiceBusJobSource>(), Options.Create(new AzureServiceBusConfigurationModel
             {
@@ -143,8 +124,6 @@ public class AzureServiceBusJobSourceTests
 
         bodyRetriever.Verify(r => r.GetBody(It.IsAny<IServiceBusMessageContainer>()), Times.Once);
         bodyRetriever.Verify(r => r.GetBody(message1.Object), Times.Once);
-
-        converter.Verify(c => c.Convert(It.IsAny<string>()), Times.Never);
 
         source.Verify(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Once);
         client.Verify(
@@ -180,9 +159,7 @@ public class AzureServiceBusJobSourceTests
                 message1.Object
             ]);
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-
-        var jobSource = new AzureServiceBusJobSource(source.Object, azureMessageSource.Object, converter.Object,
+        var jobSource = new AzureServiceBusJobSource(source.Object, azureMessageSource.Object,
             bodyRetriever.Object,
             new NullLogger<AzureServiceBusJobSource>(), Options.Create(new AzureServiceBusConfigurationModel
             {
@@ -200,8 +177,6 @@ public class AzureServiceBusJobSourceTests
 
         bodyRetriever.Verify(r => r.GetBody(It.IsAny<IServiceBusMessageContainer>()), Times.Once);
         bodyRetriever.Verify(r => r.GetBody(message1.Object), Times.Once);
-
-        converter.Verify(c => c.Convert(It.IsAny<string>()), Times.Never);
 
         source.Verify(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Once);
         client.Verify(
@@ -237,9 +212,7 @@ public class AzureServiceBusJobSourceTests
                 message1.Object
             ]);
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-
-        var jobSource = new AzureServiceBusJobSource(source.Object, azureMessageSource.Object, converter.Object,
+        var jobSource = new AzureServiceBusJobSource(source.Object, azureMessageSource.Object,
             bodyRetriever.Object,
             new NullLogger<AzureServiceBusJobSource>(), Options.Create(new AzureServiceBusConfigurationModel
             {
@@ -257,69 +230,6 @@ public class AzureServiceBusJobSourceTests
 
         bodyRetriever.Verify(r => r.GetBody(It.IsAny<IServiceBusMessageContainer>()), Times.Once);
         bodyRetriever.Verify(r => r.GetBody(message1.Object), Times.Once);
-
-        converter.Verify(c => c.Convert(It.IsAny<string>()), Times.Never);
-
-        source.Verify(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Once);
-        client.Verify(
-            c => c.DeadLetterMessageAsync(message1.Object, It.IsAny<string>(), It.IsAny<string>(),
-                It.IsAny<CancellationToken>()), Times.Once);
-        client.Verify(
-            c => c.DeadLetterMessageAsync(message1.Object, It.IsAny<string>(), It.IsAny<string>(),
-                TestContext.Current.CancellationToken), Times.Once);
-    }
-
-    [Theory]
-    [InlineData(2)]
-    [InlineData(5)]
-    [InlineData(10)]
-    public async Task TestGetJobsAsync_GotNullConversion(int batchSize)
-    {
-        var client = new Mock<IServiceBusClientWrapper>();
-        var source = new Mock<IBusReceiverClientSource>();
-        source
-            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(client.Object);
-
-        var bodyRetriever = new Mock<IAzureServiceBusBodyStringRetriever>();
-
-        var message1 = new Mock<IServiceBusMessageContainer>();
-        bodyRetriever.Setup(m => m.GetBody(message1.Object))
-            .Returns(() => "foo");
-
-        var azureMessageSource = new Mock<IAzureServiceBusMessageSource>(MockBehavior.Strict);
-        azureMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(() =>
-            [
-                message1.Object
-            ]);
-
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter
-            .Setup(c => c.Convert(It.IsAny<string>()))
-            .Returns(() => null);
-
-        var jobSource = new AzureServiceBusJobSource(source.Object, azureMessageSource.Object, converter.Object,
-            bodyRetriever.Object,
-            new NullLogger<AzureServiceBusJobSource>(), Options.Create(new AzureServiceBusConfigurationModel
-            {
-                VisibilityTimeoutSeconds = 0,
-                MaxMessagesPerRequest = 0
-            }));
-
-        using var cts = new CancellationTokenSource();
-        var response = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
-        Assert.Empty(response.Items);
-
-        client.Verify(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-        azureMessageSource.Verify(a => a.GetMessagesAsync(batchSize, It.IsAny<CancellationToken>()), Times.Once);
-
-        bodyRetriever.Verify(r => r.GetBody(It.IsAny<IServiceBusMessageContainer>()), Times.Once);
-        bodyRetriever.Verify(r => r.GetBody(message1.Object), Times.Once);
-
-        converter.Verify(c => c.Convert(It.IsAny<string>()), Times.Once);
-        converter.Verify(c => c.Convert("foo"), Times.Once);
 
         source.Verify(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Once);
         client.Verify(
@@ -339,7 +249,7 @@ public class AzureServiceBusJobSourceTests
             MaxMessagesPerRequest = 0
         };
 
-        var jobSource = new AzureServiceBusJobSource(null!, null!, null!, null!,
+        var jobSource = new AzureServiceBusJobSource(null!, null!, null!,
             new NullLogger<AzureServiceBusJobSource>(), Options.Create(options));
 
         Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
@@ -360,7 +270,7 @@ public class AzureServiceBusJobSourceTests
             MaxMessagesPerRequest = 0
         };
 
-        var jobSource = new AzureServiceBusJobSource(source.Object, null!, null!, null!,
+        var jobSource = new AzureServiceBusJobSource(source.Object, null!, null!,
             new NullLogger<AzureServiceBusJobSource>(),
             Options.Create(config));
 
@@ -369,7 +279,7 @@ public class AzureServiceBusJobSourceTests
         {
             Message = innerMessage.Object,
             CreatedAtUtc = DateTime.UtcNow,
-            Data = null!
+            Body = "body"
         };
 
         await jobSource.AcknowledgeCompletionAsync(job, false,
@@ -405,11 +315,11 @@ public class AzureServiceBusJobSourceTests
             MaxMessagesPerRequest = 10
         };
 
-        var jobSource = new AzureServiceBusJobSource(source.Object, null!, null!, null!,
+        var jobSource = new AzureServiceBusJobSource(source.Object, null!, null!,
             new NullLogger<AzureServiceBusJobSource>(),
             Options.Create(config));
 
-        var job = new Mock<IJobModel>();
+        var job = new Mock<IRawJobModel>();
 
         await jobSource.AcknowledgeCompletionAsync(job.Object, success,
             TestContext.Current.CancellationToken);
@@ -434,7 +344,7 @@ public class AzureServiceBusJobSourceTests
             MaxMessagesPerRequest = 0
         };
 
-        var jobSource = new AzureServiceBusJobSource(source.Object, null!, null!, null!,
+        var jobSource = new AzureServiceBusJobSource(source.Object, null!, null!,
             new NullLogger<AzureServiceBusJobSource>(),
             Options.Create(config));
 
@@ -443,7 +353,7 @@ public class AzureServiceBusJobSourceTests
         {
             Message = innerMessage.Object,
             CreatedAtUtc = DateTime.UtcNow,
-            Data = null!
+            Body = "body"
         };
 
         await jobSource.AcknowledgeCompletionAsync(job, true,
@@ -474,7 +384,7 @@ public class AzureServiceBusJobSourceTests
             MaxMessagesPerRequest = 0
         };
 
-        var jobSource = new AzureServiceBusJobSource(source.Object, null!, null!, null!,
+        var jobSource = new AzureServiceBusJobSource(source.Object, null!, null!,
             new NullLogger<AzureServiceBusJobSource>(),
             Options.Create(config));
 
@@ -483,7 +393,7 @@ public class AzureServiceBusJobSourceTests
         {
             Message = innerMessage.Object,
             CreatedAtUtc = DateTime.UtcNow,
-            Data = null!
+            Body = "body"
         };
 
         await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken);
@@ -511,11 +421,11 @@ public class AzureServiceBusJobSourceTests
             MaxMessagesPerRequest = 0
         };
 
-        var jobSource = new AzureServiceBusJobSource(source.Object, null!, null!, null!,
+        var jobSource = new AzureServiceBusJobSource(source.Object, null!, null!,
             new NullLogger<AzureServiceBusJobSource>(),
             Options.Create(config));
 
-        var job = new Mock<IJobModel>();
+        var job = new Mock<IRawJobModel>();
 
         await jobSource.HeartbeatAsync(job.Object, TestContext.Current.CancellationToken);
 

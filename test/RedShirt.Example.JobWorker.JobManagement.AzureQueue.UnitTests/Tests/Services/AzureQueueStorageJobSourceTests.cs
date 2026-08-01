@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Models;
@@ -20,11 +19,8 @@ public class AzureQueueStorageJobSourceTests
     {
         var receiptHandle1 = Guid.NewGuid().ToString();
         var data1 = Guid.NewGuid().ToString();
-        var mock1 = new Mock<IJobDataModel>().Object;
         var receiptHandle2 = Guid.NewGuid().ToString();
         var data2 = Guid.NewGuid().ToString();
-        var mock2 = new Mock<IJobDataModel>().Object;
-
         var data3 = Guid.NewGuid().ToString();
         var data4 = Guid.NewGuid().ToString();
 
@@ -64,41 +60,26 @@ public class AzureQueueStorageJobSourceTests
                 }
             ]);
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(data1))
-            .Returns(mock1);
-        converter.Setup(c => c.Convert(data2))
-            .Returns(mock2);
-        converter.Setup(c => c.Convert(data3))
-            .Returns((IJobDataModel?) null);
-        converter.Setup(c => c.Convert(data4))
-            .Returns((string _) => throw new Exception());
-
-        const int visibilityTimeoutInSeconds = 100;
-
-        var jobSource = new AzureQueueStorageJobSource(source.Object, azureMessageSource.Object, converter.Object,
+        var jobSource = new AzureQueueStorageJobSource(source.Object, azureMessageSource.Object,
             new NullLogger<AzureQueueStorageJobSource>(), Options.Create(new AzureQueueStorageConfigurationModel
             {
-                VisibilityTimeoutSeconds = visibilityTimeoutInSeconds
+                VisibilityTimeoutSeconds = 100
             }));
 
         using var cts = new CancellationTokenSource();
         var response = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
-        Assert.Equal(2, response.Items.Count);
+        Assert.Equal(4, response.Items.Count);
 
         client.Verify(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
             Times.Never);
         azureMessageSource.Verify(a => a.GetMessagesAsync(batchSize, It.IsAny<CancellationToken>()), Times.Once);
 
-        converter.Verify(c => c.Convert(data1), Times.Once);
-        converter.Verify(c => c.Convert(data2), Times.Once);
-        converter.Verify(c => c.Convert(data3), Times.Once);
-        converter.Verify(c => c.Convert(data4), Times.Once);
-
         Assert.Equal(receiptHandle1, response.Items[0].MessageId);
-        Assert.Same(mock1, response.Items[0].Data);
+        Assert.Equal(data1, response.Items[0].Body);
         Assert.Equal(receiptHandle2, response.Items[1].MessageId);
-        Assert.Same(mock2, response.Items[1].Data);
+        Assert.Equal(data2, response.Items[1].Body);
+        Assert.Equal(data3, response.Items[2].Body);
+        Assert.Equal(data4, response.Items[3].Body);
     }
 
     [Fact]
@@ -109,7 +90,7 @@ public class AzureQueueStorageJobSourceTests
             VisibilityTimeoutSeconds = 20
         };
 
-        var jobSource = new AzureQueueStorageJobSource(null!, null!, null!,
+        var jobSource = new AzureQueueStorageJobSource(null!, null!,
             new NullLogger<AzureQueueStorageJobSource>(), Options.Create(options));
 
         Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
@@ -131,7 +112,7 @@ public class AzureQueueStorageJobSourceTests
             VisibilityTimeoutSeconds = 0
         };
 
-        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
+        var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
             new NullLogger<AzureQueueStorageJobSource>(),
             Options.Create(config));
 
@@ -140,7 +121,7 @@ public class AzureQueueStorageJobSourceTests
         {
             Message = innerMessage.Object,
             CreatedAtUtc = DateTime.UtcNow,
-            Data = null!
+            Body = "body"
         };
 
         await jobSource.AcknowledgeCompletionAsync(job, success,
@@ -168,11 +149,11 @@ public class AzureQueueStorageJobSourceTests
             VisibilityTimeoutSeconds = 0
         };
 
-        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
+        var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
             new NullLogger<AzureQueueStorageJobSource>(),
             Options.Create(config));
 
-        var job = new Mock<IJobModel>();
+        var job = new Mock<IRawJobModel>();
 
         await jobSource.AcknowledgeCompletionAsync(job.Object, success,
             TestContext.Current.CancellationToken);
@@ -198,7 +179,7 @@ public class AzureQueueStorageJobSourceTests
             VisibilityTimeoutSeconds = timeoutSeconds
         };
 
-        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
+        var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
             new NullLogger<AzureQueueStorageJobSource>(),
             Options.Create(config));
 
@@ -207,7 +188,7 @@ public class AzureQueueStorageJobSourceTests
         {
             Message = innerMessage.Object,
             CreatedAtUtc = DateTime.UtcNow,
-            Data = null!
+            Body = "body"
         };
 
         await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken);
@@ -240,11 +221,11 @@ public class AzureQueueStorageJobSourceTests
             VisibilityTimeoutSeconds = timeoutSeconds
         };
 
-        var jobSource = new AzureQueueStorageJobSource(source.Object, null!, null!,
+        var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
             new NullLogger<AzureQueueStorageJobSource>(),
             Options.Create(config));
 
-        var job = new Mock<IJobModel>();
+        var job = new Mock<IRawJobModel>();
 
         await jobSource.HeartbeatAsync(job.Object, TestContext.Current.CancellationToken);
 

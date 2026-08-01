@@ -17,12 +17,15 @@ internal interface ISafeJobRunner
 
 /// <summary>
 ///     Try/Catch layer around the execution of a job.
+///     Triggers internal retries up to amount configured in reaction to <see cref="JobRetryException" />
 /// </summary>
 /// <param name="jobLogicRunner"></param>
+/// <param name="sleepService"></param>
 /// <param name="logger"></param>
 /// <param name="options"></param>
 internal class SafeJobRunner(
     IJobLogicRunner jobLogicRunner,
+    ISleepService sleepService,
     ILogger<SafeJobRunner> logger,
     IOptions<SafeJobRunner.ConfigurationModel> options) : ISafeJobRunner
 {
@@ -30,28 +33,26 @@ internal class SafeJobRunner(
     {
         try
         {
-            var safeJobModel = new SafeJobModel
-            {
-                MessageId = job.MessageId,
-                IdempotencyId = job.IdempotencyId,
-                CreatedAtUtc = job.CreatedAtUtc,
-                Data = job.Data
-            };
-
             await Policy.Handle<JobRetryException>()
                 .RetryAsync(
                     Math.Max(0, options.Value.InternalRetryCount),
-                    async (e, _) =>
+                    async (e, retryAttempt) =>
                     {
                         if (e is JobRetryException {DelayTimeMilliseconds: > 0} retryException)
                         {
                             // User has requested that the job handler wait for a certain amount of time before retrying.
-                            await Task.Delay(TimeSpan.FromMilliseconds(retryException.DelayTimeMilliseconds),
+                            // Override normal incremental backoff behaviour
+                            await sleepService.DelayAsync(
+                                TimeSpan.FromMilliseconds(retryException.DelayTimeMilliseconds),
                                 cancellationToken);
+                            return;
                         }
-                    }
-                )
-                .ExecuteAsync(() => jobLogicRunner.RunAsync(safeJobModel, cancellationToken));
+
+                        // Incremental back-off between retries when no explicit delay was requested.
+                        await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                            cancellationToken);
+                    })
+                .ExecuteAsync(() => jobLogicRunner.RunAsync(job, cancellationToken));
             return true;
         }
         catch (Exception e)
@@ -64,25 +65,10 @@ internal class SafeJobRunner(
 
     public sealed class ConfigurationModel
     {
+        /// <summary>
+        ///     Number of times that a message can be retried internally.
+        ///     Internal retries don't trigger on an ordinary exception, but rather on <see cref="JobRetryException" />
+        /// </summary>
         public required int InternalRetryCount { get; init; }
-    }
-
-    /// <summary>
-    ///     Basic implementation of IJobModel
-    ///     Information from the upstream copy of IJobModel is presented to the user.
-    ///     This is meant as a just-in-case to protect the original IJobModel against any and all shenanigans.
-    ///     The IJobModel fields on an implementation may be implemented as simple get/inits,
-    ///     but many job source implementations of IJobModel also store library-specific constructs on them
-    ///     that someone *could* mess with in theory.
-    ///     It would be very unusual for a developer to kneecap their own application in this way,
-    ///     and so I don't really know why I'm adding this layer of discouragement.
-    ///     But here we are, adding a silly little just-in-case layer.
-    /// </summary>
-    private sealed class SafeJobModel : IJobModel
-    {
-        public required string MessageId { get; init; }
-        public required string? IdempotencyId { get; init; }
-        public required DateTime CreatedAtUtc { get; init; }
-        public required IJobDataModel Data { get; init; }
     }
 }
