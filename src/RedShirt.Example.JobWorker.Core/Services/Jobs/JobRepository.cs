@@ -6,7 +6,7 @@ using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.Core.Utility;
 using System.Collections.Concurrent;
 
-namespace RedShirt.Example.JobWorker.Core.Services;
+namespace RedShirt.Example.JobWorker.Core.Services.Jobs;
 
 /// <summary>
 ///     The Job Repository is the central storage location for in-memory job management.

@@ -1,13 +1,13 @@
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.Core.Utility;
 using System.Diagnostics;
 
-namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Jobs;
 
 public class JobRepositoryTests
 {

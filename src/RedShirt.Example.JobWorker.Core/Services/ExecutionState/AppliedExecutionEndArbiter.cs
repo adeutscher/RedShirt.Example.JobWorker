@@ -1,3 +1,5 @@
+using RedShirt.Example.JobWorker.Core.Services.Jobs;
+
 namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 
 /// <summary>

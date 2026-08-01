@@ -4,8 +4,9 @@ using Polly.Retry;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.Utility;
 
-namespace RedShirt.Example.JobWorker.Core.Services;
+namespace RedShirt.Example.JobWorker.Core.Services.Safety;
 
 /// <summary>
 ///     Safety wrapper around job source acknowledgement and failure invocation that shall catch and suppress non-critical

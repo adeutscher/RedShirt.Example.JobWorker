@@ -1,5 +1,5 @@
 using RedShirt.Example.JobWorker.Core.Exceptions;
-using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Utility;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Services;
 

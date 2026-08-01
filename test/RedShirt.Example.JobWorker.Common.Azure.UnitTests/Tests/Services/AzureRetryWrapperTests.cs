@@ -1,7 +1,7 @@
 using RedShirt.Example.JobWorker.Common.Azure.Exceptions;
 using RedShirt.Example.JobWorker.Common.Azure.Models;
 using RedShirt.Example.JobWorker.Common.Azure.Services;
-using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Common.Azure.UnitTests.Tests.Services;
 

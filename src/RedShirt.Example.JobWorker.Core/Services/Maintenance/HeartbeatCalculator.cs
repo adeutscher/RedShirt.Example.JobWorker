@@ -1,7 +1,7 @@
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 
-namespace RedShirt.Example.JobWorker.Core.Services;
+namespace RedShirt.Example.JobWorker.Core.Services.Maintenance;
 
 /// <summary>
 ///     The abstracted heartbeat checks exist to make reading/testing the code of the Maintainer implementation simpler.

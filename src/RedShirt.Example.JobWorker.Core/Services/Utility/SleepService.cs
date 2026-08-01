@@ -1,4 +1,4 @@
-namespace RedShirt.Example.JobWorker.Core.Services;
+namespace RedShirt.Example.JobWorker.Core.Services.Utility;
 
 /// <summary>
 ///     Abstraction of sleeping.
