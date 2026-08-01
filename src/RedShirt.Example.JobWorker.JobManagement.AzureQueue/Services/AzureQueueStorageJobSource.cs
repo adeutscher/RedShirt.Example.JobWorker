@@ -15,7 +15,7 @@ internal class AzureQueueStorageJobSource(
     public async Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
-        if (message is not AzureJobModel messageAsAzureJobModel)
+        if (message is not AzureQueueStorageRawJobModel messageAsAzureJobModel)
             // For consideration: Throw some kind of exception?
         {
             return;
@@ -32,19 +32,11 @@ internal class AzureQueueStorageJobSource(
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         var messages = await azureQueueStorageMessageSource.GetMessagesAsync(batchSize, cancellationToken);
-        var items = new List<IRawJobModel>();
-
-        foreach (var message in messages)
+        var items = messages.Select(IRawJobModel (message) => new AzureQueueStorageRawJobModel
         {
-            var data = new AzureJobModel
-            {
-                Message = message,
-                CreatedAtUtc = DateTime.UtcNow,
-                Body = message.Body
-            };
-
-            items.Add(data);
-        }
+            Message = message,
+            CreatedAtUtc = DateTime.UtcNow
+        }).ToList();
 
         var response = new JobSourceResponse
         {
@@ -59,7 +51,7 @@ internal class AzureQueueStorageJobSource(
 
     public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
-        if (message is not AzureJobModel messageAsAzureJobModel)
+        if (message is not AzureQueueStorageRawJobModel messageAsAzureJobModel)
             // For consideration: Throw some kind of exception?
         {
             return;

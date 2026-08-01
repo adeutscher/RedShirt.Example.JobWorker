@@ -115,11 +115,10 @@ public class AzureQueueStorageJobSourceTests
                         Options.Create(config));
 
         var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
-        var job = new AzureJobModel
+        var job = new AzureQueueStorageRawJobModel
         {
             Message = innerMessage.Object,
-            CreatedAtUtc = DateTime.UtcNow,
-            Body = "body"
+            CreatedAtUtc = DateTime.UtcNow
         };
 
         await jobSource.AcknowledgeCompletionAsync(job, success,
@@ -180,11 +179,10 @@ public class AzureQueueStorageJobSourceTests
                         Options.Create(config));
 
         var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
-        var job = new AzureJobModel
+        var job = new AzureQueueStorageRawJobModel
         {
             Message = innerMessage.Object,
-            CreatedAtUtc = DateTime.UtcNow,
-            Body = "body"
+            CreatedAtUtc = DateTime.UtcNow
         };
 
         await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken);

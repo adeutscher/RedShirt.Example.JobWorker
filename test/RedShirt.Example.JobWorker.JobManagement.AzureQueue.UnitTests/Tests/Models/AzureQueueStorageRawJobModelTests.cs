@@ -3,20 +3,27 @@ using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Models;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.Tests.Models;
 
-public class AzureJobModelTests
+public class AzureQueueStorageRawJobModelTests
 {
+    private static Mock<IQueueMessageModel> CreateMessage(string messageId = "queue-message-id",
+        string body = "body")
+    {
+        var message = new Mock<IQueueMessageModel>();
+        message.SetupGet(m => m.MessageId).Returns(messageId);
+        message.SetupGet(m => m.Body).Returns(body);
+        return message;
+    }
+
     [Fact]
     public void IdempotencyId_MatchesMessageId()
     {
         const string messageId = "queue-message-456";
-        var message = new Mock<IQueueMessageModel>();
-        message.SetupGet(m => m.MessageId).Returns(messageId);
+        var message = CreateMessage(messageId);
 
-        var job = new AzureJobModel
+        var job = new AzureQueueStorageRawJobModel
         {
             Message = message.Object,
-            CreatedAtUtc = DateTime.UtcNow,
-            Body = "body"
+            CreatedAtUtc = DateTime.UtcNow
         };
 
         Assert.Equal(messageId, job.IdempotencyId);
@@ -26,11 +33,10 @@ public class AzureJobModelTests
     [Fact]
     public void ImplementsIRawJobModel()
     {
-        var job = new AzureJobModel
+        var job = new AzureQueueStorageRawJobModel
         {
-            Message = new Mock<IQueueMessageModel>().Object,
-            CreatedAtUtc = DateTime.UtcNow,
-            Body = "body"
+            Message = CreateMessage().Object,
+            CreatedAtUtc = DateTime.UtcNow
         };
 
         Assert.IsAssignableFrom<IRawJobModel>(job);
@@ -40,14 +46,12 @@ public class AzureJobModelTests
     public void MessageId_DelegatesToQueueMessage()
     {
         const string messageId = "queue-message-123";
-        var message = new Mock<IQueueMessageModel>();
-        message.SetupGet(m => m.MessageId).Returns(messageId);
+        var message = CreateMessage(messageId);
 
-        var job = new AzureJobModel
+        var job = new AzureQueueStorageRawJobModel
         {
             Message = message.Object,
-            CreatedAtUtc = DateTime.UtcNow,
-            Body = "body"
+            CreatedAtUtc = DateTime.UtcNow
         };
 
         Assert.Equal(messageId, job.MessageId);
@@ -55,24 +59,21 @@ public class AzureJobModelTests
     }
 
     [Fact]
-    public void Properties_RoundTripAssignedValues()
+    public void Body_DelegatesToQueueMessage()
     {
-        var message = new Mock<IQueueMessageModel>();
-        message.SetupGet(m => m.MessageId).Returns("round-trip-id");
-        const string body = "round-trip-body";
+        var message = CreateMessage("round-trip-id", "round-trip-body");
         var createdAt = DateTime.UtcNow.AddMinutes(-5);
 
-        var job = new AzureJobModel
+        var job = new AzureQueueStorageRawJobModel
         {
             Message = message.Object,
-            CreatedAtUtc = createdAt,
-            Body = body
+            CreatedAtUtc = createdAt
         };
 
         Assert.Same(message.Object, job.Message);
         Assert.Equal("round-trip-id", job.MessageId);
         Assert.Equal("round-trip-id", job.IdempotencyId);
         Assert.Equal(createdAt, job.CreatedAtUtc);
-        Assert.Equal(body, job.Body);
+        Assert.Equal("round-trip-body", job.Body);
     }
 }

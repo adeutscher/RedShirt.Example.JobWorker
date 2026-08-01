@@ -21,7 +21,7 @@ internal class AzureServiceBusJobSource(
             return;
         }
 
-        var client = await clientSource.GetQueueClientAsync();
+        var client = await clientSource.GetQueueClientAsync(cancellationToken);
 
         if (success)
         {
@@ -47,7 +47,7 @@ internal class AzureServiceBusJobSource(
             {
                 Message = receivedMessage,
                 CreatedAtUtc = DateTime.UtcNow
-            }).Cast<IRawJobModel>().ToList();
+            } as IRawJobModel).ToList();
 
         var response = new JobSourceResponse
         {
