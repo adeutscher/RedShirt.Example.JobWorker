@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Core.Configuration;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
@@ -94,24 +95,23 @@ public class IdempotencyMonitorTests
 
     [Theory(Timeout = 2000)]
     [InlineData(null)]
-    [InlineData(false)]
-    public async Task RunAsync_WhenCachedResultIsNullOrFalse_ReloadsUnblockedJob(bool? jobSuccess)
+    [InlineData(CoreJobResult.Failure)]
+    public async Task RunAsync_WhenCachedResultIsNullOrUnsuccessful_ReloadsUnblockedJob(CoreJobResult? jobResult)
     {
         var (entry, jobModel, _) = CreateBlockedJob();
         var idempotencyLock = CreateLock(true);
-        var cachedResult = jobSuccess switch
+        var cachedResult = jobResult switch
         {
             null => null,
-            false => new IdempotencyCacheResult
+            { } result => new IdempotencyCacheResult
             {
-                JobSuccess = false,
+                JobResult = result,
                 AcknowledgementResult = new SafeAcknowledgementResult
                 {
                     AcknowledgedSuccessfully = true,
                     LoggedFailureSuccessfully = null
                 }
-            },
-            _ => throw new ArgumentOutOfRangeException(nameof(jobSuccess))
+            }
         };
 
         var doQuit = false;
@@ -159,13 +159,13 @@ public class IdempotencyMonitorTests
     }
 
     [Fact(Timeout = 1000)]
-    public async Task RunAsync_WhenCachedResultIsTrueAndAcknowledgeFails_RemovesJobWithoutRefreshingCache()
+    public async Task RunAsync_WhenCachedResultIsSuccessAndAcknowledgeFails_RemovesJobWithoutRefreshingCache()
     {
         var (entry, jobModel, rawJobModel) = CreateBlockedJob();
         var idempotencyLock = CreateLock(true);
         var cachedResult = new IdempotencyCacheResult
         {
-            JobSuccess = true,
+            JobResult = CoreJobResult.Success,
             AcknowledgementResult = new SafeAcknowledgementResult
             {
                 AcknowledgedSuccessfully = true,
@@ -211,7 +211,8 @@ public class IdempotencyMonitorTests
 
         var safeJobAcknowledgementService = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
         safeJobAcknowledgementService
-            .Setup(s => s.AcknowledgeSafelyAsync(rawJobModel.Object, true, null, cachedResult.AcknowledgementResult,
+            .Setup(s => s.AcknowledgeSafelyAsync(rawJobModel.Object, CoreJobResult.Success, null,
+                cachedResult.AcknowledgementResult,
                 TestContext.Current.CancellationToken))
             .ReturnsAsync(failedAck);
 
@@ -222,23 +223,24 @@ public class IdempotencyMonitorTests
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
         safeJobAcknowledgementService.Verify(
-            s => s.AcknowledgeSafelyAsync(rawJobModel.Object, true, null, cachedResult.AcknowledgementResult,
+            s => s.AcknowledgeSafelyAsync(rawJobModel.Object, CoreJobResult.Success, null,
+                cachedResult.AcknowledgementResult,
                 TestContext.Current.CancellationToken), Times.Once);
         idempotencyExecutionService.Verify(
-            s => s.SetResultInCacheAsync(It.IsAny<IRawJobModel>(), It.IsAny<bool>(),
+            s => s.SetResultInCacheAsync(It.IsAny<IRawJobModel>(), It.IsAny<CoreJobResult>(),
                 It.IsAny<ISafeAcknowledgementResult>(),
                 It.IsAny<CancellationToken>()), Times.Never);
         jobRepository.Verify(r => r.RemoveJobAsync(entry.Object, TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Fact(Timeout = 1000)]
-    public async Task RunAsync_WhenCachedResultIsTrueAndAcknowledgeSucceeds_RemovesJobAndRefreshesCache()
+    public async Task RunAsync_WhenCachedResultIsSuccessAndAcknowledgeSucceeds_RemovesJobAndRefreshesCache()
     {
         var (entry, jobModel, rawJobModel) = CreateBlockedJob();
         var idempotencyLock = CreateLock(true);
         var cachedResult = new IdempotencyCacheResult
         {
-            JobSuccess = true,
+            JobResult = CoreJobResult.Success,
             AcknowledgementResult = new SafeAcknowledgementResult
             {
                 AcknowledgedSuccessfully = true,
@@ -282,13 +284,15 @@ public class IdempotencyMonitorTests
             .Setup(s => s.GetCachedResultAsync(jobModel.Object, TestContext.Current.CancellationToken))
             .ReturnsAsync(cachedResult);
         idempotencyExecutionService
-            .Setup(s => s.SetResultInCacheAsync(rawJobModel.Object, true, cachedResult.AcknowledgementResult,
+            .Setup(s => s.SetResultInCacheAsync(rawJobModel.Object, CoreJobResult.Success,
+                cachedResult.AcknowledgementResult,
                 TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
         var safeJobAcknowledgementService = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
         safeJobAcknowledgementService
-            .Setup(s => s.AcknowledgeSafelyAsync(rawJobModel.Object, true, null, cachedResult.AcknowledgementResult,
+            .Setup(s => s.AcknowledgeSafelyAsync(rawJobModel.Object, CoreJobResult.Success, null,
+                cachedResult.AcknowledgementResult,
                 TestContext.Current.CancellationToken))
             .ReturnsAsync(successAck);
 
@@ -299,7 +303,8 @@ public class IdempotencyMonitorTests
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
         idempotencyExecutionService.Verify(
-            s => s.SetResultInCacheAsync(rawJobModel.Object, true, cachedResult.AcknowledgementResult,
+            s => s.SetResultInCacheAsync(rawJobModel.Object, CoreJobResult.Success,
+                cachedResult.AcknowledgementResult,
                 TestContext.Current.CancellationToken), Times.Once);
         jobRepository.Verify(r => r.RemoveJobAsync(entry.Object, TestContext.Current.CancellationToken), Times.Once);
     }

@@ -32,9 +32,9 @@ public class JobExecutorTests
     }
 
     [Theory(Timeout = 2000)]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task ExecuteSingleJob(bool safeRunnerSuccess)
+    [InlineData(CoreJobResult.Success)]
+    [InlineData(CoreJobResult.Failure)]
+    public async Task ExecuteSingleJob(CoreJobResult safeRunnerResult)
     {
         var (jobRepositoryEntry, jobModel, rawJobModel) = CreateRepositoryEntry();
         var ackResult = new SafeAcknowledgementResult
@@ -45,16 +45,18 @@ public class JobExecutorTests
         jobRepositoryEntry.Setup(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
-        var runException = safeRunnerSuccess ? null : new InvalidOperationException("job failed");
+        var runException = safeRunnerResult == CoreJobResult.Success
+            ? null
+            : new InvalidOperationException("job failed");
         var safeJobResult = new SafeJobRunResults
         {
-            JobSuccess = safeRunnerSuccess,
+            Result = safeRunnerResult,
             Exception = runException
         };
 
         var safeAcknowledgementService = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
         safeAcknowledgementService
-            .Setup(s => s.AcknowledgeSafelyAsync(rawJobModel.Object, safeRunnerSuccess, runException, null,
+            .Setup(s => s.AcknowledgeSafelyAsync(rawJobModel.Object, safeRunnerResult, runException, null,
                 TestContext.Current.CancellationToken))
             .ReturnsAsync(ackResult);
 
@@ -94,7 +96,7 @@ public class JobExecutorTests
             .Setup(s => s.GetCachedResultAsync(jobModel.Object, TestContext.Current.CancellationToken))
             .ReturnsAsync((IdempotencyCacheResult?) null);
         idempotencyExecutionService
-            .Setup(s => s.SetResultInCacheAsync(rawJobModel.Object, safeRunnerSuccess, ackResult,
+            .Setup(s => s.SetResultInCacheAsync(rawJobModel.Object, safeRunnerResult, ackResult,
                 TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
@@ -106,12 +108,12 @@ public class JobExecutorTests
 
         safeJobRunner.Verify(s => s.RunSafelyAsync(jobModel.Object, TestContext.Current.CancellationToken), Times.Once);
         safeAcknowledgementService.Verify(
-            s => s.AcknowledgeSafelyAsync(rawJobModel.Object, safeRunnerSuccess, runException, null,
+            s => s.AcknowledgeSafelyAsync(rawJobModel.Object, safeRunnerResult, runException, null,
                 TestContext.Current.CancellationToken), Times.Once);
         jobRepositoryEntry.Verify(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken),
             Times.Once);
         idempotencyExecutionService.Verify(
-            s => s.SetResultInCacheAsync(rawJobModel.Object, safeRunnerSuccess, ackResult,
+            s => s.SetResultInCacheAsync(rawJobModel.Object, safeRunnerResult, ackResult,
                 TestContext.Current.CancellationToken), Times.Once);
         idempotencyLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -150,91 +152,13 @@ public class JobExecutorTests
         jobRepository.Verify(r => r.GetNextJobAsync(TestContext.Current.CancellationToken), Times.Once);
     }
 
-    [Theory(Timeout = 2000)]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task WhenCachedResultIsFalse_RunsJobAsRetry(bool safeRunnerSuccess)
-    {
-        var (jobRepositoryEntry, jobModel, rawJobModel) = CreateRepositoryEntry();
-        var ackResult = new SafeAcknowledgementResult
-        {
-            AcknowledgedSuccessfully = true,
-            LoggedFailureSuccessfully = null
-        };
-        jobRepositoryEntry.Setup(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
-
-        var runException = safeRunnerSuccess ? null : new InvalidOperationException("job failed");
-        var safeJobResult = new SafeJobRunResults
-        {
-            JobSuccess = safeRunnerSuccess,
-            Exception = runException
-        };
-
-        var safeAcknowledgementService = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
-        safeAcknowledgementService
-            .Setup(s => s.AcknowledgeSafelyAsync(rawJobModel.Object, safeRunnerSuccess, runException, null,
-                TestContext.Current.CancellationToken))
-            .ReturnsAsync(ackResult);
-
-        var calls = 0;
-        var executionEndArbiter = new Mock<IAppliedExecutionEndArbiter>(MockBehavior.Strict);
-        executionEndArbiter
-            .Setup(a => a.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync((CancellationToken _) => ++calls <= 1);
-
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetNextJobAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(jobRepositoryEntry.Object);
-        jobRepository
-            .Setup(r => r.RemoveJobAsync(jobRepositoryEntry.Object, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
-
-        var safeJobRunner = new Mock<ISafeJobRunner>(MockBehavior.Strict);
-        safeJobRunner.Setup(s => s.RunSafelyAsync(jobModel.Object, TestContext.Current.CancellationToken))
-            .ReturnsAsync(safeJobResult);
-
-        var idempotencyLock = CreateAcquiredIdempotencyLock();
-        var idempotencyExecutionService = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
-        idempotencyExecutionService
-            .Setup(s => s.GetLockAsync(jobModel.Object, TestContext.Current.CancellationToken))
-            .ReturnsAsync(idempotencyLock.Object);
-        idempotencyExecutionService
-            .Setup(s => s.GetCachedResultAsync(jobModel.Object, TestContext.Current.CancellationToken))
-            .ReturnsAsync(new IdempotencyCacheResult
-            {
-                JobSuccess = false,
-                AcknowledgementResult = new SafeAcknowledgementResult
-                {
-                    AcknowledgedSuccessfully = true,
-                    LoggedFailureSuccessfully = null
-                }
-            });
-        idempotencyExecutionService
-            .Setup(s => s.SetResultInCacheAsync(rawJobModel.Object, safeRunnerSuccess, ackResult,
-                TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
-
-        var executor = new JobExecutor(executionEndArbiter.Object, jobRepository.Object,
-            idempotencyExecutionService.Object, safeJobRunner.Object, safeAcknowledgementService.Object,
-            new NullLogger<JobExecutor>());
-
-        await executor.RunAsync(0, TestContext.Current.CancellationToken);
-
-        safeJobRunner.Verify(s => s.RunSafelyAsync(jobModel.Object, TestContext.Current.CancellationToken), Times.Once);
-        idempotencyExecutionService.Verify(
-            s => s.SetResultInCacheAsync(rawJobModel.Object, safeRunnerSuccess, ackResult,
-                TestContext.Current.CancellationToken), Times.Once);
-    }
-
     [Fact(Timeout = 2000)]
-    public async Task WhenCachedResultIsTrueAndAcknowledgeFails_SkipsExecution()
+    public async Task WhenCachedResultIsSuccessAndAcknowledgeFails_SkipsExecution()
     {
         var (jobRepositoryEntry, jobModel, rawJobModel) = CreateRepositoryEntry();
         var cachedResult = new IdempotencyCacheResult
         {
-            JobSuccess = true,
+            JobResult = CoreJobResult.Success,
             AcknowledgementResult = new SafeAcknowledgementResult
             {
                 AcknowledgedSuccessfully = true,
@@ -266,13 +190,13 @@ public class JobExecutorTests
             .Setup(s => s.GetCachedResultAsync(jobModel.Object, TestContext.Current.CancellationToken))
             .ReturnsAsync(cachedResult);
         idempotencyExecutionService
-            .Setup(s => s.SetResultInCacheAsync(rawJobModel.Object, true, failedAck,
+            .Setup(s => s.SetResultInCacheAsync(rawJobModel.Object, CoreJobResult.Success, failedAck,
                 TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
         var safeAcknowledgementService = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
         safeAcknowledgementService
-            .Setup(s => s.AcknowledgeSafelyAsync(rawJobModel.Object, true, null, null,
+            .Setup(s => s.AcknowledgeSafelyAsync(rawJobModel.Object, CoreJobResult.Success, null, null,
                 TestContext.Current.CancellationToken))
             .ReturnsAsync(failedAck);
 
@@ -283,20 +207,21 @@ public class JobExecutorTests
         await executor.RunAsync(0, TestContext.Current.CancellationToken);
 
         safeAcknowledgementService.Verify(
-            s => s.AcknowledgeSafelyAsync(rawJobModel.Object, true, null, null,
+            s => s.AcknowledgeSafelyAsync(rawJobModel.Object, CoreJobResult.Success, null, null,
                 TestContext.Current.CancellationToken), Times.Once);
         idempotencyExecutionService.Verify(
-            s => s.SetResultInCacheAsync(rawJobModel.Object, true, failedAck, TestContext.Current.CancellationToken),
+            s => s.SetResultInCacheAsync(rawJobModel.Object, CoreJobResult.Success, failedAck,
+                TestContext.Current.CancellationToken),
             Times.Once);
     }
 
     [Fact(Timeout = 2000)]
-    public async Task WhenCachedResultIsTrueAndAcknowledgeSucceeds_SkipsExecution()
+    public async Task WhenCachedResultIsSuccessAndAcknowledgeSucceeds_SkipsExecution()
     {
         var (jobRepositoryEntry, jobModel, rawJobModel) = CreateRepositoryEntry();
         var cachedResult = new IdempotencyCacheResult
         {
-            JobSuccess = true,
+            JobResult = CoreJobResult.Success,
             AcknowledgementResult = new SafeAcknowledgementResult
             {
                 AcknowledgedSuccessfully = true,
@@ -328,13 +253,13 @@ public class JobExecutorTests
             .Setup(s => s.GetCachedResultAsync(jobModel.Object, TestContext.Current.CancellationToken))
             .ReturnsAsync(cachedResult);
         idempotencyExecutionService
-            .Setup(s => s.SetResultInCacheAsync(rawJobModel.Object, true, successAck,
+            .Setup(s => s.SetResultInCacheAsync(rawJobModel.Object, CoreJobResult.Success, successAck,
                 TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
         var safeAcknowledgementService = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
         safeAcknowledgementService
-            .Setup(s => s.AcknowledgeSafelyAsync(rawJobModel.Object, true, null, null,
+            .Setup(s => s.AcknowledgeSafelyAsync(rawJobModel.Object, CoreJobResult.Success, null, null,
                 TestContext.Current.CancellationToken))
             .ReturnsAsync(successAck);
 
@@ -348,8 +273,89 @@ public class JobExecutorTests
 
         safeJobRunner.Verify(s => s.RunSafelyAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Never);
         idempotencyExecutionService.Verify(
-            s => s.SetResultInCacheAsync(rawJobModel.Object, true, successAck, TestContext.Current.CancellationToken),
+            s => s.SetResultInCacheAsync(rawJobModel.Object, CoreJobResult.Success, successAck,
+                TestContext.Current.CancellationToken),
             Times.Once);
+    }
+
+    [Theory(Timeout = 2000)]
+    [InlineData(CoreJobResult.Success)]
+    [InlineData(CoreJobResult.Failure)]
+    public async Task WhenCachedResultIsUnsuccessful_RunsJobAsRetry(CoreJobResult safeRunnerResult)
+    {
+        var (jobRepositoryEntry, jobModel, rawJobModel) = CreateRepositoryEntry();
+        var ackResult = new SafeAcknowledgementResult
+        {
+            AcknowledgedSuccessfully = true,
+            LoggedFailureSuccessfully = null
+        };
+        jobRepositoryEntry.Setup(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
+        var runException = safeRunnerResult == CoreJobResult.Success
+            ? null
+            : new InvalidOperationException("job failed");
+        var safeJobResult = new SafeJobRunResults
+        {
+            Result = safeRunnerResult,
+            Exception = runException
+        };
+
+        var safeAcknowledgementService = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
+        safeAcknowledgementService
+            .Setup(s => s.AcknowledgeSafelyAsync(rawJobModel.Object, safeRunnerResult, runException, null,
+                TestContext.Current.CancellationToken))
+            .ReturnsAsync(ackResult);
+
+        var calls = 0;
+        var executionEndArbiter = new Mock<IAppliedExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter
+            .Setup(a => a.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync((CancellationToken _) => ++calls <= 1);
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        jobRepository
+            .Setup(r => r.GetNextJobAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync(jobRepositoryEntry.Object);
+        jobRepository
+            .Setup(r => r.RemoveJobAsync(jobRepositoryEntry.Object, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
+        var safeJobRunner = new Mock<ISafeJobRunner>(MockBehavior.Strict);
+        safeJobRunner.Setup(s => s.RunSafelyAsync(jobModel.Object, TestContext.Current.CancellationToken))
+            .ReturnsAsync(safeJobResult);
+
+        var idempotencyLock = CreateAcquiredIdempotencyLock();
+        var idempotencyExecutionService = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
+        idempotencyExecutionService
+            .Setup(s => s.GetLockAsync(jobModel.Object, TestContext.Current.CancellationToken))
+            .ReturnsAsync(idempotencyLock.Object);
+        idempotencyExecutionService
+            .Setup(s => s.GetCachedResultAsync(jobModel.Object, TestContext.Current.CancellationToken))
+            .ReturnsAsync(new IdempotencyCacheResult
+            {
+                JobResult = CoreJobResult.Failure,
+                AcknowledgementResult = new SafeAcknowledgementResult
+                {
+                    AcknowledgedSuccessfully = true,
+                    LoggedFailureSuccessfully = null
+                }
+            });
+        idempotencyExecutionService
+            .Setup(s => s.SetResultInCacheAsync(rawJobModel.Object, safeRunnerResult, ackResult,
+                TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
+        var executor = new JobExecutor(executionEndArbiter.Object, jobRepository.Object,
+            idempotencyExecutionService.Object, safeJobRunner.Object, safeAcknowledgementService.Object,
+            new NullLogger<JobExecutor>());
+
+        await executor.RunAsync(0, TestContext.Current.CancellationToken);
+
+        safeJobRunner.Verify(s => s.RunSafelyAsync(jobModel.Object, TestContext.Current.CancellationToken), Times.Once);
+        idempotencyExecutionService.Verify(
+            s => s.SetResultInCacheAsync(rawJobModel.Object, safeRunnerResult, ackResult,
+                TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Fact(Timeout = 2000)]

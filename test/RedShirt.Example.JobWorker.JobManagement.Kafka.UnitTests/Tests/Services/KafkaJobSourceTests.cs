@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Factories;
@@ -30,9 +31,9 @@ public class KafkaJobSourceTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task AcknowledgeAsync_CommitsMessagesOnlyAfterEntireBatch(bool lastSuccess)
+    [InlineData(CoreJobResult.Success)]
+    [InlineData(CoreJobResult.Failure)]
+    public async Task AcknowledgeAsync_CommitsMessagesOnlyAfterEntireBatch(CoreJobResult lastResult)
     {
         var data1 = Guid.NewGuid().ToString();
         var data2 = Guid.NewGuid().ToString();
@@ -58,12 +59,13 @@ public class KafkaJobSourceTests
         var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
         Assert.Equal(2, response.Items.Count);
 
-        await jobSource.AcknowledgeAsync(response.Items[0], true, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeAsync(response.Items[0], CoreJobResult.Success,
+            TestContext.Current.CancellationToken);
         consumer.Verify(c => c.CommitAsync(It.IsAny<List<IKafkaMessageContainer>>(), It.IsAny<CancellationToken>()),
             Times.Never);
         Assert.NotNull(jobSource.Session);
 
-        await jobSource.AcknowledgeAsync(response.Items[1], lastSuccess,
+        await jobSource.AcknowledgeAsync(response.Items[1], lastResult,
             TestContext.Current.CancellationToken);
         consumer.Verify(c => c.CommitAsync(It.Is<List<IKafkaMessageContainer>>(m =>
             m.Count == 2 && m.Contains(message1) && m.Contains(message2)), It.IsAny<CancellationToken>()), Times.Once);
@@ -80,7 +82,7 @@ public class KafkaJobSourceTests
             KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new NullLogger<KafkaJobSource>());
 
-        await jobSource.AcknowledgeAsync(new Mock<IRawJobModel>().Object, true,
+        await jobSource.AcknowledgeAsync(new Mock<IRawJobModel>().Object, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
 
         Assert.Empty(consumerSource.Invocations);
@@ -117,7 +119,8 @@ public class KafkaJobSourceTests
             new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
-        await jobSource.AcknowledgeAsync(response.Items[0], true, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeAsync(response.Items[0], CoreJobResult.Success,
+            TestContext.Current.CancellationToken);
 
         Assert.True(retryInvoked);
         consumer.Verify(c => c.CommitAsync(It.Is<List<IKafkaMessageContainer>>(m => m.Single() == message),
@@ -154,7 +157,7 @@ public class KafkaJobSourceTests
             Body = "x"
         };
 
-        await jobSource.AcknowledgeAsync(unknownKafkaJob, true, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeAsync(unknownKafkaJob, CoreJobResult.Success, TestContext.Current.CancellationToken);
 
         Assert.NotNull(jobSource.Session);
         Assert.False(jobSource.Session.IsComplete);
@@ -188,10 +191,12 @@ public class KafkaJobSourceTests
             new NullLogger<KafkaJobSource>());
 
         var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
-        await jobSource.AcknowledgeAsync(response.Items[0], true, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeAsync(response.Items[0], CoreJobResult.Success,
+            TestContext.Current.CancellationToken);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
-            jobSource.AcknowledgeAsync(response.Items[1], true, TestContext.Current.CancellationToken));
+            jobSource.AcknowledgeAsync(response.Items[1], CoreJobResult.Success,
+                TestContext.Current.CancellationToken));
 
         Assert.Same(failure, thrown);
         Assert.NotNull(jobSource.Session);
@@ -214,7 +219,7 @@ public class KafkaJobSourceTests
             Message = CreateMessage("t:0:1", "x"),
             CreatedAtUtc = DateTime.UtcNow,
             Body = "x"
-        }, true, TestContext.Current.CancellationToken);
+        }, CoreJobResult.Success, TestContext.Current.CancellationToken);
 
         Assert.Null(jobSource.Session);
         consumerSource.Verify(s => s.GetConsumer(), Times.Never);

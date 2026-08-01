@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Configuration;
@@ -12,7 +14,7 @@ internal class AzureServiceBusJobSource(
     IAzureServiceBusMessageSource azureServiceBusServiceSource,
     IOptions<AzureServiceBusConfigurationModel> options) : IJobSource
 {
-    public async Task AcknowledgeAsync(IRawJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
         if (message is not AzureRawJobModel messageAsAzureJobModel)
@@ -23,19 +25,23 @@ internal class AzureServiceBusJobSource(
 
         var client = await clientSource.GetQueueClientAsync(cancellationToken);
 
-        if (success)
+        if (result.IsSuccessful())
         {
             await client.CompleteMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
         }
-        else
+        else if (result.IsRecoverableFailure())
         {
             /*
-             * This template will treat failed Azure Service Bus jobs similar to the strategy used for SQS.
-             * Messages will not be completed, and behaviour will defer to the service bus queue's configured maximum delivery count.
-             * Using the service bus client's AbandonMessageAsync method, but one could choose to adjust this template to
-             * just let the message time out and fall back into the queue if desired.
+             * Recoverable execution failures: abandon so the message becomes available again /
+             * counts toward the service bus queue's configured maximum delivery count.
              */
             await client.AbandonMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
+        }
+        else
+        {
+            // Empty / Parsing / Broken: dead-letter immediately.
+            await client.DeadLetterMessageAsync(messageAsAzureJobModel.Message, result.ToString(),
+                cancellationToken: cancellationToken);
         }
     }
 

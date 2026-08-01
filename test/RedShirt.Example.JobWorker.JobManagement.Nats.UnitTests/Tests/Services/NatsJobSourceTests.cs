@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
@@ -42,10 +43,40 @@ public class NatsJobSourceTests
             CreatedAtUtc = DateTime.UtcNow
         };
 
-        await natsJobSource.AcknowledgeAsync(jobModel, true,
+        await natsJobSource.AcknowledgeAsync(jobModel, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
 
         message.Verify(m => m.AckAsync(It.IsAny<AckOpts?>(), TestContext.Current.CancellationToken), Times.Once);
+        message.Verify(m => m.NakAsync(It.IsAny<AckOpts?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Test_AcknowledgeAsync_Failure_Naks()
+    {
+        var message = new Mock<INatsJSMsg<NatsMemoryOwner<byte>>>();
+
+        var configuration = new NatsJobSource.ConfigurationModel
+        {
+            StreamName = null!
+        };
+
+        var natsJobSource = new NatsJobSource(null!, null!,
+            new NullLogger<NatsJobSource>(), Options.Create(configuration));
+
+        var jobModel = new NatsRawJobModel
+        {
+            Message = message.Object,
+            MessageId = "moot",
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        await natsJobSource.AcknowledgeAsync(jobModel, CoreJobResult.Failure,
+            TestContext.Current.CancellationToken);
+
+        message.Verify(m => m.NakAsync(It.IsAny<AckOpts?>(), TestContext.Current.CancellationToken),
+            Times.Once);
+        message.Verify(m => m.AckAsync(It.IsAny<AckOpts?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -61,8 +92,39 @@ public class NatsJobSourceTests
         var natsJobSource = new NatsJobSource(null!, null!,
             new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
-        await natsJobSource.AcknowledgeAsync(job.Object, true,
+        await natsJobSource.AcknowledgeAsync(job.Object, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
+    }
+
+    [Theory]
+    [InlineData(CoreJobResult.Broken)]
+    [InlineData(CoreJobResult.Empty)]
+    [InlineData(CoreJobResult.Parsing)]
+    public async Task Test_AcknowledgeAsync_NonRecoverable_Acks(CoreJobResult result)
+    {
+        var message = new Mock<INatsJSMsg<NatsMemoryOwner<byte>>>();
+
+        var configuration = new NatsJobSource.ConfigurationModel
+        {
+            StreamName = null!
+        };
+
+        var natsJobSource = new NatsJobSource(null!, null!,
+            new NullLogger<NatsJobSource>(), Options.Create(configuration));
+
+        var jobModel = new NatsRawJobModel
+        {
+            Message = message.Object,
+            MessageId = "moot",
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        await natsJobSource.AcknowledgeAsync(jobModel, result,
+            TestContext.Current.CancellationToken);
+
+        message.Verify(m => m.AckAsync(It.IsAny<AckOpts?>(), TestContext.Current.CancellationToken), Times.Once);
+        message.Verify(m => m.NakAsync(It.IsAny<AckOpts?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

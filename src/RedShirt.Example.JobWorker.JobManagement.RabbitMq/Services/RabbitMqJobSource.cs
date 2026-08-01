@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
+using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Factories;
@@ -33,7 +35,7 @@ internal class RabbitMqJobSource : IJobSource
         });
     }
 
-    public async Task AcknowledgeAsync(IRawJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
         if (message is not RabbitMqJobModel rabbitMqJobModel)
@@ -45,7 +47,20 @@ internal class RabbitMqJobSource : IJobSource
         var channel = await _channel.Value;
         try
         {
-            await channel.BasicAckAsync(rabbitMqJobModel.DeliveryTag, false, cancellationToken);
+            if (result.IsSuccessful())
+            {
+                await channel.BasicAckAsync(rabbitMqJobModel.DeliveryTag, false, cancellationToken);
+            }
+            else if (result.IsRecoverableFailure())
+            {
+                // NAck with requeue so the message can be delivered again.
+                await channel.BasicNackAsync(rabbitMqJobModel.DeliveryTag, false, true, cancellationToken);
+            }
+            else
+            {
+                // Empty / Parsing / Broken: NAck without requeue (dead-letter if the queue is configured for it).
+                await channel.BasicNackAsync(rabbitMqJobModel.DeliveryTag, false, false, cancellationToken);
+            }
         }
         catch (ObjectDisposedException)
         {

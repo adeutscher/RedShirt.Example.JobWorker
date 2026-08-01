@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
@@ -74,11 +75,11 @@ public class HighLevelStreamSourceTests
                 Items = [job1, job2]
             }, lockHandle.Object);
 
-        await streamSource.AcknowledgeAsync(job1, false,
+        await streamSource.AcknowledgeAsync(job1, CoreJobResult.Failure,
             TestContext.Current.CancellationToken);
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
 
-        await streamSource.AcknowledgeAsync(job2, true,
+        await streamSource.AcknowledgeAsync(job2, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
 
         Assert.False(streamSource.Sessions.ContainsKey("shard-a"));
@@ -106,7 +107,7 @@ public class HighLevelStreamSourceTests
                 Items = [job1, job2]
             }, lockHandle.Object);
 
-        await streamSource.AcknowledgeAsync(job1, true,
+        await streamSource.AcknowledgeAsync(job1, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
 
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
@@ -131,7 +132,7 @@ public class HighLevelStreamSourceTests
 
         var nonKinesisJob = new Mock<IRawJobModel>(MockBehavior.Strict).Object;
 
-        await streamSource.AcknowledgeAsync(nonKinesisJob, true,
+        await streamSource.AcknowledgeAsync(nonKinesisJob, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
 
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
@@ -145,7 +146,7 @@ public class HighLevelStreamSourceTests
         var checkpointStorage = new Mock<ICheckpointStorage>(MockBehavior.Strict);
         var streamSource = CreateStreamSource(checkpointStorage);
 
-        await streamSource.AcknowledgeAsync(CreateKinesisJob("missing-shard"), true,
+        await streamSource.AcknowledgeAsync(CreateKinesisJob("missing-shard"), CoreJobResult.Success,
             TestContext.Current.CancellationToken);
 
         Assert.Empty(streamSource.Sessions);

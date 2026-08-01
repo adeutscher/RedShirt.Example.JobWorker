@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
@@ -53,7 +54,7 @@ public class RabbitMqJobSourceTests
             Body = "body"
         };
 
-        await jobSource.AcknowledgeAsync(job, true,
+        await jobSource.AcknowledgeAsync(job, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -62,6 +63,50 @@ public class RabbitMqJobSourceTests
         Assert.Single(mockChannel.Invocations);
 
         mockChannel.Verify(c => c.BasicAckAsync(4321, false, TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Fact]
+    public async Task Test_AcknowledgeAsync_Failure_NacksWithRequeue()
+    {
+        var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
+
+        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
+        mockConnection.Setup(c => c.CreateChannelAsync())
+            .ReturnsAsync(mockChannel.Object);
+
+        var rabbitConnectionFactory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
+        rabbitConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockConnection.Object);
+
+        mockChannel
+            .Setup(c => c.BasicNackAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(() => new ValueTask());
+
+        var configuration = new RabbitMqJobSource.ConfigurationModel
+        {
+            QueueName = null! // moot
+        };
+
+        var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
+            new NullLogger<RabbitMqJobSource>());
+
+        var job = new RabbitMqJobModel
+        {
+            MessageId = "1234",
+            DeliveryTag = 9999,
+            CreatedAtUtc = DateTime.UtcNow,
+            Body = "body"
+        };
+
+        await jobSource.AcknowledgeAsync(job, CoreJobResult.Failure,
+            TestContext.Current.CancellationToken);
+
+        mockChannel.Verify(c => c.BasicNackAsync(9999, false, true, TestContext.Current.CancellationToken),
+            Times.Once);
+        mockChannel.Verify(
+            c => c.BasicAckAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -87,7 +132,7 @@ public class RabbitMqJobSourceTests
 
         var job = new Mock<IRawJobModel>();
 
-        await jobSource.AcknowledgeAsync(job.Object, true,
+        await jobSource.AcknowledgeAsync(job.Object, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
 
         Assert.Empty(rabbitConnectionFactory.Invocations);
@@ -98,12 +143,11 @@ public class RabbitMqJobSourceTests
             Times.Never);
     }
 
-    /// <summary>
-    ///     RabbitMQ currently always acks the delivery tag regardless of processing success.
-    ///     Failed work is expected to be handled by the failure handler / poison path, not by nack/requeue here.
-    /// </summary>
-    [Fact]
-    public async Task Test_AcknowledgeAsync_NonSuccessStillAcks()
+    [Theory]
+    [InlineData(CoreJobResult.Empty)]
+    [InlineData(CoreJobResult.Parsing)]
+    [InlineData(CoreJobResult.Broken)]
+    public async Task Test_AcknowledgeAsync_NonRecoverable_NacksWithoutRequeue(CoreJobResult result)
     {
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
 
@@ -116,7 +160,8 @@ public class RabbitMqJobSourceTests
             .ReturnsAsync(mockConnection.Object);
 
         mockChannel
-            .Setup(c => c.BasicAckAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.BasicNackAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
             .Returns(() => new ValueTask());
 
         var configuration = new RabbitMqJobSource.ConfigurationModel
@@ -130,18 +175,18 @@ public class RabbitMqJobSourceTests
         var job = new RabbitMqJobModel
         {
             MessageId = "1234",
-            DeliveryTag = 9999,
+            DeliveryTag = 8888,
             CreatedAtUtc = DateTime.UtcNow,
             Body = "body"
         };
 
-        await jobSource.AcknowledgeAsync(job, false,
-            TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeAsync(job, result, TestContext.Current.CancellationToken);
 
-        mockChannel.Verify(c => c.BasicAckAsync(9999, false, TestContext.Current.CancellationToken), Times.Once);
+        mockChannel.Verify(c => c.BasicNackAsync(8888, false, false, TestContext.Current.CancellationToken),
+            Times.Once);
         mockChannel.Verify(
-            c => c.BasicNackAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<bool>(),
-                It.IsAny<CancellationToken>()), Times.Never);
+            c => c.BasicAckAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -181,7 +226,7 @@ public class RabbitMqJobSourceTests
             Body = "body"
         };
 
-        await jobSource.AcknowledgeAsync(job, true,
+        await jobSource.AcknowledgeAsync(job, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -230,7 +275,7 @@ public class RabbitMqJobSourceTests
         };
 
         await Assert.ThrowsAsync<Exception>(async () =>
-            await jobSource.AcknowledgeAsync(job, true, TestContext.Current.CancellationToken));
+            await jobSource.AcknowledgeAsync(job, CoreJobResult.Success, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Single(rabbitConnectionFactory.Invocations);

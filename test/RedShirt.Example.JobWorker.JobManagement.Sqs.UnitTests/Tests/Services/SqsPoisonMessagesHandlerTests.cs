@@ -2,6 +2,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
+using RedShirt.Example.JobWorker.JobManagement.Sqs.Enums;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
 using System.Net;
 
@@ -28,7 +29,7 @@ public class SqsPoisonMessagesHandlerTests
     }
 
     [Fact]
-    public async Task WhenDlqEnabled_DoesNotDelete()
+    public async Task WhenDlqEnabled_ReturnsEnforcementNotEnabled()
     {
         var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
         var queueUrl = Guid.NewGuid().ToString();
@@ -42,8 +43,10 @@ public class SqsPoisonMessagesHandlerTests
 
         var message = CreateMessage(100);
 
-        await handler.AttemptPoisonMessageEnforcementAsync(message, TestContext.Current.CancellationToken);
+        var outcome = await handler.AttemptPoisonMessageEnforcementAsync(message,
+            TestContext.Current.CancellationToken);
 
+        Assert.Equal(PoisonEnforcement.EnforcementNotEnabled, outcome);
         Assert.Empty(sqs.Invocations);
     }
 
@@ -52,7 +55,7 @@ public class SqsPoisonMessagesHandlerTests
     [InlineData(6, 5)]
     [InlineData(1, 1)]
     [InlineData(1, 0)] // EffectiveMaximumReceives floors at 1
-    public async Task WhenReceiveCountAtOrAboveMaximum_DeletesMessage(int receiveCount, int maximumReceives)
+    public async Task WhenReceiveCountAtOrAboveMaximum_ReturnsEnforced(int receiveCount, int maximumReceives)
     {
         var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
         sqs
@@ -74,8 +77,10 @@ public class SqsPoisonMessagesHandlerTests
         var receiptHandle = Guid.NewGuid().ToString();
         var message = CreateMessage(receiveCount, receiptHandle);
 
-        await handler.AttemptPoisonMessageEnforcementAsync(message, TestContext.Current.CancellationToken);
+        var outcome = await handler.AttemptPoisonMessageEnforcementAsync(message,
+            TestContext.Current.CancellationToken);
 
+        Assert.Equal(PoisonEnforcement.Enforced, outcome);
         sqs.Verify(
             s => s.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(), It.IsAny<CancellationToken>()),
             Times.Once);
@@ -89,7 +94,7 @@ public class SqsPoisonMessagesHandlerTests
     }
 
     [Fact]
-    public async Task WhenReceiveCountAttributeMissing_DoesNotDelete()
+    public async Task WhenReceiveCountAttributeMissing_ReturnsNotEnforced()
     {
         var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
         var handler = CreateHandler(sqs, new SqsConfigurationModel
@@ -107,13 +112,15 @@ public class SqsPoisonMessagesHandlerTests
             Attributes = new Dictionary<string, string>()
         };
 
-        await handler.AttemptPoisonMessageEnforcementAsync(message, TestContext.Current.CancellationToken);
+        var outcome = await handler.AttemptPoisonMessageEnforcementAsync(message,
+            TestContext.Current.CancellationToken);
 
+        Assert.Equal(PoisonEnforcement.NotEnforced, outcome);
         Assert.Empty(sqs.Invocations);
     }
 
     [Fact]
-    public async Task WhenReceiveCountAttributeUnparseable_DoesNotDelete()
+    public async Task WhenReceiveCountAttributeUnparseable_ReturnsNotEnforced()
     {
         var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
         var handler = CreateHandler(sqs, new SqsConfigurationModel
@@ -134,8 +141,10 @@ public class SqsPoisonMessagesHandlerTests
             }
         };
 
-        await handler.AttemptPoisonMessageEnforcementAsync(message, TestContext.Current.CancellationToken);
+        var outcome = await handler.AttemptPoisonMessageEnforcementAsync(message,
+            TestContext.Current.CancellationToken);
 
+        Assert.Equal(PoisonEnforcement.NotEnforced, outcome);
         Assert.Empty(sqs.Invocations);
     }
 
@@ -143,7 +152,7 @@ public class SqsPoisonMessagesHandlerTests
     [InlineData(1, 5)]
     [InlineData(4, 5)]
     [InlineData(0, 1)]
-    public async Task WhenReceiveCountBelowMaximum_DoesNotDelete(int receiveCount, int maximumReceives)
+    public async Task WhenReceiveCountBelowMaximum_ReturnsNotEnforced(int receiveCount, int maximumReceives)
     {
         var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
         var handler = CreateHandler(sqs, new SqsConfigurationModel
@@ -156,8 +165,10 @@ public class SqsPoisonMessagesHandlerTests
 
         var message = CreateMessage(receiveCount);
 
-        await handler.AttemptPoisonMessageEnforcementAsync(message, TestContext.Current.CancellationToken);
+        var outcome = await handler.AttemptPoisonMessageEnforcementAsync(message,
+            TestContext.Current.CancellationToken);
 
+        Assert.Equal(PoisonEnforcement.NotEnforced, outcome);
         Assert.Empty(sqs.Invocations);
     }
 }

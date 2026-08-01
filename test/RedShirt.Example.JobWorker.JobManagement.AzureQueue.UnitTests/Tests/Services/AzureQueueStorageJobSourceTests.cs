@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
@@ -96,9 +97,11 @@ public class AzureQueueStorageJobSourceTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Test_AcknowledgeAsync(bool success)
+    [InlineData(CoreJobResult.Success)]
+    [InlineData(CoreJobResult.Broken)]
+    [InlineData(CoreJobResult.Empty)]
+    [InlineData(CoreJobResult.Parsing)]
+    public async Task Test_AcknowledgeAsync_Deletes(CoreJobResult result)
     {
         var client = new Mock<IQueueConsumerClientWrapper>();
         var source = new Mock<IQueueConsumerClientSource>();
@@ -121,7 +124,7 @@ public class AzureQueueStorageJobSourceTests
             CreatedAtUtc = DateTime.UtcNow
         };
 
-        await jobSource.AcknowledgeAsync(job, success,
+        await jobSource.AcknowledgeAsync(job, result,
             TestContext.Current.CancellationToken);
 
         client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),
@@ -130,10 +133,38 @@ public class AzureQueueStorageJobSourceTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task Test_AcknowledgeAsync_Failure_DoesNotDelete()
+    {
+        var client = new Mock<IQueueConsumerClientWrapper>(MockBehavior.Strict);
+        var source = new Mock<IQueueConsumerClientSource>(MockBehavior.Strict);
+
+        var config = new AzureQueueStorageConfigurationModel
+        {
+            VisibilityTimeoutSeconds = 0
+        };
+
+        var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
+            Options.Create(config));
+
+        var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
+        var job = new AzureQueueStorageRawJobModel
+        {
+            Message = innerMessage.Object,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        await jobSource.AcknowledgeAsync(job, CoreJobResult.Failure,
+            TestContext.Current.CancellationToken);
+
+        Assert.Empty(source.Invocations);
+        Assert.Empty(client.Invocations);
+    }
+
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Test_AcknowledgeAsync_OffModel(bool success)
+    [InlineData(CoreJobResult.Success)]
+    [InlineData(CoreJobResult.Failure)]
+    public async Task Test_AcknowledgeAsync_OffModel(CoreJobResult result)
     {
         var client = new Mock<IQueueConsumerClientWrapper>();
         var source = new Mock<IQueueConsumerClientSource>();
@@ -151,7 +182,7 @@ public class AzureQueueStorageJobSourceTests
 
         var job = new Mock<IRawJobModel>();
 
-        await jobSource.AcknowledgeAsync(job.Object, success,
+        await jobSource.AcknowledgeAsync(job.Object, result,
             TestContext.Current.CancellationToken);
 
         client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),

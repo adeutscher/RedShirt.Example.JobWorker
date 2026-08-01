@@ -1,6 +1,8 @@
 using Apache.NMS;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Exceptions;
@@ -62,7 +64,7 @@ internal class ActiveMqJobSource : IJobSource
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
-    public Task AcknowledgeAsync(IRawJobModel message, bool success,
+    public Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
         // ReSharper disable once ConvertIfStatementToReturnStatement
@@ -71,6 +73,13 @@ internal class ActiveMqJobSource : IJobSource
             return Task.CompletedTask;
         }
 
+        if (result.IsRecoverableFailure())
+        {
+            // Client-ack mode: not acknowledging leaves the message for redelivery.
+            return Task.CompletedTask;
+        }
+
+        // Success and unrecoverable: acknowledge (ActiveMQ client API has no direct dead-letter call here).
         return jobModel.Message.AcknowledgeAsync();
     }
 

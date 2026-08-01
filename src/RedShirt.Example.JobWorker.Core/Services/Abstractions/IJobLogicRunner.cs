@@ -1,3 +1,4 @@
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -7,5 +8,5 @@ namespace RedShirt.Example.JobWorker.Core.Services.Abstractions;
 /// </summary>
 public interface IJobLogicRunner
 {
-    Task RunAsync(IJobModel job, CancellationToken cancellationToken = default);
+    Task<JobResult> RunAsync(IJobModel job, CancellationToken cancellationToken = default);
 }

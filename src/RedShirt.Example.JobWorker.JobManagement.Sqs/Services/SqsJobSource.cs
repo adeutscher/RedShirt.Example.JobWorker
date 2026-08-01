@@ -1,10 +1,13 @@
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
+using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
+using RedShirt.Example.JobWorker.JobManagement.Sqs.Enums;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Models;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Utility;
 
@@ -16,7 +19,7 @@ internal class SqsJobSource(
     ISqsPoisonMessagesHandler poisonMessagesHandler,
     IOptions<SqsConfigurationModel> options) : IJobSource
 {
-    public async Task AcknowledgeAsync(IRawJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
         if (message is not SqsJobModel sqsJobModel)
@@ -25,17 +28,34 @@ internal class SqsJobSource(
             return;
         }
 
-        if (!success)
+        if (result.IsSuccessful())
         {
-            await poisonMessagesHandler.AttemptPoisonMessageEnforcementAsync(sqsJobModel.RawMessage, cancellationToken);
+            await sqs.DeleteMessageAsync(new DeleteMessageRequest
+            {
+                QueueUrl = options.Value.QueueUrl,
+                ReceiptHandle = sqsJobModel.RawMessage.ReceiptHandle
+            }, cancellationToken);
             return;
         }
 
-        await sqs.DeleteMessageAsync(new DeleteMessageRequest
+        // If we have reached here, then the result was not successful.
+
+        // Whether the failed message was recoverable or not,
+        //  the SQS implementation's reaction is to attempt to enforce
+        //  a consumer-based poison-handling system    
+        var poisonEnforcementResult =
+            await poisonMessagesHandler.AttemptPoisonMessageEnforcementAsync(sqsJobModel.RawMessage, cancellationToken);
+
+        if (poisonEnforcementResult != PoisonEnforcement.Enforced
+            && !result.IsRecoverableFailure())
         {
-            QueueUrl = options.Value.QueueUrl,
-            ReceiptHandle = sqsJobModel.RawMessage.ReceiptHandle
-        }, cancellationToken);
+            // The message was not already deleted by consumer-based poison message handling and the message is not recoverable, so the message should be deleted.
+            await sqs.DeleteMessageAsync(new DeleteMessageRequest
+            {
+                QueueUrl = options.Value.QueueUrl,
+                ReceiptHandle = sqsJobModel.RawMessage.ReceiptHandle
+            }, cancellationToken);
+        }
     }
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)

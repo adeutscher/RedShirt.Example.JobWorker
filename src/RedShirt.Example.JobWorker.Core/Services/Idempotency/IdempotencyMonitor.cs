@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
@@ -44,11 +45,11 @@ internal sealed class IdempotencyMonitor(
 
                 var cachedResult =
                     await idempotencyExecutionService.GetCachedResultAsync(blockedJob.JobModel, cancellationToken);
-                if (cachedResult is null || !cachedResult.JobSuccess)
+                if (cachedResult is null || !cachedResult.JobResult.IsSuccessful())
                 {
                     /*
                      * If no cached result, then nothing to acknowledge (did the other worker instance fail to cache it?).
-                     * If cached result is false, then this suggests a job source with its own retry mechanism for failed jobs.
+                     * If cached result is non-success, then this suggests a job source with its own retry mechanism for failed jobs.
                      *
                      * For the running worker instance that currently has the message, this means that it should be re-run.
                      */
@@ -58,10 +59,10 @@ internal sealed class IdempotencyMonitor(
                 }
                 else
                 {
-                    // Cached result is true. We are attempting to retry.
+                    // Cached result is successful. We are attempting to retry acknowledgement.
                     var acknowledgeResult = await safeJobAcknowledgementService.AcknowledgeSafelyAsync(
                         blockedJob.RawJobModel,
-                        cachedResult.JobSuccess,
+                        cachedResult.JobResult,
                         null,
                         cachedResult.AcknowledgementResult,
                         cancellationToken);
@@ -80,7 +81,7 @@ internal sealed class IdempotencyMonitor(
                         // If messageIds are configured to be considered unique, then current implementation shall
                         //  set cached value to null to attempt to free up cache resources faster
                         await idempotencyExecutionService.SetResultInCacheAsync(blockedJob.RawJobModel,
-                            cachedResult.JobSuccess, cachedResult.AcknowledgementResult, cancellationToken);
+                            cachedResult.JobResult, cachedResult.AcknowledgementResult, cancellationToken);
                     }
 
                     await jobRepository.RemoveJobAsync(blockedJob, cancellationToken);

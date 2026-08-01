@@ -1,9 +1,11 @@
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
+using RedShirt.Example.JobWorker.JobManagement.Sqs.Enums;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Models;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
 using System.Net;
@@ -110,9 +112,10 @@ public class SqsJobSourceTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Test_AcknowledgeAsync_IncompatibleMessage(bool success)
+    [InlineData(CoreJobResult.Success)]
+    [InlineData(CoreJobResult.Failure)]
+    [InlineData(CoreJobResult.Empty)]
+    public async Task Test_AcknowledgeAsync_IncompatibleMessage(CoreJobResult result)
     {
         var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
         var poisonMessageHandler = new Mock<ISqsPoisonMessagesHandler>(MockBehavior.Strict);
@@ -128,20 +131,67 @@ public class SqsJobSourceTests
             Body = Guid.NewGuid().ToString()
         };
 
-        await source.AcknowledgeAsync(job, success, TestContext.Current.CancellationToken);
+        await source.AcknowledgeAsync(job, result, TestContext.Current.CancellationToken);
 
         Assert.Empty(sqs.Invocations);
         Assert.Empty(poisonMessageHandler.Invocations);
     }
 
-    [Fact]
-    public async Task Test_AcknowledgeAsync_NonSuccess()
+    [Theory]
+    [InlineData(CoreJobResult.Empty)]
+    [InlineData(CoreJobResult.Parsing)]
+    [InlineData(CoreJobResult.Broken)]
+    public async Task Test_AcknowledgeAsync_NonRecoverable_DeletesWhenNotAlreadyEnforced(
+        CoreJobResult result)
     {
-        var sqs = new Mock<IAmazonSQS>();
+        var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
+        sqs
+            .Setup(s => s.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DeleteMessageResponse {HttpStatusCode = HttpStatusCode.OK});
+
         var poisonMessageHandler = new Mock<ISqsPoisonMessagesHandler>(MockBehavior.Strict);
         poisonMessageHandler
             .Setup(p => p.AttemptPoisonMessageEnforcementAsync(It.IsAny<Message>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(PoisonEnforcement.NotEnforced);
+
+        var config = CreateConfig();
+        var source = new SqsJobSource(sqs.Object, null!, poisonMessageHandler.Object,
+            Options.Create(config));
+
+        var receiptHandle = Guid.NewGuid().ToString();
+        var rawMessage = new Message {ReceiptHandle = receiptHandle};
+        var job = new SqsJobModel
+        {
+            MessageId = receiptHandle,
+            CreatedAtUtc = DateTime.UtcNow,
+            Body = Guid.NewGuid().ToString(),
+            RawMessage = rawMessage
+        };
+
+        await source.AcknowledgeAsync(job, result, TestContext.Current.CancellationToken);
+
+        poisonMessageHandler.Verify(
+            p => p.AttemptPoisonMessageEnforcementAsync(rawMessage, TestContext.Current.CancellationToken),
+            Times.Once);
+        sqs.Verify(
+            s => s.DeleteMessageAsync(
+                It.Is<DeleteMessageRequest>(r =>
+                    r.QueueUrl == config.QueueUrl && r.ReceiptHandle == receiptHandle),
+                TestContext.Current.CancellationToken),
+            Times.Once);
+    }
+
+    [Theory]
+    [InlineData(CoreJobResult.Empty)]
+    [InlineData(CoreJobResult.Parsing)]
+    [InlineData(CoreJobResult.Broken)]
+    public async Task Test_AcknowledgeAsync_NonRecoverable_SkipsDeleteWhenAlreadyEnforced(CoreJobResult result)
+    {
+        var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
+        var poisonMessageHandler = new Mock<ISqsPoisonMessagesHandler>(MockBehavior.Strict);
+        poisonMessageHandler
+            .Setup(p => p.AttemptPoisonMessageEnforcementAsync(It.IsAny<Message>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(PoisonEnforcement.Enforced);
 
         var config = CreateConfig();
         var source = new SqsJobSource(sqs.Object, null!, poisonMessageHandler.Object,
@@ -156,7 +206,37 @@ public class SqsJobSourceTests
             RawMessage = rawMessage
         };
 
-        await source.AcknowledgeAsync(job, false, TestContext.Current.CancellationToken);
+        await source.AcknowledgeAsync(job, result, TestContext.Current.CancellationToken);
+
+        Assert.Empty(sqs.Invocations);
+        poisonMessageHandler.Verify(
+            p => p.AttemptPoisonMessageEnforcementAsync(rawMessage, TestContext.Current.CancellationToken),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Test_AcknowledgeAsync_RecoverableFailure_InvokesPoisonHandlerWithoutDelete()
+    {
+        var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
+        var poisonMessageHandler = new Mock<ISqsPoisonMessagesHandler>(MockBehavior.Strict);
+        poisonMessageHandler
+            .Setup(p => p.AttemptPoisonMessageEnforcementAsync(It.IsAny<Message>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(PoisonEnforcement.NotEnforced);
+
+        var config = CreateConfig();
+        var source = new SqsJobSource(sqs.Object, null!, poisonMessageHandler.Object,
+            Options.Create(config));
+
+        var rawMessage = new Message {ReceiptHandle = Guid.NewGuid().ToString()};
+        var job = new SqsJobModel
+        {
+            MessageId = rawMessage.ReceiptHandle,
+            CreatedAtUtc = DateTime.UtcNow,
+            Body = Guid.NewGuid().ToString(),
+            RawMessage = rawMessage
+        };
+
+        await source.AcknowledgeAsync(job, CoreJobResult.Failure, TestContext.Current.CancellationToken);
 
         Assert.Empty(sqs.Invocations);
         poisonMessageHandler.Verify(
@@ -184,7 +264,7 @@ public class SqsJobSourceTests
             RawMessage = new Message {ReceiptHandle = receiptHandle}
         };
 
-        await source.AcknowledgeAsync(job, true, TestContext.Current.CancellationToken);
+        await source.AcknowledgeAsync(job, CoreJobResult.Success, TestContext.Current.CancellationToken);
 
         sqs.Verify(s => s.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(), It.IsAny<CancellationToken>()),
             Times.Once);

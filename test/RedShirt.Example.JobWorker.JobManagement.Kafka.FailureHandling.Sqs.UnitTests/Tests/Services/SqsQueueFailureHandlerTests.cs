@@ -1,6 +1,7 @@
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Services;
 
@@ -24,7 +25,8 @@ public class SqsQueueFailureHandlerTests
             QueueUrl = null!
         }));
 
-        await sender.HandleFailureAsync(CreateRawJobModel().Object, null!, TestContext.Current.CancellationToken);
+        await sender.HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution, null,
+            TestContext.Current.CancellationToken);
 
         Assert.Empty(sqs.Invocations);
     }
@@ -39,7 +41,8 @@ public class SqsQueueFailureHandlerTests
             QueueUrl = "foo"
         }));
 
-        await sender.HandleFailureAsync(CreateRawJobModel(body).Object, null!, TestContext.Current.CancellationToken);
+        await sender.HandleFailureAsync(CreateRawJobModel(body).Object, FailureType.Execution, null,
+            TestContext.Current.CancellationToken);
 
         Assert.Single(sqs.Invocations);
         sqs.Verify(a => a.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);
