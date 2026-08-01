@@ -47,7 +47,7 @@ internal interface IJobRepository
 
 internal class JobRepository(
     IExecutionEndArbiter executionEndArbiter,
-    IJobLoaderStateService jobLoaderStateService,
+    IJobLoaderStateReaderService jobLoaderStateService,
     ISourceMessageSorter sorter,
     IOptions<JobRepository.ConfigurationModel> options)
     : IJobRepository

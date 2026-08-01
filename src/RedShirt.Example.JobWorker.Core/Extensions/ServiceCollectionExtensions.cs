@@ -32,6 +32,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobRepository, JobRepository>()
             .Configure<JobRepository.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .AddSingleton<IJobLoaderStateService, JobLoaderStateService>()
+            .AddSingleton<IJobLoaderStateReaderService>(provider=>provider.GetRequiredService<IJobLoaderStateService>())
             .Configure<SafeJobRunner.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .Configure<JobSourceConfigurationModel>(configuration.GetSection("JobSource"))
             .Configure<LoopOptionsConfigurationModel>(configuration.GetSection(ConfigSectionName))

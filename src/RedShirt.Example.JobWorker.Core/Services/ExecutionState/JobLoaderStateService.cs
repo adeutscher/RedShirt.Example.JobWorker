@@ -1,19 +1,29 @@
 namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 
 /// <summary>
-///     Describes to downstream workers the state of the loader without creating a circular dependency.
-///     Despite the name, confirming that this service is intended for both Batch and Loader modes (though it was
-///     originally written exclusively for Loader mode).
+///     Describes to downstream classes the state of the job loading loop without creating a circular dependency.
 /// </summary>
-internal interface IJobLoaderStateService
+internal interface IJobLoaderStateReaderService
 {
     bool IsLoaderFinished();
+}
+
+/// <summary>
+///     Describes to downstream workers the state of the job loading loop without creating a circular dependency.
+///     This interface should only be used by the worker loop. If you need to read from state, use <see cref="IJobLoaderStateReaderService"/>
+/// </summary>
+internal interface IJobLoaderStateService : IJobLoaderStateReaderService
+{
     void ReportLoaderStart();
     void ReportLoaderStop();
 }
 
 internal class JobLoaderStateService : IJobLoaderStateService
 {
+    /// <summary>
+    /// Multithreading protection feels a little silly for a service that only sets booleans to true,
+    /// so this is mostly 
+    /// </summary>
     private readonly Lock _lock = new();
     private bool _isFinished;
 
@@ -37,6 +47,9 @@ internal class JobLoaderStateService : IJobLoaderStateService
 
     public bool IsLoaderFinished()
     {
-        return _isStarted && _isFinished;
+        lock (_lock)
+        {
+            return _isStarted && _isFinished;
+        }
     }
 }

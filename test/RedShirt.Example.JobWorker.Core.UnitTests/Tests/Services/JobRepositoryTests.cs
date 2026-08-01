@@ -15,7 +15,7 @@ public class JobRepositoryTests
     public async Task LoadAsync_WhenResponseHasNoItems_DoesNotTouchWatchedJobs()
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
         var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
 
         var jobRepository = new JobRepository(
@@ -39,7 +39,7 @@ public class JobRepositoryTests
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
         var sorter = new Mock<ISourceMessageSorter>();
         sorter
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
@@ -99,7 +99,7 @@ public class JobRepositoryTests
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -173,7 +173,7 @@ public class JobRepositoryTests
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -252,7 +252,7 @@ public class JobRepositoryTests
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -278,7 +278,7 @@ public class JobRepositoryTests
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -334,7 +334,7 @@ public class JobRepositoryTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
         jobLoaderStateService
             .Setup(s => s.IsLoaderFinished())
             .Returns(true);
@@ -368,7 +368,7 @@ public class JobRepositoryTests
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>();
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -436,7 +436,7 @@ public class JobRepositoryTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(true);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -509,7 +509,7 @@ public class JobRepositoryTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(true);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -606,7 +606,7 @@ public class JobRepositoryTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(true);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -735,7 +735,7 @@ public class JobRepositoryTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(true);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -830,7 +830,7 @@ public class JobRepositoryTests
             // ReSharper disable once AccessToModifiedClosure
             .Returns(() => !readyToEnd);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
         jobLoaderStateService
             .Setup(s => s.IsLoaderFinished())
             .Returns(true);
@@ -942,7 +942,7 @@ public class JobRepositoryTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(true);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -1009,7 +1009,7 @@ public class JobRepositoryTests
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -1044,7 +1044,7 @@ public class JobRepositoryTests
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -1086,7 +1086,7 @@ public class JobRepositoryTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(true);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -1127,7 +1127,7 @@ public class JobRepositoryTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(true);
 
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -1161,7 +1161,7 @@ public class JobRepositoryTests
     public async Task WaitForEmptyRepositoryAsync_CompletesWhenLastJobRemoved()
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
         var options = new JobRepository.ConfigurationModel
         {
             BacklogSize = 0
@@ -1230,7 +1230,7 @@ public class JobRepositoryTests
     public async Task WaitForEmptyRepositoryAsync_HonorsCancellation()
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
         var options = new JobRepository.ConfigurationModel
         {
             BacklogSize = 0
@@ -1276,7 +1276,7 @@ public class JobRepositoryTests
     public async Task WaitForEmptyRepositoryAsync_WhenAlreadyEmpty_ReturnsImmediately()
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
         var options = new JobRepository.ConfigurationModel
         {
             BacklogSize = 0
