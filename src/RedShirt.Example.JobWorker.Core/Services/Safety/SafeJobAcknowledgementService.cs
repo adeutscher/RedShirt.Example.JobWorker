@@ -25,18 +25,38 @@ internal class SafeJobAcknowledgementService(
     ILogger<SafeJobAcknowledgementService> logger) : ISafeJobAcknowledgementService
 {
     /// <summary>
-    ///     Retry policy for acknowledgements
+    ///     Lazily built Polly v8 <see cref="ResiliencePipeline" /> shared across invocations.
     ///     For the moment, deliberately choosing not to catch globally catch unplanned exceptions.
     ///     Unplanned exceptions should absolutely bring down the house, as they indicate a fundamental error with the job
     ///     source implementation or possibly an unaccounted-for permission issue in the profile/credentials used with the
     ///     underlying message source.
     /// </summary>
-    private readonly AsyncRetryPolicy _acknowledgementRetryPolicy = Policy
-        .Handle<WorkerJobSourceException>(e => e is {IsCritical: false, IsHandled: false, CouldBeTransient: true})
-        .RetryAsync(Globals.AcknowledgementRetryCount,
-            // Unfortunately, cannot have a common policy declaration AND our cancellationToken.
-            // I chose to have the common policy declaration.
-            (_, instanceCount) => sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount))));
+    private ResiliencePipeline? _retryPipeline;
+
+    /// <summary>
+    ///     Get cached retry pipeline, declaring it if none is currently cached.
+    /// </summary>
+    private ResiliencePipeline GetRetryPipeline()
+    {
+        return _retryPipeline ??= new ResiliencePipelineBuilder()
+            .AddRetry(new RetryStrategyOptions
+            {
+                MaxRetryAttempts = Globals.AcknowledgementRetryCount,
+                ShouldHandle = new PredicateBuilder()
+                    .Handle<WorkerJobSourceException>(e => e is
+                        {IsCritical: false, IsHandled: false, CouldBeTransient: true}),
+                // Do not use Polly-based delays between attempts
+                DelayGenerator = static _ => new ValueTask<TimeSpan?>(TimeSpan.Zero),
+                OnRetry = async args =>
+                {
+                    // Delay via ISleepService so tests can mock sleeps.
+                    // AttemptNumber is 0-based; +1 preserves the prior Polly v7 1-based backoff (2^1, 2^2, …).
+                    // Cancellation is intentionally omitted to match the previous shared-policy behaviour.
+                    await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber + 1)));
+                }
+            })
+            .Build();
+    }
 
     public async Task<SafeAcknowledgementResult> AcknowledgeSafelyAsync(IRawJobModel job, bool success,
         Exception? exception = null, SafeAcknowledgementResult? previousAttempt = null,
@@ -56,13 +76,15 @@ internal class SafeJobAcknowledgementService(
                 // Despite Sonar's opinion, not a useless assign.
                 loggedFailureSuccessfully = false;
 #pragma warning restore S1854
-                await _acknowledgementRetryPolicy
-                    .ExecuteAsync(() => jobFailureHandler.HandleFailureAsync(job, exception, cancellationToken));
+                await GetRetryPipeline().ExecuteAsync(
+                    async token => await jobFailureHandler.HandleFailureAsync(job, exception, token),
+                    cancellationToken);
                 loggedFailureSuccessfully = true;
             }
 
-            await _acknowledgementRetryPolicy
-                .ExecuteAsync(() => jobSource.AcknowledgeCompletionAsync(job, success, cancellationToken));
+            await GetRetryPipeline().ExecuteAsync(
+                async token => await jobSource.AcknowledgeCompletionAsync(job, success, token),
+                cancellationToken);
             acknowledgedSuccessfully = true;
         }
         catch (WorkerJobSourceException e) when (!e.IsCritical)
