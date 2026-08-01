@@ -11,25 +11,37 @@ internal interface IJobRepositoryEntry : ISortableJobWrapper
 {
     IRawJobModel RawJobModel { get; }
     bool CanHeartbeat { get; }
-    DateTime LastHeartbeatTime { get; set; }
+    DateTime LastHeartbeatTime { get; }
     JobState State { get; }
     Task SetAsCannotHeartbeatAsync(CancellationToken cancellationToken = default);
+    Task SetLastHeartbeatTimeAsync(DateTime lastHeartbeatTime, CancellationToken cancellationToken = default);
     Task SetStateAsync(JobState state, CancellationToken cancellationToken = default);
 }
 
 internal class JobRepositoryEntry : IJobRepositoryEntry
 {
+    /// <summary>
+    /// Thread-safety measure for field updates.
+    /// </summary>
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
     public required IRawJobModel RawJobModel { get; init; }
     public bool CanHeartbeat { get; private set; } = true;
-    public required DateTime LastHeartbeatTime { get; set; }
+    public DateTime LastHeartbeatTime { get; private set; }
     public required IJobModel JobModel { get; init; }
 
     public async Task SetAsCannotHeartbeatAsync(CancellationToken cancellationToken = default)
     {
         await _semaphoreSlim.WaitAsync(cancellationToken);
         CanHeartbeat = false;
+        _semaphoreSlim.Release();
+    }
+
+    public async Task SetLastHeartbeatTimeAsync(DateTime lastHeartbeatTime,
+        CancellationToken cancellationToken = default)
+    {
+        await _semaphoreSlim.WaitAsync(cancellationToken);
+        LastHeartbeatTime = lastHeartbeatTime;
         _semaphoreSlim.Release();
     }
 

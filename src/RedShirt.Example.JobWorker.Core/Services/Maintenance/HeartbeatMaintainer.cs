@@ -107,7 +107,7 @@ internal class HeartbeatMaintainer(
             await GetRetryPipeline().ExecuteAsync(
                 async token => await jobSource.HeartbeatAsync(jobRepositoryEntry.RawJobModel, token),
                 cancellationToken);
-            jobRepositoryEntry.LastHeartbeatTime = DateTime.UtcNow;
+            await jobRepositoryEntry.SetLastHeartbeatTimeAsync(DateTime.UtcNow, cancellationToken);
         }
         catch (WorkerJobSourceException e) when (!e.IsCritical)
         {

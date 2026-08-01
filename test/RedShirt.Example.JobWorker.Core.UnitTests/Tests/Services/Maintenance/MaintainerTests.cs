@@ -57,9 +57,10 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.CanHeartbeat).Returns(true);
         entry.Setup(e => e.State).Returns(JobState.Active);
-        entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
+        entry.Setup(e => e.SetLastHeartbeatTimeAsync(It.Is<DateTime>(dt =>
             dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
-            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));        var redHerringEntry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
+            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)), TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);        var redHerringEntry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         redHerringEntry.Setup(e => e.State).Returns(JobState.Active);
         redHerringEntry.Setup(e => e.CanHeartbeat).Returns(false);
 
@@ -170,9 +171,10 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.State).Returns(JobState.Active);
-        entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
+        entry.Setup(e => e.SetLastHeartbeatTimeAsync(It.Is<DateTime>(dt =>
             dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
-            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));
+            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)), TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
 
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();
         heartbeatCalculator
@@ -239,9 +241,10 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.SetAsCannotHeartbeatAsync(TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
         entry.Setup(e => e.State).Returns(JobState.Active);
-        entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
+        entry.Setup(e => e.SetLastHeartbeatTimeAsync(It.Is<DateTime>(dt =>
             dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
-            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));
+            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)), TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
 
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();
         heartbeatCalculator
@@ -430,9 +433,10 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.State).Returns(JobState.Active);
-        entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
+        entry.Setup(e => e.SetLastHeartbeatTimeAsync(It.Is<DateTime>(dt =>
             dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
-            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));
+            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)), TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
 
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();
         heartbeatCalculator
@@ -494,9 +498,10 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.State).Returns(JobState.Active);
-        entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
+        entry.Setup(e => e.SetLastHeartbeatTimeAsync(It.Is<DateTime>(dt =>
             dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
-            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));
+            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)), TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
 
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();
         heartbeatCalculator
@@ -557,7 +562,8 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.State).Returns(JobState.Active);
-        entry.SetupSet(e => e.LastHeartbeatTime = It.IsAny<DateTime>());
+        entry.Setup(e => e.SetLastHeartbeatTimeAsync(It.IsAny<DateTime>(), TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
 
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>(MockBehavior.Strict);
         heartbeatCalculator.Setup(c => c.IsReadyForHeartbeat(entry.Object)).Returns(true);
@@ -613,7 +619,7 @@ public class HeartbeatMaintainerTests
         Assert.Equal(3, attempts);
         entry.Verify(e => e.SetAsCannotHeartbeatAsync(It.IsAny<CancellationToken>()),
             Times.Never);
-        entry.VerifySet(e => e.LastHeartbeatTime = It.IsAny<DateTime>(), Times.Once);
+        entry.Verify(e => e.SetLastHeartbeatTimeAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     /// <summary>
@@ -632,9 +638,10 @@ public class HeartbeatMaintainerTests
         entry1.Setup(e => e.RawJobModel).Returns(rawJobModel1.Object);
         entry1.Setup(e => e.CanHeartbeat).Returns(true);
         entry1.Setup(e => e.State).Returns(JobState.Active);
-        entry1.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
+        entry1.Setup(e => e.SetLastHeartbeatTimeAsync(It.Is<DateTime>(dt =>
             dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
-            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));
+            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)), TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
 
         // Second job
         var subject2 = new Mock<IJobModel>(MockBehavior.Strict);
@@ -645,9 +652,10 @@ public class HeartbeatMaintainerTests
         entry2.Setup(e => e.RawJobModel).Returns(rawJobModel2.Object);
         entry2.Setup(e => e.State).Returns(JobState.Active);
         entry2.Setup(e => e.CanHeartbeat).Returns(true);
-        entry2.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
+        entry2.Setup(e => e.SetLastHeartbeatTimeAsync(It.Is<DateTime>(dt =>
             dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
-            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));
+            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)), TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
 
         // Heartbeat
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();

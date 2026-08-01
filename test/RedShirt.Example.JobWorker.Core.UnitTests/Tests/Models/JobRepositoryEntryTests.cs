@@ -13,7 +13,6 @@ public class JobRepositoryEntryTests
 
         var jre = new JobRepositoryEntry
         {
-            LastHeartbeatTime = default,
             JobModel = jobModel,
             RawJobModel = rawJobModel
         };
@@ -24,7 +23,7 @@ public class JobRepositoryEntryTests
         // Set/Get Heartbeat Time
         Assert.Equal(default, jre.LastHeartbeatTime);
         var newDate = DateTime.UtcNow - TimeSpan.FromMinutes(2);
-        jre.LastHeartbeatTime = newDate;
+        await jre.SetLastHeartbeatTimeAsync(newDate, TestContext.Current.CancellationToken);
         Assert.Equal(newDate, jre.LastHeartbeatTime);
 
         // Set/Get State

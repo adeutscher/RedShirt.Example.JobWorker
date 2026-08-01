@@ -241,10 +241,10 @@ internal class JobRepository(
                 {
                     var job = new JobRepositoryEntry
                     {
-                        LastHeartbeatTime = DateTime.UtcNow,
                         JobModel = envelope.JobModel,
                         RawJobModel = envelope.RawJobModel
                     };
+                    await job.SetLastHeartbeatTimeAsync(DateTime.UtcNow, cancellationToken);
 
                     _inactiveJobsList.Add(job); // Worry about sorting later, see below
 
