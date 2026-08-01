@@ -13,7 +13,7 @@ namespace RedShirt.Example.JobWorker.Core.Services;
 /// </summary>
 internal interface ISafeJobAcknowledgementService
 {
-    Task<bool> AcknowledgeSafelyAsync(IJobRepositoryEntry job, bool success, CancellationToken cancellationToken);
+    Task<bool> AcknowledgeSafelyAsync(IRawJobDataModel job, bool success, CancellationToken cancellationToken);
 }
 
 internal class SafeJobAcknowledgementService(
@@ -35,13 +35,13 @@ internal class SafeJobAcknowledgementService(
             // I chose to have the common policy declaration.
             (_, instanceCount) => sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, instanceCount))));
 
-    public async Task<bool> AcknowledgeSafelyAsync(IJobRepositoryEntry job, bool success,
+    public async Task<bool> AcknowledgeSafelyAsync(IRawJobDataModel job, bool success,
         CancellationToken cancellationToken)
     {
         try
         {
             await _acknowledgementRetryPolicy
-                .ExecuteAsync(() => jobSource.AcknowledgeCompletionAsync(job.JobModel, success, cancellationToken));
+                .ExecuteAsync(() => jobSource.AcknowledgeCompletionAsync(job, success, cancellationToken));
             return true;
         }
         catch (WorkerJobSourceException e) when (!e.IsCritical)
