@@ -19,12 +19,10 @@ internal interface ISafeJobRunner
 ///     Try/Catch layer around the execution of a job.
 /// </summary>
 /// <param name="jobLogicRunner"></param>
-/// <param name="jobFailureHandler"></param>
 /// <param name="logger"></param>
 /// <param name="options"></param>
 internal class SafeJobRunner(
     IJobLogicRunner jobLogicRunner,
-    IJobFailureHandler jobFailureHandler,
     ILogger<SafeJobRunner> logger,
     IOptions<SafeJobRunner.ConfigurationModel> options) : ISafeJobRunner
 {
@@ -59,15 +57,6 @@ internal class SafeJobRunner(
         catch (Exception e)
         {
             logger.LogError(e, "Error running job: {EMessage}", e.Message);
-
-            try
-            {
-                await jobFailureHandler.HandleFailureAsync(job, e, cancellationToken);
-            }
-            catch (Exception e2)
-            {
-                logger.LogError(e2, "Job failure handling failed: {EMessage}", e2.Message);
-            }
 
             return false;
         }

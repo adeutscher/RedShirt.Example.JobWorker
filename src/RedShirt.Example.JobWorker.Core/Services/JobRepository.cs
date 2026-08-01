@@ -33,7 +33,7 @@ internal interface IJobRepository
 
     Task<int> GetWatchedJobsCountAsync(CancellationToken cancellationToken = default);
 
-    Task LoadAsync(JobSourceResponse jobSourceResponse,
+    Task LoadAsync(IReadOnlyList<IJobEnvelope> intakeItems,
         CancellationToken cancellationToken = default);
 
     Task ReloadUnblockedJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default);
@@ -219,12 +219,12 @@ internal class JobRepository(
         return result;
     }
 
-    public async Task LoadAsync(JobSourceResponse jobSourceResponse,
+    public async Task LoadAsync(IReadOnlyList<IJobEnvelope> intakeItems,
         CancellationToken cancellationToken = default)
     {
-        if (jobSourceResponse.Items.Count == 0)
+        if (intakeItems.Count == 0)
         {
-            // If nothing to add, then don't bother with semaphores
+            // If nothing to add, then exit right now to avoid bothering with semaphores
             return;
         }
 
@@ -237,12 +237,13 @@ internal class JobRepository(
             try
             {
                 // ReSharper disable once ForeachCanBePartlyConvertedToQueryUsingAnotherGetEnumerator
-                foreach (var jobModel in jobSourceResponse.Items)
+                foreach (var envelope in intakeItems)
                 {
                     var job = new JobRepositoryEntry
                     {
                         LastHeartbeatTime = DateTime.UtcNow,
-                        JobModel = jobModel
+                        JobModel = envelope.JobModel,
+                        RawJobModel = envelope.RawJobModel
                     };
 
                     _inactiveJobsList.Add(job); // Worry about sorting later, see below

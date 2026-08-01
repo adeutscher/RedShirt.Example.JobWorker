@@ -5,7 +5,6 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Models;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Utility;
@@ -15,12 +14,11 @@ namespace RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
 internal class SqsJobSource(
     IAmazonSQS sqs,
     ISqsMessageSource sqsMessageSource,
-    ISourceMessageConverter converter,
     ISqsPoisonMessagesHandler poisonMessagesHandler,
     ILogger<SqsJobSource> logger,
     IOptions<SqsConfigurationModel> options) : IJobSource
 {
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not SqsJobModel sqsJobModel)
@@ -45,48 +43,31 @@ internal class SqsJobSource(
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         var messages = await sqsMessageSource.GetMessagesAsync(batchSize, cancellationToken);
-        var items = new List<IJobModel>();
+        var items = new List<IRawJobModel>();
 
         foreach (var message in messages)
         {
-            try
+            logger.LogTrace("Raw SQS message: {MessageBody}", message.Body);
+
+            var data = new SqsJobModel
             {
-                logger.LogTrace("Raw SQS message: {MessageBody}", message.Body);
+                MessageId = message.MessageId,
+                /*
+                 * Documentation and AI summaries for SQS emphasize that the message's 12-hour in-flight limit
+                 * is marked based off of the "*first* receive", as indicated by the ApproximateFirstReceiveUtc property.
+                 *
+                 * I think that this is weird and counter-productive.
+                 * So Amazon is saying that if a message is first received and then processes for a decent amount of time before failing and then falling back into the queue that subsequent receives have even less time?
+                 * If that is how SQS is designed then so be it, but it just feels like an unnecessary extra reason to consider an entirely different message broker than SQS for workloads that legitimately run long.
+                 * I don't know, I just wanted to get my grievances out somewhere.
+                 */
+                CreatedAtUtc = SqsMessageAttributeRetriever.TryGetApproximateFirstReceiveUtc(message) ??
+                               DateTime.UtcNow,
+                Body = message.Body,
+                RawMessage = message
+            };
 
-                var @object = converter.Convert(message.Body);
-                if (@object is null)
-                {
-                    await poisonMessagesHandler.AttemptPoisonMessageEnforcementAsync(message, cancellationToken);
-
-                    continue;
-                }
-
-                var data = new SqsJobModel
-                {
-                    MessageId = message.MessageId,
-                    /*
-                     * Documentation and AI summaries for SQS emphasize that the message's 12-hour in-flight limit
-                     * is marked based off of the "*first* receive", as indicated by the ApproximateFirstReceiveUtc property.
-                     *
-                     * I think that this is weird and counter-productive.
-                     * So Amazon is saying that if a message is first received and then processes for a decent amount of time before failing and then falling back into the queue that subsequent receives have even less time?
-                     * If that is how SQS is designed then so be it, but it just feels like an unnecessary extra reason to consider an entirely different message broker than SQS for workloads that legitimately run long.
-                     * I don't know, I just wanted to get my grievances out somewhere.
-                     */
-                    CreatedAtUtc = SqsMessageAttributeRetriever.TryGetApproximateFirstReceiveUtc(message) ??
-                                   DateTime.UtcNow,
-                    Data = @object,
-                    RawMessage = message
-                };
-
-                items.Add(data);
-            }
-            catch (Exception e)
-            {
-                logger.LogWarning(e, "Error parsing SQS message: {MessageBody}", message.Body);
-
-                await poisonMessagesHandler.AttemptPoisonMessageEnforcementAsync(message, cancellationToken);
-            }
+            items.Add(data);
         }
 
         var response = new JobSourceResponse
@@ -100,7 +81,7 @@ internal class SqsJobSource(
     public int RecommendedHeartbeatIntervalSeconds =>
         (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
-    public async Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         if (message is not SqsJobModel sqsJobModel)
         {

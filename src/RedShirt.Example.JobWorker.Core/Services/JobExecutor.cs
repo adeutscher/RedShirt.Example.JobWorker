@@ -28,28 +28,32 @@ internal class JobExecutor(
     ISafeJobAcknowledgementService safeJobAcknowledgementService,
     ILogger<JobExecutor> logger) : IJobExecutor
 {
-    private async Task ActOnJobAsync(int executorId, IJobRepositoryEntry job,
+    private async Task ActOnJobAsync(int executorId, IJobRepositoryEntry repositoryEntry,
         CancellationToken cancellationToken = default)
     {
-        var cachedIdempotentResult =
-            await idempotencyExecutionService.GetCachedResultAsync(job.JobModel, cancellationToken);
-        if (cachedIdempotentResult == true)
+        var cachedAttemptResult =
+            await idempotencyExecutionService.GetCachedResultAsync(repositoryEntry.JobModel, cancellationToken);
+        if (cachedAttemptResult?.JobSuccess == true)
         {
-            var idempotentAcknowledgementSuccess =
-                await safeJobAcknowledgementService.AcknowledgeSafelyAsync(job, true, cancellationToken);
-            if (!idempotentAcknowledgementSuccess)
+            var idempotentAcknowledgementReport =
+                await safeJobAcknowledgementService.AcknowledgeSafelyAsync(
+                    repositoryEntry.RawJobModel,
+                    true,
+                    previousAttempt: null,
+                    cancellationToken: cancellationToken);
+            if (!idempotentAcknowledgementReport.Success)
             {
                 /*
                  * An unsuccessful acknowledgement suggests that the executor somehow managed to lose custody of a message
                  * within a split second of receiving it. Nothing we can do except to log it, continue.
                  */
                 logger.LogError("Executor {Id} failed to acknowledge cached result for message {MessageId}", executorId,
-                    job.JobModel.MessageId);
+                    repositoryEntry.JobModel.MessageId);
             }
 
             // Send a notice to the idempotency execution service to refresh/remove the cache entry (depending on downstream settings) 
-            await idempotencyExecutionService.SetResultInCacheAsync(job.JobModel, true,
-                idempotentAcknowledgementSuccess, cancellationToken);
+            await idempotencyExecutionService.SetResultInCacheAsync(repositoryEntry.RawJobModel, true,
+                idempotentAcknowledgementReport, cancellationToken);
             return;
         }
 
@@ -58,17 +62,22 @@ internal class JobExecutor(
          * If the idempotency cache returned false, then assume that we need to retry
          */
 
-        var success = await safeJobRunner.RunSafelyAsync(job.JobModel, cancellationToken);
+        var success = await safeJobRunner.RunSafelyAsync(repositoryEntry.JobModel, cancellationToken);
         logger.LogTrace("Executor {Id} finished processing message {MessageId}. Success: {Success}", executorId,
-            job.JobModel.MessageId, success);
+            repositoryEntry.JobModel.MessageId, success);
 
-        await job.SetStateAsync(JobState.Complete, cancellationToken);
+        await repositoryEntry.SetStateAsync(JobState.Complete, cancellationToken);
 
-        await jobRepository.RemoveJobAsync(job, cancellationToken);
+        await jobRepository.RemoveJobAsync(repositoryEntry, cancellationToken);
 
         var acknowledgementSuccess =
-            await safeJobAcknowledgementService.AcknowledgeSafelyAsync(job, success, cancellationToken);
-        await idempotencyExecutionService.SetResultInCacheAsync(job.JobModel, success, acknowledgementSuccess,
+            await safeJobAcknowledgementService.AcknowledgeSafelyAsync(repositoryEntry.RawJobModel,
+                success,
+                // There is no previous attempt to this particular invocation of ISafeJobRunner
+                previousAttempt: null,
+                cancellationToken: cancellationToken);
+        await idempotencyExecutionService.SetResultInCacheAsync(repositoryEntry.RawJobModel, success,
+            acknowledgementSuccess,
             cancellationToken);
     }
 

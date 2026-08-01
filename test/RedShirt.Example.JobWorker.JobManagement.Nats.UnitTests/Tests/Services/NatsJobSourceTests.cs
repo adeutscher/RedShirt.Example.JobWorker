@@ -30,7 +30,7 @@ public class NatsJobSourceTests
         var natsJobSource = new NatsJobSource(null!, null!, null!, null!,
             new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
-        var jobModel = new JobModel
+        var jobModel = new NatsRawJobModel
         {
             Message = message.Object,
             MessageId = "moot",

@@ -1,10 +1,9 @@
 using Apache.NMS;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Models;
 
 namespace RedShirt.Example.JobWorker.JobManagement.ActiveMq.UnitTests.Tests.Models;
 
-public class JobModelTests
+public class ActiveMqRawJobModelTests
 {
     [Fact]
     public void IdempotencyId_MatchesMessageId()

@@ -3,7 +3,6 @@ using Amazon.Kinesis.Model;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 using System.Text;
@@ -12,13 +11,20 @@ namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 
 internal interface ILowLevelStreamSource
 {
+    /// <summary>
+    ///     Get Kinesis records from a specific shard.
+    /// </summary>
+    /// <param name="batchSize"></param>
+    /// <param name="shardName"></param>
+    /// <param name="iteratorString"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
     Task<StreamSourceResponse> GetJobsAsync(int batchSize, string shardName, string iteratorString,
         CancellationToken cancellationToken = default);
 }
 
 internal class LowLevelStreamSource(
     IAmazonKinesis kinesisClient,
-    ISourceMessageConverter converter,
     ILogger<LowLevelStreamSource> logger,
     IOptions<KinesisConfiguration> options) : ILowLevelStreamSource
 {
@@ -48,7 +54,7 @@ internal class LowLevelStreamSource(
             };
         }
 
-        var items = new List<IJobModel>();
+        var items = new List<IRawJobModel>();
 
         string? lastSequenceNumber = null;
 
@@ -59,32 +65,17 @@ internal class LowLevelStreamSource(
             // Can only do this because the result of GetRecordsAsync is in the correct order raw from the shard. 
             lastSequenceNumber = item.SequenceNumber;
 
-            try
+            logger.LogTrace("Raw Kinesis message: {MessageBody}", body);
+
+            var data = new KinesisJobModel
             {
-                logger.LogTrace("Raw Kinesis message: {MessageBody}", body);
+                ShardId = shardName,
+                MessageId = item.SequenceNumber,
+                CreatedAtUtc = DateTime.UtcNow,
+                Body = body
+            };
 
-                var @object = converter.Convert(body);
-                if (@object is null)
-                {
-                    // TODO: At the moment, nulls during the parsing results in the message being ignored. Putting a pin in this issue until later, as it suggests a need for a dedicated revisit of handling bad messages for streams. Not great, but currently consistent with Kafka 
-                    continue;
-                }
-
-                var data = new KinesisJobModel
-                {
-                    ShardId = shardName,
-                    MessageId = item.SequenceNumber,
-                    CreatedAtUtc = DateTime.UtcNow,
-                    Data = @object
-                };
-
-                items.Add(data);
-            }
-            catch (Exception e)
-            {
-                logger.LogWarning(e, "Error parsing Kinesis message: {MessageBody}", body);
-                // TODO: At the moment, exceptions during the parsing results in the message being ignored. Putting a pin in this issue until later, as it suggests a need for a dedicated revisit of handling bad messages for streams. Not great, but currently consistent with Kafka
-            }
+            items.Add(data);
         }
 
         return new StreamSourceResponse

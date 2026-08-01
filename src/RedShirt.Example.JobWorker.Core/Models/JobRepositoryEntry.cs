@@ -10,7 +10,7 @@ internal interface ISortableJobWrapper
 
 internal interface IJobRepositoryEntry : ISortableJobWrapper
 {
-    IRawJobDataModel RawJobModel { get; }
+    IRawJobModel RawJobModel { get; }
     bool CanHeartbeat { get; }
     DateTime LastHeartbeatTime { get; set; }
     JobState State { get; }
@@ -25,7 +25,7 @@ internal class JobRepositoryEntry : IJobRepositoryEntry
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
     private Guid _lockId = Guid.Empty;
-    public required IRawJobDataModel RawJobModel { get; init; }
+    public required IRawJobModel RawJobModel { get; init; }
     public bool CanHeartbeat { get; private set; } = true;
     public required DateTime LastHeartbeatTime { get; set; }
     public required IJobModel JobModel { get; init; }

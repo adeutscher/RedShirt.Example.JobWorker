@@ -5,7 +5,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services;
 
 internal class NoReactionFailureHandler : IJobFailureHandler
 {
-    public Task HandleFailureAsync(IJobModel jobModel, Exception exception,
+    public Task HandleFailureAsync(IRawJobModel rawJobModel, Exception? exception,
         CancellationToken cancellationToken = default)
     {
         // No action, leave error handling to DLQ settings on SQS queue

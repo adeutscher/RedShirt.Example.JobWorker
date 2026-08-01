@@ -1,12 +1,9 @@
 namespace RedShirt.Example.JobWorker.Core.Models;
 
-/// <summary>
-///     Contains message data and metadata.
-/// </summary>
-public interface IJobModel
+public interface IRawJobModel
 {
     string MessageId { get; }
     string? IdempotencyId { get; }
+    string? Body { get; }
     DateTime CreatedAtUtc { get; }
-    IJobDataModel Data { get; }
 }

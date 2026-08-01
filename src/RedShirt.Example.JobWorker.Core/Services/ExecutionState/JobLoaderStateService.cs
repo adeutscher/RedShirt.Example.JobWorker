@@ -5,7 +5,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 ///     Despite the name, confirming that this service is intended for both Batch and Loader modes (though it was
 ///     originally written exclusively for Loader mode).
 /// </summary>
-public interface IJobLoaderStateService
+internal interface IJobLoaderStateService
 {
     bool IsLoaderFinished();
     void ReportLoaderStart();

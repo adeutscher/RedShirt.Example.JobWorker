@@ -4,7 +4,6 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using System.Text;
@@ -19,16 +18,13 @@ internal class RabbitMqJobSource : IJobSource
     // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
     private readonly Lazy<Task<IConnection>> _connection;
     private readonly ILogger<RabbitMqJobSource> _logger;
-    private readonly ISourceMessageConverter _messageConverter;
 
     public RabbitMqJobSource(IRabbitMqConnectionFactory connectionFactory,
         IOptions<ConfigurationModel> configuration,
-        ISourceMessageConverter messageConverter,
         ILogger<RabbitMqJobSource> logger)
     {
         _configuration = configuration;
         _logger = logger;
-        _messageConverter = messageConverter;
         _connection = new Lazy<Task<IConnection>>(() => connectionFactory.GetConnectionAsync());
         _channel = new Lazy<Task<IChannel>>(async () =>
         {
@@ -37,7 +33,7 @@ internal class RabbitMqJobSource : IJobSource
         });
     }
 
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not RabbitMqJobModel rabbitMqJobModel)
@@ -68,7 +64,7 @@ internal class RabbitMqJobSource : IJobSource
         _logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from RabbitMQ Queue: {QueueName}",
             batchSize, _configuration.Value.QueueName);
 
-        var getJobsResponseItems = new List<IJobModel>();
+        var getJobsResponseItems = new List<IRawJobModel>();
 
         var channel = await _channel.Value;
 
@@ -93,31 +89,7 @@ internal class RabbitMqJobSource : IJobSource
                 break;
             }
 
-            IJobDataModel? convertedMessage = null;
-            string? body = null;
-            try
-            {
-                body = Encoding.UTF8.GetString(result.Body.ToArray());
-                convertedMessage = _messageConverter.Convert(body);
-            }
-            catch (Exception e)
-            {
-                _logger.LogWarning(e, "Error parsing RabbitMQ message: {MessageBody}", body);
-            }
-
-            if (convertedMessage is null)
-            {
-                /*
-                 * What exactly to do with bad messages is a bit up in the air at the moment.
-                 * Deleting them from the queue is 'good enough' for now in this general template.
-                 */
-
-                // Delete the message so that it cannot keep gumming up the queue
-                await channel.BasicAckAsync(result.DeliveryTag, false, cancellationToken);
-
-                // Try to get a message again.
-                continue;
-            }
+            var body = Encoding.UTF8.GetString(result.Body.ToArray());
 
             // Got a message, add it to return set.
             getJobsResponseItems.Add(new RabbitMqJobModel
@@ -126,7 +98,7 @@ internal class RabbitMqJobSource : IJobSource
                 IdempotencyId = result.BasicProperties.MessageId,
                 DeliveryTag = result.DeliveryTag,
                 CreatedAtUtc = DateTime.UtcNow,
-                Data = convertedMessage
+                Body = body
             });
         }
 
@@ -138,12 +110,13 @@ internal class RabbitMqJobSource : IJobSource
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
-    public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         /*
          * Not necessary. Heartbeats are managed by the persistence of the IConnection object.
          * See: https://www.rabbitmq.com/client-libraries/dotnet-api-guide
-         * Since it is not necessary to do any thinking, then it is also not necessary to check that the provided IJobModel is even a RabbitMqJobModel.
+         * Since it is not necessary to do any thinking, then it is also not necessary to check that the provided
+         * IRawJobDataModel is even a RabbitMqJobModel.
          */
         return Task.CompletedTask;
     }

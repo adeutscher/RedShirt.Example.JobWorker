@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Models;
@@ -12,12 +11,11 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services;
 internal class AzureServiceBusJobSource(
     IBusReceiverClientSource clientSource,
     IAzureServiceBusMessageSource azureServiceBusServiceSource,
-    ISourceMessageConverter converter,
     IAzureServiceBusBodyStringRetriever bodyStringRetriever,
     ILogger<AzureServiceBusJobSource> logger,
     IOptions<AzureServiceBusConfigurationModel> options) : IJobSource
 {
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not AzureJobModel messageAsAzureJobModel)
@@ -47,7 +45,7 @@ internal class AzureServiceBusJobSource(
     public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         var messages = await azureServiceBusServiceSource.GetMessagesAsync(batchSize, cancellationToken);
-        var items = new List<IJobModel>();
+        var items = new List<IRawJobModel>();
 
         foreach (var receivedMessage in messages)
         {
@@ -87,35 +85,16 @@ internal class AzureServiceBusJobSource(
                 continue;
             }
 
-            try
+            logger.LogTrace("Raw Azure Service Bus message: {MessageBody}", messageBody);
+
+            var data = new AzureJobModel
             {
-                logger.LogTrace("Raw Azure Service Bus message: {MessageBody}", messageBody);
+                Message = receivedMessage,
+                CreatedAtUtc = DateTime.UtcNow,
+                Body = messageBody
+            };
 
-                var @object = converter.Convert(messageBody);
-                if (@object is null)
-                {
-                    // Assume a deterministic conversion failure
-                    var client = await clientSource.GetQueueClientAsync(cancellationToken);
-                    await client.DeadLetterMessageAsync(receivedMessage, "Conversion failure",
-                        "Conversion failure", cancellationToken);
-
-                    // Proceed to next message
-                    continue;
-                }
-
-                var data = new AzureJobModel
-                {
-                    Message = receivedMessage,
-                    CreatedAtUtc = DateTime.UtcNow,
-                    Data = @object
-                };
-
-                items.Add(data);
-            }
-            catch (Exception e)
-            {
-                logger.LogWarning(e, "Error parsing Azure Service Bus message: {MessageBody}", messageBody);
-            }
+            items.Add(data);
         }
 
         var response = new JobSourceResponse
@@ -129,7 +108,7 @@ internal class AzureServiceBusJobSource(
     public int RecommendedHeartbeatIntervalSeconds =>
         (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
-    public async Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         if (message is not AzureJobModel messageAsAzureJobModel)
             // For consideration: Throw some kind of exception?

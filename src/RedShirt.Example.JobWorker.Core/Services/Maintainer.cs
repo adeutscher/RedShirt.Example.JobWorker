@@ -86,14 +86,15 @@ internal class Maintainer(
                 try
                 {
                     await retryPolicy.ExecuteAsync(() =>
-                        jobSource.HeartbeatAsync(job.JobModel, cancellationToken));
+                        jobSource.HeartbeatAsync(job.RawJobModel, cancellationToken));
                     job.LastHeartbeatTime = DateTime.UtcNow;
                 }
                 catch (WorkerJobSourceException e) when (!e.IsCritical)
                 {
                     logger.LogWarning(e, "Heartbeat could not be completed for message: {MessageId}",
                         job.JobModel.MessageId);
-                    // Assume that if heartbeating failed this time around, then the message will be REALLY expired by the time the next loop iteration comes around.
+                    // Assume that if a heartbeat failed this time around, then the message will be REALLY expired by the time the next loop iteration comes around.
+                    // The documented recommendation for a heartbeat interval is ~75% of the time until message expiry
                     await job.SetIfFlightTimeCanBeExtendedAsync(false, cancellationToken);
                 }
 

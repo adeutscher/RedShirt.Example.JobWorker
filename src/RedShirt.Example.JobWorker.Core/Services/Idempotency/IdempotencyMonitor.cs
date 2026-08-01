@@ -41,7 +41,7 @@ internal class IdempotencyMonitor(
 
                 var cachedResult =
                     await idempotencyExecutionService.GetCachedResultAsync(blockedJob.JobModel, cancellationToken);
-                if (cachedResult is null or false)
+                if (cachedResult is null || !cachedResult.JobSuccess)
                 {
                     /*
                      * If no cached result, then nothing to acknowledge (did the other worker instance fail to cache it?).
@@ -56,8 +56,11 @@ internal class IdempotencyMonitor(
                 else
                 {
                     // Cached result is true. We are attempting to retry.
-                    var acknowledgeResult = await safeJobAcknowledgementService.AcknowledgeSafelyAsync(blockedJob,
-                        cachedResult.Value,
+                    var acknowledgeResult = await safeJobAcknowledgementService.AcknowledgeSafelyAsync(
+                        blockedJob.RawJobModel,
+                        cachedResult.JobSuccess,
+                        null,
+                        cachedResult.AcknowledgementResult,
                         cancellationToken);
                     /*
                      * If the acknowledgement was successful, then the message is complete and can be removed from the repository.
@@ -67,14 +70,14 @@ internal class IdempotencyMonitor(
                      */
                     logger.LogTrace(
                         "Idempotency Monitor has attempted to acknowledge message {MessageId} . Success: {Success}",
-                        blockedJob.JobModel.MessageId, acknowledgeResult);
-                    if (acknowledgeResult)
+                        blockedJob.JobModel.MessageId, acknowledgeResult.Success);
+                    if (acknowledgeResult.Success)
                     {
                         // Above comment aside, if acknowledgement was successful then call SetResult once more.
                         // If messageIds are configured to be considered unique, then current implementation shall
                         //  set cached value to null to attempt to free up cache resources faster
-                        await idempotencyExecutionService.SetResultInCacheAsync(blockedJob.JobModel, cachedResult.Value,
-                            acknowledgeResult, cancellationToken);
+                        await idempotencyExecutionService.SetResultInCacheAsync(blockedJob.RawJobModel,
+                            cachedResult.JobSuccess, cachedResult.AcknowledgementResult, cancellationToken);
                     }
 
                     await jobRepository.RemoveJobAsync(blockedJob, cancellationToken);

@@ -32,7 +32,7 @@ public interface IJobSource
     ///     has already exhausted retries and callers should not retry again.
     ///     When <see cref="WorkerJobSourceException.IsCritical" /> is <c>true</c>, callers should surface the failure.
     /// </exception>
-    Task AcknowledgeCompletionAsync(IRawJobDataModel message, bool success,
+    Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default);
 
     Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default);
@@ -52,5 +52,5 @@ public interface IJobSource
     ///     has already exhausted retries and callers should not retry again.
     ///     When <see cref="WorkerJobSourceException.IsCritical" /> is <c>true</c>, callers should surface the failure.
     /// </exception>
-    Task HeartbeatAsync(IRawJobDataModel message, CancellationToken cancellationToken = default);
+    Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default);
 }

@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Models;
 
@@ -11,13 +10,12 @@ internal class KafkaJobSource(
     IKafkaConsumerSource consumerSource,
     IKafkaMessageSource kafkaMessageSource,
     IKafkaRetryWrapperService retryWrapperService,
-    ISourceMessageConverter converter,
     ILogger<KafkaJobSource> logger) : IJobSource
 {
     private readonly SemaphoreSlim _sessionSemaphore = new(1, 1);
     internal KafkaTrackerSession? Session;
 
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
         if (message is not KafkaJobModel kafkaJobModel
@@ -83,7 +81,7 @@ internal class KafkaJobSource(
 
         var messageSourceResponse = await kafkaMessageSource.GetMessagesAsync(batchSize, cancellationToken);
 
-        var items = new List<IJobModel>();
+        var items = new List<IRawJobModel>();
         var messagesToProcess = new List<IKafkaMessageContainer>();
         var skippedMessages = new List<IKafkaMessageContainer>();
         var totalMessages = new List<IKafkaMessageContainer>();
@@ -101,35 +99,17 @@ internal class KafkaJobSource(
                 continue;
             }
 
-            try
+            logger.LogTrace("Raw Kafka message: {MessageBody}", messageBody);
+
+            var data = new KafkaJobModel
             {
-                logger.LogTrace("Raw Kafka message: {MessageBody}", messageBody);
+                Message = receivedMessage,
+                CreatedAtUtc = DateTime.UtcNow,
+                Body = messageBody
+            };
 
-                var @object = converter.Convert(messageBody);
-                if (@object is null)
-                {
-                    logger.LogWarning("Kafka message conversion returned null for {MessageId}; skipping",
-                        receivedMessage.MessageId);
-                    // TODO: At the moment, null results during the parsing results in the message being ignored. Putting a pin in this issue until later, as it suggests a need for a dedicated revisit of handling bad messages for streams. Not great, but consistent with Kinesis
-                    continue;
-                }
-
-                var data = new KafkaJobModel
-                {
-                    Message = receivedMessage,
-                    CreatedAtUtc = DateTime.UtcNow,
-                    Data = @object
-                };
-
-                items.Add(data);
-                messagesToProcess.Add(receivedMessage);
-            }
-            catch (Exception e)
-            {
-                logger.LogWarning(e, "Error parsing Kafka message: {MessageBody}", messageBody);
-                // TODO: At the moment, exceptions during the parsing results in the message being ignored. Putting a pin in this issue until later, as it suggests a need for a dedicated revisit of handling bad messages for streams. Not great, but consistent with Kinesis
-                skippedMessages.Add(receivedMessage);
-            }
+            items.Add(data);
+            messagesToProcess.Add(receivedMessage);
         }
 
         if (skippedMessages.Count > 0 && skippedMessages.Count == messageSourceResponse.Messages.Count)
@@ -170,7 +150,7 @@ internal class KafkaJobSource(
     /// </summary>
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
-    public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         /*
          * Not necessary. Consumer group heartbeats are managed by underlying Kafka protocol for the IConsumer lifetime.

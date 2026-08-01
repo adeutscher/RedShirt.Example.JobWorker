@@ -7,5 +7,6 @@ namespace RedShirt.Example.JobWorker.Core.Services.Abstractions;
 /// </summary>
 public interface IJobFailureHandler
 {
-    Task HandleFailureAsync(IJobModel jobModel, Exception exception, CancellationToken cancellationToken = default);
+    Task HandleFailureAsync(IRawJobModel rawJobModel, Exception? exception,
+        CancellationToken cancellationToken = default);
 }
