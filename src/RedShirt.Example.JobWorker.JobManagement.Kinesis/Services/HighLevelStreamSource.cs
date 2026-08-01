@@ -64,7 +64,7 @@ internal class HighLevelStreamSource(
     /// </summary>
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
-    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
+    public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         // List through shards
         var shards = await lister.GetListOfShardsAsync(cancellationToken);

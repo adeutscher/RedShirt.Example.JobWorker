@@ -11,13 +11,17 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.MessagePollin
 
 public class BatchModeJobLoaderTests
 {
+    private static IJobSourceResponse CreateJobSourceResponse(List<IRawJobModel> items)
+    {
+        var response = new Mock<IJobSourceResponse>(MockBehavior.Strict);
+        response.Setup(r => r.Items).Returns(items);
+        return response.Object;
+    }
+
     [Fact]
     public async Task RunAsync_UsesEffectiveBatchSizeWhenConfiguredBatchSizeIsBelowOne()
     {
-        var response = new JobSourceResponse
-        {
-            Items = [new Mock<IRawJobModel>(MockBehavior.Strict).Object]
-        };
+        var response = CreateJobSourceResponse([new Mock<IRawJobModel>(MockBehavior.Strict).Object]);
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
@@ -72,10 +76,7 @@ public class BatchModeJobLoaderTests
     [Fact]
     public async Task RunAsync_WhenJobsReturned_SubmitsThenWaitsForEmptyRepository()
     {
-        var response = new JobSourceResponse
-        {
-            Items = [new Mock<IRawJobModel>(MockBehavior.Strict).Object]
-        };
+        var response = CreateJobSourceResponse([new Mock<IRawJobModel>(MockBehavior.Strict).Object]);
 
         var callLog = new List<string>();
 
@@ -137,7 +138,7 @@ public class BatchModeJobLoaderTests
 
         Assert.Same(permanent, thrown);
         jobIntakeService.Verify(
-            s => s.SubmitAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()),
+            s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
             Times.Never);
         jobRepository.Verify(r => r.WaitForEmptyRepositoryAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -148,7 +149,7 @@ public class BatchModeJobLoaderTests
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
             .Setup(s => s.GetJobsAsync(5, TestContext.Current.CancellationToken))
-            .ReturnsAsync(new JobSourceResponse {Items = []});
+            .ReturnsAsync(CreateJobSourceResponse([]));
 
         var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
@@ -163,7 +164,7 @@ public class BatchModeJobLoaderTests
         await Assert.ThrowsAsync<NoJobException>(() => loader.RunAsync(TestContext.Current.CancellationToken));
 
         jobIntakeService.Verify(
-            s => s.SubmitAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()),
+            s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
             Times.Never);
         jobRepository.Verify(r => r.WaitForEmptyRepositoryAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -189,7 +190,7 @@ public class BatchModeJobLoaderTests
         await Assert.ThrowsAsync<NoJobException>(() => loader.RunAsync(TestContext.Current.CancellationToken));
 
         jobIntakeService.Verify(
-            s => s.SubmitAsync(It.IsAny<JobSourceResponse>(), It.IsAny<CancellationToken>()),
+            s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 }

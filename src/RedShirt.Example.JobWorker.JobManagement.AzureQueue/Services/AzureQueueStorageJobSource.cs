@@ -31,7 +31,7 @@ internal class AzureQueueStorageJobSource(
         await client.DeleteMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
     }
 
-    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
+    public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         var messages = await azureQueueStorageMessageSource.GetMessagesAsync(batchSize, cancellationToken);
         var items = new List<IRawJobModel>();

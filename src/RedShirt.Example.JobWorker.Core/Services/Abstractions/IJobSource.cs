@@ -35,7 +35,7 @@ public interface IJobSource
     Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default);
 
-    Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default);
+    Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Extend the in-flight / visibility window for a job record, if the underlying message source supports it.

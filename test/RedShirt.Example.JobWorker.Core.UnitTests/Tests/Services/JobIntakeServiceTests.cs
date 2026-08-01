@@ -8,6 +8,13 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services;
 
 public class JobIntakeServiceTests
 {
+    private static IJobSourceResponse CreateJobSourceResponse(List<IRawJobModel> items)
+    {
+        var response = new Mock<IJobSourceResponse>(MockBehavior.Strict);
+        response.Setup(r => r.Items).Returns(items);
+        return response.Object;
+    }
+
     [Fact]
     public async Task SubmitAsync_WhenNoItems_DoesNotLoadOrAcknowledge()
     {
@@ -23,7 +30,7 @@ public class JobIntakeServiceTests
             idempotency.Object,
             new NullLogger<JobIntakeService>());
 
-        await service.SubmitAsync(new JobSourceResponse {Items = []}, TestContext.Current.CancellationToken);
+        await service.SubmitAsync(CreateJobSourceResponse([]), TestContext.Current.CancellationToken);
 
         jobRepository.Verify(
             r => r.LoadAsync(It.IsAny<IReadOnlyList<IJobEnvelope>>(), It.IsAny<CancellationToken>()),
@@ -72,7 +79,7 @@ public class JobIntakeServiceTests
             new NullLogger<JobIntakeService>());
 
         await service.SubmitAsync(
-            new JobSourceResponse {Items = [rawJob.Object]},
+            CreateJobSourceResponse([rawJob.Object]),
             TestContext.Current.CancellationToken);
 
         Assert.NotNull(loaded);
@@ -129,7 +136,7 @@ public class JobIntakeServiceTests
             new NullLogger<JobIntakeService>());
 
         await service.SubmitAsync(
-            new JobSourceResponse {Items = [rawJob.Object]},
+            CreateJobSourceResponse([rawJob.Object]),
             TestContext.Current.CancellationToken);
 
         converter.Verify(c => c.Convert(It.IsAny<string>()), Times.Never);
@@ -182,7 +189,7 @@ public class JobIntakeServiceTests
             new NullLogger<JobIntakeService>());
 
         await service.SubmitAsync(
-            new JobSourceResponse {Items = [rawJob.Object]},
+            CreateJobSourceResponse([rawJob.Object]),
             TestContext.Current.CancellationToken);
 
         acknowledgement.Verify(
@@ -233,7 +240,7 @@ public class JobIntakeServiceTests
             new NullLogger<JobIntakeService>());
 
         await service.SubmitAsync(
-            new JobSourceResponse {Items = [rawJob.Object]},
+            CreateJobSourceResponse([rawJob.Object]),
             TestContext.Current.CancellationToken);
 
         acknowledgement.Verify(
@@ -295,7 +302,7 @@ public class JobIntakeServiceTests
             new NullLogger<JobIntakeService>());
 
         await service.SubmitAsync(
-            new JobSourceResponse {Items = [goodRaw.Object, badRaw.Object]},
+            CreateJobSourceResponse([goodRaw.Object, badRaw.Object]),
             TestContext.Current.CancellationToken);
 
         Assert.NotNull(loaded);

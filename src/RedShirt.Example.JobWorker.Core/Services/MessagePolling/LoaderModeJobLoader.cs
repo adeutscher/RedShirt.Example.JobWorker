@@ -56,7 +56,7 @@ internal class LoaderModeJobLoader(
             }
         }
 
-        JobSourceResponse jobResponse;
+        IJobSourceResponse jobResponse;
         var stopwatch = Stopwatch.StartNew();
 
         try

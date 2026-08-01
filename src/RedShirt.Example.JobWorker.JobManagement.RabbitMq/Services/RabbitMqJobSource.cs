@@ -59,7 +59,7 @@ internal class RabbitMqJobSource : IJobSource
         }
     }
 
-    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
+    public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         _logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from RabbitMQ Queue: {QueueName}",
             batchSize, _configuration.Value.QueueName);

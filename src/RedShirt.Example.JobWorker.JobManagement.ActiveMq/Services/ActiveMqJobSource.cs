@@ -74,7 +74,7 @@ internal class ActiveMqJobSource : IJobSource
         return jobModel.Message.AcknowledgeAsync();
     }
 
-    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
+    public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         batchSize = Math.Max(1, batchSize);
 

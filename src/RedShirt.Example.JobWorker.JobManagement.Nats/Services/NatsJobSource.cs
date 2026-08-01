@@ -32,7 +32,7 @@ internal class NatsJobSource(
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
-    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
+    public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from NATS Stream: {StreamName}",
             batchSize, options.Value.StreamName);

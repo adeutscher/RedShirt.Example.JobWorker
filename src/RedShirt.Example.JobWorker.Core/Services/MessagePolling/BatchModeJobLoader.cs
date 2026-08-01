@@ -21,7 +21,7 @@ internal class BatchModeJobLoader(
 {
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        JobSourceResponse jobResponse;
+        IJobSourceResponse jobResponse;
         var stopwatch = Stopwatch.StartNew();
 
         try

@@ -40,7 +40,7 @@ internal class SqsJobSource(
         }, cancellationToken);
     }
 
-    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
+    public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         var messages = await sqsMessageSource.GetMessagesAsync(batchSize, cancellationToken);
         var items = new List<IRawJobModel>();

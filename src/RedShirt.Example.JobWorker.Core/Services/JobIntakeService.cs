@@ -7,7 +7,7 @@ namespace RedShirt.Example.JobWorker.Core.Services;
 
 internal interface IJobIntakeService
 {
-    Task SubmitAsync(JobSourceResponse jobSourceResponse, CancellationToken cancellationToken);
+    Task SubmitAsync(IJobSourceResponse jobSourceResponse, CancellationToken cancellationToken);
 }
 
 internal class JobIntakeService(
@@ -40,7 +40,7 @@ internal class JobIntakeService(
         }
     }
 
-    public async Task SubmitAsync(JobSourceResponse jobSourceResponse, CancellationToken cancellationToken)
+    public async Task SubmitAsync(IJobSourceResponse jobSourceResponse, CancellationToken cancellationToken)
     {
         var convertedMessages = new List<IJobEnvelope>();
         var failedMessages = new List<FailedJobEnvelope>();
