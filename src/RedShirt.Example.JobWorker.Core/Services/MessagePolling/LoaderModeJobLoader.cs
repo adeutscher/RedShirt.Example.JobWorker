@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
-using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions.MessagePolling;
 using RedShirt.Example.JobWorker.Core.Models;
@@ -12,7 +11,6 @@ using System.Diagnostics;
 namespace RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 
 internal class LoaderModeJobLoader(
-    IJobLoaderLoop jobLoaderLoop,
     IJobSource jobSource,
     IExecutionEndArbiter executionEndArbiter,
     IJobRepository jobRepository,
@@ -20,7 +18,7 @@ internal class LoaderModeJobLoader(
     ILogger<LoaderModeJobLoader> logger,
     IOptions<JobSourceConfigurationModel> jobSourceOptions) : IJobLoader
 {
-    private async Task RunLoaderModeLoopIterationAsync(CancellationToken cancellationToken = default)
+    public async Task RunAsync(CancellationToken cancellationToken = default)
     {
         var backlogMaxCount = jobRepository.GetBacklogMaxCount();
         int sizeToGet;
@@ -85,10 +83,5 @@ internal class LoaderModeJobLoader(
         }
 
         await jobIntakeService.SubmitAsync(jobResponse, cancellationToken);
-    }
-
-    public Task<HandlerResponseEnum> RunAsync(CancellationToken cancellationToken = default)
-    {
-        return jobLoaderLoop.RunAsync(RunLoaderModeLoopIterationAsync, cancellationToken);
     }
 }

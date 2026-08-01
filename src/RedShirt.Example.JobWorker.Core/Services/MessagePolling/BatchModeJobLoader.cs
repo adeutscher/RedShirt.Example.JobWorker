@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
-using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -18,10 +17,9 @@ internal class BatchModeJobLoader(
     IJobRepository jobRepository,
     IJobIntakeService jobIntakeService,
     ILogger<BatchModeJobLoader> logger,
-    IOptions<JobSourceConfigurationModel> jobSourceOptions,
-    IJobLoaderLoop jobLoaderLoop) : IJobLoader
+    IOptions<JobSourceConfigurationModel> jobSourceOptions) : IJobLoader
 {
-    private async Task RunBatchModeLoopIterationAsync(CancellationToken cancellationToken)
+    public async Task RunAsync(CancellationToken cancellationToken = default)
     {
         JobSourceResponse jobResponse;
         var stopwatch = Stopwatch.StartNew();
@@ -50,10 +48,5 @@ internal class BatchModeJobLoader(
         await jobIntakeService.SubmitAsync(jobResponse, cancellationToken);
 
         await jobRepository.WaitForEmptyRepositoryAsync(cancellationToken);
-    }
-
-    public Task<HandlerResponseEnum> RunAsync(CancellationToken cancellationToken = default)
-    {
-        return jobLoaderLoop.RunAsync(RunBatchModeLoopIterationAsync, cancellationToken);
     }
 }

@@ -33,8 +33,9 @@ public class IdempotencyMonitorTests
     private static (Mock<IJobRepositoryEntry> Entry, Mock<IJobModel> JobModel, Mock<IRawJobModel> RawJobModel)
         CreateBlockedJob()
     {
-        var jobModel = TestJobHelpers.CreateJobModel();
-        var rawJobModel = TestJobHelpers.CreateRawJobModel(jobModel.Object.MessageId);
+        var jobModel = new Mock<IJobModel>(MockBehavior.Strict);
+        jobModel.Setup(j => j.MessageId).Returns(Guid.NewGuid().ToString());
+        var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(jobModel.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
@@ -99,7 +100,15 @@ public class IdempotencyMonitorTests
         var cachedResult = jobSuccess switch
         {
             null => null,
-            false => TestJobHelpers.CacheResult(false),
+            false => new IdempotencyCacheResult
+            {
+                JobSuccess = false,
+                AcknowledgementResult = new SafeAcknowledgementResult
+                {
+                    AcknowledgedSuccessfully = true,
+                    LoggedFailureSuccessfully = null
+                }
+            },
             _ => throw new ArgumentOutOfRangeException(nameof(jobSuccess))
         };
 
@@ -152,8 +161,20 @@ public class IdempotencyMonitorTests
     {
         var (entry, jobModel, rawJobModel) = CreateBlockedJob();
         var idempotencyLock = CreateLock(true);
-        var cachedResult = TestJobHelpers.CacheResult(true);
-        var failedAck = TestJobHelpers.AckResult(false);
+        var cachedResult = new IdempotencyCacheResult
+        {
+            JobSuccess = true,
+            AcknowledgementResult = new SafeAcknowledgementResult
+            {
+                AcknowledgedSuccessfully = true,
+                LoggedFailureSuccessfully = null
+            }
+        };
+        var failedAck = new SafeAcknowledgementResult
+        {
+            AcknowledgedSuccessfully = false,
+            LoggedFailureSuccessfully = null
+        };
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
@@ -213,8 +234,20 @@ public class IdempotencyMonitorTests
     {
         var (entry, jobModel, rawJobModel) = CreateBlockedJob();
         var idempotencyLock = CreateLock(true);
-        var cachedResult = TestJobHelpers.CacheResult(true);
-        var successAck = TestJobHelpers.AckResult(true);
+        var cachedResult = new IdempotencyCacheResult
+        {
+            JobSuccess = true,
+            AcknowledgementResult = new SafeAcknowledgementResult
+            {
+                AcknowledgedSuccessfully = true,
+                LoggedFailureSuccessfully = null
+            }
+        };
+        var successAck = new SafeAcknowledgementResult
+        {
+            AcknowledgedSuccessfully = true,
+            LoggedFailureSuccessfully = null
+        };
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);

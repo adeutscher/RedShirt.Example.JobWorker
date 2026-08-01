@@ -56,11 +56,23 @@ public class JobRepositoryTests
 
         var queuedModel = new Mock<IJobModel>(MockBehavior.Strict);
         queuedModel.Setup(m => m.MessageId).Returns("queued");
+        var queuedRaw = new Mock<IRawJobModel>(MockBehavior.Strict).Object;
         var unblockedModel = new Mock<IJobModel>(MockBehavior.Strict);
         unblockedModel.Setup(m => m.MessageId).Returns("unblocked");
 
-        await jobRepository.LoadAsync(TestJobHelpers.EnvelopesFromJobModels(queuedModel.Object),
+        await jobRepository.LoadAsync(
+            [
+                new JobEnvelope
+                {
+                    JobModel = queuedModel.Object,
+                    RawJobModel = queuedRaw
+                }
+            ],
             TestContext.Current.CancellationToken);
+
+        var queuedEntry = Assert.Single(jobRepository.WatchedJobs,
+            j => j.JobModel.MessageId == "queued");
+        Assert.Same(queuedRaw, queuedEntry.RawJobModel);
 
         var blockedEntry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         blockedEntry.Setup(e => e.JobModel).Returns(unblockedModel.Object);
@@ -383,7 +395,9 @@ public class JobRepositoryTests
             var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
             currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
             items.Add(currentItem);
-            envelopes.Add(TestJobHelpers.CreateEnvelope(currentItem));
+            var raw = new Mock<IRawJobModel>(MockBehavior.Strict);
+            raw.Setup(r => r.MessageId).Returns(currentItem.Object.MessageId);
+            envelopes.Add(new JobEnvelope {JobModel = currentItem.Object, RawJobModel = raw.Object});
         }
 
         await jobRepository.LoadAsync(envelopes, TestContext.Current.CancellationToken);
@@ -394,6 +408,9 @@ public class JobRepositoryTests
             var currentMock = items[i];
             var job = Assert.Single(jobRepository.WatchedJobs,
                 ci => ci.JobModel.MessageId == currentMock.Object.MessageId);
+            var expectedEnvelope = Assert.Single(envelopes,
+                e => e.JobModel.MessageId == currentMock.Object.MessageId);
+            Assert.Same(expectedEnvelope.RawJobModel, job.RawJobModel);
             Assert.True(job.CanHeartbeat);
             Assert.InRange(job.LastHeartbeatTime,
                 DateTime.UtcNow - TimeSpan.FromMilliseconds(250),
@@ -446,7 +463,9 @@ public class JobRepositoryTests
             var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
             currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
             mockJobs.Add(currentItem);
-            envelopes.Add(TestJobHelpers.CreateEnvelope(currentItem));
+            var raw = new Mock<IRawJobModel>(MockBehavior.Strict);
+            raw.Setup(r => r.MessageId).Returns(currentItem.Object.MessageId);
+            envelopes.Add(new JobEnvelope {JobModel = currentItem.Object, RawJobModel = raw.Object});
         }
 
         // Notably doing this BEFORE loading in jobs
@@ -461,6 +480,9 @@ public class JobRepositoryTests
             var currentMock = mockJobs[i];
             var job = Assert.Single(jobRepository.WatchedJobs,
                 ci => ci.JobModel.MessageId == currentMock.Object.MessageId);
+            var expectedEnvelope = Assert.Single(envelopes,
+                e => e.JobModel.MessageId == currentMock.Object.MessageId);
+            Assert.Same(expectedEnvelope.RawJobModel, job.RawJobModel);
             Assert.True(job.CanHeartbeat);
             Assert.InRange(job.LastHeartbeatTime,
                 DateTime.UtcNow - TimeSpan.FromMilliseconds(250),
@@ -471,6 +493,8 @@ public class JobRepositoryTests
         Assert.NotNull(gottenJob);
         // Matches at least one
         Assert.Contains(mockJobs, i => i.Object.MessageId == gottenJob.JobModel.MessageId);
+        var gottenEnvelope = Assert.Single(envelopes, e => e.JobModel.MessageId == gottenJob.JobModel.MessageId);
+        Assert.Same(gottenEnvelope.RawJobModel, gottenJob.RawJobModel);
     }
 
     /// <summary>
@@ -514,7 +538,9 @@ public class JobRepositoryTests
             var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
             currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
             mockJobs.Add(currentItem);
-            envelopes.Add(TestJobHelpers.CreateEnvelope(currentItem));
+            var raw = new Mock<IRawJobModel>(MockBehavior.Strict);
+            raw.Setup(r => r.MessageId).Returns(currentItem.Object.MessageId);
+            envelopes.Add(new JobEnvelope {JobModel = currentItem.Object, RawJobModel = raw.Object});
         }
 
         // Notably doing this BEFORE loading in jobs
@@ -529,6 +555,9 @@ public class JobRepositoryTests
             var currentMock = mockJobs[i];
             var job = Assert.Single(jobRepository.WatchedJobs,
                 ci => ci.JobModel.MessageId == currentMock.Object.MessageId);
+            var expectedEnvelope = Assert.Single(envelopes,
+                e => e.JobModel.MessageId == currentMock.Object.MessageId);
+            Assert.Same(expectedEnvelope.RawJobModel, job.RawJobModel);
             Assert.True(job.CanHeartbeat);
             Assert.InRange(job.LastHeartbeatTime,
                 DateTime.UtcNow - TimeSpan.FromMilliseconds(250),
@@ -539,6 +568,7 @@ public class JobRepositoryTests
         Assert.NotNull(gottenJob);
         // Matches at least one
         Assert.Equal(mockJobs[0].Object.MessageId, gottenJob.JobModel.MessageId);
+        Assert.Same(envelopes[0].RawJobModel, gottenJob.RawJobModel);
 
         Assert.True(gottenJob.CanHeartbeat);
         // Imitate JobExecutor by marking the task as blocked by idempotency.
@@ -605,7 +635,9 @@ public class JobRepositoryTests
             var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
             currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
             mockJobs.Add(currentItem);
-            envelopes.Add(TestJobHelpers.CreateEnvelope(currentItem));
+            var raw = new Mock<IRawJobModel>(MockBehavior.Strict);
+            raw.Setup(r => r.MessageId).Returns(currentItem.Object.MessageId);
+            envelopes.Add(new JobEnvelope {JobModel = currentItem.Object, RawJobModel = raw.Object});
         }
 
         // Notably doing this BEFORE loading in jobs
@@ -639,6 +671,9 @@ public class JobRepositoryTests
             var currentMock = mockJobs[i];
             var job = Assert.Single(jobRepository.WatchedJobs,
                 ci => ci.JobModel.MessageId == currentMock.Object.MessageId);
+            var expectedEnvelope = Assert.Single(envelopes,
+                e => e.JobModel.MessageId == currentMock.Object.MessageId);
+            Assert.Same(expectedEnvelope.RawJobModel, job.RawJobModel);
             Assert.True(job.CanHeartbeat);
             Assert.InRange(job.LastHeartbeatTime,
                 DateTime.UtcNow - TimeSpan.FromMilliseconds(250),
@@ -657,6 +692,7 @@ public class JobRepositoryTests
         Assert.NotNull(gottenJob);
         // Matches at least one
         Assert.Equal(mockJobs[0].Object.MessageId, gottenJob.JobModel.MessageId);
+        Assert.Same(envelopes[0].RawJobModel, gottenJob.RawJobModel);
 
         Assert.True(gottenJob.CanHeartbeat);
         // Imitate JobExecutor by marking the task as blocked by idempotency.
@@ -728,7 +764,9 @@ public class JobRepositoryTests
             var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
             currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
             mockJobs.Add(currentItem);
-            envelopes.Add(TestJobHelpers.CreateEnvelope(currentItem));
+            var raw = new Mock<IRawJobModel>(MockBehavior.Strict);
+            raw.Setup(r => r.MessageId).Returns(currentItem.Object.MessageId);
+            envelopes.Add(new JobEnvelope {JobModel = currentItem.Object, RawJobModel = raw.Object});
         }
 
         // Notably doing this BEFORE loading in jobs
@@ -743,6 +781,9 @@ public class JobRepositoryTests
             var currentMock = mockJobs[i];
             var job = Assert.Single(jobRepository.WatchedJobs,
                 ci => ci.JobModel.MessageId == currentMock.Object.MessageId);
+            var expectedEnvelope = Assert.Single(envelopes,
+                e => e.JobModel.MessageId == currentMock.Object.MessageId);
+            Assert.Same(expectedEnvelope.RawJobModel, job.RawJobModel);
             Assert.True(job.CanHeartbeat);
             Assert.InRange(job.LastHeartbeatTime,
                 DateTime.UtcNow - TimeSpan.FromMilliseconds(250),
@@ -753,6 +794,7 @@ public class JobRepositoryTests
         Assert.NotNull(gottenJob);
         // Matches at least one
         Assert.Equal(mockJobs[0].Object.MessageId, gottenJob.JobModel.MessageId);
+        Assert.Same(envelopes[0].RawJobModel, gottenJob.RawJobModel);
 
         // Confirm a few fields while we're here
         Assert.True(gottenJob.CanHeartbeat);
@@ -821,7 +863,9 @@ public class JobRepositoryTests
             currentItem.Setup(ci => ci.MessageId).Returns(currentId);
             jobIdentifiersTracked.Add(currentId);
             items.Add(currentItem);
-            envelopes.Add(TestJobHelpers.CreateEnvelope(currentItem));
+            var raw = new Mock<IRawJobModel>(MockBehavior.Strict);
+            raw.Setup(r => r.MessageId).Returns(currentItem.Object.MessageId);
+            envelopes.Add(new JobEnvelope {JobModel = currentItem.Object, RawJobModel = raw.Object});
         }
 
         // Compile a list of retrieved jobs
@@ -852,6 +896,9 @@ public class JobRepositoryTests
             var currentMock = items[i];
             var job = Assert.Single(jobRepository.WatchedJobs,
                 ci => ci.JobModel.MessageId == currentMock.Object.MessageId);
+            var expectedEnvelope = Assert.Single(envelopes,
+                e => e.JobModel.MessageId == currentMock.Object.MessageId);
+            Assert.Same(expectedEnvelope.RawJobModel, job.RawJobModel);
             Assert.True(job.CanHeartbeat);
             Assert.InRange(job.LastHeartbeatTime,
                 DateTime.UtcNow - TimeSpan.FromMilliseconds(250),
@@ -871,6 +918,9 @@ public class JobRepositoryTests
             var currentJob = retrievedJobs[i]; // shorthand
             Assert.Contains(currentJob.JobModel.MessageId, jobIdentifiersTracked);
             Assert.True(jobIdentifiersRetrieved.Add(currentJob.JobModel.MessageId));
+            var expectedEnvelope = Assert.Single(envelopes,
+                e => e.JobModel.MessageId == currentJob.JobModel.MessageId);
+            Assert.Same(expectedEnvelope.RawJobModel, currentJob.RawJobModel);
         }
 
         jobLoaderStateService.Verify(s => s.IsLoaderFinished(), Times.Once);
@@ -919,7 +969,9 @@ public class JobRepositoryTests
             var currentItem = new Mock<IJobModel>(MockBehavior.Strict);
             currentItem.Setup(ci => ci.MessageId).Returns(Guid.NewGuid().ToString());
             mockJobs.Add(currentItem);
-            envelopes.Add(TestJobHelpers.CreateEnvelope(currentItem));
+            var raw = new Mock<IRawJobModel>(MockBehavior.Strict);
+            raw.Setup(r => r.MessageId).Returns(currentItem.Object.MessageId);
+            envelopes.Add(new JobEnvelope {JobModel = currentItem.Object, RawJobModel = raw.Object});
         }
 
         await jobRepository.LoadAsync(envelopes, TestContext.Current.CancellationToken);
@@ -930,6 +982,9 @@ public class JobRepositoryTests
             var currentMock = mockJobs[i];
             var job = Assert.Single(jobRepository.WatchedJobs,
                 ci => ci.JobModel.MessageId == currentMock.Object.MessageId);
+            var expectedEnvelope = Assert.Single(envelopes,
+                e => e.JobModel.MessageId == currentMock.Object.MessageId);
+            Assert.Same(expectedEnvelope.RawJobModel, job.RawJobModel);
             Assert.True(job.CanHeartbeat);
             Assert.True(job.State == JobState.Inactive);
             Assert.InRange(job.LastHeartbeatTime,
@@ -942,6 +997,8 @@ public class JobRepositoryTests
         Assert.NotNull(gottenJob);
         // Matches at least one
         Assert.Contains(mockJobs, i => i.Object.MessageId == gottenJob.JobModel.MessageId);
+        var gottenEnvelope = Assert.Single(envelopes, e => e.JobModel.MessageId == gottenJob.JobModel.MessageId);
+        Assert.Same(gottenEnvelope.RawJobModel, gottenJob.RawJobModel);
 
         // After having grabbed a job, look at WatchedJobs again. One of them should have been flipped to Active
         Assert.Single(jobRepository.WatchedJobs, wj => wj.State == JobState.Active);
@@ -1122,10 +1179,24 @@ public class JobRepositoryTests
 
         var jobModel1 = new Mock<IJobModel>(MockBehavior.Strict);
         jobModel1.Setup(m => m.MessageId).Returns(Guid.NewGuid().ToString());
+        var rawJobModel1 = new Mock<IRawJobModel>(MockBehavior.Strict).Object;
         var jobModel2 = new Mock<IJobModel>(MockBehavior.Strict);
         jobModel2.Setup(m => m.MessageId).Returns(Guid.NewGuid().ToString());
+        var rawJobModel2 = new Mock<IRawJobModel>(MockBehavior.Strict).Object;
 
-        await jobRepository.LoadAsync(TestJobHelpers.EnvelopesFromJobModels(jobModel1.Object, jobModel2.Object),
+        await jobRepository.LoadAsync(
+            [
+                new JobEnvelope
+                {
+                    JobModel = jobModel1.Object,
+                    RawJobModel = rawJobModel1
+                },
+                new JobEnvelope
+                {
+                    JobModel = jobModel2.Object,
+                    RawJobModel = rawJobModel2
+                }
+            ],
             TestContext.Current.CancellationToken);
 
         Assert.Equal(2, await jobRepository.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken));
@@ -1140,6 +1211,10 @@ public class JobRepositoryTests
 
         var watched = jobRepository.WatchedJobs.ToList();
         Assert.Equal(2, watched.Count);
+        Assert.Same(rawJobModel1,
+            Assert.Single(watched, w => w.JobModel.MessageId == jobModel1.Object.MessageId).RawJobModel);
+        Assert.Same(rawJobModel2,
+            Assert.Single(watched, w => w.JobModel.MessageId == jobModel2.Object.MessageId).RawJobModel);
 
         await jobRepository.RemoveJobAsync(watched[0], TestContext.Current.CancellationToken);
         Assert.False(waitTask.IsCompleted);
@@ -1173,9 +1248,20 @@ public class JobRepositoryTests
 
         var jobModel = new Mock<IJobModel>(MockBehavior.Strict);
         jobModel.Setup(m => m.MessageId).Returns(Guid.NewGuid().ToString());
+        var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict).Object;
 
-        await jobRepository.LoadAsync(TestJobHelpers.EnvelopesFromJobModels(jobModel.Object),
+        await jobRepository.LoadAsync(
+            [
+                new JobEnvelope
+                {
+                    JobModel = jobModel.Object,
+                    RawJobModel = rawJobModel
+                }
+            ],
             TestContext.Current.CancellationToken);
+
+        var loaded = Assert.Single(jobRepository.WatchedJobs);
+        Assert.Same(rawJobModel, loaded.RawJobModel);
 
         using var cts = new CancellationTokenSource();
         var waitTask = jobRepository.WaitForEmptyRepositoryAsync(cts.Token);

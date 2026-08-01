@@ -15,8 +15,8 @@ public class HandlerTests
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
-        var jobLoader = new Mock<IJobLoader>(MockBehavior.Strict);
-        jobLoader
+        var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
+        jobLoaderLoop
             .Setup(l => l.RunAsync(It.IsAny<CancellationToken>()))
             .Returns(async (CancellationToken ct) =>
             {
@@ -36,7 +36,7 @@ public class HandlerTests
         idempotencyMonitor.Setup(m => m.RunAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(HandlerResponseEnum.NotEnabled);
 
-        var handler = new Handler(jobLoader.Object, maintainer.Object, executor.Object, idempotencyMonitor.Object,
+        var handler = new Handler(jobLoaderLoop.Object, maintainer.Object, executor.Object, idempotencyMonitor.Object,
             Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}), new NullLogger<Handler>());
 
         var handleTask = handler.HandleAsync(cts.Token);
@@ -58,8 +58,8 @@ public class HandlerTests
         // Only the failing worker may return Finished (via the catch path). Other workers
         // return NotEnabled so they cannot race ahead and clear the wait before the exception
         // is recorded.
-        var jobLoader = new Mock<IJobLoader>(MockBehavior.Strict);
-        jobLoader
+        var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
+        jobLoaderLoop
             .Setup(l => l.RunAsync(TestContext.Current.CancellationToken))
             .ThrowsAsync(expected);
 
@@ -75,7 +75,7 @@ public class HandlerTests
         idempotencyMonitor.Setup(m => m.RunAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(HandlerResponseEnum.NotEnabled);
 
-        var handler = new Handler(jobLoader.Object, maintainer.Object, executor.Object, idempotencyMonitor.Object,
+        var handler = new Handler(jobLoaderLoop.Object, maintainer.Object, executor.Object, idempotencyMonitor.Object,
             Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}), new NullLogger<Handler>());
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -90,8 +90,8 @@ public class HandlerTests
     [InlineData(2, 2)]
     public async Task TestRunAsync(int numberOfExecutorThreads, int expectedNumberOfThreads)
     {
-        var jobLoader = new Mock<IJobLoader>(MockBehavior.Strict);
-        jobLoader
+        var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
+        jobLoaderLoop
             .Setup(l => l.RunAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(HandlerResponseEnum.Finished);
 
@@ -113,14 +113,12 @@ public class HandlerTests
         };
         Assert.Equal(expectedNumberOfThreads, options.EffectiveWorkerThreadCount);
 
-        var handler = new Handler(jobLoader.Object, maintainer.Object, executor.Object, idempotencyMonitor.Object,
+        var handler = new Handler(jobLoaderLoop.Object, maintainer.Object, executor.Object, idempotencyMonitor.Object,
             Options.Create(options), new NullLogger<Handler>());
 
-        // Run
         await handler.HandleAsync(TestContext.Current.CancellationToken);
 
-        // Check
-        Assert.Single(jobLoader.Invocations);
+        Assert.Single(jobLoaderLoop.Invocations);
         Assert.Equal(expectedNumberOfThreads, executor.Invocations.Count);
         for (var i = 0; i < expectedNumberOfThreads; i++)
         {

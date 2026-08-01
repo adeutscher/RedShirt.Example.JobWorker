@@ -19,7 +19,8 @@ public class SafeJobAcknowledgementServiceTests
 
     private static Mock<IRawJobModel> CreateRawJob()
     {
-        return TestJobHelpers.CreateRawJobModel();
+        // Acknowledge path only needs the raw job instance for pass-through to IJobSource / failure handler.
+        return new Mock<IRawJobModel>(MockBehavior.Strict);
     }
 
     [Theory]

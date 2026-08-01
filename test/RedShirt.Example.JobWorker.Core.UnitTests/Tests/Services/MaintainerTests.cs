@@ -49,7 +49,7 @@ public class MaintainerTests
     {
         var subject = new Mock<IJobModel>(MockBehavior.Strict);
         subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
-        var rawJobModel = TestJobHelpers.CreateRawJobModel();
+        var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
@@ -184,7 +184,7 @@ public class MaintainerTests
         subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         entry.Setup(e => e.CanHeartbeat).Returns(true);
-        var rawJobModel = TestJobHelpers.CreateRawJobModel();
+        var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
 
@@ -260,7 +260,7 @@ public class MaintainerTests
         subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         entry.Setup(e => e.CanHeartbeat).Returns(true);
-        var rawJobModel = TestJobHelpers.CreateRawJobModel();
+        var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken))
@@ -341,7 +341,7 @@ public class MaintainerTests
         subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         entry.Setup(e => e.CanHeartbeat).Returns(true);
-        var rawJobModel = TestJobHelpers.CreateRawJobModel();
+        var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
 
@@ -408,7 +408,7 @@ public class MaintainerTests
         subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         entry.Setup(e => e.CanHeartbeat).Returns(true);
-        var rawJobModel = TestJobHelpers.CreateRawJobModel();
+        var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken))
@@ -477,7 +477,7 @@ public class MaintainerTests
         subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         entry.Setup(e => e.CanHeartbeat).Returns(true);
-        var rawJobModel = TestJobHelpers.CreateRawJobModel();
+        var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
 
@@ -550,7 +550,7 @@ public class MaintainerTests
         subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         entry.Setup(e => e.CanHeartbeat).Returns(true);
-        var rawJobModel = TestJobHelpers.CreateRawJobModel();
+        var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
 
@@ -622,7 +622,7 @@ public class MaintainerTests
         subject.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
         var entry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         entry.Setup(e => e.CanHeartbeat).Returns(true);
-        var rawJobModel = TestJobHelpers.CreateRawJobModel();
+        var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
 
@@ -701,7 +701,7 @@ public class MaintainerTests
         // First job
         var subject1 = new Mock<IJobModel>(MockBehavior.Strict);
         subject1.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
-        var rawJobModel1 = TestJobHelpers.CreateRawJobModel();
+        var rawJobModel1 = new Mock<IRawJobModel>(MockBehavior.Strict);
         var entry1 = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         entry1.Setup(e => e.JobModel).Returns(subject1.Object);
         entry1.Setup(e => e.RawJobModel).Returns(rawJobModel1.Object);
@@ -720,7 +720,7 @@ public class MaintainerTests
         // Second job
         var subject2 = new Mock<IJobModel>(MockBehavior.Strict);
         subject2.Setup(s => s.MessageId).Returns(Guid.NewGuid().ToString());
-        var rawJobModel2 = TestJobHelpers.CreateRawJobModel();
+        var rawJobModel2 = new Mock<IRawJobModel>(MockBehavior.Strict);
         var entry2 = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         entry2.Setup(e => e.JobModel).Returns(subject2.Object);
         entry2.Setup(e => e.RawJobModel).Returns(rawJobModel2.Object);

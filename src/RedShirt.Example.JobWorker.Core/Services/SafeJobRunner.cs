@@ -9,11 +9,11 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 namespace RedShirt.Example.JobWorker.Core.Services;
 
 /// <summary>
-///     Ensures a safe execution of a job with no leaked exceptions.
+///     Ensures a safe execution of a job with no thrown exceptions.
 /// </summary>
 internal interface ISafeJobRunner
 {
-    Task<bool> RunSafelyAsync(IJobModel job, CancellationToken cancellationToken = default);
+    Task<SafeJobRunResults> RunSafelyAsync(IJobModel job, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -36,7 +36,7 @@ internal class SafeJobRunner(
     private ResiliencePipeline? _retryPipeline;
 
     /// <summary>
-    ///     Creates (once) the retry pipeline: <see cref="JobRetryException"/>-driven <c>ShouldHandle</c>,
+    ///     Creates (once) the retry pipeline: <see cref="JobRetryException" />-driven <c>ShouldHandle</c>,
     ///     zero Polly delay, and backoff performed in <c>OnRetry</c> through <see cref="ISleepService" />.
     /// </summary>
     private ResiliencePipeline GetRetryPipeline()
@@ -80,20 +80,28 @@ internal class SafeJobRunner(
         return builder.Build();
     }
 
-    public async Task<bool> RunSafelyAsync(IJobModel job, CancellationToken cancellationToken = default)
+    public async Task<SafeJobRunResults> RunSafelyAsync(IJobModel job, CancellationToken cancellationToken = default)
     {
         try
         {
             await GetRetryPipeline().ExecuteAsync(
                 async token => await jobLogicRunner.RunAsync(job, token),
                 cancellationToken);
-            return true;
+            return new SafeJobRunResults
+            {
+                JobSuccess = true,
+                Exception = null
+            };
         }
         catch (Exception e)
         {
             logger.LogError(e, "Error running job: {EMessage}", e.Message);
 
-            return false;
+            return new SafeJobRunResults
+            {
+                JobSuccess = false,
+                Exception = e
+            };
         }
     }
 

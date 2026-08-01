@@ -29,13 +29,13 @@ internal interface IHandlerSubComponent
 ///     Kick-off point for message broker job management.
 ///     It is responsible for starting all worker threads.
 /// </summary>
-/// <param name="jobLoader"></param>
+/// <param name="jobLoaderLoop"></param>
 /// <param name="maintainer"></param>
 /// <param name="jobExecutor"></param>
 /// <param name="idempotencyMonitor"></param>
 /// <param name="threadOptions"></param>
 internal class Handler(
-    IJobLoader jobLoader,
+    IJobLoaderLoop jobLoaderLoop,
     IMaintainer maintainer,
     IJobExecutor jobExecutor,
     IIdempotencyMonitor idempotencyMonitor,
@@ -96,7 +96,7 @@ internal class Handler(
             }
         });
 
-        await addToTaskFunc(() => jobLoader.RunAsync(cancellationToken));
+        await addToTaskFunc(() => jobLoaderLoop.RunAsync(cancellationToken));
 
         // Executor threads
         for (var i = 0; i < threadOptions.Value.EffectiveWorkerThreadCount; i++)

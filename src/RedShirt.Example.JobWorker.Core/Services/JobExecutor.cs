@@ -40,6 +40,7 @@ internal class JobExecutor(
                     repositoryEntry.RawJobModel,
                     true,
                     previousAttempt: null,
+                    exception: null,
                     cancellationToken: cancellationToken);
             if (!idempotentAcknowledgementReport.Success)
             {
@@ -62,9 +63,9 @@ internal class JobExecutor(
          * If the idempotency cache returned false, then assume that we need to retry
          */
 
-        var success = await safeJobRunner.RunSafelyAsync(repositoryEntry.JobModel, cancellationToken);
+        var safeJobResult = await safeJobRunner.RunSafelyAsync(repositoryEntry.JobModel, cancellationToken);
         logger.LogTrace("Executor {Id} finished processing message {MessageId}. Success: {Success}", executorId,
-            repositoryEntry.JobModel.MessageId, success);
+            repositoryEntry.JobModel.MessageId, safeJobResult.JobSuccess);
 
         await repositoryEntry.SetStateAsync(JobState.Complete, cancellationToken);
 
@@ -72,11 +73,12 @@ internal class JobExecutor(
 
         var acknowledgementSuccess =
             await safeJobAcknowledgementService.AcknowledgeSafelyAsync(repositoryEntry.RawJobModel,
-                success,
+                safeJobResult.JobSuccess,
                 // There is no previous attempt to this particular invocation of ISafeJobRunner
                 previousAttempt: null,
+                exception: safeJobResult.JobSuccess ? null : safeJobResult.Exception,
                 cancellationToken: cancellationToken);
-        await idempotencyExecutionService.SetResultInCacheAsync(repositoryEntry.RawJobModel, success,
+        await idempotencyExecutionService.SetResultInCacheAsync(repositoryEntry.RawJobModel, safeJobResult.JobSuccess,
             acknowledgementSuccess,
             cancellationToken);
     }

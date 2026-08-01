@@ -10,7 +10,7 @@ public class JobRepositoryEntryTests
     public async Task TestGettersSetters()
     {
         var jobModel = new Mock<IJobModel>(MockBehavior.Strict).Object;
-        var rawJobModel = TestJobHelpers.CreateRawJobModel().Object;
+        var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict).Object;
 
         var jre = new JobRepositoryEntry
         {
@@ -44,7 +44,7 @@ public class JobRepositoryEntryTests
         {
             LastHeartbeatTime = default,
             JobModel = null!,
-            RawJobModel = TestJobHelpers.CreateRawJobModel().Object
+            RawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict).Object
         };
 
         var lockId = await jre.AcquireLockAsync(TestContext.Current.CancellationToken);
@@ -67,7 +67,7 @@ public class JobRepositoryEntryTests
         {
             LastHeartbeatTime = default,
             JobModel = null!,
-            RawJobModel = TestJobHelpers.CreateRawJobModel().Object
+            RawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict).Object
         };
 
         await jre.AcquireLockAsync(TestContext.Current.CancellationToken); // Don't care about storing this lock id.
@@ -84,7 +84,7 @@ public class JobRepositoryEntryTests
         {
             LastHeartbeatTime = default,
             JobModel = null!,
-            RawJobModel = TestJobHelpers.CreateRawJobModel().Object
+            RawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict).Object
         };
 
         var fakeLockId = Guid.NewGuid();

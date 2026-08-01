@@ -12,22 +12,18 @@ namespace RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 /// <summary>
 ///     Common job loader loop.
 /// </summary>
-internal interface IJobLoaderLoop
-{
-    public Task<HandlerResponseEnum> RunAsync(Func<CancellationToken, Task> iterationCallback,
-        CancellationToken cancellationToken = default);
-}
+internal interface IJobLoaderLoop : IHandlerSubComponent;
 
 internal class JobLoaderLoop(
     IJobLoaderStateService jobLoaderStateService,
     // Confirming that it is intentional to use the base IExecutionEndArbiter
     IExecutionEndArbiter executionEndArbiter,
-    IOptions<LoopOptionsConfigurationModel> loopOptions,
     ISleepService sleepService,
+    IJobLoader jobLoader,
+    IOptions<LoopOptionsConfigurationModel> loopOptions,
     ILogger<JobLoaderLoop> logger) : IJobLoaderLoop
 {
-    public async Task<HandlerResponseEnum> RunAsync(Func<CancellationToken, Task> iterationCallback,
-        CancellationToken cancellationToken = default)
+    public async Task<HandlerResponseEnum> RunAsync(CancellationToken cancellationToken = default)
     {
         var policyLoop = Policy.Handle<ReasonToWaitException>(_ => executionEndArbiter.ShouldKeepRunning())
             .RetryForeverAsync(async (_, retryAttempt) =>
@@ -45,7 +41,7 @@ internal class JobLoaderLoop(
             jobLoaderStateService.ReportLoaderStart();
             while (executionEndArbiter.ShouldKeepRunning())
             {
-                await policyLoop.ExecuteAsync(iterationCallback, cancellationToken);
+                await policyLoop.ExecuteAsync(jobLoader.RunAsync, cancellationToken);
             }
         }
         catch (AbortJobLoaderLoopException)
