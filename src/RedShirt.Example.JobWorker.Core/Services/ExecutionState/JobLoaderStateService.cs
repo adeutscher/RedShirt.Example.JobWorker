@@ -21,8 +21,8 @@ internal interface IJobLoaderStateService : IJobLoaderStateReaderService
 internal class JobLoaderStateService : IJobLoaderStateService
 {
     /// <summary>
-    /// Multithreading protection feels a little silly for a service that only sets booleans to true,
-    /// so this is mostly 
+    /// Multithreading protection.
+    /// Feels a little silly for a service that only sets booleans to true, but it makes automated audits happy.
     /// </summary>
     private readonly Lock _lock = new();
     private bool _isFinished;

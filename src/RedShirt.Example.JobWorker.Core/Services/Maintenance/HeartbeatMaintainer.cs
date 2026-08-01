@@ -125,27 +125,29 @@ internal class HeartbeatMaintainer(
 
     private async Task<TimeSpan> MaintainJobsAsync(List<IJobRepositoryEntry> jobs, CancellationToken cancellationToken)
     {
-        TimeSpan? timeToWait = null;
+        TimeSpan? timeToWaitForNextLoop = null;
 
         foreach (var jobRepositoryEntry in jobs)
         {
             var jobTimeToWait = await MaintainJobAsync(jobRepositoryEntry, cancellationToken);
-            timeToWait = !timeToWait.HasValue || jobTimeToWait < timeToWait
-                ? jobTimeToWait
-                : timeToWait;
+            if (jobTimeToWait is not null &&
+                (!timeToWaitForNextLoop.HasValue || jobTimeToWait < timeToWaitForNextLoop.Value))
+            {
+                timeToWaitForNextLoop = jobTimeToWait;
+            }
         }
 
         // Fallback, possibly because all jobs became complete after they were fetched?
-        timeToWait ??= TimeSpan.FromSeconds(jobSource.RecommendedHeartbeatIntervalSeconds);
+        timeToWaitForNextLoop ??= TimeSpan.FromSeconds(jobSource.RecommendedHeartbeatIntervalSeconds);
 
-        if (timeToWait.Value.TotalMilliseconds < MinimumTimeToWaitMilliseconds)
+        if (timeToWaitForNextLoop.Value.TotalMilliseconds < MinimumTimeToWaitMilliseconds)
         {
             // Enforcing a floor at MinimumTimeToWaitMilliseconds
             // See comments on MinimumTimeToWaitMilliseconds for more backstory.
-            timeToWait = TimeSpan.FromMilliseconds(MinimumTimeToWaitMilliseconds);
+            timeToWaitForNextLoop = TimeSpan.FromMilliseconds(MinimumTimeToWaitMilliseconds);
         }
 
-        return timeToWait.Value;
+        return timeToWaitForNextLoop.Value;
     }
 
     public async Task<HandlerResponseEnum> RunAsync(CancellationToken cancellationToken = default)

@@ -33,23 +33,41 @@ internal class JobRepositoryEntry : IJobRepositoryEntry
     public async Task SetAsCannotHeartbeatAsync(CancellationToken cancellationToken = default)
     {
         await _semaphoreSlim.WaitAsync(cancellationToken);
-        CanHeartbeat = false;
-        _semaphoreSlim.Release();
+        try
+        {
+            CanHeartbeat = false;
+        }
+        finally
+        {
+            _semaphoreSlim.Release();
+        }
     }
 
     public async Task SetLastHeartbeatTimeAsync(DateTime lastHeartbeatTime,
         CancellationToken cancellationToken = default)
     {
         await _semaphoreSlim.WaitAsync(cancellationToken);
-        LastHeartbeatTime = lastHeartbeatTime;
-        _semaphoreSlim.Release();
+        try
+        {
+            LastHeartbeatTime = lastHeartbeatTime;
+        }
+        finally
+        {
+            _semaphoreSlim.Release();
+        }
     }
 
     public async Task SetStateAsync(JobState state, CancellationToken cancellationToken = default)
     {
         await _semaphoreSlim.WaitAsync(cancellationToken);
-        State = state;
-        _semaphoreSlim.Release();
+        try
+        {
+            State = state;
+        }
+        finally
+        {
+            _semaphoreSlim.Release();
+        }
     }
 
     public JobState State { get; private set; } = JobState.Inactive;
