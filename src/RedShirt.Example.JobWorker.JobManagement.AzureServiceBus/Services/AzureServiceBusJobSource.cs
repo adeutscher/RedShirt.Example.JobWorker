@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -11,14 +10,12 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services;
 internal class AzureServiceBusJobSource(
     IBusReceiverClientSource clientSource,
     IAzureServiceBusMessageSource azureServiceBusServiceSource,
-    IAzureServiceBusBodyStringRetriever bodyStringRetriever,
-    ILogger<AzureServiceBusJobSource> logger,
     IOptions<AzureServiceBusConfigurationModel> options) : IJobSource
 {
     public async Task AcknowledgeCompletionAsync(IRawJobModel message, bool success,
         CancellationToken cancellationToken = default)
     {
-        if (message is not AzureJobModel messageAsAzureJobModel)
+        if (message is not AzureRawJobModel messageAsAzureJobModel)
             // For consideration: Throw some kind of exception?
         {
             return;
@@ -44,56 +41,13 @@ internal class AzureServiceBusJobSource(
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
-        var messages = await azureServiceBusServiceSource.GetMessagesAsync(batchSize, cancellationToken);
-        var items = new List<IRawJobModel>();
-
-        foreach (var receivedMessage in messages)
-        {
-            string messageBody;
-            try
-            {
-                messageBody = bodyStringRetriever.GetBody(receivedMessage);
-            }
-            catch (Exception e)
-            {
-                logger.LogWarning(e, "Error parsing Azure Service Bus message: {MessageBody}", e.Message);
-
-                /*
-                 * What exactly to do with bad messages is a bit up in the air at the moment.
-                 * Marking them for the dead-letter queue is 'good enough' for now in this general template.
-                 */
-
-                // Send the message to the dead-letter so that it cannot keep gumming up the message bus
-                var client = await clientSource.GetQueueClientAsync(cancellationToken);
-                await client.DeadLetterMessageAsync(receivedMessage, "Body parsing error",
-                    e.Message + " " + e.StackTrace, cancellationToken);
-
-                // Proceed to the next message
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(messageBody))
-            {
-                // Avoiding unhandled hung message
-
-                // Send the message to the dead-letter so that it cannot keep gumming up the message bus
-                var client = await clientSource.GetQueueClientAsync(cancellationToken);
-                await client.DeadLetterMessageAsync(receivedMessage, "Empty body",
-                    "Empty body", cancellationToken);
-
-                // Proceed to next message
-                continue;
-            }
-
-            var data = new AzureJobModel
+        var messagesFromSource = await azureServiceBusServiceSource.GetMessagesAsync(batchSize, cancellationToken);
+        var items = messagesFromSource
+            .Select(receivedMessage => new AzureRawJobModel
             {
                 Message = receivedMessage,
-                CreatedAtUtc = DateTime.UtcNow,
-                Body = messageBody
-            };
-
-            items.Add(data);
-        }
+                CreatedAtUtc = DateTime.UtcNow
+            }).Cast<IRawJobModel>().ToList();
 
         var response = new JobSourceResponse
         {
@@ -108,7 +62,7 @@ internal class AzureServiceBusJobSource(
 
     public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
-        if (message is not AzureJobModel messageAsAzureJobModel)
+        if (message is not AzureRawJobModel messageAsAzureJobModel)
             // For consideration: Throw some kind of exception?
         {
             return;
