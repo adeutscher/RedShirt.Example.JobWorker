@@ -56,25 +56,12 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.CanHeartbeat).Returns(true);
-
-        var lockId = Guid.NewGuid();
-        entry.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(lockId);
-        entry.Setup(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
         entry.Setup(e => e.State).Returns(JobState.Active);
         entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
             dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
-            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));
-
-        var redHerringLockId = Guid.NewGuid();
-        var redHerringEntry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
+            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));        var redHerringEntry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         redHerringEntry.Setup(e => e.State).Returns(JobState.Active);
         redHerringEntry.Setup(e => e.CanHeartbeat).Returns(false);
-        redHerringEntry.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(redHerringLockId);
-        redHerringEntry.Setup(e => e.ReleaseLockAsync(redHerringLockId, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
 
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>(MockBehavior.Strict);
         heartbeatCalculator
@@ -123,13 +110,6 @@ public class HeartbeatMaintainerTests
         Assert.Single(jobRepository.Invocations);
 
         jobSource.Verify(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken), Times.Once);
-
-        entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
-        entry.Verify(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken), Times.Once);
-
-        redHerringEntry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
-        redHerringEntry.Verify(e => e.ReleaseLockAsync(redHerringLockId, TestContext.Current.CancellationToken),
-            Times.Once);
     }
 
     /// <summary>
@@ -189,12 +169,6 @@ public class HeartbeatMaintainerTests
         var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
-
-        var lockId = Guid.NewGuid();
-        entry.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(lockId);
-        entry.Setup(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
         entry.Setup(e => e.State).Returns(JobState.Active);
         entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
             dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
@@ -246,9 +220,6 @@ public class HeartbeatMaintainerTests
         Assert.Single(jobRepository.Invocations);
 
         jobSource.Verify(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken), Times.Once);
-
-        entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
-        entry.Verify(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken), Times.Once);
     }
 
     /// <summary>
@@ -266,12 +237,6 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
-
-        var lockId = Guid.NewGuid();
-        entry.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(lockId);
-        entry.Setup(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
         entry.Setup(e => e.State).Returns(JobState.Active);
         entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
@@ -325,9 +290,6 @@ public class HeartbeatMaintainerTests
 
         jobSource.Verify(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken), Times.Once);
 
-        entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
-        entry.Verify(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken), Times.Once);
-
         entry.Verify(e => e.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken),
             Times.Once);
     }
@@ -346,12 +308,6 @@ public class HeartbeatMaintainerTests
         var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
-
-        var lockId = Guid.NewGuid();
-        entry.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(lockId);
-        entry.Setup(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
         entry.Setup(e => e.State).Returns(JobState.Complete); // Completed
 
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();
@@ -398,9 +354,6 @@ public class HeartbeatMaintainerTests
 
         jobSource.Verify(s => s.HeartbeatAsync(It.IsAny<IRawJobModel>(), It.IsAny<CancellationToken>()), Times.Never);
         jobSource.Verify(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken), Times.Never);
-
-        entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
-        entry.Verify(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Fact(Timeout = 1500)]
@@ -414,12 +367,6 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.SetIfFlightTimeCanBeExtendedAsync(false, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
-
-        var lockId = Guid.NewGuid();
-        entry.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(lockId);
-        entry.Setup(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
         entry.Setup(e => e.State).Returns(JobState.Active);
 
@@ -482,12 +429,6 @@ public class HeartbeatMaintainerTests
         var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
-
-        var lockId = Guid.NewGuid();
-        entry.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(lockId);
-        entry.Setup(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
         entry.Setup(e => e.State).Returns(JobState.Active);
         entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
             dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
@@ -536,9 +477,6 @@ public class HeartbeatMaintainerTests
         Assert.Single(jobRepository.Invocations);
 
         jobSource.Verify(s => s.HeartbeatAsync(It.IsAny<IRawJobModel>(), It.IsAny<CancellationToken>()), Times.Never);
-
-        entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
-        entry.Verify(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken), Times.Once);
     }
 
     /// <summary>
@@ -555,12 +493,6 @@ public class HeartbeatMaintainerTests
         var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
-
-        var lockId = Guid.NewGuid();
-        entry.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(lockId);
-        entry.Setup(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
         entry.Setup(e => e.State).Returns(JobState.Active);
         entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
             dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
@@ -612,9 +544,6 @@ public class HeartbeatMaintainerTests
         Assert.Single(jobRepository.Invocations);
 
         jobSource.Verify(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken), Times.Once);
-
-        entry.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
-        entry.Verify(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Fact(Timeout = 1500)]
@@ -627,12 +556,6 @@ public class HeartbeatMaintainerTests
         var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
-
-        var lockId = Guid.NewGuid();
-        entry.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(lockId);
-        entry.Setup(e => e.ReleaseLockAsync(lockId, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
         entry.Setup(e => e.State).Returns(JobState.Active);
         entry.SetupSet(e => e.LastHeartbeatTime = It.IsAny<DateTime>());
 
@@ -707,12 +630,6 @@ public class HeartbeatMaintainerTests
         var entry1 = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         entry1.Setup(e => e.JobModel).Returns(subject1.Object);
         entry1.Setup(e => e.RawJobModel).Returns(rawJobModel1.Object);
-
-        var lockId1 = Guid.NewGuid();
-        entry1.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(lockId1);
-        entry1.Setup(e => e.ReleaseLockAsync(lockId1, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
         entry1.Setup(e => e.CanHeartbeat).Returns(true);
         entry1.Setup(e => e.State).Returns(JobState.Active);
         entry1.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
@@ -726,12 +643,6 @@ public class HeartbeatMaintainerTests
         var entry2 = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         entry2.Setup(e => e.JobModel).Returns(subject2.Object);
         entry2.Setup(e => e.RawJobModel).Returns(rawJobModel2.Object);
-
-        var lockId2 = Guid.NewGuid();
-        entry2.Setup(e => e.AcquireLockAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(lockId2);
-        entry2.Setup(e => e.ReleaseLockAsync(lockId2, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
         entry2.Setup(e => e.State).Returns(JobState.Active);
         entry2.Setup(e => e.CanHeartbeat).Returns(true);
         entry2.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
@@ -796,11 +707,5 @@ public class HeartbeatMaintainerTests
 
         jobSource.Verify(s => s.HeartbeatAsync(rawJobModel1.Object, TestContext.Current.CancellationToken), Times.Once);
         jobSource.Verify(s => s.HeartbeatAsync(rawJobModel2.Object, TestContext.Current.CancellationToken), Times.Once);
-
-        entry1.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
-        entry1.Verify(e => e.ReleaseLockAsync(lockId1, TestContext.Current.CancellationToken), Times.Once);
-
-        entry2.Verify(e => e.AcquireLockAsync(TestContext.Current.CancellationToken), Times.Once);
-        entry2.Verify(e => e.ReleaseLockAsync(lockId2, TestContext.Current.CancellationToken), Times.Once);
     }
 }

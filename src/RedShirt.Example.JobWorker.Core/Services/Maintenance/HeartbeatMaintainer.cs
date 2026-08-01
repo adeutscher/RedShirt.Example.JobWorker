@@ -81,55 +81,46 @@ internal class HeartbeatMaintainer(
     private async Task<TimeSpan?> MaintainJobAsync(IJobRepositoryEntry jobRepositoryEntry,
         CancellationToken cancellationToken)
     {
-        // Make sure that we are currently the only user manipulating this job item.
-        var lockHandle = await jobRepositoryEntry.AcquireLockAsync(cancellationToken);
-        try
+        if (!jobRepositoryEntry.CanHeartbeat)
         {
-            if (!jobRepositoryEntry.CanHeartbeat)
-            {
-                // Job's flight time cannot be extended further
-                return null;
-            }
+            // Job's flight time cannot be extended further
+            return null;
+        }
 
-            if (jobRepositoryEntry.State == JobState.Complete)
-            {
-                // Job was completed since it was retrieved in the list of active jobs from the repository.
-                // Ignore completely.
-                return null;
-            }
+        if (jobRepositoryEntry.State == JobState.Complete)
+        {
+            // Job was completed since it was retrieved in the list of active jobs from the repository.
+            // Ignore completely.
+            return null;
+        }
 
-            if (!heartbeatCalculator.IsReadyForHeartbeat(jobRepositoryEntry))
-            {
-                // Job was refreshed recently
-                return heartbeatCalculator.TimeUntilNextHeartbeat(jobRepositoryEntry);
-            }
-
-            logger.LogTrace("Sending heartbeat for message: {MessageId}", jobRepositoryEntry.JobModel.MessageId);
-
-            try
-            {
-                await GetRetryPipeline().ExecuteAsync(
-                    async token => await jobSource.HeartbeatAsync(jobRepositoryEntry.RawJobModel, token),
-                    cancellationToken);
-                jobRepositoryEntry.LastHeartbeatTime = DateTime.UtcNow;
-            }
-            catch (WorkerJobSourceException e) when (!e.IsCritical)
-            {
-                logger.LogWarning(e, "Heartbeat could not be completed for message: {MessageId}",
-                    jobRepositoryEntry.JobModel.MessageId);
-                // Assume that if a heartbeat failed this time around, then the message will be REALLY expired
-                //  by the time the next loop iteration comes around.
-                //
-                // The documented recommendation for a heartbeat interval is ~75% of the time until message expiry
-                await jobRepositoryEntry.SetIfFlightTimeCanBeExtendedAsync(false, cancellationToken);
-            }
-
+        if (!heartbeatCalculator.IsReadyForHeartbeat(jobRepositoryEntry))
+        {
+            // Job was refreshed recently
             return heartbeatCalculator.TimeUntilNextHeartbeat(jobRepositoryEntry);
         }
-        finally
+
+        logger.LogTrace("Sending heartbeat for message: {MessageId}", jobRepositoryEntry.JobModel.MessageId);
+
+        try
         {
-            await jobRepositoryEntry.ReleaseLockAsync(lockHandle, cancellationToken);
+            await GetRetryPipeline().ExecuteAsync(
+                async token => await jobSource.HeartbeatAsync(jobRepositoryEntry.RawJobModel, token),
+                cancellationToken);
+            jobRepositoryEntry.LastHeartbeatTime = DateTime.UtcNow;
         }
+        catch (WorkerJobSourceException e) when (!e.IsCritical)
+        {
+            logger.LogWarning(e, "Heartbeat could not be completed for message: {MessageId}",
+                jobRepositoryEntry.JobModel.MessageId);
+            // Assume that if a heartbeat failed this time around, then the message will be REALLY expired
+            //  by the time the next loop iteration comes around.
+            //
+            // The documented recommendation for a heartbeat interval is ~75% of the time until message expiry
+            await jobRepositoryEntry.SetIfFlightTimeCanBeExtendedAsync(false, cancellationToken);
+        }
+
+        return heartbeatCalculator.TimeUntilNextHeartbeat(jobRepositoryEntry);
     }
 
     private async Task<TimeSpan> MaintainJobsAsync(List<IJobRepositoryEntry> jobs, CancellationToken cancellationToken)
