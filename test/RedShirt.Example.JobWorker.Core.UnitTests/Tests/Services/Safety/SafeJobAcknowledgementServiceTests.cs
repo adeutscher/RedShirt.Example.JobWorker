@@ -87,6 +87,58 @@ public class SafeJobAcknowledgementServiceTests
         Assert.Empty(sleepService.Invocations);
     }
 
+    /// <summary>
+    ///     Micro-idempotency: if a previous attempt already logged the failure, a retry must not invoke
+    ///     <see cref="IJobFailureHandler" /> again.
+    /// </summary>
+    [Fact]
+    public async Task AcknowledgeSafelyAsync_WhenPreviousAttemptLoggedFailure_SkipsFailureHandler()
+    {
+        var rawJobModel = CreateRawJob();
+        var exception = new Exception("job failed");
+
+        var jobFailureHandler = new Mock<IJobFailureHandler>(MockBehavior.Strict);
+        jobFailureHandler
+            .Setup(h => h.HandleFailureAsync(rawJobModel.Object, exception, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
+        var acknowledgeAttempts = 0;
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource
+            .Setup(s => s.AcknowledgeAsync(rawJobModel.Object, false, TestContext.Current.CancellationToken))
+            .Returns(() =>
+            {
+                acknowledgeAttempts++;
+                // ReSharper disable once ConvertIfStatementToReturnStatement
+                if (acknowledgeAttempts == 1)
+                {
+                    throw new WorkerJobSourceException(new Exception("ack failed"), false);
+                }
+
+                return Task.CompletedTask;
+            });
+
+        var service = new SafeJobAcknowledgementService(jobSource.Object, jobFailureHandler.Object,
+            CreateSleepService(), new NullLogger<SafeJobAcknowledgementService>());
+
+        var firstAttempt = await service.AcknowledgeSafelyAsync(rawJobModel.Object, false, exception,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(firstAttempt.LoggedFailureSuccessfully);
+        Assert.False(firstAttempt.AcknowledgedSuccessfully);
+
+        var secondAttempt = await service.AcknowledgeSafelyAsync(rawJobModel.Object, false, exception,
+            firstAttempt, TestContext.Current.CancellationToken);
+
+        Assert.True(secondAttempt.Success);
+        jobFailureHandler.Verify(
+            h => h.HandleFailureAsync(rawJobModel.Object, exception, TestContext.Current.CancellationToken),
+            Times.Once);
+        jobSource.Verify(
+            s => s.AcknowledgeAsync(rawJobModel.Object, false, TestContext.Current.CancellationToken),
+            Times.Exactly(2));
+    }
+
     [Fact]
     public async Task AcknowledgeSafelyAsync_WhenTransientFailureThenSucceeds_RetriesAndReturnsTrue()
     {
@@ -172,57 +224,5 @@ public class SafeJobAcknowledgementServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.AcknowledgeSafelyAsync(rawJobModel.Object, true,
                 cancellationToken: TestContext.Current.CancellationToken));
-    }
-
-    /// <summary>
-    ///     Micro-idempotency: if a previous attempt already logged the failure, a retry must not invoke
-    ///     <see cref="IJobFailureHandler" /> again.
-    /// </summary>
-    [Fact]
-    public async Task AcknowledgeSafelyAsync_WhenPreviousAttemptLoggedFailure_SkipsFailureHandler()
-    {
-        var rawJobModel = CreateRawJob();
-        var exception = new Exception("job failed");
-
-        var jobFailureHandler = new Mock<IJobFailureHandler>(MockBehavior.Strict);
-        jobFailureHandler
-            .Setup(h => h.HandleFailureAsync(rawJobModel.Object, exception, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
-
-        var acknowledgeAttempts = 0;
-        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
-        jobSource
-            .Setup(s => s.AcknowledgeAsync(rawJobModel.Object, false, TestContext.Current.CancellationToken))
-            .Returns(() =>
-            {
-                acknowledgeAttempts++;
-                // ReSharper disable once ConvertIfStatementToReturnStatement
-                if (acknowledgeAttempts == 1)
-                {
-                    throw new WorkerJobSourceException(new Exception("ack failed"), false);
-                }
-
-                return Task.CompletedTask;
-            });
-
-        var service = new SafeJobAcknowledgementService(jobSource.Object, jobFailureHandler.Object,
-            CreateSleepService(), new NullLogger<SafeJobAcknowledgementService>());
-
-        var firstAttempt = await service.AcknowledgeSafelyAsync(rawJobModel.Object, false, exception,
-            cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.True(firstAttempt.LoggedFailureSuccessfully);
-        Assert.False(firstAttempt.AcknowledgedSuccessfully);
-
-        var secondAttempt = await service.AcknowledgeSafelyAsync(rawJobModel.Object, false, exception,
-            firstAttempt, TestContext.Current.CancellationToken);
-
-        Assert.True(secondAttempt.Success);
-        jobFailureHandler.Verify(
-            h => h.HandleFailureAsync(rawJobModel.Object, exception, TestContext.Current.CancellationToken),
-            Times.Once);
-        jobSource.Verify(
-            s => s.AcknowledgeAsync(rawJobModel.Object, false, TestContext.Current.CancellationToken),
-            Times.Exactly(2));
     }
 }
