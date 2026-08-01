@@ -3,9 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Heartbeats;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
-using RedShirt.Example.JobWorker.Core.Services.Heartbeats;
 using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
@@ -36,7 +36,8 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobRepository, JobRepository>()
             .Configure<JobRepository.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .AddSingleton<IJobLoaderStateService, JobLoaderStateService>()
-            .AddSingleton<IJobLoaderStateReaderService>(provider=>provider.GetRequiredService<IJobLoaderStateService>())
+            .AddSingleton<IJobLoaderStateReaderService>(provider =>
+                provider.GetRequiredService<IJobLoaderStateService>())
             .Configure<SafeJobRunner.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .Configure<JobSourceConfigurationModel>(configuration.GetSection("JobSource"))
             .Configure<LoopOptionsConfigurationModel>(configuration.GetSection(ConfigSectionName))

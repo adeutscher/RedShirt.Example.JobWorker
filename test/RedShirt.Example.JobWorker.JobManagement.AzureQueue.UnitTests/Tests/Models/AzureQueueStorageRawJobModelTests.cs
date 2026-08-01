@@ -15,6 +15,25 @@ public class AzureQueueStorageRawJobModelTests
     }
 
     [Fact]
+    public void Body_DelegatesToQueueMessage()
+    {
+        var message = CreateMessage("round-trip-id", "round-trip-body");
+        var createdAt = DateTime.UtcNow.AddMinutes(-5);
+
+        var job = new AzureQueueStorageRawJobModel
+        {
+            Message = message.Object,
+            CreatedAtUtc = createdAt
+        };
+
+        Assert.Same(message.Object, job.Message);
+        Assert.Equal("round-trip-id", job.MessageId);
+        Assert.Equal("round-trip-id", job.IdempotencyId);
+        Assert.Equal(createdAt, job.CreatedAtUtc);
+        Assert.Equal("round-trip-body", job.Body);
+    }
+
+    [Fact]
     public void IdempotencyId_MatchesMessageId()
     {
         const string messageId = "queue-message-456";
@@ -56,24 +75,5 @@ public class AzureQueueStorageRawJobModelTests
 
         Assert.Equal(messageId, job.MessageId);
         message.VerifyGet(m => m.MessageId, Times.Once);
-    }
-
-    [Fact]
-    public void Body_DelegatesToQueueMessage()
-    {
-        var message = CreateMessage("round-trip-id", "round-trip-body");
-        var createdAt = DateTime.UtcNow.AddMinutes(-5);
-
-        var job = new AzureQueueStorageRawJobModel
-        {
-            Message = message.Object,
-            CreatedAtUtc = createdAt
-        };
-
-        Assert.Same(message.Object, job.Message);
-        Assert.Equal("round-trip-id", job.MessageId);
-        Assert.Equal("round-trip-id", job.IdempotencyId);
-        Assert.Equal(createdAt, job.CreatedAtUtc);
-        Assert.Equal("round-trip-body", job.Body);
     }
 }

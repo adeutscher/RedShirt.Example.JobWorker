@@ -27,11 +27,11 @@ public class LowLevelStreamSourceTests
             });
 
         var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
-            {
-                StreamArn = streamArn,
-                RoundRobinShards = false,
-                ShuffleShards = false
-            }));
+        {
+            StreamArn = streamArn,
+            RoundRobinShards = false,
+            ShuffleShards = false
+        }));
 
         var response = await source.GetJobsAsync(batchSize, "shard-a", "iterator-a",
             TestContext.Current.CancellationToken);
@@ -57,11 +57,11 @@ public class LowLevelStreamSourceTests
             .ThrowsAsync(new InvalidArgumentException("bad request"));
 
         var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
-            {
-                StreamArn = Guid.NewGuid().ToString(),
-                RoundRobinShards = false,
-                ShuffleShards = false
-            }));
+        {
+            StreamArn = Guid.NewGuid().ToString(),
+            RoundRobinShards = false,
+            ShuffleShards = false
+        }));
 
         await Assert.ThrowsAsync<InvalidArgumentException>(() =>
             source.GetJobsAsync(10, "shard-d", "iterator-d", TestContext.Current.CancellationToken));
@@ -85,11 +85,11 @@ public class LowLevelStreamSourceTests
             });
 
         var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
-            {
-                StreamArn = streamArn,
-                RoundRobinShards = false,
-                ShuffleShards = false
-            }));
+        {
+            StreamArn = streamArn,
+            RoundRobinShards = false,
+            ShuffleShards = false
+        }));
 
         await source.GetJobsAsync(batchSize, "shard-e", iterator, TestContext.Current.CancellationToken);
 
@@ -133,11 +133,11 @@ public class LowLevelStreamSourceTests
             });
 
         var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
-            {
-                StreamArn = streamArn,
-                RoundRobinShards = false,
-                ShuffleShards = false
-            }));
+        {
+            StreamArn = streamArn,
+            RoundRobinShards = false,
+            ShuffleShards = false
+        }));
 
         var before = DateTime.UtcNow;
         var response = await source.GetJobsAsync(10, "shard-b", "iterator-b",
@@ -191,11 +191,11 @@ public class LowLevelStreamSourceTests
             });
 
         var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
-            {
-                StreamArn = streamArn,
-                RoundRobinShards = false,
-                ShuffleShards = false
-            }));
+        {
+            StreamArn = streamArn,
+            RoundRobinShards = false,
+            ShuffleShards = false
+        }));
 
         var response = await source.GetJobsAsync(10, "shard-c", "iterator-c",
             TestContext.Current.CancellationToken);
@@ -250,11 +250,11 @@ public class LowLevelStreamSourceTests
         const int batchSize = 10;
 
         var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
-            {
-                StreamArn = streamArn,
-                RoundRobinShards = false,
-                ShuffleShards = false
-            }));
+        {
+            StreamArn = streamArn,
+            RoundRobinShards = false,
+            ShuffleShards = false
+        }));
 
         var response = await source.GetJobsAsync(batchSize, "foo-shard", "foo-iterator",
             TestContext.Current.CancellationToken);
@@ -291,11 +291,11 @@ public class LowLevelStreamSourceTests
         var batchSize = 10;
 
         var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
-            {
-                StreamArn = streamArn,
-                RoundRobinShards = false,
-                ShuffleShards = false
-            }));
+        {
+            StreamArn = streamArn,
+            RoundRobinShards = false,
+            ShuffleShards = false
+        }));
 
         var response = await source.GetJobsAsync(batchSize, "foo-shard", "foo-iterator",
             TestContext.Current.CancellationToken);
@@ -327,11 +327,11 @@ public class LowLevelStreamSourceTests
         var streamArn = Guid.NewGuid().ToString();
 
         var source = new LowLevelStreamSource(kinesis.Object, Options.Create(new KinesisConfiguration
-            {
-                StreamArn = streamArn,
-                RoundRobinShards = false,
-                ShuffleShards = false
-            }));
+        {
+            StreamArn = streamArn,
+            RoundRobinShards = false,
+            ShuffleShards = false
+        }));
 
         var response = await source.GetJobsAsync(batchSize, "foo-shard", "foo-iterator",
             TestContext.Current.CancellationToken);

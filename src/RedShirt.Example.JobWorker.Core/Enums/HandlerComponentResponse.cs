@@ -4,7 +4,8 @@ internal enum HandlerComponentResponse
 {
     /// <summary>
     ///     Indicates that a handler component ran to completion.
-    ///     A Finished return type from one handler component implies that the other components will also be closing down momentarily.
+    ///     A Finished return type from one handler component implies that the other components will also be closing down
+    ///     momentarily.
     /// </summary>
     Finished,
 

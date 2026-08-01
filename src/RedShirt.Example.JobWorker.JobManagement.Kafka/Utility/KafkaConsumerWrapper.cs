@@ -46,7 +46,8 @@ internal sealed class KafkaConsumerWrapper(IKafkaRetryWrapperService retryWrappe
         };
     }
 
-    public async Task CommitAsync(IReadOnlyList<IKafkaMessageContainer> messages, CancellationToken cancellationToken = default)
+    public async Task CommitAsync(IReadOnlyList<IKafkaMessageContainer> messages,
+        CancellationToken cancellationToken = default)
     {
         var offsets = messages
             .Select(m => new TopicPartitionOffset(m.Topic, m.Partition, new Offset(m.Offset + 1)))

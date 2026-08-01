@@ -5,9 +5,9 @@ Instructions for local testing.
 
 ## General
 
-The scripts below assume that certain Python modules are installed in your environment.
+The scripts described below assume that certain Python modules are installed in your environment.
 
-Run the following to install the assumed modules:
+Run the following to install all of the assumed modules at once:
 
 ```
 pip install --user boto3 awscli awslocal stomp.py azure-cli azure.servicebus azure-storage-queue azure.identity azure.keyvault kafka-python
@@ -17,6 +17,14 @@ pip install --user boto3 awscli awslocal stomp.py azure-cli azure.servicebus azu
 
 Idempotency testing relies on having a reliable way of setting a message ID.
 If this template is still in general form, then I would advise testing using the RabbitMQ job source.
+
+## Loader Mode
+
+To enable loader mode in the general template, set `JOBS__USE_LOADER_MODE` to `true`:
+
+```bash
+export JOBS__USE_LOADER_MODE=true
+```
 
 ## Message Sources
 

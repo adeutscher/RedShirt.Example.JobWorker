@@ -10,7 +10,8 @@ internal interface IJobLoaderStateReaderService
 
 /// <summary>
 ///     Describes to downstream workers the state of the job loading loop without creating a circular dependency.
-///     This interface should only be used by the worker loop. If you need to read from state, use <see cref="IJobLoaderStateReaderService"/>
+///     This interface should only be used by the worker loop. If you need to read from state, use
+///     <see cref="IJobLoaderStateReaderService" />
 /// </summary>
 internal interface IJobLoaderStateService : IJobLoaderStateReaderService
 {
@@ -21,10 +22,11 @@ internal interface IJobLoaderStateService : IJobLoaderStateReaderService
 internal class JobLoaderStateService : IJobLoaderStateService
 {
     /// <summary>
-    /// Multithreading protection.
-    /// Feels a little silly for a service that only sets booleans to true, but it makes automated audits happy.
+    ///     Multithreading protection.
+    ///     Feels a little silly for a service that only sets booleans to true, but it makes automated audits happy.
     /// </summary>
     private readonly Lock _lock = new();
+
     private bool _isFinished;
 
     private bool _isStarted;
