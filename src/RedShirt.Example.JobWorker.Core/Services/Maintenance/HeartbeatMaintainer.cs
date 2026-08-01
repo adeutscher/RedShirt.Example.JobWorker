@@ -81,6 +81,7 @@ internal class HeartbeatMaintainer(
     private async Task<TimeSpan?> MaintainJobAsync(IJobRepositoryEntry jobRepositoryEntry,
         CancellationToken cancellationToken)
     {
+        // Make sure that we are currently the only user manipulating this job item.
         var lockHandle = await jobRepositoryEntry.AcquireLockAsync(cancellationToken);
         try
         {
@@ -137,20 +138,10 @@ internal class HeartbeatMaintainer(
 
         foreach (var jobRepositoryEntry in jobs)
         {
-            // Make sure that we are currently the only thing manipulating this job item.
-            var lockId = await jobRepositoryEntry.AcquireLockAsync(cancellationToken);
-
-            try
-            {
-                var jobTimeToWait = await MaintainJobAsync(jobRepositoryEntry, cancellationToken);
-                timeToWait = !timeToWait.HasValue || jobTimeToWait < timeToWait
-                    ? jobTimeToWait
-                    : timeToWait;
-            }
-            finally
-            {
-                await jobRepositoryEntry.ReleaseLockAsync(lockId, cancellationToken);
-            }
+            var jobTimeToWait = await MaintainJobAsync(jobRepositoryEntry, cancellationToken);
+            timeToWait = !timeToWait.HasValue || jobTimeToWait < timeToWait
+                ? jobTimeToWait
+                : timeToWait;
         }
 
         // Fallback, possibly because all jobs became complete after they were fetched?
