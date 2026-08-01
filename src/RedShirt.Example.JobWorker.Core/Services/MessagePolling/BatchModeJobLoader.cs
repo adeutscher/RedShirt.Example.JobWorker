@@ -5,7 +5,6 @@ using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.Intake;
 using System.Diagnostics;
 
 namespace RedShirt.Example.JobWorker.Core.Services.MessagePolling;

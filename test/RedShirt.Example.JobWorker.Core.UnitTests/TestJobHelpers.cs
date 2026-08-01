@@ -1,10 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services;
-using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
-using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests;
 
@@ -76,19 +70,5 @@ internal static class TestJobHelpers
             JobSuccess = jobSuccess,
             AcknowledgementResult = AckResult(acknowledgedSuccessfully, loggedFailureSuccessfully)
         };
-    }
-
-    public static JobLoaderLoop CreateJobLoaderLoop(
-        IJobLoaderStateService jobLoaderStateService,
-        IExecutionEndArbiter executionEndArbiter,
-        ISleepService sleepService,
-        int maxIdleWaitSeconds = 1)
-    {
-        return new JobLoaderLoop(
-            jobLoaderStateService,
-            executionEndArbiter,
-            Options.Create(new LoopOptionsConfigurationModel {MaxIdleWaitSeconds = maxIdleWaitSeconds}),
-            sleepService,
-            new NullLogger<JobLoaderLoop>());
     }
 }

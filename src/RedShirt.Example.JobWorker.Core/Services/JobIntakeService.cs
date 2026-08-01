@@ -3,7 +3,7 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 
-namespace RedShirt.Example.JobWorker.Core.Services.Intake;
+namespace RedShirt.Example.JobWorker.Core.Services;
 
 internal interface IJobIntakeService
 {

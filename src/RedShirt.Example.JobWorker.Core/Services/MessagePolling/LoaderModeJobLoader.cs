@@ -7,7 +7,6 @@ using RedShirt.Example.JobWorker.Core.Exceptions.Loader;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
-using RedShirt.Example.JobWorker.Core.Services.Intake;
 using System.Diagnostics;
 
 namespace RedShirt.Example.JobWorker.Core.Services.MessagePolling;

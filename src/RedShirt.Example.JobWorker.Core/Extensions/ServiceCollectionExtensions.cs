@@ -4,7 +4,6 @@ using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
-using RedShirt.Example.JobWorker.Core.Services.Intake;
 using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 

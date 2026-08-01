@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Exceptions;
+using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 
@@ -8,66 +9,209 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services;
 
 public class SafeJobRunnerTests
 {
-    private static Mock<ISleepService> CreateSleepService(List<TimeSpan>? delays = null)
+    [Fact]
+    public async Task RunSafelyAsync_WhenLogicSucceeds_ReturnsTrueAndDoesNotSleep()
     {
-        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
-        sleepService
-            .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask)
-            .Callback<TimeSpan, CancellationToken>((delay, _) => delays?.Add(delay));
-        return sleepService;
-    }
+        var job = TestJobHelpers.CreateJobModel();
+        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
+        logicRunner
+            .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-    private static SafeJobRunner CreateRunner(IJobLogicRunner logicRunner, ISleepService sleepService,
-        int internalRetryCount = 0)
-    {
-        return new SafeJobRunner(logicRunner, sleepService, new NullLogger<SafeJobRunner>(),
+        // Strict + no DelayAsync setup: any sleep would fail the test.
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+
+        var runner = new SafeJobRunner(
+            logicRunner.Object,
+            sleepService.Object,
+            new NullLogger<SafeJobRunner>(),
             Options.Create(new SafeJobRunner.ConfigurationModel
             {
-                InternalRetryCount = internalRetryCount
+                InternalRetryCount = 0
             }));
-    }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(2)]
-    public async Task RunSafelyAsync_WhenJobRetryExceptionExhausted_ReturnsFalse(int internalRetryCount)
-    {
-        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
-        var sleepService = CreateSleepService();
-        var job = TestJobHelpers.CreateJobModel();
+        var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
 
-        logicRunner
-            .Setup(l => l.RunAsync(job.Object, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new JobRetryException());
-
-        var result = await CreateRunner(logicRunner.Object, sleepService.Object, internalRetryCount)
-            .RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
-
-        Assert.False(result);
-        logicRunner.Verify(l => l.RunAsync(job.Object, TestContext.Current.CancellationToken),
-            Times.Exactly(internalRetryCount + 1));
-        sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
-            Times.Exactly(internalRetryCount));
+        Assert.True(result);
+        logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task RunSafelyAsync_WhenJobRetryExceptionHasExplicitDelay_UsesThatDelay()
+    public async Task RunSafelyAsync_WhenOrdinaryException_ReturnsFalseWithoutRetryOrSleep()
+    {
+        var job = TestJobHelpers.CreateJobModel();
+        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
+        logicRunner
+            .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("boom"));
+
+        // Retries are configured, but only JobRetryException is handled — sleep must never run.
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+
+        var runner = new SafeJobRunner(
+            logicRunner.Object,
+            sleepService.Object,
+            new NullLogger<SafeJobRunner>(),
+            Options.Create(new SafeJobRunner.ConfigurationModel
+            {
+                InternalRetryCount = 3
+            }));
+
+        var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
+
+        Assert.False(result);
+        logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RunSafelyAsync_WhenInternalRetryCountIsZero_DoesNotRetryJobRetryException()
+    {
+        var job = TestJobHelpers.CreateJobModel();
+        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
+        logicRunner
+            .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new JobRetryException());
+
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+
+        var runner = new SafeJobRunner(
+            logicRunner.Object,
+            sleepService.Object,
+            new NullLogger<SafeJobRunner>(),
+            Options.Create(new SafeJobRunner.ConfigurationModel
+            {
+                InternalRetryCount = 0
+            }));
+
+        var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
+
+        Assert.False(result);
+        logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RunSafelyAsync_WhenJobRetryExceptionExhausted_RetriesThenReturnsFalse()
+    {
+        var job = TestJobHelpers.CreateJobModel();
+        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
+        logicRunner
+            .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new JobRetryException());
+
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        sleepService
+            .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var runner = new SafeJobRunner(
+            logicRunner.Object,
+            sleepService.Object,
+            new NullLogger<SafeJobRunner>(),
+            Options.Create(new SafeJobRunner.ConfigurationModel
+            {
+                InternalRetryCount = 2
+            }));
+
+        var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
+
+        Assert.False(result);
+        // initial attempt + 2 retries
+        logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Exactly(3));
+        sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task RunSafelyAsync_WhenJobRetryExceptionThenSucceeds_ReturnsTrue()
+    {
+        var job = TestJobHelpers.CreateJobModel();
+        var remainingFailures = 2;
+
+        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
+        logicRunner
+            .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                if (remainingFailures-- > 0)
+                {
+                    throw new JobRetryException();
+                }
+
+                return Task.CompletedTask;
+            });
+
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        sleepService
+            .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var runner = new SafeJobRunner(
+            logicRunner.Object,
+            sleepService.Object,
+            new NullLogger<SafeJobRunner>(),
+            Options.Create(new SafeJobRunner.ConfigurationModel
+            {
+                InternalRetryCount = 3
+            }));
+
+        var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
+
+        Assert.True(result);
+        logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Exactly(3));
+        sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task RunSafelyAsync_WhenRetryingWithoutExplicitDelay_UsesIncrementalBackoff()
+    {
+        var job = TestJobHelpers.CreateJobModel();
+        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
+        logicRunner
+            .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new JobRetryException());
+
+        // Polly v8 AttemptNumber is 0-based on the failed attempt → 2^0, 2^1, 2^2.
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        sleepService
+            .Setup(s => s.DelayAsync(TimeSpan.FromSeconds(1), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        sleepService
+            .Setup(s => s.DelayAsync(TimeSpan.FromSeconds(2), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        sleepService
+            .Setup(s => s.DelayAsync(TimeSpan.FromSeconds(4), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var runner = new SafeJobRunner(
+            logicRunner.Object,
+            sleepService.Object,
+            new NullLogger<SafeJobRunner>(),
+            Options.Create(new SafeJobRunner.ConfigurationModel
+            {
+                InternalRetryCount = 3
+            }));
+
+        var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
+
+        Assert.False(result);
+        sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(1), It.IsAny<CancellationToken>()), Times.Once);
+        sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(2), It.IsAny<CancellationToken>()), Times.Once);
+        sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(4), It.IsAny<CancellationToken>()), Times.Once);
+        sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Exactly(3));
+    }
+
+    [Fact]
+    public async Task RunSafelyAsync_WhenJobRetryExceptionHasExplicitDelay_OverridesIncrementalBackoff()
     {
         const int delayMilliseconds = 250;
-
-        var delays = new List<TimeSpan>();
-        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
-        var sleepService = CreateSleepService(delays);
         var job = TestJobHelpers.CreateJobModel();
         var attempts = 0;
 
+        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
         logicRunner
-            .Setup(l => l.RunAsync(job.Object, TestContext.Current.CancellationToken))
+            .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
             .Returns(() =>
             {
-                attempts++;
-                if (attempts == 1)
+                if (++attempts == 1)
                 {
                     throw new JobRetryException
                     {
@@ -78,102 +222,28 @@ public class SafeJobRunnerTests
                 return Task.CompletedTask;
             });
 
-        var result = await CreateRunner(logicRunner.Object, sleepService.Object, 1)
-            .RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
-
-        Assert.True(result);
-        Assert.Equal([TimeSpan.FromMilliseconds(delayMilliseconds)], delays);
-        logicRunner.Verify(l => l.RunAsync(job.Object, TestContext.Current.CancellationToken), Times.Exactly(2));
-    }
-
-    [Fact]
-    public async Task RunSafelyAsync_WhenJobRetryExceptionThenSucceeds_ReturnsTrue()
-    {
-        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
-        var sleepService = CreateSleepService();
-        var job = TestJobHelpers.CreateJobModel();
-        var remainingFailures = 2;
-
-        logicRunner
-            .Setup(l => l.RunAsync(job.Object, TestContext.Current.CancellationToken))
-            .Returns(() =>
-            {
-                if (remainingFailures > 0)
-                {
-                    remainingFailures--;
-                    throw new JobRetryException();
-                }
-
-                return Task.CompletedTask;
-            });
-
-        var result = await CreateRunner(logicRunner.Object, sleepService.Object, 3)
-            .RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
-
-        Assert.True(result);
-        logicRunner.Verify(l => l.RunAsync(job.Object, TestContext.Current.CancellationToken), Times.Exactly(3));
-        sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
-    }
-
-    [Fact]
-    public async Task RunSafelyAsync_WhenLogicSucceeds_ReturnsTrueAndInvokesOnce()
-    {
-        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
-        var sleepService = CreateSleepService();
-        var job = TestJobHelpers.CreateJobModel();
-
-        logicRunner
-            .Setup(l => l.RunAsync(job.Object, TestContext.Current.CancellationToken))
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        sleepService
+            .Setup(s => s.DelayAsync(TimeSpan.FromMilliseconds(delayMilliseconds), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var result = await CreateRunner(logicRunner.Object, sleepService.Object)
-            .RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
+        var runner = new SafeJobRunner(
+            logicRunner.Object,
+            sleepService.Object,
+            new NullLogger<SafeJobRunner>(),
+            Options.Create(new SafeJobRunner.ConfigurationModel
+            {
+                InternalRetryCount = 1
+            }));
+
+        var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
 
         Assert.True(result);
-        logicRunner.Verify(l => l.RunAsync(job.Object, TestContext.Current.CancellationToken), Times.Once);
-        sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task RunSafelyAsync_WhenOrdinaryException_ReturnsFalseWithoutRetry()
-    {
-        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
-        var sleepService = CreateSleepService();
-        var job = TestJobHelpers.CreateJobModel();
-
-        logicRunner
-            .Setup(l => l.RunAsync(job.Object, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new InvalidOperationException("boom"));
-
-        var result = await CreateRunner(logicRunner.Object, sleepService.Object, 3)
-            .RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
-
-        Assert.False(result);
-        logicRunner.Verify(l => l.RunAsync(job.Object, TestContext.Current.CancellationToken), Times.Once);
-        sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task RunSafelyAsync_WhenRetryingWithoutExplicitDelay_UsesIncrementalBackoff()
-    {
-        var delays = new List<TimeSpan>();
-        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
-        var sleepService = CreateSleepService(delays);
-        var job = TestJobHelpers.CreateJobModel();
-
-        logicRunner
-            .Setup(l => l.RunAsync(job.Object, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new JobRetryException());
-
-        var result = await CreateRunner(logicRunner.Object, sleepService.Object, 3)
-            .RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
-
-        Assert.False(result);
-        Assert.Equal(
-        [
-            TimeSpan.FromSeconds(2),
-            TimeSpan.FromSeconds(4),
-            TimeSpan.FromSeconds(8)
-        ], delays);
+        sleepService.Verify(
+            s => s.DelayAsync(TimeSpan.FromMilliseconds(delayMilliseconds), It.IsAny<CancellationToken>()),
+            Times.Once);
+        // Must not fall through to exponential backoff (2^0 = 1s).
+        sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(1), It.IsAny<CancellationToken>()), Times.Never);
+        logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 }
