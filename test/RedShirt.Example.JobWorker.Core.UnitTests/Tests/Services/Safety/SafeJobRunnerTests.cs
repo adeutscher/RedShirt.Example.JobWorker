@@ -274,6 +274,37 @@ public class SafeJobRunnerTests
         logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Theory]
+    [InlineData(typeof(OperationCanceledException))]
+    [InlineData(typeof(TaskCanceledException))]
+    public async Task RunSafelyAsync_WhenOperationCanceled_ReturnsCancelledWithSameException(Type exceptionType)
+    {
+        var expected = (Exception) Activator.CreateInstance(exceptionType)!;
+        var job = new Mock<IJobModel>(MockBehavior.Strict);
+        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
+        logicRunner
+            .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(expected);
+
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+
+        var runner = new SafeJobRunner(
+            logicRunner.Object,
+            sleepService.Object,
+            new NullLogger<SafeJobRunner>(),
+            Options.Create(new SafeJobRunner.ConfigurationModel
+            {
+                InternalRetryCount = 3
+            }));
+
+        var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
+
+        Assert.Equal(CoreJobResult.Cancelled, result.Result);
+        Assert.Same(expected, result.Exception);
+        logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
+        sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     [Fact]
     public async Task RunSafelyAsync_WhenRetryingWithoutExplicitDelay_UsesIncrementalBackoff()
     {

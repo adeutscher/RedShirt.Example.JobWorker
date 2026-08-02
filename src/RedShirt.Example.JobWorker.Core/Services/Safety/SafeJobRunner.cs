@@ -101,6 +101,14 @@ internal sealed class SafeJobRunner(
                 Exception = null
             };
         }
+        catch (OperationCanceledException e)
+        {
+            return new SafeJobRunResults
+            {
+                Result = CoreJobResult.Cancelled,
+                Exception = e
+            };
+        }
         catch (Exception e)
         {
             logger.LogError(e, "Error running job: {EMessage}", e.Message);
