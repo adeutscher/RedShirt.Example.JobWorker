@@ -76,7 +76,7 @@ internal sealed class JobIntakeService(
         foreach (var rawMessage in jobSourceResponse.Items)
         {
             var convertResult = TryConvert(rawMessage, out var convertedData, out var exception);
-            if (convertResult == CoreJobResult.Success)
+            if (convertResult == CoreJobResult.Success && convertedData is not null)
             {
                 convertedMessages.Add(new JobEnvelope
                 {
