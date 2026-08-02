@@ -131,6 +131,7 @@ public class JobResultTranslationTests
             logicRunner.Object,
             sleepService,
             new TimeBorderWrapperService(
+                new SleepService(),
                 Options.Create(new TimeBorderWrapperService.ConfigurationModel
                 {
                     TaskWaitBufferSeconds = null,

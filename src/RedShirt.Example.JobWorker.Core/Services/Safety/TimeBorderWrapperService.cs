@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Safety;
 
@@ -25,7 +26,7 @@ internal interface ITimeBorderWrapperService
     /// <param name="cancellationToken">Caller token linked into the composite token.</param>
     /// <remarks>
     ///     When <paramref name="maximumTime" /> is set, the callback task is also awaited via
-    ///     <see cref="Task.WaitAsync(System.TimeSpan, System.Threading.CancellationToken)" /> for
+    ///     <see cref="ISleepService.WaitAsync{TResult}" /> for
     ///     <paramref name="maximumTime" /> plus
     ///     <see cref="TimeBorderWrapperService.ConfigurationModel.EffectiveTaskWaitBufferSeconds" />,
     ///     which throws <see cref="TimeoutException" /> if that wait expires before the callback completes
@@ -49,20 +50,25 @@ internal interface ITimeBorderWrapperService
 /// <summary>
 ///     Default <see cref="ITimeBorderWrapperService" /> using linked <see cref="CancellationTokenSource" /> instances.
 /// </summary>
+/// <param name="sleepService">
+///     Timed wait abstraction wrapping
+///     <see cref="Task.WaitAsync(System.TimeSpan, System.Threading.CancellationToken)" />.
+/// </param>
 /// <param name="options">Truant-alert configuration.</param>
 /// <param name="logger">Logger for truant-callback alerts.</param>
 internal sealed class TimeBorderWrapperService(
+    ISleepService sleepService,
     IOptions<TimeBorderWrapperService.ConfigurationModel> options,
     ILogger<TimeBorderWrapperService> logger) : ITimeBorderWrapperService
 {
     /// <summary>
-    ///     Default extra seconds added to <c>maximumTime</c> for the initial <see cref="Task.WaitAsync" />
+    ///     Default extra seconds added to <c>maximumTime</c> for the initial <see cref="ISleepService.WaitAsync{TResult}" />
     ///     when <see cref="ConfigurationModel.TaskWaitBufferSeconds" /> is null or non-positive.
     /// </summary>
     internal const int DefaultTaskWaitBufferSeconds = 5;
 
     /// <summary>
-    ///     Periodically <see cref="Task.WaitAsync(System.TimeSpan, System.Threading.CancellationToken)" /> the
+    ///     Periodically <see cref="ISleepService.WaitAsync{TResult}" /> the
     ///     still-running callback and log until it completes, then return its result.
     /// </summary>
     private async Task<TOut> MonitorTruantCallbackAsync<TOut>(
@@ -83,7 +89,7 @@ internal sealed class TimeBorderWrapperService(
 
             try
             {
-                var result = await jobTask.WaitAsync(alertInterval, cancellationToken);
+                var result = await sleepService.WaitAsync(jobTask, alertInterval, cancellationToken);
                 logger.LogWarning(
                     "Truant job callback completed after exceeding max time {MaxTime} plus buffer {Buffer}. Alerts raised: {AlertCount}",
                     maxTime, buffer, alertCount);
@@ -133,7 +139,7 @@ internal sealed class TimeBorderWrapperService(
         var waitLimit = maxTime + TimeSpan.FromSeconds(options.Value.EffectiveTaskWaitBufferSeconds);
         try
         {
-            return await jobTask.WaitAsync(waitLimit, cancellationToken);
+            return await sleepService.WaitAsync(jobTask, waitLimit, cancellationToken);
         }
         catch (TimeoutException) when (!jobTask.IsCompleted)
         {
@@ -188,7 +194,7 @@ internal sealed class TimeBorderWrapperService(
         private const int DefaultTruantAlertIntervalSeconds = 30;
 
         /// <summary>
-        ///     Extra seconds added to <c>maximumTime</c> for the initial <see cref="Task.WaitAsync" />
+        ///     Extra seconds added to <c>maximumTime</c> for the initial <see cref="ISleepService.WaitAsync{TResult}" />
         ///     so cooperative cancellation can take effect before truant monitoring begins.
         ///     Null or non-positive values fall back to
         ///     <see cref="TimeBorderWrapperService.DefaultTaskWaitBufferSeconds" /> via

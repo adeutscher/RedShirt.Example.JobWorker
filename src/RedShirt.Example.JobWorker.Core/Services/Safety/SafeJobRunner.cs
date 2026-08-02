@@ -91,14 +91,15 @@ internal sealed class SafeJobRunner(
         try
         {
             // Non-positive values (and null) mean "no per-attempt time limit".
-            var maximumTime = options.Value.MaxJobTimeSeconds is int seconds and > 0
+            var maximumTime = options.Value.MaxJobTimeSeconds is { } seconds and > 0
                 ? TimeSpan.FromSeconds(seconds)
                 : (TimeSpan?) null;
 
             // Intentional: MaxJobTimeSeconds is applied per Polly attempt, not across the whole
             // retry budget. Each JobRetryException retry enters RunAsync again and gets a fresh
             // time border. Total wall-clock time may therefore approach roughly
-            // InternalRetryCount × MaxJobTimeSeconds plus backoff delays.
+            // InternalRetryCount × MaxJobTimeSeconds plus backoff delays, assuming
+            // that the downstream job implementation actually leverages JobRetryException.
             var jobResult = await GetRetryPipeline().ExecuteAsync(
                 async token => await timeBorderWrapperService.RunAsync(
                     job,

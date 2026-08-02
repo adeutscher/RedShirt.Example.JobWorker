@@ -3,22 +3,90 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
+using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Safety;
 
 /// <summary>
 ///     Unit coverage for <see cref="TimeBorderWrapperService" /> composite-token behaviour.
+///     Timed waits are simulated via a mocked <see cref="ISleepService" />; callbacks use
+///     <see cref="TaskCompletionSource{TResult}" /> so tests do not rely on wall-clock delays.
 /// </summary>
 public class TimeBorderWrapperServiceTests
 {
     /// <summary>
+    ///     First <see cref="ISleepService.WaitAsync{TResult}" /> call times out (job still running);
+    ///     later calls invoke <paramref name="onMonitoringWait" /> then return the task (typically after
+    ///     completing a <see cref="TaskCompletionSource{TResult}" />).
+    /// </summary>
+    private static Mock<ISleepService> CreateInitialTimeoutThenCompleteSleepService(
+        Action onMonitoringWait)
+    {
+        var waitCall = 0;
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        sleepService
+            .Setup(s => s.WaitAsync(
+                It.IsAny<Task<string>>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((Task<string> task, TimeSpan _, CancellationToken _) =>
+            {
+                var n = Interlocked.Increment(ref waitCall);
+                if (n == 1)
+                {
+                    Assert.False(task.IsCompleted);
+                    return Task.FromException<string>(new TimeoutException());
+                }
+
+                onMonitoringWait();
+                return task;
+            });
+        return sleepService;
+    }
+
+    private static Mock<ISleepService> CreateCompletedTaskPassthroughSleepService()
+    {
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        sleepService
+            .Setup(s => s.WaitAsync(
+                It.IsAny<Task<string>>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((Task<string> task, TimeSpan _, CancellationToken _) => task);
+        return sleepService;
+    }
+
+    private static void VerifyTruantLogs(Mock<ILogger<TimeBorderWrapperService>> logger)
+    {
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) =>
+                    state.ToString()!.Contains("still running", StringComparison.Ordinal)),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeastOnce);
+
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) =>
+                    state.ToString()!.Contains("completed after exceeding", StringComparison.Ordinal)),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    /// <summary>
     ///     Verifies that <see cref="TimeBorderWrapperService.RunAsync{TIn,TOut}" /> forwards the same input
     ///     instance to the callback under a composite token distinct from the caller token.
-    ///     When <paramref name="expectTimeoutCancellation" /> is <see langword="true" />, a slow cooperative
-    ///     callback is cancelled by the composite token; after the initial wait times out, monitoring continues
-    ///     until the callback faults with <see cref="OperationCanceledException" />, without cancelling the caller.
+    ///     When <paramref name="expectTimeoutCancellation" /> is <see langword="true" />, a cooperative
+    ///     callback is cancelled by the composite token; mocked waits time out until the callback faults
+    ///     with <see cref="OperationCanceledException" />, without cancelling the caller.
     /// </summary>
-    [Theory(Timeout = 10000)]
+    [Theory(Timeout = 5000)]
     [InlineData(null, false)]
     [InlineData(30, false)]
     [InlineData(1, true)]
@@ -27,46 +95,73 @@ public class TimeBorderWrapperServiceTests
         int? maximumTimeSeconds,
         bool expectTimeoutCancellation)
     {
-        // Input data
         var job = new Mock<IJobModel>(MockBehavior.Strict);
         IJobModel? receivedJob = null;
         CancellationToken observedToken = default;
 
-        // Callback under test (Moq)
         var callback = new Mock<Func<IJobModel, CancellationToken, Task<string>>>(MockBehavior.Strict);
-        callback
-            .Setup(c => c(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
-            .Returns(async (IJobModel data, CancellationToken token) =>
-            {
-                receivedJob = data;
-                observedToken = token;
-
-                if (expectTimeoutCancellation)
+        Mock<ISleepService> sleepService;
+        if (expectTimeoutCancellation)
+        {
+            var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            callback
+                .Setup(c => c(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
+                .Returns((IJobModel data, CancellationToken token) =>
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(maximumTimeSeconds!.Value + 2), token);
-                }
+                    receivedJob = data;
+                    observedToken = token;
+                    token.Register(() => tcs.TrySetCanceled(token));
+                    return tcs.Task;
+                });
 
-                return "ok";
-            });
+            // Time out while the cooperative callback is still running; once cancelled, return the task.
+            sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+            sleepService
+                .Setup(s => s.WaitAsync(
+                    It.IsAny<Task<string>>(),
+                    It.IsAny<TimeSpan>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns((Task<string> task, TimeSpan _, CancellationToken _) =>
+                    task.IsCompleted
+                        ? task
+                        : Task.FromException<string>(new TimeoutException()));
+        }
+        else
+        {
+            callback
+                .Setup(c => c(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
+                .Returns((IJobModel data, CancellationToken token) =>
+                {
+                    receivedJob = data;
+                    observedToken = token;
+                    return Task.FromResult("ok");
+                });
+            sleepService = CreateCompletedTaskPassthroughSleepService();
+        }
 
-        // System under test
+        // Tiny max time so the composite CTS cancels without a meaningful wall-clock wait.
+        TimeSpan? maximumTime = null;
+        if (maximumTimeSeconds is { } seconds)
+        {
+            maximumTime = expectTimeoutCancellation
+                ? TimeSpan.FromMilliseconds(1)
+                : TimeSpan.FromSeconds(seconds);
+        }
+
         var service = new TimeBorderWrapperService(
+            sleepService.Object,
             Options.Create(new TimeBorderWrapperService.ConfigurationModel
             {
                 TaskWaitBufferSeconds = null,
                 TruantAlertIntervalSeconds = 1
             }),
             NullLogger<TimeBorderWrapperService>.Instance);
-        var maximumTime = maximumTimeSeconds is { } seconds
-            ? TimeSpan.FromSeconds(seconds)
-            : (TimeSpan?) null;
 
         using var callerCts = new CancellationTokenSource();
         var originalCancellationToken = callerCts.Token;
 
         if (expectTimeoutCancellation)
         {
-            // Composite cancel + truant monitor surface the callback's OperationCanceledException.
             var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
                 service.RunAsync(job.Object, maximumTime, callback.Object, originalCancellationToken));
 
@@ -80,11 +175,8 @@ public class TimeBorderWrapperServiceTests
             Assert.False(observedToken.IsCancellationRequested);
         }
 
-        // Same input instance reaches the callback
         Assert.Same(job.Object, receivedJob);
         callback.Verify(c => c(job.Object, observedToken), Times.Once);
-
-        // Composite token is not the caller's token; caller remains uncancelled
         Assert.NotEqual(originalCancellationToken, observedToken);
         Assert.False(originalCancellationToken.IsCancellationRequested);
         Assert.False(callerCts.IsCancellationRequested);
@@ -94,23 +186,22 @@ public class TimeBorderWrapperServiceTests
     ///     After the initial time border expires, truant monitoring must not swallow a
     ///     <see cref="TimeoutException" /> thrown by the callback itself.
     /// </summary>
-    [Fact(Timeout = 10000)]
+    [Fact(Timeout = 5000)]
     public async Task RunAsync_WhenTruantCallbackThrowsTimeoutException_PropagatesCallbackException()
     {
         var expected = new TimeoutException("timeout-from-callback");
         var job = new Mock<IJobModel>(MockBehavior.Strict);
+        var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var callback = new Mock<Func<IJobModel, CancellationToken, Task<string>>>(MockBehavior.Strict);
         callback
             .Setup(c => c(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
-            .Returns(async (IJobModel _, CancellationToken _) =>
-            {
-                // Ignore the composite token so the job stays running past maxTime and enters truant monitoring.
-                await Task.Delay(TimeSpan.FromMilliseconds(1500), CancellationToken.None);
-                throw expected;
-            });
+            .Returns((IJobModel _, CancellationToken _) => tcs.Task);
+
+        var sleepService = CreateInitialTimeoutThenCompleteSleepService(() => tcs.TrySetException(expected));
 
         var service = new TimeBorderWrapperService(
+            sleepService.Object,
             Options.Create(new TimeBorderWrapperService.ConfigurationModel
             {
                 TaskWaitBufferSeconds = null,
@@ -136,9 +227,8 @@ public class TimeBorderWrapperServiceTests
     ///     <see cref="RunAsync_WhenTruantJobOutlastsMaxTimePlusBuffer_ReturnsCallbackResultViaMonitoring" />,
     ///     but with a null or non-positive <see cref="TimeBorderWrapperService.ConfigurationModel.TaskWaitBufferSeconds" />
     ///     so the wait limit falls back to <see cref="TimeBorderWrapperService.DefaultTaskWaitBufferSeconds" />.
-    ///     My apologies to your build pipeline, but it's for a good cause.
     /// </summary>
-    [Theory(Timeout = 30000)]
+    [Theory(Timeout = 5000)]
     [InlineData(null)]
     [InlineData(0)]
     [InlineData(-1)]
@@ -156,25 +246,26 @@ public class TimeBorderWrapperServiceTests
             TimeBorderWrapperService.DefaultTaskWaitBufferSeconds,
             configuration.EffectiveTaskWaitBufferSeconds);
 
-        // Outlast cooperative cancel (maxTime) and the effective (default) WaitAsync buffer.
-        var truantDuration = TimeSpan.FromSeconds(
-            maxTimeSeconds + configuration.EffectiveTaskWaitBufferSeconds + 2);
+        var expectedWaitLimit = TimeSpan.FromSeconds(
+            maxTimeSeconds + configuration.EffectiveTaskWaitBufferSeconds);
 
         var job = new Mock<IJobModel>(MockBehavior.Strict);
         IJobModel? receivedJob = null;
+        var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var callback = new Mock<Func<IJobModel, CancellationToken, Task<string>>>(MockBehavior.Strict);
         callback
             .Setup(c => c(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
-            .Returns(async (IJobModel data, CancellationToken _) =>
+            .Returns((IJobModel data, CancellationToken _) =>
             {
                 receivedJob = data;
-                await Task.Delay(truantDuration, CancellationToken.None);
-                return "truant-finished";
+                return tcs.Task;
             });
 
+        var sleepService = CreateInitialTimeoutThenCompleteSleepService(() => tcs.TrySetResult("truant-finished"));
         var logger = new Mock<ILogger<TimeBorderWrapperService>>();
         var service = new TimeBorderWrapperService(
+            sleepService.Object,
             Options.Create(configuration),
             logger.Object);
 
@@ -190,67 +281,51 @@ public class TimeBorderWrapperServiceTests
         Assert.False(callerCts.IsCancellationRequested);
         callback.Verify(c => c(job.Object, It.IsAny<CancellationToken>()), Times.Once);
 
-        logger.Verify(
-            l => l.Log(
-                LogLevel.Error,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((state, _) =>
-                    state.ToString()!.Contains("still running", StringComparison.Ordinal)),
-                It.IsAny<Exception?>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.AtLeastOnce);
-
-        logger.Verify(
-            l => l.Log(
-                LogLevel.Warning,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((state, _) =>
-                    state.ToString()!.Contains("completed after exceeding", StringComparison.Ordinal)),
-                It.IsAny<Exception?>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+        sleepService.Verify(
+            s => s.WaitAsync(
+                It.IsAny<Task<string>>(),
+                expectedWaitLimit,
+                // ReSharper disable once AccessToDisposedClosure
+                callerCts.Token),
             Times.Once);
+
+        VerifyTruantLogs(logger);
     }
 
     /// <summary>
     ///     A non-cooperative callback that outlasts <c>maximumTime</c> plus
     ///     <see cref="TimeBorderWrapperService.ConfigurationModel.EffectiveTaskWaitBufferSeconds" />
     ///     enters truant monitoring and still returns its result when it eventually completes.
-    ///     <para>
-    ///         Acknowledgement: this is intentionally a long-running test (~maxTime + buffer + 2 seconds of real
-    ///         wall-clock delay) so the initial <c>WaitAsync</c> expires and truant monitoring is exercised.
-    ///         My apologies to your build pipeline, but it's for a good cause.
-    ///     </para>
     /// </summary>
-    [Fact(Timeout = 30000)]
+    [Fact(Timeout = 5000)]
     public async Task RunAsync_WhenTruantJobOutlastsMaxTimePlusBuffer_ReturnsCallbackResultViaMonitoring()
     {
         const int maxTimeSeconds = 1;
         var configuration = new TimeBorderWrapperService.ConfigurationModel
         {
-            // Small buffer keeps the test shorter while still exercising monitoring.
             TaskWaitBufferSeconds = 1,
             TruantAlertIntervalSeconds = 1
         };
-        // Outlast cooperative cancel (maxTime) and the WaitAsync buffer so monitoring is entered.
-        var truantDuration = TimeSpan.FromSeconds(
-            maxTimeSeconds + configuration.EffectiveTaskWaitBufferSeconds + 2);
+        var expectedWaitLimit = TimeSpan.FromSeconds(
+            maxTimeSeconds + configuration.EffectiveTaskWaitBufferSeconds);
 
         var job = new Mock<IJobModel>(MockBehavior.Strict);
         IJobModel? receivedJob = null;
+        var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var callback = new Mock<Func<IJobModel, CancellationToken, Task<string>>>(MockBehavior.Strict);
         callback
             .Setup(c => c(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()))
-            .Returns(async (IJobModel data, CancellationToken _) =>
+            .Returns((IJobModel data, CancellationToken _) =>
             {
                 receivedJob = data;
-                // Ignore the composite token — a true truant that does not honour cancellation.
-                await Task.Delay(truantDuration, CancellationToken.None);
-                return "truant-finished";
+                return tcs.Task;
             });
 
+        var sleepService = CreateInitialTimeoutThenCompleteSleepService(() => tcs.TrySetResult("truant-finished"));
         var logger = new Mock<ILogger<TimeBorderWrapperService>>();
         var service = new TimeBorderWrapperService(
+            sleepService.Object,
             Options.Create(configuration),
             logger.Object);
 
@@ -266,24 +341,14 @@ public class TimeBorderWrapperServiceTests
         Assert.False(callerCts.IsCancellationRequested);
         callback.Verify(c => c(job.Object, It.IsAny<CancellationToken>()), Times.Once);
 
-        logger.Verify(
-            l => l.Log(
-                LogLevel.Error,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((state, _) =>
-                    state.ToString()!.Contains("still running", StringComparison.Ordinal)),
-                It.IsAny<Exception?>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.AtLeastOnce);
-
-        logger.Verify(
-            l => l.Log(
-                LogLevel.Warning,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((state, _) =>
-                    state.ToString()!.Contains("completed after exceeding", StringComparison.Ordinal)),
-                It.IsAny<Exception?>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+        sleepService.Verify(
+            s => s.WaitAsync(
+                It.IsAny<Task<string>>(),
+                expectedWaitLimit,
+                // ReSharper disable once AccessToDisposedClosure
+                callerCts.Token),
             Times.Once);
+
+        VerifyTruantLogs(logger);
     }
 }

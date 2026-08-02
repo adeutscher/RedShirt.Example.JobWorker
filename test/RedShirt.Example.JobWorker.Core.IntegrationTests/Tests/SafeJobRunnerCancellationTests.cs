@@ -46,6 +46,7 @@ public class SafeJobRunnerCancellationTests
         // System under test
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
         var timeBorderWrapperService = new TimeBorderWrapperService(
+            new SleepService(),
             Options.Create(new TimeBorderWrapperService.ConfigurationModel
             {
                 TaskWaitBufferSeconds = null,
@@ -104,6 +105,7 @@ public class SafeJobRunnerCancellationTests
         // System under test
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
         var timeBorderWrapperService = new TimeBorderWrapperService(
+            new SleepService(),
             Options.Create(new TimeBorderWrapperService.ConfigurationModel
             {
                 TaskWaitBufferSeconds = null,
