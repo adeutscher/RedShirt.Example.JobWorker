@@ -16,8 +16,8 @@ public enum CoreJobResult
     Failure,
 
     /// <summary>
-    ///     Processing was cancelled (for example, via <see cref="System.Threading.CancellationToken" />).
-    ///     Recoverable on a later delivery/retry.
+    ///     Processing was cancelled (for example, via <see cref="System.Threading.CancellationToken" />) by an uncaught
+    ///     <see cref="OperationCanceledException" />. Recoverable on a later delivery/retry.
     /// </summary>
     Cancelled,
 
