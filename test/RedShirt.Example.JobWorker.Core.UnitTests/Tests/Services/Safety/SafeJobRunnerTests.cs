@@ -11,6 +11,21 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Safety;
 
 public class SafeJobRunnerTests
 {
+    private static ITimeBorderWrapperService CreatePassthroughTimeBorder()
+    {
+        var timeBorder = new Mock<ITimeBorderWrapperService>(MockBehavior.Strict);
+        timeBorder
+            .Setup(t => t.RunAsync(
+                It.IsAny<IJobModel>(),
+                It.IsAny<TimeSpan?>(),
+                It.IsAny<Func<IJobModel, CancellationToken, Task<JobResult>>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((IJobModel data, TimeSpan? _,
+                    Func<IJobModel, CancellationToken, Task<JobResult>> callback, CancellationToken token) =>
+                callback(data, token));
+        return timeBorder.Object;
+    }
+
     [Fact]
     public async Task RunSafelyAsync_WhenInternalRetryCountIsZero_DoesNotRetryJobRetryException()
     {
@@ -26,10 +41,12 @@ public class SafeJobRunnerTests
         var runner = new SafeJobRunner(
             logicRunner.Object,
             sleepService.Object,
+            CreatePassthroughTimeBorder(),
             new NullLogger<SafeJobRunner>(),
             Options.Create(new SafeJobRunner.ConfigurationModel
             {
-                InternalRetryCount = 0
+                InternalRetryCount = 0,
+                MaxJobTimeSeconds = null
             }));
 
         var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
@@ -57,10 +74,12 @@ public class SafeJobRunnerTests
         var runner = new SafeJobRunner(
             logicRunner.Object,
             sleepService.Object,
+            CreatePassthroughTimeBorder(),
             new NullLogger<SafeJobRunner>(),
             Options.Create(new SafeJobRunner.ConfigurationModel
             {
-                InternalRetryCount = 2
+                InternalRetryCount = 2,
+                MaxJobTimeSeconds = null
             }));
 
         var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
@@ -103,10 +122,12 @@ public class SafeJobRunnerTests
         var runner = new SafeJobRunner(
             logicRunner.Object,
             sleepService.Object,
+            CreatePassthroughTimeBorder(),
             new NullLogger<SafeJobRunner>(),
             Options.Create(new SafeJobRunner.ConfigurationModel
             {
-                InternalRetryCount = 1
+                InternalRetryCount = 1,
+                MaxJobTimeSeconds = null
             }));
 
         var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
@@ -148,10 +169,12 @@ public class SafeJobRunnerTests
         var runner = new SafeJobRunner(
             logicRunner.Object,
             sleepService.Object,
+            CreatePassthroughTimeBorder(),
             new NullLogger<SafeJobRunner>(),
             Options.Create(new SafeJobRunner.ConfigurationModel
             {
-                InternalRetryCount = 3
+                InternalRetryCount = 3,
+                MaxJobTimeSeconds = null
             }));
 
         var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
@@ -176,10 +199,12 @@ public class SafeJobRunnerTests
         var runner = new SafeJobRunner(
             logicRunner.Object,
             sleepService.Object,
+            CreatePassthroughTimeBorder(),
             new NullLogger<SafeJobRunner>(),
             Options.Create(new SafeJobRunner.ConfigurationModel
             {
-                InternalRetryCount = 0
+                InternalRetryCount = 0,
+                MaxJobTimeSeconds = null
             }));
 
         var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
@@ -203,10 +228,12 @@ public class SafeJobRunnerTests
         var runner = new SafeJobRunner(
             logicRunner.Object,
             sleepService.Object,
+            CreatePassthroughTimeBorder(),
             new NullLogger<SafeJobRunner>(),
             Options.Create(new SafeJobRunner.ConfigurationModel
             {
-                InternalRetryCount = 0
+                InternalRetryCount = 0,
+                MaxJobTimeSeconds = null
             }));
 
         var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
@@ -231,16 +258,79 @@ public class SafeJobRunnerTests
         var runner = new SafeJobRunner(
             logicRunner.Object,
             sleepService.Object,
+            CreatePassthroughTimeBorder(),
             new NullLogger<SafeJobRunner>(),
             Options.Create(new SafeJobRunner.ConfigurationModel
             {
-                InternalRetryCount = 0
+                InternalRetryCount = 0,
+                MaxJobTimeSeconds = null
             }));
 
         var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
 
         Assert.Equal(CoreJobResult.Success, result.Result);
         Assert.Null(result.Exception);
+        logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    ///     <see langword="null" />, <c>0</c>, and negative values of
+    ///     <see cref="SafeJobRunner.ConfigurationModel.MaxJobTimeSeconds" />
+    ///     all disable the per-attempt time border (translated to a null <see cref="TimeSpan" />).
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(-100)]
+    public async Task RunSafelyAsync_WhenMaxJobTimeSecondsNullOrNonPositive_PassesNullMaximumTimeToTimeBorder(
+        int? maxJobTimeSeconds)
+    {
+        var job = new Mock<IJobModel>(MockBehavior.Strict);
+        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
+        logicRunner
+            .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(JobResult.Success);
+
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+
+        TimeSpan? observedMaximumTime = TimeSpan.FromHours(1); // sentinel distinct from null
+        var timeBorder = new Mock<ITimeBorderWrapperService>(MockBehavior.Strict);
+        timeBorder
+            .Setup(t => t.RunAsync(
+                job.Object,
+                It.IsAny<TimeSpan?>(),
+                It.IsAny<Func<IJobModel, CancellationToken, Task<JobResult>>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((IJobModel data, TimeSpan? maximumTime,
+                Func<IJobModel, CancellationToken, Task<JobResult>> callback, CancellationToken token) =>
+            {
+                observedMaximumTime = maximumTime;
+                return callback(data, token);
+            });
+
+        var runner = new SafeJobRunner(
+            logicRunner.Object,
+            sleepService.Object,
+            timeBorder.Object,
+            new NullLogger<SafeJobRunner>(),
+            Options.Create(new SafeJobRunner.ConfigurationModel
+            {
+                InternalRetryCount = 0,
+                MaxJobTimeSeconds = maxJobTimeSeconds
+            }));
+
+        var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
+
+        Assert.Equal(CoreJobResult.Success, result.Result);
+        Assert.Null(observedMaximumTime);
+        timeBorder.Verify(
+            t => t.RunAsync(
+                job.Object,
+                null,
+                It.IsAny<Func<IJobModel, CancellationToken, Task<JobResult>>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
         logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -259,10 +349,12 @@ public class SafeJobRunnerTests
         var runner = new SafeJobRunner(
             logicRunner.Object,
             sleepService.Object,
+            CreatePassthroughTimeBorder(),
             new NullLogger<SafeJobRunner>(),
             Options.Create(new SafeJobRunner.ConfigurationModel
             {
-                InternalRetryCount = -1
+                InternalRetryCount = -1,
+                MaxJobTimeSeconds = null
             }));
 
         var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
@@ -275,7 +367,7 @@ public class SafeJobRunnerTests
     [Theory]
     [InlineData(typeof(OperationCanceledException))]
     [InlineData(typeof(TaskCanceledException))]
-    public async Task RunSafelyAsync_WhenOperationCanceled_ReturnsCancelledWithSameException(Type exceptionType)
+    public async Task RunSafelyAsync_WhenOperationCancelled_ReturnsCancelledWithSameException(Type exceptionType)
     {
         var expected = (Exception) Activator.CreateInstance(exceptionType)!;
         var job = new Mock<IJobModel>(MockBehavior.Strict);
@@ -289,10 +381,12 @@ public class SafeJobRunnerTests
         var runner = new SafeJobRunner(
             logicRunner.Object,
             sleepService.Object,
+            CreatePassthroughTimeBorder(),
             new NullLogger<SafeJobRunner>(),
             Options.Create(new SafeJobRunner.ConfigurationModel
             {
-                InternalRetryCount = 3
+                InternalRetryCount = 3,
+                MaxJobTimeSeconds = null
             }));
 
         var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
@@ -319,10 +413,12 @@ public class SafeJobRunnerTests
         var runner = new SafeJobRunner(
             logicRunner.Object,
             sleepService.Object,
+            CreatePassthroughTimeBorder(),
             new NullLogger<SafeJobRunner>(),
             Options.Create(new SafeJobRunner.ConfigurationModel
             {
-                InternalRetryCount = 3
+                InternalRetryCount = 3,
+                MaxJobTimeSeconds = null
             }));
 
         var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
@@ -357,10 +453,12 @@ public class SafeJobRunnerTests
         var runner = new SafeJobRunner(
             logicRunner.Object,
             sleepService.Object,
+            CreatePassthroughTimeBorder(),
             new NullLogger<SafeJobRunner>(),
             Options.Create(new SafeJobRunner.ConfigurationModel
             {
-                InternalRetryCount = 3
+                InternalRetryCount = 3,
+                MaxJobTimeSeconds = null
             }));
 
         var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);

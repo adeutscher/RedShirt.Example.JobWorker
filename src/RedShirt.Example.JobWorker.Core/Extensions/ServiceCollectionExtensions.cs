@@ -29,6 +29,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IHeartbeatMaintainer, HeartbeatMaintainer>()
             .AddSingleton<IHeartbeatCalculator, HeartbeatCalculator>()
             .AddSingleton<ISafeJobRunner, SafeJobRunner>()
+            .AddSingleton<ITimeBorderWrapperService, TimeBorderWrapperService>()
             .AddSingleton<ISafeJobAcknowledgementService, SafeJobAcknowledgementService>()
             .AddSingleton<IJobIntakeService, JobIntakeService>()
             .AddSingleton<ISleepService, SleepService>()
@@ -39,6 +40,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobLoaderStateReaderService>(provider =>
                 provider.GetRequiredService<IJobLoaderStateService>())
             .Configure<SafeJobRunner.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
+            .Configure<TimeBorderWrapperService.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .Configure<JobSourceConfigurationModel>(configuration.GetSection("JobSource"))
             .Configure<LoopOptionsConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .Configure<ThreadConfigurationModel>(configuration.GetSection(ConfigSectionName))

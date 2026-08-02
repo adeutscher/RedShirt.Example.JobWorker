@@ -130,10 +130,18 @@ public class JobResultTranslationTests
         var safeJobRunner = new SafeJobRunner(
             logicRunner.Object,
             sleepService,
+            new TimeBorderWrapperService(
+                Options.Create(new TimeBorderWrapperService.ConfigurationModel
+                {
+                    TaskWaitBufferSeconds = null,
+                    TruantAlertIntervalSeconds = 30
+                }),
+                NullLogger<TimeBorderWrapperService>.Instance),
             new NullLogger<SafeJobRunner>(),
             Options.Create(new SafeJobRunner.ConfigurationModel
             {
-                InternalRetryCount = 0
+                InternalRetryCount = 0,
+                MaxJobTimeSeconds = null
             }));
         var acknowledgementService = new SafeJobAcknowledgementService(
             jobSource.Object,

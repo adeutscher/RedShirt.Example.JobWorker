@@ -25,11 +25,13 @@ internal interface ISafeJobRunner
 /// </summary>
 /// <param name="jobLogicRunner"></param>
 /// <param name="sleepService"></param>
+/// <param name="timeBorderWrapperService"></param>
 /// <param name="logger"></param>
 /// <param name="options"></param>
 internal sealed class SafeJobRunner(
     IJobLogicRunner jobLogicRunner,
     ISleepService sleepService,
+    ITimeBorderWrapperService timeBorderWrapperService,
     ILogger<SafeJobRunner> logger,
     IOptions<SafeJobRunner.ConfigurationModel> options) : ISafeJobRunner
 {
@@ -88,8 +90,21 @@ internal sealed class SafeJobRunner(
     {
         try
         {
+            // Non-positive values (and null) mean "no per-attempt time limit".
+            var maximumTime = options.Value.MaxJobTimeSeconds is int seconds and > 0
+                ? TimeSpan.FromSeconds(seconds)
+                : (TimeSpan?) null;
+
+            // Intentional: MaxJobTimeSeconds is applied per Polly attempt, not across the whole
+            // retry budget. Each JobRetryException retry enters RunAsync again and gets a fresh
+            // time border. Total wall-clock time may therefore approach roughly
+            // InternalRetryCount × MaxJobTimeSeconds plus backoff delays.
             var jobResult = await GetRetryPipeline().ExecuteAsync(
-                async token => await jobLogicRunner.RunAsync(job, token),
+                async token => await timeBorderWrapperService.RunAsync(
+                    job,
+                    maximumTime,
+                    jobLogicRunner.RunAsync,
+                    token),
                 cancellationToken);
             return new SafeJobRunResults
             {
@@ -104,6 +119,15 @@ internal sealed class SafeJobRunner(
         }
         catch (OperationCanceledException e)
         {
+            return new SafeJobRunResults
+            {
+                Result = CoreJobResult.Cancelled,
+                Exception = e
+            };
+        }
+        catch (TimeoutException e)
+        {
+            // Thrown by TimeBorderWrapperService when WaitAsync's time limit expires before the job completes.
             return new SafeJobRunResults
             {
                 Result = CoreJobResult.Cancelled,
@@ -129,5 +153,12 @@ internal sealed class SafeJobRunner(
         ///     Internal retries don't trigger on an ordinary exception, but rather on <see cref="JobRetryException" />
         /// </summary>
         public required int InternalRetryCount { get; init; }
+
+        /// <summary>
+        ///     Maximum seconds for a single job attempt before its composite cancellation token is cancelled.
+        ///     Applied per Polly retry attempt (intentional): each internal retry gets a fresh time border.
+        ///     <see langword="null" />, <c>0</c>, and negative values disable the per-attempt time limit.
+        /// </summary>
+        public required int? MaxJobTimeSeconds { get; init; }
     }
 }
