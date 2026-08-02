@@ -6,18 +6,6 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Extensions;
 public class CoreJobResultExtensionsTests
 {
     [Theory]
-    [InlineData(CoreJobResult.Success, true)]
-    [InlineData(CoreJobResult.Failure, false)]
-    [InlineData(CoreJobResult.Cancelled, false)]
-    [InlineData(CoreJobResult.Empty, false)]
-    [InlineData(CoreJobResult.Parsing, false)]
-    [InlineData(CoreJobResult.Broken, false)]
-    public void IsSuccessful_ReturnsExpected(CoreJobResult result, bool expected)
-    {
-        Assert.Equal(expected, result.IsSuccessful());
-    }
-
-    [Theory]
     [InlineData(CoreJobResult.Failure, true)]
     [InlineData(CoreJobResult.Cancelled, true)]
     [InlineData(CoreJobResult.Success, false)]
@@ -27,6 +15,18 @@ public class CoreJobResultExtensionsTests
     public void IsRecoverableFailure_ReturnsExpected(CoreJobResult result, bool expected)
     {
         Assert.Equal(expected, result.IsRecoverableFailure());
+    }
+
+    [Theory]
+    [InlineData(CoreJobResult.Success, true)]
+    [InlineData(CoreJobResult.Failure, false)]
+    [InlineData(CoreJobResult.Cancelled, false)]
+    [InlineData(CoreJobResult.Empty, false)]
+    [InlineData(CoreJobResult.Parsing, false)]
+    [InlineData(CoreJobResult.Broken, false)]
+    public void IsSuccessful_ReturnsExpected(CoreJobResult result, bool expected)
+    {
+        Assert.Equal(expected, result.IsSuccessful());
     }
 
     [Theory]

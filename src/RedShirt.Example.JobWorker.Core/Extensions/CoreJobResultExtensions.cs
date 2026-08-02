@@ -8,15 +8,6 @@ namespace RedShirt.Example.JobWorker.Core.Extensions;
 public static class CoreJobResultExtensions
 {
     /// <summary>
-    ///     Returns <c>true</c> when <paramref name="result" /> is <see cref="CoreJobResult.Success" />.
-    ///     Exists for consistency with <see cref="IsRecoverableFailure" /> rather than to obscure a single-value check.
-    /// </summary>
-    public static bool IsSuccessful(this CoreJobResult result)
-    {
-        return result == CoreJobResult.Success;
-    }
-
-    /// <summary>
     ///     Returns <c>true</c> when the failure may succeed on a later delivery/retry
     ///     (<see cref="CoreJobResult.Failure" /> / <see cref="FailureType.Execution" />, or
     ///     <see cref="CoreJobResult.Cancelled" /> / <see cref="FailureType.Cancelled" />).
@@ -26,6 +17,15 @@ public static class CoreJobResultExtensions
     public static bool IsRecoverableFailure(this CoreJobResult result)
     {
         return result is CoreJobResult.Failure or CoreJobResult.Cancelled;
+    }
+
+    /// <summary>
+    ///     Returns <c>true</c> when <paramref name="result" /> is <see cref="CoreJobResult.Success" />.
+    ///     Exists for consistency with <see cref="IsRecoverableFailure" /> rather than to obscure a single-value check.
+    /// </summary>
+    public static bool IsSuccessful(this CoreJobResult result)
+    {
+        return result == CoreJobResult.Success;
     }
 
     /// <summary>
