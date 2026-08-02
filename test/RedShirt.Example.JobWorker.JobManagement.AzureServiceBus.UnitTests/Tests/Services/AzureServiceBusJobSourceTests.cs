@@ -82,41 +82,6 @@ public class AzureServiceBusJobSourceTests
         Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
     }
 
-    [Fact]
-    public async Task Test_AcknowledgeAsync_Fail()
-    {
-        var client = new Mock<IServiceBusClientWrapper>();
-        var source = new Mock<IBusReceiverClientSource>();
-        source
-            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(client.Object);
-
-        var jobSource = CreateJobSource(source.Object, null!);
-
-        var innerMessage = new Mock<IServiceBusMessageContainer>(MockBehavior.Strict);
-        var job = new AzureRawJobModel
-        {
-            Message = innerMessage.Object,
-            CreatedAtUtc = DateTime.UtcNow
-        };
-
-        await jobSource.AcknowledgeAsync(job, CoreJobResult.Failure,
-            TestContext.Current.CancellationToken);
-
-        client.Verify(
-            s => s.CompleteMessageAsync(It.IsAny<IServiceBusMessageContainer>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-        client.Verify(
-            s => s.AbandonMessageAsync(It.IsAny<IServiceBusMessageContainer>(), It.IsAny<CancellationToken>()),
-            Times.Once);
-        client.Verify(s => s.AbandonMessageAsync(innerMessage.Object, TestContext.Current.CancellationToken),
-            Times.Once);
-        client.Verify(
-            s => s.DeadLetterMessageAsync(It.IsAny<IServiceBusMessageContainer>(), It.IsAny<string>(),
-                It.IsAny<string?>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
-
     [Theory]
     [InlineData(CoreJobResult.Empty)]
     [InlineData(CoreJobResult.Parsing)]
@@ -176,6 +141,42 @@ public class AzureServiceBusJobSourceTests
 
         client.Verify(
             s => s.CompleteMessageAsync(It.IsAny<IServiceBusMessageContainer>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Theory]
+    [InlineData(CoreJobResult.Failure)]
+    [InlineData(CoreJobResult.Cancelled)]
+    public async Task Test_AcknowledgeAsync_Recoverable_Abandons(CoreJobResult result)
+    {
+        var client = new Mock<IServiceBusClientWrapper>();
+        var source = new Mock<IBusReceiverClientSource>();
+        source
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var jobSource = CreateJobSource(source.Object, null!);
+
+        var innerMessage = new Mock<IServiceBusMessageContainer>(MockBehavior.Strict);
+        var job = new AzureRawJobModel
+        {
+            Message = innerMessage.Object,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        await jobSource.AcknowledgeAsync(job, result, TestContext.Current.CancellationToken);
+
+        client.Verify(
+            s => s.CompleteMessageAsync(It.IsAny<IServiceBusMessageContainer>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        client.Verify(
+            s => s.AbandonMessageAsync(It.IsAny<IServiceBusMessageContainer>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        client.Verify(s => s.AbandonMessageAsync(innerMessage.Object, TestContext.Current.CancellationToken),
+            Times.Once);
+        client.Verify(
+            s => s.DeadLetterMessageAsync(It.IsAny<IServiceBusMessageContainer>(), It.IsAny<string>(),
+                It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 

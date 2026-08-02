@@ -214,8 +214,10 @@ public class SqsJobSourceTests
             Times.Once);
     }
 
-    [Fact]
-    public async Task Test_AcknowledgeAsync_RecoverableFailure_InvokesPoisonHandlerWithoutDelete()
+    [Theory]
+    [InlineData(CoreJobResult.Failure)]
+    [InlineData(CoreJobResult.Cancelled)]
+    public async Task Test_AcknowledgeAsync_RecoverableFailure_InvokesPoisonHandlerWithoutDelete(CoreJobResult result)
     {
         var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);
         var poisonMessageHandler = new Mock<ISqsPoisonMessagesHandler>(MockBehavior.Strict);
@@ -236,7 +238,7 @@ public class SqsJobSourceTests
             RawMessage = rawMessage
         };
 
-        await source.AcknowledgeAsync(job, CoreJobResult.Failure, TestContext.Current.CancellationToken);
+        await source.AcknowledgeAsync(job, result, TestContext.Current.CancellationToken);
 
         Assert.Empty(sqs.Invocations);
         poisonMessageHandler.Verify(

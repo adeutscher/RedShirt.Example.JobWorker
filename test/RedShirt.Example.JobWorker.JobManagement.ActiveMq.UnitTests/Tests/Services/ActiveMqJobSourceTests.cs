@@ -38,54 +38,14 @@ public class ActiveMqJobSourceTests
         message.Verify(m => m.AcknowledgeAsync(), Times.Once);
     }
 
-    [Fact]
-    public async Task Test_AcknowledgeAsync_Failure_DoesNotAcknowledge()
-    {
-        var message = new Mock<IMessage>(MockBehavior.Strict);
-
-        var configuration = new ActiveMqJobSource.ConfigurationModel
-        {
-            QueueName = null!
-        };
-
-        var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration),
-            new NullLogger<ActiveMqJobSource>());
-
-        var jobModel = new ActiveMqRawJobModel
-        {
-            Message = message.Object,
-            MessageId = "moot",
-            CreatedAtUtc = DateTime.UtcNow
-        };
-
-        await activeMqJobSource.AcknowledgeAsync(jobModel, CoreJobResult.Failure,
-            TestContext.Current.CancellationToken);
-
-        Assert.Empty(message.Invocations);
-    }
-
-    [Fact]
-    public async Task Test_AcknowledgeAsync_Incompatible()
-    {
-        var job = new Mock<IRawJobModel>();
-
-        var configuration = new ActiveMqJobSource.ConfigurationModel
-        {
-            QueueName = null!
-        };
-
-        var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration),
-            new NullLogger<ActiveMqJobSource>());
-
-        await activeMqJobSource.AcknowledgeAsync(job.Object, CoreJobResult.Success,
-            TestContext.Current.CancellationToken);
-    }
-
     [Theory]
+    [InlineData(CoreJobResult.Success)]
+    [InlineData(CoreJobResult.Failure)]
+    [InlineData(CoreJobResult.Cancelled)]
     [InlineData(CoreJobResult.Broken)]
     [InlineData(CoreJobResult.Empty)]
     [InlineData(CoreJobResult.Parsing)]
-    public async Task Test_AcknowledgeAsync_NonRecoverable_Acknowledges(CoreJobResult result)
+    public async Task Test_AcknowledgeAsync_AlwaysAcknowledges(CoreJobResult result)
     {
         var message = new Mock<IMessage>();
 
@@ -108,6 +68,23 @@ public class ActiveMqJobSourceTests
             TestContext.Current.CancellationToken);
 
         message.Verify(m => m.AcknowledgeAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task Test_AcknowledgeAsync_Incompatible()
+    {
+        var job = new Mock<IRawJobModel>();
+
+        var configuration = new ActiveMqJobSource.ConfigurationModel
+        {
+            QueueName = null!
+        };
+
+        var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration),
+            new NullLogger<ActiveMqJobSource>());
+
+        await activeMqJobSource.AcknowledgeAsync(job.Object, CoreJobResult.Success,
+            TestContext.Current.CancellationToken);
     }
 
     [Fact]

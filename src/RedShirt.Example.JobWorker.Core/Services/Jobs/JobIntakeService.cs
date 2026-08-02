@@ -51,6 +51,13 @@ internal sealed class JobIntakeService(
         try
         {
             convertedData = sourceMessageConverter.Convert(body);
+
+            // ReSharper disable once ConvertIfStatementToReturnStatement
+            if (convertedData is null)
+            {
+                return CoreJobResult.Parsing;
+            }
+
             return CoreJobResult.Success;
         }
         catch (Exception e)
@@ -69,7 +76,7 @@ internal sealed class JobIntakeService(
         foreach (var rawMessage in jobSourceResponse.Items)
         {
             var convertResult = TryConvert(rawMessage, out var convertedData, out var exception);
-            if (convertResult == CoreJobResult.Success && convertedData is not null)
+            if (convertResult == CoreJobResult.Success)
             {
                 convertedMessages.Add(new JobEnvelope
                 {
@@ -87,7 +94,7 @@ internal sealed class JobIntakeService(
             {
                 failedMessages.Add(new FailedJobEnvelope
                 {
-                    Result = convertResult == CoreJobResult.Success ? CoreJobResult.Parsing : convertResult,
+                    Result = convertResult,
                     Exception = exception,
                     RawJobModel = rawMessage
                 });

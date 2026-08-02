@@ -133,34 +133,6 @@ public class AzureQueueStorageJobSourceTests
             Times.Once);
     }
 
-    [Fact]
-    public async Task Test_AcknowledgeAsync_Failure_DoesNotDelete()
-    {
-        var client = new Mock<IQueueConsumerClientWrapper>(MockBehavior.Strict);
-        var source = new Mock<IQueueConsumerClientSource>(MockBehavior.Strict);
-
-        var config = new AzureQueueStorageConfigurationModel
-        {
-            VisibilityTimeoutSeconds = 0
-        };
-
-        var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
-            Options.Create(config));
-
-        var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
-        var job = new AzureQueueStorageRawJobModel
-        {
-            Message = innerMessage.Object,
-            CreatedAtUtc = DateTime.UtcNow
-        };
-
-        await jobSource.AcknowledgeAsync(job, CoreJobResult.Failure,
-            TestContext.Current.CancellationToken);
-
-        Assert.Empty(source.Invocations);
-        Assert.Empty(client.Invocations);
-    }
-
     [Theory]
     [InlineData(CoreJobResult.Success)]
     [InlineData(CoreJobResult.Failure)]
@@ -187,6 +159,35 @@ public class AzureQueueStorageJobSourceTests
 
         client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Theory]
+    [InlineData(CoreJobResult.Failure)]
+    [InlineData(CoreJobResult.Cancelled)]
+    public async Task Test_AcknowledgeAsync_Recoverable_DoesNotDelete(CoreJobResult result)
+    {
+        var client = new Mock<IQueueConsumerClientWrapper>(MockBehavior.Strict);
+        var source = new Mock<IQueueConsumerClientSource>(MockBehavior.Strict);
+
+        var config = new AzureQueueStorageConfigurationModel
+        {
+            VisibilityTimeoutSeconds = 0
+        };
+
+        var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
+            Options.Create(config));
+
+        var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
+        var job = new AzureQueueStorageRawJobModel
+        {
+            Message = innerMessage.Object,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        await jobSource.AcknowledgeAsync(job, result, TestContext.Current.CancellationToken);
+
+        Assert.Empty(source.Invocations);
+        Assert.Empty(client.Invocations);
     }
 
     [Theory]
