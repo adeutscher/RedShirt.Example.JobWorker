@@ -25,8 +25,9 @@ internal class KafkaJobSource(
             return;
         }
 
-        // result is intentionally unused for broker ack mechanics: stream offsets advance once the batch
-        // gate completes. Unrecoverable failures are handled via IJobFailureHandler (application DLQ).
+        // result is intentionally unused for checkpointing: the topic always advances.
+        // Unrecoverable failures are handled via IJobFailureHandler (application DLQ).
+        // The `_ = result;` phrasing prevents certain code analysis tools from flagging this as a potential issue 
         _ = result;
 
         await _sessionSemaphore.WaitAsync(cancellationToken);

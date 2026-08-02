@@ -32,14 +32,20 @@ internal class AzureServiceBusJobSource(
         else if (result.IsRecoverableFailure())
         {
             /*
-             * Recoverable execution failures: abandon so the message becomes available again /
+             * Recoverable execution failures: explicitly abandon so the message becomes available again /
              * counts toward the service bus queue's configured maximum delivery count.
+             *
+             * On a case-by-case basis, there could be a benefit to instead letting the message sit in flight for a moment
+             * and fall back into the queue naturally. Marked as a future improvement in issue tracking.
              */
             await client.AbandonMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
         }
         else
         {
             // Empty / Parsing / Broken: dead-letter immediately.
+            // One could argue that there's no point in even bothering to dead-letter Empty problems,
+            //  but on the other hand there could be useful properties for debugging on the message.
+            // This application's priority is just getting unrecoverable messages out of the way ASAP.
             await client.DeadLetterMessageAsync(messageAsAzureJobModel.Message, result.ToString(),
                 cancellationToken: cancellationToken);
         }

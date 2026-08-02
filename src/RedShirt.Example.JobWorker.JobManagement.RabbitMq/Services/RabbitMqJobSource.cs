@@ -51,25 +51,24 @@ internal class RabbitMqJobSource : IJobSource
             {
                 await channel.BasicAckAsync(rabbitMqJobModel.DeliveryTag, false, cancellationToken);
             }
-            else if (result.IsRecoverableFailure())
-            {
-                // NAck with requeue so the message can be delivered again.
-                await channel.BasicNackAsync(rabbitMqJobModel.DeliveryTag, false, true, cancellationToken);
-            }
             else
             {
+                // If recoverable, then NAck with requeue so the message can be delivered again. 
                 // Empty / Parsing / Broken: NAck without requeue (dead-letter if the queue is configured for it).
-                await channel.BasicNackAsync(rabbitMqJobModel.DeliveryTag, false, false, cancellationToken);
+                await channel.BasicNackAsync(rabbitMqJobModel.DeliveryTag, false, !result.IsRecoverableFailure(),
+                    cancellationToken);
             }
         }
         catch (ObjectDisposedException)
         {
             /*
-             * An ObjectDispostException implies the closure of the connection underlying
+             * An ObjectDispostException suggest the closure of the connection underlying
              * the channel that this message originated from.
              *
              * Not considered to be actionable, let the exception pass.
              * The message represented by this message ID already fell back into the queue when the connection died.
+             *
+             * This catch will be changed in the near future when RabbitMQ is hardened with an exception-handling policy similar to the pattern used in places like the Kafka subproject.
              */
         }
     }

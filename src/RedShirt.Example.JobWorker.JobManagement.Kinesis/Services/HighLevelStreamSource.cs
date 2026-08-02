@@ -28,6 +28,7 @@ internal class HighLevelStreamSource(
 
         // result is intentionally unused for shard checkpointing: the stream always advances.
         // Unrecoverable failures are handled via IJobFailureHandler (application DLQ).
+        // The `_ = result;` phrasing prevents certain code analysis tools from flagging this as a potential issue 
         _ = result;
 
         await _sessionsSemaphore.WaitAsync(cancellationToken);

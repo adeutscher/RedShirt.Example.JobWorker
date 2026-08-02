@@ -18,14 +18,14 @@ internal class AzureQueueStorageJobSource(
         CancellationToken cancellationToken = default)
     {
         if (message is not AzureQueueStorageRawJobModel messageAsAzureJobModel)
-            // For consideration: Throw some kind of exception?
         {
             return;
         }
 
         if (result.IsRecoverableFailure())
         {
-            // Leave the message to expire / become visible again. Azure Queue has no native NAck.
+            // Leave the message to expire / become visible again and naturally falling back into the queue.
+            // Azure Queue has no native NAck.
             return;
         }
 

@@ -30,7 +30,8 @@ internal class NatsJobSource(
             return;
         }
 
-        // Suppress possible warnings about unused variables.
+        // Intentionally not using result
+        // The `_ = result;` phrasing prevents certain code analysis tools from flagging this as a potential issue
         _ = result;
 
         // Ack. Whether result successful, a recoverable failures, or an unrecoverable failure.
