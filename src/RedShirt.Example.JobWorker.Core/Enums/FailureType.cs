@@ -21,6 +21,12 @@ public enum FailureType
     Execution,
 
     /// <summary>
+    ///     Processing was cancelled (for example, via <see cref="System.Threading.CancellationToken" />).
+    ///     Recoverable on a later delivery/retry.
+    /// </summary>
+    Cancelled,
+
+    /// <summary>
     ///     A miscellaneous, explicitly unrecoverable problem.
     /// </summary>
     Broken
