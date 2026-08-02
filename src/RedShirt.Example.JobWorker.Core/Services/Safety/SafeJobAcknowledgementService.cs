@@ -79,9 +79,9 @@ internal sealed class SafeJobAcknowledgementService(
                 // Despite Sonar's opinion, not a useless assign.
                 loggedFailureSuccessfully = false;
 #pragma warning restore S1854
-                var failureType = result.ToFailureType();
                 await GetRetryPipeline().ExecuteAsync(
-                    async token => await jobFailureHandler.HandleFailureAsync(job, failureType, exception, token),
+                    async token =>
+                        await jobFailureHandler.HandleFailureAsync(job, result.ToFailureType(), exception, token),
                     cancellationToken);
                 loggedFailureSuccessfully = true;
             }

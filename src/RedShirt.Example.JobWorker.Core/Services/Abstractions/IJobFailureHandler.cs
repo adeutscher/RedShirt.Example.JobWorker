@@ -13,7 +13,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.Abstractions;
 ///     technology works.
 ///     It's admittedly a bit situational. It was originally made for a stream-based job source that
 ///     could only run messages once, whether they were successful or whether they failed.
-///     The solution to this issue was to use this failure handler as an application-defined DLQ.
+///     The fix for this issue was to use this failure handler as an application-defined DLQ with a different technology.
 /// </summary>
 public interface IJobFailureHandler
 {

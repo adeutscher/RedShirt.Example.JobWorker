@@ -12,6 +12,8 @@ public enum JobResult
 
     /// <summary>
     ///     Job logic identified an unrecoverable problem.
+    ///     This unrecoverable problem is translated back to the job source,
+    ///     which may choose to handle it differently than a regular failure.
     /// </summary>
     Broken
 }

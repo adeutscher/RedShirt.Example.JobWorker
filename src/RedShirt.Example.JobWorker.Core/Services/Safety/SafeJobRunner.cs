@@ -96,7 +96,6 @@ internal sealed class SafeJobRunner(
                 Result = jobResult switch
                 {
                     JobResult.Success => CoreJobResult.Success,
-                    JobResult.Broken => CoreJobResult.Broken,
                     _ => CoreJobResult.Broken
                 },
                 Exception = null

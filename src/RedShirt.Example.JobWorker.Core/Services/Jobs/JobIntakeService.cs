@@ -29,10 +29,11 @@ internal sealed class JobIntakeService(
         convertedData = null;
         exception = null;
 
+        // Body retrieval is assumed to be reliably consistent across reads of the same message.
+        // Still, let us just retrieve it once.
         string? body;
         try
         {
-            // Body retrieval is assumed to be reliably consistent across reads of the same message.
             body = input.Body;
         }
         catch (Exception e)
@@ -55,7 +56,7 @@ internal sealed class JobIntakeService(
         catch (Exception e)
         {
             exception = e;
-            logger.LogError(e, "Error while converting job intake");
+            logger.LogWarning(e, "Error while converting job intake");
             return CoreJobResult.Parsing;
         }
     }
