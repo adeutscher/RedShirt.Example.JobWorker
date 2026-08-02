@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Configuration;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -15,7 +16,8 @@ internal interface IIdempotencyExecutionService
 
     Task<IAbstractedLock> GetLockAsync(IJobModel jobModel, CancellationToken token);
 
-    Task SetResultInCacheAsync(IRawJobModel jobModel, bool jobSuccess, ISafeAcknowledgementResult acknowledgementResult,
+    Task SetResultInCacheAsync(IRawJobModel jobModel, CoreJobResult jobResult,
+        ISafeAcknowledgementResult acknowledgementResult,
         CancellationToken cancellationToken = default);
 }
 
@@ -99,7 +101,7 @@ internal sealed class IdempotencyExecutionService(
 
         return new IdempotencyCacheResult
         {
-            JobSuccess = cachedResult.TaskSuccess,
+            JobResult = cachedResult.Result,
             AcknowledgementResult = new SafeAcknowledgementResult
             {
                 LoggedFailureSuccessfully = cachedResult.LoggedFailureSuccessfully,
@@ -108,7 +110,7 @@ internal sealed class IdempotencyExecutionService(
         };
     }
 
-    public Task SetResultInCacheAsync(IRawJobModel jobModel, bool jobSuccess,
+    public Task SetResultInCacheAsync(IRawJobModel jobModel, CoreJobResult jobResult,
         ISafeAcknowledgementResult acknowledgementResult,
         CancellationToken cancellationToken = default)
     {
@@ -128,7 +130,7 @@ internal sealed class IdempotencyExecutionService(
         return cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), JsonSerializer.Serialize(
             new CachedAcknowledgeReport
             {
-                TaskSuccess = jobSuccess,
+                Result = jobResult,
                 LoggedFailureSuccessfully = acknowledgementResult.LoggedFailureSuccessfully,
                 AcknowledgedSuccessfully = acknowledgementResult.AcknowledgedSuccessfully
             }, JsonOptions), timeSpan, cancellationToken);
@@ -136,8 +138,8 @@ internal sealed class IdempotencyExecutionService(
 
     internal sealed class CachedAcknowledgeReport
     {
-        [JsonPropertyName("s")]
-        public bool TaskSuccess { get; init; }
+        [JsonPropertyName("r")]
+        public CoreJobResult Result { get; init; }
 
         [JsonPropertyName("f")]
         public bool? LoggedFailureSuccessfully { get; init; }

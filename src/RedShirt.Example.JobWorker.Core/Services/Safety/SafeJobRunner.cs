@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Retry;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -87,13 +88,26 @@ internal sealed class SafeJobRunner(
     {
         try
         {
-            await GetRetryPipeline().ExecuteAsync(
+            var jobResult = await GetRetryPipeline().ExecuteAsync(
                 async token => await jobLogicRunner.RunAsync(job, token),
                 cancellationToken);
             return new SafeJobRunResults
             {
-                JobSuccess = true,
+                Result = jobResult switch
+                {
+                    JobResult.Success => CoreJobResult.Success,
+                    JobResult.Failure => CoreJobResult.Failure,
+                    _ => CoreJobResult.Broken
+                },
                 Exception = null
+            };
+        }
+        catch (OperationCanceledException e)
+        {
+            return new SafeJobRunResults
+            {
+                Result = CoreJobResult.Cancelled,
+                Exception = e
             };
         }
         catch (Exception e)
@@ -102,7 +116,7 @@ internal sealed class SafeJobRunner(
 
             return new SafeJobRunResults
             {
-                JobSuccess = false,
+                Result = CoreJobResult.Failure,
                 Exception = e
             };
         }

@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Configuration;
@@ -12,20 +14,25 @@ internal class AzureQueueStorageJobSource(
     IAzureQueueStorageMessageSource azureQueueStorageMessageSource,
     IOptions<AzureQueueStorageConfigurationModel> options) : IJobSource
 {
-    public async Task AcknowledgeAsync(IRawJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
         if (message is not AzureQueueStorageRawJobModel messageAsAzureJobModel)
-            // For consideration: Throw some kind of exception?
         {
+            return;
+        }
+
+        if (result.IsRecoverableFailure())
+        {
+            // Leave the message to expire / become visible again and naturally falling back into the queue.
+            // Azure Queue has no native NAck.
             return;
         }
 
         var client = await clientSource.GetQueueClientAsync(cancellationToken);
 
-        // Azure Queue Storage requires an application-defined mechanism for handling "poison" messages
-        // For lack of that, in this template we will treat it like ActiveMQ/RabbitMQ and delete the message.
-        // Queueing up failed messages in another DLQ would 
+        // Success and unrecoverable (Empty / Parsing / Broken): delete. Azure Queue has no native DLQ.
+        // Queueing failed messages in another DLQ would be an application-defined extension.
         await client.DeleteMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
     }
 

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
@@ -17,13 +18,18 @@ internal class HighLevelStreamSource(
     internal readonly Dictionary<string, KinesisTrackerSession> Sessions = new();
     private readonly SemaphoreSlim _sessionsSemaphore = new(1, 1);
 
-    public async Task AcknowledgeAsync(IRawJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
         if (message is not KinesisJobModel kinesisJobModel)
         {
             return;
         }
+
+        // result is intentionally unused for shard checkpointing: the stream always advances.
+        // Unrecoverable failures are handled via IJobFailureHandler (application DLQ).
+        // The `_ = result;` phrasing prevents certain code analysis tools from flagging this as a potential issue 
+        _ = result;
 
         await _sessionsSemaphore.WaitAsync(cancellationToken);
 

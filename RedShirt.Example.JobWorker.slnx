@@ -59,6 +59,8 @@
         <Project
                 Path="test/RedShirt.Example.JobWorker.Core.UnitTests/RedShirt.Example.JobWorker.Core.UnitTests.csproj"/>
         <Project
+                Path="test/RedShirt.Example.JobWorker.Core.IntegrationTests/RedShirt.Example.JobWorker.Core.IntegrationTests.csproj"/>
+        <Project
                 Path="test/RedShirt.Example.JobWorker.IntegrationTests/RedShirt.Example.JobWorker.IntegrationTests.csproj"/>
         <Project
                 Path="test/RedShirt.Example.JobWorker.JobManagement.ActiveMq.UnitTests/RedShirt.Example.JobWorker.JobManagement.ActiveMq.UnitTests.csproj"/>

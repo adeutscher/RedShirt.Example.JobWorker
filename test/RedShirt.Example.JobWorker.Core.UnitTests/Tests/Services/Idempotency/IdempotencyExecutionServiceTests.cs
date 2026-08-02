@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Configuration;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using System.Text.Json;
@@ -39,12 +40,12 @@ public class IdempotencyExecutionServiceTests
         return raw;
     }
 
-    private static string SerializeCacheReport(bool taskSuccess, bool acknowledgedSuccessfully,
+    private static string SerializeCacheReport(CoreJobResult result, bool acknowledgedSuccessfully,
         bool? loggedFailureSuccessfully = null)
     {
         return JsonSerializer.Serialize(new IdempotencyExecutionService.CachedAcknowledgeReport
         {
-            TaskSuccess = taskSuccess,
+            Result = result,
             AcknowledgedSuccessfully = acknowledgedSuccessfully,
             LoggedFailureSuccessfully = loggedFailureSuccessfully
         }, new JsonSerializerOptions
@@ -74,12 +75,12 @@ public class IdempotencyExecutionServiceTests
     }
 
     [Theory]
-    [InlineData(true, true)]
-    [InlineData(false, false)]
-    public async Task GetCachedResultAsync_WhenCacheValueIsValid_ReturnsParsedValue(bool taskSuccess,
+    [InlineData(CoreJobResult.Success, true)]
+    [InlineData(CoreJobResult.Failure, false)]
+    public async Task GetCachedResultAsync_WhenCacheValueIsValid_ReturnsParsedValue(CoreJobResult jobResult,
         bool acknowledgedSuccessfully)
     {
-        var cachedValue = SerializeCacheReport(taskSuccess, acknowledgedSuccessfully);
+        var cachedValue = SerializeCacheReport(jobResult, acknowledgedSuccessfully);
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
@@ -92,7 +93,7 @@ public class IdempotencyExecutionServiceTests
         var result = await service.GetCachedResultAsync(CreateJob().Object, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
-        Assert.Equal(taskSuccess, result!.JobSuccess);
+        Assert.Equal(jobResult, result!.JobResult);
         Assert.Equal(acknowledgedSuccessfully, result.AcknowledgementResult.AcknowledgedSuccessfully);
     }
 
@@ -165,11 +166,11 @@ public class IdempotencyExecutionServiceTests
     }
 
     [Theory]
-    [InlineData(true, false, true)]
-    [InlineData(false, false, true)]
-    [InlineData(true, true, false)]
-    [InlineData(false, false, false)]
-    public async Task SetResultInCacheAsync_Otherwise_StoresResultString(bool jobSuccess,
+    [InlineData(CoreJobResult.Success, false, true)]
+    [InlineData(CoreJobResult.Failure, false, true)]
+    [InlineData(CoreJobResult.Success, true, false)]
+    [InlineData(CoreJobResult.Failure, false, false)]
+    public async Task SetResultInCacheAsync_Otherwise_StoresResultString(CoreJobResult jobResult,
         bool acknowledgementSuccess, bool idempotencyIdsCanRepeat)
     {
         if (acknowledgementSuccess && idempotencyIdsCanRepeat)
@@ -180,7 +181,7 @@ public class IdempotencyExecutionServiceTests
 
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
-        var expectedPayload = SerializeCacheReport(jobSuccess, acknowledgementSuccess);
+        var expectedPayload = SerializeCacheReport(jobResult, acknowledgementSuccess);
         cache
             .Setup(c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken))
@@ -189,7 +190,7 @@ public class IdempotencyExecutionServiceTests
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
             Options.Create(CreateOptions(idempotencyIdsCanRepeat: idempotencyIdsCanRepeat)));
 
-        await service.SetResultInCacheAsync(CreateRawJob().Object, jobSuccess,
+        await service.SetResultInCacheAsync(CreateRawJob().Object, jobResult,
             new SafeAcknowledgementResult
             {
                 AcknowledgedSuccessfully = acknowledgementSuccess,
@@ -206,7 +207,7 @@ public class IdempotencyExecutionServiceTests
     {
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
-        var expectedPayload = SerializeCacheReport(true, false);
+        var expectedPayload = SerializeCacheReport(CoreJobResult.Success, false);
         cache
             .Setup(c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(10),
                 TestContext.Current.CancellationToken))
@@ -215,7 +216,7 @@ public class IdempotencyExecutionServiceTests
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
             Options.Create(CreateOptions(resultCacheDurationSeconds: 1)));
 
-        await service.SetResultInCacheAsync(CreateRawJob().Object, true,
+        await service.SetResultInCacheAsync(CreateRawJob().Object, CoreJobResult.Success,
             new SafeAcknowledgementResult
             {
                 AcknowledgedSuccessfully = false,
@@ -229,9 +230,10 @@ public class IdempotencyExecutionServiceTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task SetResultInCacheAsync_WhenAcknowledgementSucceededAndIdsCanRepeat_ClearsCache(bool jobSuccess)
+    [InlineData(CoreJobResult.Success)]
+    [InlineData(CoreJobResult.Failure)]
+    public async Task SetResultInCacheAsync_WhenAcknowledgementSucceededAndIdsCanRepeat_ClearsCache(
+        CoreJobResult jobResult)
     {
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
@@ -243,7 +245,7 @@ public class IdempotencyExecutionServiceTests
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
             Options.Create(CreateOptions(idempotencyIdsCanRepeat: true)));
 
-        await service.SetResultInCacheAsync(CreateRawJob().Object, jobSuccess,
+        await service.SetResultInCacheAsync(CreateRawJob().Object, jobResult,
             new SafeAcknowledgementResult
             {
                 AcknowledgedSuccessfully = true,
@@ -270,7 +272,7 @@ public class IdempotencyExecutionServiceTests
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
             Options.Create(CreateOptions(enabled)));
 
-        await service.SetResultInCacheAsync(CreateRawJob(idempotencyId).Object, true,
+        await service.SetResultInCacheAsync(CreateRawJob(idempotencyId).Object, CoreJobResult.Success,
             new SafeAcknowledgementResult
             {
                 AcknowledgedSuccessfully = true,

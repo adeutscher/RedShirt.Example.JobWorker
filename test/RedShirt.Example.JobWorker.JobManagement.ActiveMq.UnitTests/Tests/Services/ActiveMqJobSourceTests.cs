@@ -1,6 +1,7 @@
 using Apache.NMS;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Factories;
@@ -31,7 +32,39 @@ public class ActiveMqJobSourceTests
             CreatedAtUtc = DateTime.UtcNow
         };
 
-        await activeMqJobSource.AcknowledgeAsync(jobModel, true,
+        await activeMqJobSource.AcknowledgeAsync(jobModel, CoreJobResult.Success,
+            TestContext.Current.CancellationToken);
+
+        message.Verify(m => m.AcknowledgeAsync(), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(CoreJobResult.Success)]
+    [InlineData(CoreJobResult.Failure)]
+    [InlineData(CoreJobResult.Cancelled)]
+    [InlineData(CoreJobResult.Broken)]
+    [InlineData(CoreJobResult.Empty)]
+    [InlineData(CoreJobResult.Parsing)]
+    public async Task Test_AcknowledgeAsync_AlwaysAcknowledges(CoreJobResult result)
+    {
+        var message = new Mock<IMessage>();
+
+        var configuration = new ActiveMqJobSource.ConfigurationModel
+        {
+            QueueName = null!
+        };
+
+        var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration),
+            new NullLogger<ActiveMqJobSource>());
+
+        var jobModel = new ActiveMqRawJobModel
+        {
+            Message = message.Object,
+            MessageId = "moot",
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        await activeMqJobSource.AcknowledgeAsync(jobModel, result,
             TestContext.Current.CancellationToken);
 
         message.Verify(m => m.AcknowledgeAsync(), Times.Once);
@@ -50,7 +83,7 @@ public class ActiveMqJobSourceTests
         var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration),
             new NullLogger<ActiveMqJobSource>());
 
-        await activeMqJobSource.AcknowledgeAsync(job.Object, true,
+        await activeMqJobSource.AcknowledgeAsync(job.Object, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
     }
 

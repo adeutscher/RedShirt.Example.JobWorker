@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
+using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Factories;
@@ -33,7 +35,7 @@ internal class RabbitMqJobSource : IJobSource
         });
     }
 
-    public async Task AcknowledgeAsync(IRawJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
         if (message is not RabbitMqJobModel rabbitMqJobModel)
@@ -45,16 +47,28 @@ internal class RabbitMqJobSource : IJobSource
         var channel = await _channel.Value;
         try
         {
-            await channel.BasicAckAsync(rabbitMqJobModel.DeliveryTag, false, cancellationToken);
+            if (result.IsSuccessful())
+            {
+                await channel.BasicAckAsync(rabbitMqJobModel.DeliveryTag, false, cancellationToken);
+            }
+            else
+            {
+                // If recoverable, then NAck with requeue so the message can be delivered again.
+                // Empty / Parsing / Broken: NAck without requeue (dead-letter if the queue is configured for it).
+                await channel.BasicNackAsync(rabbitMqJobModel.DeliveryTag, false, result.IsRecoverableFailure(),
+                    cancellationToken);
+            }
         }
         catch (ObjectDisposedException)
         {
             /*
-             * An ObjectDispostException implies the closure of the connection underlying
+             * An ObjectDispostException suggest the closure of the connection underlying
              * the channel that this message originated from.
              *
              * Not considered to be actionable, let the exception pass.
              * The message represented by this message ID already fell back into the queue when the connection died.
+             *
+             * This catch will be changed in the near future when RabbitMQ is hardened with an exception-handling policy similar to the pattern used in places like the Kafka subproject.
              */
         }
     }

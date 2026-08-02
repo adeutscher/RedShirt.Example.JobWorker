@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Configuration;
@@ -12,7 +14,7 @@ internal class AzureServiceBusJobSource(
     IAzureServiceBusMessageSource azureServiceBusServiceSource,
     IOptions<AzureServiceBusConfigurationModel> options) : IJobSource
 {
-    public async Task AcknowledgeAsync(IRawJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
         if (message is not AzureRawJobModel messageAsAzureJobModel)
@@ -23,19 +25,29 @@ internal class AzureServiceBusJobSource(
 
         var client = await clientSource.GetQueueClientAsync(cancellationToken);
 
-        if (success)
+        if (result.IsSuccessful())
         {
             await client.CompleteMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
         }
-        else
+        else if (result.IsRecoverableFailure())
         {
             /*
-             * This template will treat failed Azure Service Bus jobs similar to the strategy used for SQS.
-             * Messages will not be completed, and behaviour will defer to the service bus queue's configured maximum delivery count.
-             * Using the service bus client's AbandonMessageAsync method, but one could choose to adjust this template to
-             * just let the message time out and fall back into the queue if desired.
+             * Recoverable execution failures: explicitly abandon so the message becomes available again /
+             * counts toward the service bus queue's configured maximum delivery count.
+             *
+             * On a case-by-case basis, there could be a benefit to instead letting the message sit in flight for a moment
+             * and fall back into the queue naturally. Marked as a future improvement in issue tracking.
              */
             await client.AbandonMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
+        }
+        else
+        {
+            // Empty / Parsing / Broken: dead-letter immediately.
+            // One could argue that there's no point in even bothering to dead-letter Empty problems,
+            //  but on the other hand there could be useful properties for debugging on the message.
+            // This application's priority is just getting unrecoverable messages out of the way ASAP.
+            await client.DeadLetterMessageAsync(messageAsAzureJobModel.Message, result.ToString(),
+                cancellationToken: cancellationToken);
         }
     }
 

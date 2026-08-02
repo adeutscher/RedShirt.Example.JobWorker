@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Factories;
@@ -19,7 +20,9 @@ internal class NatsJobSource(
     private readonly Lazy<Task<INatsJSContext>> _lazyContext =
         new(() => natsJetStreamContextFactory.CreateNatsJetStreamContextAsync());
 
-    public async Task AcknowledgeAsync(IRawJobModel message, bool success,
+#pragma warning disable S2325
+    public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
+#pragma warning restore S2325
         CancellationToken cancellationToken = default)
     {
         if (message is not NatsRawJobModel jobModel)
@@ -27,6 +30,13 @@ internal class NatsJobSource(
             return;
         }
 
+        // Intentionally not using result
+        // The `_ = result;` phrasing prevents certain code analysis tools from flagging this as a potential issue
+        _ = result;
+
+        // Ack. Whether result successful, a recoverable failures, or an unrecoverable failure.
+        // JetStream dead-lettering is typically consumer/policy based, so this should be handled
+        //  by the IJobFailureHandler implementation on an application-to-application basis.
         await jobModel.Message.AckAsync(cancellationToken: cancellationToken);
     }
 

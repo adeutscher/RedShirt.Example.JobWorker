@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Factories;
@@ -15,7 +16,7 @@ internal class KafkaJobSource(
     private readonly SemaphoreSlim _sessionSemaphore = new(1, 1);
     internal KafkaTrackerSession? Session;
 
-    public async Task AcknowledgeAsync(IRawJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
         if (message is not KafkaJobModel kafkaJobModel
@@ -24,9 +25,10 @@ internal class KafkaJobSource(
             return;
         }
 
-        // success is intentionally unused: stream offsets advance once the batch gate completes,
-        // matching the Kinesis always-ack / batch-complete-before-commit pattern.
-        _ = success;
+        // result is intentionally unused for checkpointing: the topic always advances.
+        // Unrecoverable failures are handled via IJobFailureHandler (application DLQ).
+        // The `_ = result;` phrasing prevents certain code analysis tools from flagging this as a potential issue 
+        _ = result;
 
         await _sessionSemaphore.WaitAsync(cancellationToken);
 

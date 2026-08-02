@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
+using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.Utility;
@@ -14,7 +16,8 @@ namespace RedShirt.Example.JobWorker.Core.Services.Safety;
 /// </summary>
 internal interface ISafeJobAcknowledgementService
 {
-    Task<SafeAcknowledgementResult> AcknowledgeSafelyAsync(IRawJobModel job, bool success, Exception? exception = null,
+    Task<SafeAcknowledgementResult> AcknowledgeSafelyAsync(IRawJobModel job, CoreJobResult result,
+        Exception? exception = null,
         SafeAcknowledgementResult? previousAttempt = null, CancellationToken cancellationToken = default);
 }
 
@@ -58,7 +61,7 @@ internal sealed class SafeJobAcknowledgementService(
             .Build();
     }
 
-    public async Task<SafeAcknowledgementResult> AcknowledgeSafelyAsync(IRawJobModel job, bool success,
+    public async Task<SafeAcknowledgementResult> AcknowledgeSafelyAsync(IRawJobModel job, CoreJobResult result,
         Exception? exception = null, SafeAcknowledgementResult? previousAttempt = null,
         CancellationToken cancellationToken = default)
     {
@@ -69,7 +72,7 @@ internal sealed class SafeJobAcknowledgementService(
         try
         {
             // Attempt to maintain idempotency with failure handling, should only run once per result
-            if (!success && loggedFailureSuccessfully != true)
+            if (!result.IsSuccessful() && loggedFailureSuccessfully != true)
             {
 #pragma warning disable S1854
                 // Mark an attempt before the retry policy has a chance to throw an exception
@@ -77,13 +80,14 @@ internal sealed class SafeJobAcknowledgementService(
                 loggedFailureSuccessfully = false;
 #pragma warning restore S1854
                 await GetRetryPipeline().ExecuteAsync(
-                    async token => await jobFailureHandler.HandleFailureAsync(job, exception, token),
+                    async token =>
+                        await jobFailureHandler.HandleFailureAsync(job, result.ToFailureType(), exception, token),
                     cancellationToken);
                 loggedFailureSuccessfully = true;
             }
 
             await GetRetryPipeline().ExecuteAsync(
-                async token => await jobSource.AcknowledgeAsync(job, success, token),
+                async token => await jobSource.AcknowledgeAsync(job, result, token),
                 cancellationToken);
             acknowledgedSuccessfully = true;
         }
