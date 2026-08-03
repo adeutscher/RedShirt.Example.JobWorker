@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
@@ -12,6 +13,17 @@ namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.UnitTests.Tests.Servic
 
 public class PulsarJobSourceTests
 {
+    private static IOptions<PulsarConsumerFactory.ConfigurationModel> CreateOptions(
+        string subscriptionName = "test-subscription")
+    {
+        return Options.Create(new PulsarConsumerFactory.ConfigurationModel
+        {
+            ServiceUrl = "pulsar://localhost:6650",
+            SubscriptionName = subscriptionName,
+            Topic = "persistent://public/default/test-topic"
+        });
+    }
+
     private static IPulsarMessageContainer CreateMessage(string messageId, string? value)
     {
         var message = new Mock<IPulsarMessageContainer>();
@@ -54,7 +66,8 @@ public class PulsarJobSourceTests
         var jobSource = new PulsarJobSource(consumerSource.Object,
             new Mock<IPulsarMessageSource>(MockBehavior.Strict).Object,
             PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new NullLogger<PulsarJobSource>());
+            new NullLogger<PulsarJobSource>(),
+            CreateOptions());
 
         await jobSource.AcknowledgeAsync(new PulsarJobModel
         {
@@ -85,7 +98,8 @@ public class PulsarJobSourceTests
 
         var jobSource = new PulsarJobSource(consumerSource.Object, pulsarMessageSource.Object,
             PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new NullLogger<PulsarJobSource>());
+            new NullLogger<PulsarJobSource>(),
+            CreateOptions());
 
         await jobSource.AcknowledgeAsync(new Mock<IRawJobModel>().Object, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
@@ -117,7 +131,8 @@ public class PulsarJobSourceTests
 
         var jobSource = new PulsarJobSource(consumerSource.Object,
             new Mock<IPulsarMessageSource>(MockBehavior.Strict).Object, retry.Object,
-            new NullLogger<PulsarJobSource>());
+            new NullLogger<PulsarJobSource>(),
+            CreateOptions());
 
         await jobSource.AcknowledgeAsync(new PulsarJobModel
         {
@@ -147,7 +162,8 @@ public class PulsarJobSourceTests
 
         var jobSource = new PulsarJobSource(consumerSource.Object,
             new Mock<IPulsarMessageSource>(MockBehavior.Strict).Object, retry.Object,
-            new NullLogger<PulsarJobSource>());
+            new NullLogger<PulsarJobSource>(),
+            CreateOptions());
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             jobSource.AcknowledgeAsync(new PulsarJobModel
@@ -177,7 +193,8 @@ public class PulsarJobSourceTests
 
         var jobSource = new PulsarJobSource(consumerSource.Object, pulsarMessageSource.Object,
             PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new NullLogger<PulsarJobSource>());
+            new NullLogger<PulsarJobSource>(),
+            CreateOptions());
 
         var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
 
@@ -200,7 +217,8 @@ public class PulsarJobSourceTests
 
         var jobSource = new PulsarJobSource(consumerSource.Object, pulsarMessageSource.Object,
             PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new NullLogger<PulsarJobSource>());
+            new NullLogger<PulsarJobSource>(),
+            CreateOptions());
 
         var response = await jobSource.GetJobsAsync(5, TestContext.Current.CancellationToken);
 
@@ -222,7 +240,8 @@ public class PulsarJobSourceTests
 
         var jobSource = new PulsarJobSource(consumerSource.Object, pulsarMessageSource.Object,
             PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new NullLogger<PulsarJobSource>());
+            new NullLogger<PulsarJobSource>(),
+            CreateOptions());
 
         var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
 
@@ -245,7 +264,8 @@ public class PulsarJobSourceTests
             new Mock<IPulsarConsumerSource>(MockBehavior.Strict).Object,
             pulsarMessageSource.Object,
             PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new NullLogger<PulsarJobSource>());
+            new NullLogger<PulsarJobSource>(),
+            CreateOptions());
 
         var first = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
         var second = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
@@ -263,7 +283,8 @@ public class PulsarJobSourceTests
             new Mock<IPulsarConsumerSource>().Object,
             new Mock<IPulsarMessageSource>().Object,
             PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new NullLogger<PulsarJobSource>());
+            new NullLogger<PulsarJobSource>(),
+            CreateOptions());
 
         Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         await jobSource.HeartbeatAsync(new Mock<IRawJobModel>().Object, TestContext.Current.CancellationToken);

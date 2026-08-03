@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
@@ -13,7 +14,8 @@ internal class PulsarJobSource(
     IPulsarConsumerSource consumerSource,
     IPulsarMessageSource pulsarMessageSource,
     IPulsarRetryWrapperService retryWrapperService,
-    ILogger<PulsarJobSource> logger) : IJobSource
+    ILogger<PulsarJobSource> logger,
+    IOptions<PulsarConsumerFactory.ConfigurationModel> options) : IJobSource
 {
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
@@ -47,25 +49,21 @@ internal class PulsarJobSource(
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
+        logger.LogTrace(
+            "Fetching up to {BatchSize} messages from Pulsar Subscription: {SubscriptionName}",
+            batchSize, options.Value.SubscriptionName);
+
         var messageSourceResponse = await pulsarMessageSource.GetMessagesAsync(batchSize, cancellationToken);
-
-        var items = new List<IRawJobModel>();
-
-        foreach (var receivedMessage in messageSourceResponse.Messages)
-        {
-            logger.LogTrace("Raw Pulsar message: {MessageBody}", receivedMessage.Value);
-
-            items.Add(new PulsarJobModel
-            {
-                Message = receivedMessage,
-                CreatedAtUtc = DateTime.UtcNow,
-                Body = receivedMessage.Value
-            });
-        }
 
         return new JobSourceResponse
         {
-            Items = items
+            Items = messageSourceResponse.Messages
+                .Select(receivedMessage => new PulsarJobModel
+                {
+                    Message = receivedMessage,
+                    CreatedAtUtc = DateTime.UtcNow,
+                    Body = receivedMessage.Value
+                } as IRawJobModel).ToList()
         };
     }
 
