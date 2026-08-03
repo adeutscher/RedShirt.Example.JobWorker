@@ -1,15 +1,15 @@
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Services.Utility;
-using RedShirt.Example.JobWorker.JobManagement.Sqs.Models;
-using RedShirt.Example.JobWorker.JobManagement.Sqs.Services.Resilience;
+using RedShirt.Example.JobWorker.JobManagement.RedisStreams.Models;
+using RedShirt.Example.JobWorker.JobManagement.RedisStreams.Services.Resilience;
 
-namespace RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests.Tests.Services.Resilience;
+namespace RedShirt.Example.JobWorker.JobManagement.RedisStreams.UnitTests.Tests.Services;
 
-public class SqsJobSourceRetryWrapperServiceTests
+public class RedisStreamsRetryWrapperServiceTests
 {
-    private static SqsJobSourceExceptionArbiterReport TransientReport()
+    private static RedisStreamsExceptionArbiterReport TransientReport()
     {
-        return new SqsJobSourceExceptionArbiterReport
+        return new RedisStreamsExceptionArbiterReport
         {
             AlreadyHandled = false,
             IsCritical = false,
@@ -17,9 +17,9 @@ public class SqsJobSourceRetryWrapperServiceTests
         };
     }
 
-    private static SqsJobSourceExceptionArbiterReport PermanentReport()
+    private static RedisStreamsExceptionArbiterReport PermanentReport()
     {
-        return new SqsJobSourceExceptionArbiterReport
+        return new RedisStreamsExceptionArbiterReport
         {
             AlreadyHandled = false,
             IsCritical = false,
@@ -27,9 +27,9 @@ public class SqsJobSourceRetryWrapperServiceTests
         };
     }
 
-    private static SqsJobSourceExceptionArbiterReport CriticalReport()
+    private static RedisStreamsExceptionArbiterReport CriticalReport()
     {
-        return new SqsJobSourceExceptionArbiterReport
+        return new RedisStreamsExceptionArbiterReport
         {
             AlreadyHandled = false,
             IsCritical = true,
@@ -37,9 +37,9 @@ public class SqsJobSourceRetryWrapperServiceTests
         };
     }
 
-    private static SqsJobSourceExceptionArbiterReport AlreadyHandledReport(bool couldBeTransient)
+    private static RedisStreamsExceptionArbiterReport AlreadyHandledReport(bool couldBeTransient)
     {
-        return new SqsJobSourceExceptionArbiterReport
+        return new RedisStreamsExceptionArbiterReport
         {
             AlreadyHandled = true,
             IsCritical = false,
@@ -62,9 +62,9 @@ public class SqsJobSourceRetryWrapperServiceTests
     [Fact]
     public async Task RunAsync_NonGeneric_WhenFuncSucceeds_CompletesWithoutSleeping()
     {
-        var arbiter = new Mock<ISqsJobSourceExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IRedisStreamsExceptionArbiterService>(MockBehavior.Strict);
         var sleep = CreateSleepService();
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new RedisStreamsRetryWrapperService(arbiter.Object, sleep.Object);
         var ran = false;
 
         await wrapper.RunAsync(_ =>
@@ -75,6 +75,25 @@ public class SqsJobSourceRetryWrapperServiceTests
 
         Assert.True(ran);
         arbiter.VerifyNoOtherCalls();
+        Assert.Empty(sleep.Invocations);
+    }
+
+    [Fact]
+    public async Task RunAsync_NonGeneric_WhenOperationCanceledAndTokenCancelled_PropagatesWithoutWrapping()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var arbiter = new Mock<IRedisStreamsExceptionArbiterService>(MockBehavior.Strict);
+        var sleep = CreateSleepService();
+        var wrapper = new RedisStreamsRetryWrapperService(arbiter.Object, sleep.Object);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync(
+            _ => throw new OperationCanceledException(cts.Token),
+            cts.Token));
+
+        arbiter.VerifyNoOtherCalls();
+        Assert.Empty(sleep.Invocations);
     }
 
     [Fact]
@@ -83,11 +102,11 @@ public class SqsJobSourceRetryWrapperServiceTests
         var attempts = 0;
         var inner = new TimeoutException("still failing");
 
-        var arbiter = new Mock<ISqsJobSourceExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IRedisStreamsExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleep = CreateSleepService();
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new RedisStreamsRetryWrapperService(arbiter.Object, sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
             _ =>
@@ -107,11 +126,11 @@ public class SqsJobSourceRetryWrapperServiceTests
     {
         var inner = new WorkerJobSourceException("already wrapped", false, false, true);
 
-        var arbiter = new Mock<ISqsJobSourceExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IRedisStreamsExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport(false));
 
         var sleep = CreateSleepService();
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new RedisStreamsRetryWrapperService(arbiter.Object, sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             wrapper.RunAsync(_ => throw inner, TestContext.Current.CancellationToken));
@@ -125,11 +144,11 @@ public class SqsJobSourceRetryWrapperServiceTests
     {
         var inner = new InvalidOperationException("critical");
 
-        var arbiter = new Mock<ISqsJobSourceExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IRedisStreamsExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(CriticalReport());
 
         var sleep = CreateSleepService();
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new RedisStreamsRetryWrapperService(arbiter.Object, sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             wrapper.RunAsync<string>(_ => throw inner, TestContext.Current.CancellationToken));
@@ -141,9 +160,9 @@ public class SqsJobSourceRetryWrapperServiceTests
     [Fact]
     public async Task RunAsync_WhenFuncSucceeds_ReturnsResultWithoutSleeping()
     {
-        var arbiter = new Mock<ISqsJobSourceExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IRedisStreamsExceptionArbiterService>(MockBehavior.Strict);
         var sleep = CreateSleepService();
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new RedisStreamsRetryWrapperService(arbiter.Object, sleep.Object);
 
         var result = await wrapper.RunAsync(_ => Task.FromResult(42), TestContext.Current.CancellationToken);
 
@@ -158,11 +177,11 @@ public class SqsJobSourceRetryWrapperServiceTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        var arbiter = new Mock<ISqsJobSourceExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IRedisStreamsExceptionArbiterService>(MockBehavior.Strict);
         var sleep = CreateSleepService();
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new RedisStreamsRetryWrapperService(arbiter.Object, sleep.Object);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync(
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync<int>(
             _ => throw new OperationCanceledException(cts.Token),
             cts.Token));
 
@@ -174,13 +193,13 @@ public class SqsJobSourceRetryWrapperServiceTests
     public async Task RunAsync_WhenPermanentFailure_WrapsWithoutRetry()
     {
         var attempts = 0;
-        var inner = new InvalidOperationException("permanent");
+        var inner = new ArgumentException("bad");
 
-        var arbiter = new Mock<ISqsJobSourceExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IRedisStreamsExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(PermanentReport());
 
         var sleep = CreateSleepService();
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new RedisStreamsRetryWrapperService(arbiter.Object, sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
             _ =>
@@ -192,8 +211,9 @@ public class SqsJobSourceRetryWrapperServiceTests
 
         Assert.Equal(1, attempts);
         Assert.Same(inner, thrown.InnerException);
-        Assert.True(thrown.IsHandled);
+        Assert.False(thrown.IsCritical);
         Assert.False(thrown.CouldBeTransient);
+        Assert.True(thrown.IsHandled);
         Assert.Empty(sleep.Invocations);
     }
 
@@ -204,11 +224,11 @@ public class SqsJobSourceRetryWrapperServiceTests
         var delays = new List<TimeSpan>();
         var inner = new TimeoutException("still failing");
 
-        var arbiter = new Mock<ISqsJobSourceExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IRedisStreamsExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleep = CreateSleepService(delays);
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new RedisStreamsRetryWrapperService(arbiter.Object, sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync<string>(
             _ =>
@@ -234,11 +254,11 @@ public class SqsJobSourceRetryWrapperServiceTests
         var attempts = 0;
         var delays = new List<TimeSpan>();
 
-        var arbiter = new Mock<ISqsJobSourceExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IRedisStreamsExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleep = CreateSleepService(delays);
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new RedisStreamsRetryWrapperService(arbiter.Object, sleep.Object);
 
         var result = await wrapper.RunAsync(
             _ =>
@@ -246,7 +266,7 @@ public class SqsJobSourceRetryWrapperServiceTests
                 attempts++;
                 if (attempts == 1)
                 {
-                    throw new TimeoutException("retry once");
+                    throw new TimeoutException("timeout");
                 }
 
                 return Task.FromResult("ok");

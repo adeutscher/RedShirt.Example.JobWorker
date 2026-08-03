@@ -5,9 +5,9 @@ using StackExchange.Redis;
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 
 /// <summary>
-///     Internal caching layer to keep multiple invokers/invocations using the same Redis connection.
+///     Caching layer to keep multiple invokers/invocations using the same Redis connection.
 /// </summary>
-internal interface IRedisConnectionCacheService
+public interface IRedisConnectionCacheService
 {
     Task<IDatabase> GetDatabaseAsync(CancellationToken cancellationToken = default);
 }
