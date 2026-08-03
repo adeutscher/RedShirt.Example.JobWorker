@@ -53,15 +53,28 @@ internal class PulsarExceptionArbiterService : IPulsarExceptionArbiterService
         {
             WorkerJobSourceException workerJobSource =>
                 Handled(workerJobSource.IsCritical, workerJobSource is {IsHandled: false, CouldBeTransient: true}),
-            ConnectException or LookupException or TooManyRequestsException
-                or ConsumerBusyException or ConsumerAssignException or NotConnectedException
-                or MetaStoreHandlerNotReadyException or RequestTimeoutException
+            ConnectException
+                or LookupException
+                or TooManyRequestsException
+                or ConsumerBusyException
+                or ConsumerAssignException
+                or NotConnectedException
+                or MetaStoreHandlerNotReadyException
+                or RequestTimeoutException
                 or TimeoutException => Fresh(false, true),
-            AuthenticationException or AuthorizationException or GettingAuthenticationDataException
-                or NotAllowedException or UnsupportedVersionException or TopicTerminatedException
-                or AlreadyClosedException or ConsumerNotFoundException
-                or InvalidConfigurationException or InvalidTopicNameException => Fresh(true, false),
-            System.TimeoutException or SocketException or HttpRequestException => Fresh(false, true),
+            AuthenticationException
+                or AuthorizationException
+                or GettingAuthenticationDataException
+                or NotAllowedException
+                or UnsupportedVersionException
+                or TopicTerminatedException
+                or AlreadyClosedException
+                or ConsumerNotFoundException
+                or InvalidConfigurationException
+                or InvalidTopicNameException => Fresh(true, false),
+            System.TimeoutException
+                or SocketException
+                or HttpRequestException => Fresh(false, true),
             TaskCanceledException => Fresh(false, true),
             OperationCanceledException => Fresh(false, false),
             ArgumentException => Fresh(false, false),
