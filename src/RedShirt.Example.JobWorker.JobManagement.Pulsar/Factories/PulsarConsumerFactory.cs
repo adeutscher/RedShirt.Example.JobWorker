@@ -16,17 +16,6 @@ internal class PulsarConsumerFactory(
     IPulsarRetryWrapperService retryWrapperService,
     IOptions<PulsarConsumerFactory.ConfigurationModel> options) : IPulsarConsumerFactory
 {
-    private static SubscriptionType ParseSubscriptionType(string? subscriptionType)
-    {
-        // ReSharper disable once ConvertIfStatementToReturnStatement
-        if (string.IsNullOrWhiteSpace(subscriptionType))
-        {
-            return SubscriptionType.Shared;
-        }
-
-        return Enum.Parse<SubscriptionType>(subscriptionType, true);
-    }
-
     public async Task<IPulsarConsumerWrapper> CreateConsumerAsync(CancellationToken cancellationToken = default)
     {
 #pragma warning disable S125
@@ -71,10 +60,20 @@ internal class PulsarConsumerFactory(
          *
          * Prefer EnableTls / TlsTrustCertificate / AllowTlsInsecureConnection as appropriate for your broker TLS setup.
          */
-#pragma warning disable S125
+
+#pragma warning restore S125
+
+        /*
+         * UNIT TESTING:
+         *  A successful path through this method cannot be covered by unit tests. PulsarClientBuilder is constructed
+         *  inline and immediately used via BuildAsync() / SubscribeAsync() with no injectable seam, so those calls
+         *  always contact a real Pulsar broker. Offline unit tests therefore cover only pre-broker behaviour
+         *  (early CancellationToken checks, ConfigurationModel defaults, and ParseSubscriptionType).
+         */
 
         cancellationToken.ThrowIfCancellationRequested();
 
+        // Requires a live Pulsar endpoint — see UNIT TESTING note above.
         var client = await new PulsarClientBuilder()
             .ServiceUrl(options.Value.ServiceUrl)
             .BuildAsync();
@@ -96,6 +95,17 @@ internal class PulsarConsumerFactory(
         var consumer = await consumerBuilder.SubscribeAsync();
 
         return new PulsarConsumerWrapper(retryWrapperService, client, consumer, options.Value.Topic);
+    }
+
+    internal static SubscriptionType ParseSubscriptionType(string? subscriptionType)
+    {
+        // ReSharper disable once ConvertIfStatementToReturnStatement
+        if (string.IsNullOrWhiteSpace(subscriptionType))
+        {
+            return SubscriptionType.Shared;
+        }
+
+        return Enum.Parse<SubscriptionType>(subscriptionType, true);
     }
 
     public sealed class ConfigurationModel
