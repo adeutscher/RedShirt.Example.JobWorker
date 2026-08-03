@@ -177,10 +177,10 @@ To initialize Apache Pulsar and queue sample messages:
     ./make-local-aws-resources.sh
     ```
 
-3. Wait for Pulsar to become ready, then create the local topic with `setup-pulsar.py` (uses the admin HTTP API; no extra Python packages):
+3. Wait for Pulsar to become ready, then create the local topic with `make-local-pulsar-resources.py` (uses the admin HTTP API; no extra Python packages):
 
     ```
-    ./setup-pulsar.py
+    ./make-local-pulsar-resources.py
     ```
 
 4. Use the `send-pulsar-job.py` script (requires the `pulsar-client` module) to publish a message to `persistent://public/default/jobs`. Specify the number of seconds the worker should sleep for in the first argument:
