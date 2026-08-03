@@ -29,6 +29,7 @@ internal class PulsarConsumerFactory(
 
     public async Task<IPulsarConsumerWrapper> CreateConsumerAsync(CancellationToken cancellationToken = default)
     {
+#pragma warning disable S125
         /*
          * IMPORTANT:
          *  This general template is focused on Pulsar as a message source,
@@ -70,6 +71,8 @@ internal class PulsarConsumerFactory(
          *
          * Prefer EnableTls / TlsTrustCertificate / AllowTlsInsecureConnection as appropriate for your broker TLS setup.
          */
+#pragma warning disable S125
+
         cancellationToken.ThrowIfCancellationRequested();
 
         var client = await new PulsarClientBuilder()
