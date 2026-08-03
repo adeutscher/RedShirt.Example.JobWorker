@@ -15,92 +15,44 @@ internal class PulsarJobSource(
     IPulsarRetryWrapperService retryWrapperService,
     ILogger<PulsarJobSource> logger) : IJobSource
 {
-    private readonly SemaphoreSlim _sessionSemaphore = new(1, 1);
-    internal PulsarTrackerSession? Session;
-
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
-        if (message is not PulsarJobModel pulsarJobModel
-            || Session is null)
+        if (message is not PulsarJobModel pulsarJobModel)
         {
             return;
         }
 
-        await _sessionSemaphore.WaitAsync(cancellationToken);
-
-        try
+        /*
+         * Confirming that this double-retry is intentional
+         * Most of the important code within the consumer wrapper implementation is itself wrapped by the retryWrapper.
+         * Wrapping again just in case there's something exception-worthy coming from another part of the code.
+         *
+         * Shared subscriptions acknowledge per message (SQS-like). Success acks; non-success nacks so Pulsar
+         * redelivers and DeadLetterPolicy can move the message to the DLQ after MaxRedeliverCount.
+         */
+        await retryWrapperService.RunAsync(async ct =>
         {
-            if (!Session.Contains(pulsarJobModel.MessageId))
+            var consumer = consumerSource.GetConsumer();
+            if (result.IsSuccessful())
             {
-                return;
+                await consumer.AcknowledgeAsync(pulsarJobModel.Message, ct);
             }
-
-            /*
-             * Confirming that this double-retry is intentional
-             * Most of the important code within the consumer wrapper implementation is itself wrapped by the retryWrapper.
-             * Wrapping again just in case there's something exception-worthy coming from another part of the code.
-             *
-             * Success acknowledges the message. Non-success negatively acknowledges so Pulsar redelivers and the
-             * consumer DeadLetterPolicy can move the message to the DLQ after MaxRedeliverCount
-             * (recoverable failures redeliver for retry; Empty / Parsing / Broken also nack toward DLQ).
-             */
-            await retryWrapperService.RunAsync(async ct =>
+            else
             {
-                var consumer = consumerSource.GetConsumer();
-                if (result.IsSuccessful())
-                {
-                    await consumer.AcknowledgeAsync(pulsarJobModel.Message, ct);
-                }
-                else
-                {
-                    await consumer.NegativeAcknowledgeAsync(pulsarJobModel.Message, ct);
-                }
-            }, cancellationToken);
-
-            Session.Increment(pulsarJobModel.MessageId);
-
-            if (Session.IsComplete)
-            {
-                Session = null;
+                await consumer.NegativeAcknowledgeAsync(pulsarJobModel.Message, ct);
             }
-        }
-        finally
-        {
-            _sessionSemaphore.Release();
-        }
+        }, cancellationToken);
     }
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
-        if (Session is not null)
-        {
-            /*
-             * If a session is already established, then short-circuit and return empty.
-             * Like Kafka / Kinesis, Pulsar is more of a stream than a classic queue broker.
-             *
-             * Because the Core library sorts message results and doesn't execute them in the exact order received,
-             *  we can't return any more messages at the moment for fear of them being acknowledged out of sequence.
-             * Because of this, if a session is already in motion then just return an empty list.
-             * An empty list just means more wait time in Loader mode, so if you are using Pulsar as a source then it
-             *  is strongly recommended to use Batch mode for polling.
-             */
-            return new JobSourceResponse
-            {
-                Items = []
-            };
-        }
-
         var messageSourceResponse = await pulsarMessageSource.GetMessagesAsync(batchSize, cancellationToken);
 
         var items = new List<IRawJobModel>();
-        var messagesToProcess = new List<IPulsarMessageContainer>();
-        var totalMessages = new List<IPulsarMessageContainer>();
 
         foreach (var receivedMessage in messageSourceResponse.Messages)
         {
-            totalMessages.Add(receivedMessage);
-
             logger.LogTrace("Raw Pulsar message: {MessageBody}", receivedMessage.Value);
 
             items.Add(new PulsarJobModel
@@ -109,21 +61,6 @@ internal class PulsarJobSource(
                 CreatedAtUtc = DateTime.UtcNow,
                 Body = receivedMessage.Value
             });
-            messagesToProcess.Add(receivedMessage);
-        }
-
-        // ReSharper disable once InvertIf
-        if (messagesToProcess.Count > 0)
-        {
-            await _sessionSemaphore.WaitAsync(cancellationToken);
-            try
-            {
-                Session = new PulsarTrackerSession(totalMessages, messagesToProcess);
-            }
-            finally
-            {
-                _sessionSemaphore.Release();
-            }
         }
 
         return new JobSourceResponse
@@ -133,9 +70,8 @@ internal class PulsarJobSource(
     }
 
     /// <summary>
-    ///     Being from a stream-based message source, Pulsar messages do not need heartbeats.
-    ///     Subscription cursor ownership / delivery is managed by the Pulsar protocol.
     ///     Unacknowledged messages become eligible for redelivery after AckTimeoutSeconds.
+    ///     Subscription delivery / flow control is managed by the Pulsar client.
     /// </summary>
     public int RecommendedHeartbeatIntervalSeconds => 0;
 

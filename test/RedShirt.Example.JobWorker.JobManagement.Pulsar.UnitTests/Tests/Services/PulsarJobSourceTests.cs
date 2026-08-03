@@ -37,18 +37,9 @@ public class PulsarJobSourceTests
     [InlineData(CoreJobResult.Empty, false)]
     [InlineData(CoreJobResult.Parsing, false)]
     [InlineData(CoreJobResult.Broken, false)]
-    public async Task AcknowledgeAsync_AcksOrNacksPerMessage_ClearsSessionAfterBatch(
-        CoreJobResult lastResult, bool expectAck)
+    public async Task AcknowledgeAsync_AcksOrNacksIndependently(CoreJobResult result, bool expectAck)
     {
-        var data1 = Guid.NewGuid().ToString();
-        var data2 = Guid.NewGuid().ToString();
-
-        var message1 = CreateMessage("t:0:1", data1);
-        var message2 = CreateMessage("t:0:2", data2);
-
-        var pulsarMessageSource = new Mock<IPulsarMessageSource>(MockBehavior.Strict);
-        pulsarMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateResponse(message1, message2));
+        var message = CreateMessage("t:0:1", Guid.NewGuid().ToString());
 
         var consumer = new Mock<IPulsarConsumerWrapper>(MockBehavior.Strict);
         consumer.Setup(c => c.AcknowledgeAsync(It.IsAny<IPulsarMessageContainer>(), It.IsAny<CancellationToken>()))
@@ -60,35 +51,30 @@ public class PulsarJobSourceTests
         var consumerSource = new Mock<IPulsarConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
 
-        var jobSource = new PulsarJobSource(consumerSource.Object, pulsarMessageSource.Object,
+        var jobSource = new PulsarJobSource(consumerSource.Object,
+            new Mock<IPulsarMessageSource>(MockBehavior.Strict).Object,
             PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new NullLogger<PulsarJobSource>());
 
-        var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
-        Assert.Equal(2, response.Items.Count);
-
-        await jobSource.AcknowledgeAsync(response.Items[0], CoreJobResult.Success,
-            TestContext.Current.CancellationToken);
-        consumer.Verify(c => c.AcknowledgeAsync(message1, It.IsAny<CancellationToken>()), Times.Once);
-        consumer.Verify(c => c.NegativeAcknowledgeAsync(It.IsAny<IPulsarMessageContainer>(),
-            It.IsAny<CancellationToken>()), Times.Never);
-        Assert.NotNull(jobSource.Session);
-
-        await jobSource.AcknowledgeAsync(response.Items[1], lastResult, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeAsync(new PulsarJobModel
+        {
+            Message = message,
+            CreatedAtUtc = DateTime.UtcNow,
+            Body = message.Value
+        }, result, TestContext.Current.CancellationToken);
 
         if (expectAck)
         {
-            consumer.Verify(c => c.AcknowledgeAsync(message2, It.IsAny<CancellationToken>()), Times.Once);
+            consumer.Verify(c => c.AcknowledgeAsync(message, It.IsAny<CancellationToken>()), Times.Once);
             consumer.Verify(c => c.NegativeAcknowledgeAsync(It.IsAny<IPulsarMessageContainer>(),
                 It.IsAny<CancellationToken>()), Times.Never);
         }
         else
         {
-            consumer.Verify(c => c.NegativeAcknowledgeAsync(message2, It.IsAny<CancellationToken>()), Times.Once);
-            consumer.Verify(c => c.AcknowledgeAsync(message2, It.IsAny<CancellationToken>()), Times.Never);
+            consumer.Verify(c => c.NegativeAcknowledgeAsync(message, It.IsAny<CancellationToken>()), Times.Once);
+            consumer.Verify(c => c.AcknowledgeAsync(It.IsAny<IPulsarMessageContainer>(), It.IsAny<CancellationToken>()),
+                Times.Never);
         }
-
-        Assert.Null(jobSource.Session);
     }
 
     [Fact]
@@ -111,12 +97,7 @@ public class PulsarJobSourceTests
     [Fact]
     public async Task AcknowledgeAsync_RoutesAckThroughRetryWrapper()
     {
-        var data = Guid.NewGuid().ToString();
-        var message = CreateMessage("t:0:1", data);
-
-        var pulsarMessageSource = new Mock<IPulsarMessageSource>(MockBehavior.Strict);
-        pulsarMessageSource.Setup(a => a.GetMessagesAsync(1, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateResponse(message));
+        var message = CreateMessage("t:0:1", Guid.NewGuid().ToString());
 
         var consumer = new Mock<IPulsarConsumerWrapper>(MockBehavior.Strict);
         consumer.Setup(c => c.AcknowledgeAsync(It.IsAny<IPulsarMessageContainer>(), It.IsAny<CancellationToken>()))
@@ -134,134 +115,53 @@ public class PulsarJobSourceTests
                 await func(token);
             });
 
-        var jobSource = new PulsarJobSource(consumerSource.Object, pulsarMessageSource.Object, retry.Object,
+        var jobSource = new PulsarJobSource(consumerSource.Object,
+            new Mock<IPulsarMessageSource>(MockBehavior.Strict).Object, retry.Object,
             new NullLogger<PulsarJobSource>());
 
-        var response = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
-        await jobSource.AcknowledgeAsync(response.Items[0], CoreJobResult.Success,
-            TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeAsync(new PulsarJobModel
+        {
+            Message = message,
+            CreatedAtUtc = DateTime.UtcNow,
+            Body = message.Value
+        }, CoreJobResult.Success, TestContext.Current.CancellationToken);
 
         Assert.True(retryInvoked);
         consumer.Verify(c => c.AcknowledgeAsync(message, It.IsAny<CancellationToken>()), Times.Once);
-        Assert.Null(jobSource.Session);
-    }
-
-    [Fact]
-    public async Task AcknowledgeAsync_UnknownMessageId_DoesNotAckOrClearSession()
-    {
-        var data = Guid.NewGuid().ToString();
-        var message = CreateMessage("t:0:1", data);
-
-        var pulsarMessageSource = new Mock<IPulsarMessageSource>(MockBehavior.Strict);
-        pulsarMessageSource.Setup(a => a.GetMessagesAsync(1, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateResponse(message));
-
-        var consumer = new Mock<IPulsarConsumerWrapper>(MockBehavior.Strict);
-        var consumerSource = new Mock<IPulsarConsumerSource>(MockBehavior.Strict);
-        consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
-
-        var jobSource = new PulsarJobSource(consumerSource.Object, pulsarMessageSource.Object,
-            PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new NullLogger<PulsarJobSource>());
-
-        await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
-        Assert.NotNull(jobSource.Session);
-
-        var unknownPulsarJob = new PulsarJobModel
-        {
-            Message = CreateMessage("t:0:999", "x"),
-            CreatedAtUtc = DateTime.UtcNow,
-            Body = "x"
-        };
-
-        await jobSource.AcknowledgeAsync(unknownPulsarJob, CoreJobResult.Success,
-            TestContext.Current.CancellationToken);
-
-        Assert.NotNull(jobSource.Session);
-        Assert.False(jobSource.Session.IsComplete);
-        consumer.Verify(c => c.AcknowledgeAsync(It.IsAny<IPulsarMessageContainer>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-        consumer.Verify(c => c.NegativeAcknowledgeAsync(It.IsAny<IPulsarMessageContainer>(),
-            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task AcknowledgeAsync_WhenAckFails_PropagatesWorkerJobSourceException()
     {
-        var data1 = Guid.NewGuid().ToString();
-        var data2 = Guid.NewGuid().ToString();
-        var message1 = CreateMessage("t:0:1", data1);
-        var message2 = CreateMessage("t:0:2", data2);
+        var message = CreateMessage("t:0:1", Guid.NewGuid().ToString());
 
-        var pulsarMessageSource = new Mock<IPulsarMessageSource>(MockBehavior.Strict);
-        pulsarMessageSource.Setup(a => a.GetMessagesAsync(2, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateResponse(message1, message2));
-
-        var consumer = new Mock<IPulsarConsumerWrapper>(MockBehavior.Strict);
-        consumer.Setup(c => c.AcknowledgeAsync(message1, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
         var consumerSource = new Mock<IPulsarConsumerSource>(MockBehavior.Strict);
-        consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
+        consumerSource.Setup(s => s.GetConsumer()).Returns(new Mock<IPulsarConsumerWrapper>(MockBehavior.Strict).Object);
 
         // ReSharper disable once RedundantArgumentDefaultValue
         var failure = new WorkerJobSourceException("ack failed", true);
         var retry = new Mock<IPulsarRetryWrapperService>(MockBehavior.Strict);
-        var attempt = 0;
         retry
             .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task>>(), It.IsAny<CancellationToken>()))
-            .Returns<Func<CancellationToken, Task>, CancellationToken>(async (func, token) =>
-            {
-                attempt++;
-                if (attempt == 1)
-                {
-                    await func(token);
-                    return;
-                }
+            .ThrowsAsync(failure);
 
-                throw failure;
-            });
-
-        var jobSource = new PulsarJobSource(consumerSource.Object, pulsarMessageSource.Object, retry.Object,
+        var jobSource = new PulsarJobSource(consumerSource.Object,
+            new Mock<IPulsarMessageSource>(MockBehavior.Strict).Object, retry.Object,
             new NullLogger<PulsarJobSource>());
-
-        var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
-        await jobSource.AcknowledgeAsync(response.Items[0], CoreJobResult.Success,
-            TestContext.Current.CancellationToken);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
-            jobSource.AcknowledgeAsync(response.Items[1], CoreJobResult.Success,
-                TestContext.Current.CancellationToken));
+            jobSource.AcknowledgeAsync(new PulsarJobModel
+            {
+                Message = message,
+                CreatedAtUtc = DateTime.UtcNow,
+                Body = message.Value
+            }, CoreJobResult.Success, TestContext.Current.CancellationToken));
 
         Assert.Same(failure, thrown);
-        Assert.NotNull(jobSource.Session);
-        Assert.False(jobSource.Session.IsComplete);
     }
 
     [Fact]
-    public async Task AcknowledgeAsync_WhenSessionIsNull_DoesNothing()
-    {
-        var consumerSource = new Mock<IPulsarConsumerSource>(MockBehavior.Strict);
-        var pulsarMessageSource = new Mock<IPulsarMessageSource>(MockBehavior.Strict);
-
-        var jobSource = new PulsarJobSource(consumerSource.Object, pulsarMessageSource.Object,
-            PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new NullLogger<PulsarJobSource>());
-
-        Assert.Null(jobSource.Session);
-
-        await jobSource.AcknowledgeAsync(new PulsarJobModel
-        {
-            Message = CreateMessage("t:0:1", "x"),
-            CreatedAtUtc = DateTime.UtcNow,
-            Body = "x"
-        }, CoreJobResult.Success, TestContext.Current.CancellationToken);
-
-        Assert.Null(jobSource.Session);
-        consumerSource.Verify(s => s.GetConsumer(), Times.Never);
-    }
-
-    [Fact]
-    public async Task GetJobsAsync_MapsMessagesToRawJobModels_AndOpensSession()
+    public async Task GetJobsAsync_MapsMessagesToRawJobModels()
     {
         var data1 = Guid.NewGuid().ToString();
         var data2 = Guid.NewGuid().ToString();
@@ -286,10 +186,6 @@ public class PulsarJobSourceTests
         Assert.Equal(data2, response.Items[1].Body);
         Assert.Equal("t:0:1", response.Items[0].MessageId);
         Assert.Equal("t:0:2", response.Items[1].MessageId);
-        Assert.NotNull(jobSource.Session);
-        Assert.Equal(2, jobSource.Session.MessagesToProcess.Count);
-        Assert.Same(message1, jobSource.Session.MessagesToProcess[0]);
-        Assert.Same(message2, jobSource.Session.MessagesToProcess[1]);
         consumerSource.Verify(s => s.GetConsumer(), Times.Never);
     }
 
@@ -309,7 +205,6 @@ public class PulsarJobSourceTests
         var response = await jobSource.GetJobsAsync(5, TestContext.Current.CancellationToken);
 
         Assert.Empty(response.Items);
-        Assert.Null(jobSource.Session);
         consumerSource.Verify(s => s.GetConsumer(), Times.Never);
     }
 
@@ -333,18 +228,18 @@ public class PulsarJobSourceTests
 
         Assert.Equal(2, response.Items.Count);
         Assert.Equal("   ", response.Items[1].Body);
-        Assert.NotNull(jobSource.Session);
-        Assert.Equal(2, jobSource.Session.MessagesToProcess.Count);
         consumerSource.Verify(s => s.GetConsumer(), Times.Never);
     }
 
     [Fact]
-    public async Task GetJobsAsync_WhenSessionOpen_ReturnsEmptyWithoutPolling()
+    public async Task GetJobsAsync_AllowsPollingWhilePriorMessagesAreInFlight()
     {
-        var message = CreateMessage("t:0:1", "body");
+        var message1 = CreateMessage("t:0:1", "body-1");
+        var message2 = CreateMessage("t:0:2", "body-2");
         var pulsarMessageSource = new Mock<IPulsarMessageSource>(MockBehavior.Strict);
-        pulsarMessageSource.Setup(a => a.GetMessagesAsync(1, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateResponse(message));
+        pulsarMessageSource.SetupSequence(a => a.GetMessagesAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateResponse(message1))
+            .ReturnsAsync(CreateResponse(message2));
 
         var jobSource = new PulsarJobSource(
             new Mock<IPulsarConsumerSource>(MockBehavior.Strict).Object,
@@ -352,12 +247,13 @@ public class PulsarJobSourceTests
             PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new NullLogger<PulsarJobSource>());
 
-        await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
+        var first = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
         var second = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
-        Assert.Empty(second.Items);
-        pulsarMessageSource.Verify(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()),
-            Times.Once);
+        Assert.Single(first.Items);
+        Assert.Single(second.Items);
+        Assert.Equal("body-2", second.Items[0].Body);
+        pulsarMessageSource.Verify(a => a.GetMessagesAsync(1, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Fact]
