@@ -10,15 +10,11 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10"/>
         <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.10"/>
-        <PackageReference Include="Polly" Version="8.7.0"/>
+        <PackageReference Include="Polly.Core" Version="8.7.0"/>
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.Distributed\RedShirt.Example.JobWorker.Common.Distributed.csproj"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <Folder Include="Exceptions\JobSource\"/>
     </ItemGroup>
 
 </Project>

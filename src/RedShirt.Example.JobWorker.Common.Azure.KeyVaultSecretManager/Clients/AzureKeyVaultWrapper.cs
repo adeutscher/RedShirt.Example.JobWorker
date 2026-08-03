@@ -2,7 +2,7 @@ using Azure.Security.KeyVault.Secrets;
 
 namespace RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Clients;
 
-public interface IAzureKeyVaultClientWrapper
+internal interface IAzureKeyVaultClientWrapper
 {
     Task<string> GetSecretAsync(string secretName, CancellationToken cancellationToken = default);
 }

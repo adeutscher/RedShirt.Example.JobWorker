@@ -2,7 +2,7 @@ using RedShirt.Example.JobWorker.Core.Models;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 
-internal class KinesisJobModel : IJobModel
+internal class KinesisJobModel : IRawJobModel
 {
     public required string ShardId { get; init; }
 
@@ -13,6 +13,6 @@ internal class KinesisJobModel : IJobModel
 
     public string? IdempotencyId => MessageId;
 
+    public required string? Body { get; init; }
     public required DateTime CreatedAtUtc { get; init; }
-    public required IJobDataModel Data { get; init; }
 }

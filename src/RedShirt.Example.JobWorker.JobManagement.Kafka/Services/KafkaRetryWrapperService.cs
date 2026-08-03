@@ -1,7 +1,7 @@
 using Polly;
 using Polly.Retry;
 using RedShirt.Example.JobWorker.Core.Exceptions;
-using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.Services;
 
