@@ -20,6 +20,29 @@ internal interface IPulsarExceptionArbiterService
 /// </summary>
 internal class PulsarExceptionArbiterService : IPulsarExceptionArbiterService
 {
+    /// <summary>
+    ///     HTTP statuses that may clear on retry (aligned with Azure / AWS arbiters).
+    ///     Status 0 represents "no HTTP response received" when StatusCode is unset.
+    /// </summary>
+    private static readonly HashSet<int> TransientHttpStatuses =
+    [
+        0,
+        408,
+        429,
+        500,
+        502,
+        503,
+        504
+    ];
+
+    private static readonly HashSet<SocketError> DnsSocketErrors =
+    [
+        SocketError.HostNotFound,
+        SocketError.NoData,
+        SocketError.NoRecovery,
+        SocketError.TryAgain
+    ];
+
     private static PulsarExceptionArbiterReport Fresh(bool isCritical, bool couldBeTransient)
     {
         return new PulsarExceptionArbiterReport
@@ -38,6 +61,32 @@ internal class PulsarExceptionArbiterService : IPulsarExceptionArbiterService
             IsCritical = isCritical,
             CouldBeTransient = couldBeTransient
         };
+    }
+
+    private static PulsarExceptionArbiterReport ClassifyHttpRequestException(HttpRequestException httpRequest)
+    {
+        // Misconfigured host / DNS failure under an HTTP client call will not clear by retrying.
+        if (FindSocketException(httpRequest) is { } socket && DnsSocketErrors.Contains(socket.SocketErrorCode))
+        {
+            return Fresh(false, false);
+        }
+
+        // StatusCode is null when no HTTP response was received (connection drop, TLS blip, etc.).
+        var status = httpRequest.StatusCode is { } code ? (int) code : 0;
+        return Fresh(false, TransientHttpStatuses.Contains(status));
+    }
+
+    private static SocketException? FindSocketException(Exception exception)
+    {
+        for (var current = exception.InnerException; current is not null; current = current.InnerException)
+        {
+            if (current is SocketException socket)
+            {
+                return socket;
+            }
+        }
+
+        return null;
     }
 
     public PulsarExceptionArbiterReport GetReport(Exception exception)
@@ -72,9 +121,10 @@ internal class PulsarExceptionArbiterService : IPulsarExceptionArbiterService
                 or ConsumerNotFoundException
                 or InvalidConfigurationException
                 or InvalidTopicNameException => Fresh(true, false),
+            // HTTP failures (e.g. OAuth token fetch): classify by status / DNS, not as blanket-transient.
+            HttpRequestException httpRequest => ClassifyHttpRequestException(httpRequest),
             System.TimeoutException
-                or SocketException
-                or HttpRequestException => Fresh(false, true),
+                or SocketException => Fresh(false, true),
             TaskCanceledException => Fresh(false, true),
             OperationCanceledException => Fresh(false, false),
             ArgumentException => Fresh(false, false),

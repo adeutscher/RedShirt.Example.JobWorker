@@ -1,6 +1,7 @@
 using Pulsar.Client.Api;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services.Resilience;
+using System.Net;
 using System.Net.Sockets;
 using TimeoutException = System.TimeoutException;
 
@@ -45,7 +46,51 @@ public class PulsarExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_HttpRequestException_IsNotCriticalAndTransient()
+    public void GetReport_HttpRequestException_WithDnsSocketError_IsNotCriticalAndNotTransient()
+    {
+        var report = _sut.GetReport(new HttpRequestException("failed to connect",
+            new SocketException((int) SocketError.HostNotFound)));
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.False(report.CouldBeTransient);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.Conflict)]
+    public void GetReport_HttpRequestException_WithPermanentStatus_IsNotCriticalAndNotTransient(
+        HttpStatusCode statusCode)
+    {
+        var report = _sut.GetReport(new HttpRequestException("http failed", null, statusCode));
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.False(report.CouldBeTransient);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.RequestTimeout)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.GatewayTimeout)]
+    public void GetReport_HttpRequestException_WithTransientStatus_IsNotCriticalAndTransient(
+        HttpStatusCode statusCode)
+    {
+        var report = _sut.GetReport(new HttpRequestException("http failed", null, statusCode));
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.True(report.CouldBeTransient);
+    }
+
+    [Fact]
+    public void GetReport_HttpRequestException_WithoutStatus_IsNotCriticalAndTransient()
     {
         var report = _sut.GetReport(new HttpRequestException("connection reset"));
 
