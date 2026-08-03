@@ -380,7 +380,7 @@ Redis Streams testing requires the `redis` Python module to be installed.
 3. Create the Redis stream consumer group (creates the `jobs` stream if needed). This is safe to re-run if the group already exists:
 
     ```
-    ./create-redis-stream-consumer-group.py
+    ./make-local-redis-streams-resources.py
     ```
 
 4. Use the `send-redis-stream-job.py` script to publish a message to the `jobs` stream. Specify the number of seconds the worker should sleep for in the first argument. You may optionally provide a second argument to set the `message_id` field for idempotency testing:

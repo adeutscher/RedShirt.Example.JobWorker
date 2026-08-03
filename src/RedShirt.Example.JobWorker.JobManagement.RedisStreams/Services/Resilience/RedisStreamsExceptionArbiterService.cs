@@ -1,3 +1,4 @@
+using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.RedisStreams.Models;
 using StackExchange.Redis;
@@ -77,6 +78,9 @@ internal class RedisStreamsExceptionArbiterService : IRedisStreamsExceptionArbit
             WorkerJobSourceException workerJobSource =>
                 Handled(workerJobSource.IsCritical,
                     workerJobSource is {IsHandled: false, CouldBeTransient: true}),
+            // Already classified/wrapped by Common.Distributed (e.g. connection cache) — do not wrap again.
+            WorkerDistributedException workerDistributed =>
+                Handled(workerDistributed.IsCritical, workerDistributed.IsTransient),
             // Command / connection timeouts from StackExchange.Redis.
             RedisTimeoutException => Fresh(false, true),
             // Connection failures: critical types surface raw, transient types may be retried.

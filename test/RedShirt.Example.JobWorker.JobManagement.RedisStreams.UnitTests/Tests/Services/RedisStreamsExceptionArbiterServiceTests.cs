@@ -1,3 +1,4 @@
+using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.RedisStreams.Services.Resilience;
 using StackExchange.Redis;
@@ -141,6 +142,21 @@ public class RedisStreamsExceptionArbiterServiceTests
         Assert.True(report.AlreadyHandled);
         Assert.False(report.IsCritical);
         Assert.False(report.CouldBeTransient);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public void GetReport_WorkerDistributedException_AlreadyHandled(bool isCritical, bool isTransient)
+    {
+        var wrapped = new WorkerDistributedException("Not currently connected", isCritical, isTransient);
+
+        var report = _sut.GetReport(wrapped);
+
+        Assert.True(report.AlreadyHandled);
+        Assert.Equal(isCritical, report.IsCritical);
+        Assert.Equal(isTransient, report.CouldBeTransient);
     }
 
     [Fact]
