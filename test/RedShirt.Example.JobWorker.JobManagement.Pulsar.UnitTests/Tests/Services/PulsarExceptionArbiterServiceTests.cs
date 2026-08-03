@@ -2,6 +2,7 @@ using Pulsar.Client.Api;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services.Resilience;
 using System.Net.Sockets;
+using TimeoutException = System.TimeoutException;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.UnitTests.Tests.Services;
 
@@ -40,28 +41,6 @@ public class PulsarExceptionArbiterServiceTests
             Assert.False(report.AlreadyHandled);
             Assert.True(report.IsCritical);
             Assert.False(report.CouldBeTransient);
-        }
-    }
-
-    [Fact]
-    public void GetReport_TransientPulsarExceptions_IsNotCriticalAndTransient()
-    {
-        Exception[] exceptions =
-        [
-            new ConnectException("connect"),
-            new LookupException("lookup"),
-            new TooManyRequestsException("busy"),
-            new ConsumerBusyException("busy"),
-            new RequestTimeoutException("timeout")
-        ];
-
-        foreach (var exception in exceptions)
-        {
-            var report = _sut.GetReport(exception);
-
-            Assert.False(report.AlreadyHandled);
-            Assert.False(report.IsCritical);
-            Assert.True(report.CouldBeTransient);
         }
     }
 
@@ -119,6 +98,16 @@ public class PulsarExceptionArbiterServiceTests
     }
 
     [Fact]
+    public void GetReport_SystemTimeoutException_IsNotCriticalAndTransient()
+    {
+        var report = _sut.GetReport(new TimeoutException("timed out"));
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.True(report.CouldBeTransient);
+    }
+
+    [Fact]
     public void GetReport_TaskCanceledException_IsNotCriticalAndTransient()
     {
         var report = _sut.GetReport(new TaskCanceledException("request timed out"));
@@ -129,13 +118,25 @@ public class PulsarExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_SystemTimeoutException_IsNotCriticalAndTransient()
+    public void GetReport_TransientPulsarExceptions_IsNotCriticalAndTransient()
     {
-        var report = _sut.GetReport(new System.TimeoutException("timed out"));
+        Exception[] exceptions =
+        [
+            new ConnectException("connect"),
+            new LookupException("lookup"),
+            new TooManyRequestsException("busy"),
+            new ConsumerBusyException("busy"),
+            new RequestTimeoutException("timeout")
+        ];
 
-        Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
-        Assert.True(report.CouldBeTransient);
+        foreach (var exception in exceptions)
+        {
+            var report = _sut.GetReport(exception);
+
+            Assert.False(report.AlreadyHandled);
+            Assert.False(report.IsCritical);
+            Assert.True(report.CouldBeTransient);
+        }
     }
 
     [Fact]

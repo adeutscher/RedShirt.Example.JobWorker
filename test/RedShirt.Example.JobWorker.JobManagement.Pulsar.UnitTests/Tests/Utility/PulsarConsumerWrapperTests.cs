@@ -93,24 +93,6 @@ public class PulsarConsumerWrapperTests
     }
 
     [Fact]
-    public async Task NegativeAcknowledgeAsync_NegativelyAcknowledgesMessage()
-    {
-        var consumer = new Mock<IConsumer<string>>(MockBehavior.Strict);
-        consumer
-            .Setup(c => c.NegativeAcknowledge(It.IsAny<MessageId>()))
-            .Returns(CompletedUnitTask());
-
-        var id = CreateMessageId(1, 10, 0);
-        var message = new Mock<IPulsarMessageContainer>(MockBehavior.Strict);
-        message.SetupGet(m => m.PulsarMessageId).Returns(id);
-
-        var wrapper = CreateWrapper(consumer.Object);
-        await wrapper.NegativeAcknowledgeAsync(message.Object, TestContext.Current.CancellationToken);
-
-        consumer.Verify(c => c.NegativeAcknowledge(id), Times.Once);
-    }
-
-    [Fact]
     public async Task ConsumeAsync_WhenTimedOut_ReturnsNull()
     {
         var consumer = new Mock<IConsumer<string>>(MockBehavior.Strict);
@@ -139,5 +121,23 @@ public class PulsarConsumerWrapperTests
         await wrapper.DisposeAsync();
 
         consumer.Verify(c => c.DisposeAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task NegativeAcknowledgeAsync_NegativelyAcknowledgesMessage()
+    {
+        var consumer = new Mock<IConsumer<string>>(MockBehavior.Strict);
+        consumer
+            .Setup(c => c.NegativeAcknowledge(It.IsAny<MessageId>()))
+            .Returns(CompletedUnitTask());
+
+        var id = CreateMessageId(1, 10, 0);
+        var message = new Mock<IPulsarMessageContainer>(MockBehavior.Strict);
+        message.SetupGet(m => m.PulsarMessageId).Returns(id);
+
+        var wrapper = CreateWrapper(consumer.Object);
+        await wrapper.NegativeAcknowledgeAsync(message.Object, TestContext.Current.CancellationToken);
+
+        consumer.Verify(c => c.NegativeAcknowledge(id), Times.Once);
     }
 }

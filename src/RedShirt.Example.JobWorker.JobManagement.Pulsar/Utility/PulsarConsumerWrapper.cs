@@ -22,6 +22,18 @@ internal sealed class PulsarConsumerWrapper(
 {
     private bool _disposed;
 
+    private static PulsarMessageContainer MapMessage(Message<string> message, string fallbackTopic)
+    {
+        var topic = string.IsNullOrEmpty(message.MessageId.TopicName) ? fallbackTopic : message.MessageId.TopicName;
+        return new PulsarMessageContainer
+        {
+            PulsarMessageId = message.MessageId,
+            Key = message.Key,
+            Value = message.GetValue(),
+            Topic = topic
+        };
+    }
+
     public async Task<IPulsarMessageContainer?> ConsumeAsync(TimeSpan timeout,
         CancellationToken cancellationToken = default)
     {
@@ -92,17 +104,5 @@ internal sealed class PulsarConsumerWrapper(
         {
             await client.CloseAsync();
         }
-    }
-
-    private static PulsarMessageContainer MapMessage(Message<string> message, string fallbackTopic)
-    {
-        var topic = string.IsNullOrEmpty(message.MessageId.TopicName) ? fallbackTopic : message.MessageId.TopicName;
-        return new PulsarMessageContainer
-        {
-            PulsarMessageId = message.MessageId,
-            Key = message.Key,
-            Value = message.GetValue(),
-            Topic = topic
-        };
     }
 }

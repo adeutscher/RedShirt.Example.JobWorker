@@ -2,6 +2,7 @@ using Pulsar.Client.Api;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Models;
 using System.Net.Sockets;
+using TimeoutException = Pulsar.Client.Api.TimeoutException;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.Services.Resilience;
 
@@ -55,7 +56,7 @@ internal class PulsarExceptionArbiterService : IPulsarExceptionArbiterService
             ConnectException or LookupException or TooManyRequestsException
                 or ConsumerBusyException or ConsumerAssignException or NotConnectedException
                 or MetaStoreHandlerNotReadyException or RequestTimeoutException
-                or global::Pulsar.Client.Api.TimeoutException => Fresh(false, true),
+                or TimeoutException => Fresh(false, true),
             AuthenticationException or AuthorizationException or GettingAuthenticationDataException
                 or NotAllowedException or UnsupportedVersionException or TopicTerminatedException
                 or AlreadyClosedException or ConsumerNotFoundException
