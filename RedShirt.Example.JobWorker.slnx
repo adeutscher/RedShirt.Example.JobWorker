@@ -81,6 +81,8 @@
         <Project
                 Path="test/RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests/RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.csproj"/>
         <Project
+                Path="test/RedShirt.Example.JobWorker.JobManagement.RedisStreams.UnitTests/RedShirt.Example.JobWorker.JobManagement.RedisStreams.UnitTests.csproj"/>
+        <Project
                 Path="test/RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests/RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests.csproj"/>
         <Project Path="test/RedShirt.Example.JobWorker.UnitTests/RedShirt.Example.JobWorker.UnitTests.csproj"/>
     </Folder>
