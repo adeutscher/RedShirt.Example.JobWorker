@@ -35,9 +35,22 @@ internal sealed class IdempotencyExecutionService(
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    private bool IdempotencyCannotProceed(string? idempotencyId)
+    private bool IdempotencyCannotProceed(string? idempotencyId, out IdempotencyCannotProceedReason reason)
     {
-        return !options.Value.Enabled || string.IsNullOrWhiteSpace(idempotencyId);
+        if (!options.Value.Enabled)
+        {
+            reason = IdempotencyCannotProceedReason.Disabled;
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(idempotencyId))
+        {
+            reason = IdempotencyCannotProceedReason.EmptyIdempotencyKey;
+            return true;
+        }
+
+        reason = default;
+        return false;
     }
 
     private static string GetKey(string idempotencyId, string type)
@@ -74,8 +87,15 @@ internal sealed class IdempotencyExecutionService(
 
     public async Task<IAbstractedLock> GetLockAsync(IJobModel jobModel, CancellationToken token)
     {
-        if (!options.Value.Enabled || string.IsNullOrWhiteSpace(jobModel.IdempotencyId))
+        if (IdempotencyCannotProceed(jobModel.IdempotencyId, out var reason))
         {
+            if (options.Value.EnableTraceLogging)
+            {
+                logger.LogTrace(
+                    "{Class}.{Method} cannot proceed with idempotency: {Reason}",
+                    nameof(IdempotencyExecutionService), nameof(GetLockAsync), reason);
+            }
+
             /*
              * The method invoking this method doesn't need to be aware of the ins and outs of idempotency.
              * All it needs to know is that it's clear to proceed with execution.
@@ -83,24 +103,54 @@ internal sealed class IdempotencyExecutionService(
             return new EmptyIdempotencyLock();
         }
 
-        var @lock = await abstractedLockService.GetLockAsync(GetLockKey(jobModel.IdempotencyId!), token);
-
-        if (!@lock.IsTrulyAcquired)
+        if (options.Value.EnableTraceLogging)
         {
             logger.LogTrace(
+                "{Class}.{Method} acquiring lock: {Key}",
+                nameof(IdempotencyExecutionService), nameof(GetLockAsync), GetLockKey(jobModel.IdempotencyId!));
+        }
+
+        var lockHandle = await abstractedLockService.GetLockAsync(GetLockKey(jobModel.IdempotencyId!), token);
+
+        if (options.Value.EnableTraceLogging)
+        {
+            logger.LogTrace(
+                "{Class}.{Method} finished attempting lock: {Key} (acquired: {IsAcquired}, truly acquired: {IsTrulyAcquired})",
+                nameof(IdempotencyExecutionService), nameof(GetLockAsync), GetLockKey(jobModel.IdempotencyId!),
+                lockHandle.IsAcquired, lockHandle.IsTrulyAcquired);
+        }
+
+        if (!lockHandle.IsTrulyAcquired)
+        {
+            logger.LogWarning(
                 "Idempotency lock for {IdempotencyId} was not truly acquired; proceeding with a permissive lock",
                 jobModel.IdempotencyId);
         }
 
-        return @lock;
+        return lockHandle;
     }
 
     public async Task<IdempotencyCacheResult?> GetCachedResultAsync(IJobModel jobModel,
         CancellationToken cancellationToken = default)
     {
-        if (IdempotencyCannotProceed(jobModel.IdempotencyId))
+        if (IdempotencyCannotProceed(jobModel.IdempotencyId, out var reason))
         {
+            if (options.Value.EnableTraceLogging)
+            {
+                logger.LogTrace(
+                    "{Class}.{Method} cannot proceed with idempotency: {Reason}",
+                    nameof(IdempotencyExecutionService), nameof(GetCachedResultAsync), reason);
+            }
+
             return null;
+        }
+
+        if (options.Value.EnableTraceLogging)
+        {
+            logger.LogTrace(
+                "{Class}.{Method} getting value: {Key}",
+                nameof(IdempotencyExecutionService), nameof(GetCachedResultAsync),
+                GetResultKey(jobModel.IdempotencyId!));
         }
 
         var rawResult = await cache.GetStringAsync(GetResultKey(jobModel.IdempotencyId!), cancellationToken);
@@ -121,33 +171,83 @@ internal sealed class IdempotencyExecutionService(
         };
     }
 
-    public Task SetResultInCacheAsync(IRawJobModel jobModel, CoreJobResult jobResult,
+    public async Task SetResultInCacheAsync(IRawJobModel jobModel, CoreJobResult jobResult,
         ISafeAcknowledgementResult acknowledgementResult,
         CancellationToken cancellationToken = default)
     {
         // ReSharper disable once ConvertIfStatementToReturnStatement
-        if (IdempotencyCannotProceed(jobModel.IdempotencyId))
+        if (IdempotencyCannotProceed(jobModel.IdempotencyId, out var reason))
         {
-            return Task.CompletedTask;
+            if (options.Value.EnableTraceLogging)
+            {
+                logger.LogTrace(
+                    "{Class}.{Method} cannot proceed with idempotency: {Reason}",
+                    nameof(IdempotencyExecutionService), nameof(SetResultInCacheAsync), reason);
+            }
+
+            return;
         }
 
         var timeSpan = TimeSpan.FromSeconds(options.Value.EffectiveResultCacheDurationSeconds);
 
         if (acknowledgementResult.Success && !options.Value.IdempotencyIdsCanRepeat)
         {
+            if (options.Value.EnableTraceLogging)
+            {
+                logger.LogTrace(
+                    "{Class}.{Method} clearing value: {Key}",
+                    nameof(IdempotencyExecutionService), nameof(SetResultInCacheAsync),
+                    GetResultKey(jobModel.IdempotencyId!));
+            }
+
             // If the idempotency IDs cannot repeat,
             //   then it can be reasonably assumed that there's no point in caching the data
             //   set to null to delete data in underlying cache in an effort to save resources.
-            return cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), null, timeSpan, cancellationToken);
+            await cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), null, timeSpan, cancellationToken);
+
+            if (options.Value.EnableTraceLogging)
+            {
+                logger.LogTrace(
+                    "{Class}.{Method} cleared value: {Key}",
+                    nameof(IdempotencyExecutionService), nameof(SetResultInCacheAsync),
+                    GetResultKey(jobModel.IdempotencyId!));
+            }
+
+            return;
         }
 
-        return cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), JsonSerializer.Serialize(
+        var value = JsonSerializer.Serialize(
             new CachedAcknowledgeReport
             {
                 Result = jobResult,
                 LoggedFailureSuccessfully = acknowledgementResult.LoggedFailureSuccessfully,
                 AcknowledgedSuccessfully = acknowledgementResult.AcknowledgedSuccessfully
-            }, JsonOptions), timeSpan, cancellationToken);
+            }, JsonOptions);
+
+        if (options.Value.EnableTraceLogging)
+        {
+            logger.LogTrace(
+                "{Class}.{Method} setting value: {Key} -> {Value}",
+                nameof(IdempotencyExecutionService), nameof(SetResultInCacheAsync),
+                GetResultKey(jobModel.IdempotencyId!), value);
+        }
+
+        await cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), value, timeSpan, cancellationToken);
+
+        if (options.Value.EnableTraceLogging)
+        {
+            logger.LogTrace(
+                "{Class}.{Method} set value: {Key}",
+                nameof(IdempotencyExecutionService), nameof(SetResultInCacheAsync),
+                GetResultKey(jobModel.IdempotencyId!));
+        }
+    }
+
+    private enum IdempotencyCannotProceedReason
+    {
+        Unknown,
+        Disabled,
+        EmptyIdempotencyKey
     }
 
     internal sealed class CachedAcknowledgeReport

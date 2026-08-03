@@ -19,7 +19,8 @@ public class IdempotencyConfigurationModelTests
             Enabled = true,
             ResultCacheDurationSeconds = 10,
             MonitorIntervalSeconds = monitorIntervalSeconds,
-            IdempotencyIdsCanRepeat = false
+            IdempotencyIdsCanRepeat = false,
+            EnableTraceLogging = false
         };
 
         Assert.Equal(expectedEffective, model.EffectiveMonitorIntervalSeconds);
@@ -40,28 +41,35 @@ public class IdempotencyConfigurationModelTests
             Enabled = true,
             ResultCacheDurationSeconds = resultCacheDurationSeconds,
             MonitorIntervalSeconds = 3,
-            IdempotencyIdsCanRepeat = false
+            IdempotencyIdsCanRepeat = false,
+            EnableTraceLogging = false
         };
 
         Assert.Equal(expectedEffective, model.EffectiveResultCacheDurationSeconds);
     }
 
     [Theory]
-    [InlineData(true, true)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(false, false)]
-    public void RequiredFlags_RoundTrip(bool enabled, bool idempotencyIdsCanRepeat)
+    [InlineData(true, true, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, false, false)]
+    public void RequiredFlags_RoundTrip(bool enabled, bool idempotencyIdsCanRepeat, bool enableTraceLogging)
     {
         var model = new IdempotencyConfigurationModel
         {
             Enabled = enabled,
             ResultCacheDurationSeconds = 10,
             MonitorIntervalSeconds = 3,
-            IdempotencyIdsCanRepeat = idempotencyIdsCanRepeat
+            IdempotencyIdsCanRepeat = idempotencyIdsCanRepeat,
+            EnableTraceLogging = enableTraceLogging
         };
 
         Assert.Equal(enabled, model.Enabled);
         Assert.Equal(idempotencyIdsCanRepeat, model.IdempotencyIdsCanRepeat);
+        Assert.Equal(enableTraceLogging, model.EnableTraceLogging);
     }
 }

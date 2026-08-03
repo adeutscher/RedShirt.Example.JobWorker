@@ -10,7 +10,7 @@ The scripts described below assume that certain Python modules are installed in 
 Run the following to install all of the assumed modules at once:
 
 ```
-pip install --user boto3 awscli awslocal stomp.py azure-cli azure.servicebus azure-storage-queue azure.identity azure.keyvault kafka-python redis pika google-cloud-pubsub
+pip install --user boto3 awscli awslocal stomp.py azure-cli azure.servicebus azure-storage-queue azure.identity azure.keyvault kafka-python redis pika google-cloud-pubsub pulsar-client
 ```
 
 ## Idempotency
@@ -56,6 +56,7 @@ docker compose up -d ministack redis
 export USE_ACTIVEMQ=0
 export USE_KINESIS=0
 export USE_KAFKA=0
+export USE_PULSAR=0
 export USE_AZURE_QUEUE_STORAGE=0
 export USE_AZURE_SERVICE_BUS=0
 export USE_NATS=0
@@ -99,16 +100,14 @@ To initialize Kinesis and queue sample messages:
     export USE_ACTIVEMQ=0
     export USE_KINESIS=1
     export USE_KAFKA=0
+    export USE_PULSAR=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
     export USE_REDIS_STREAMS=0
     export USE_RABBITMQ=0
-<<<<<<< HEAD
     export USE_GOOGLE_PUB_SUB=0
-=======
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
->>>>>>> origin/develop
     ```
 
 5. Bring up the worker:
@@ -144,6 +143,7 @@ To initialize Kafka and queue sample messages:
 
     ```
     export USE_KAFKA=1
+    export USE_PULSAR=0
     export USE_ACTIVEMQ=0
     export USE_KINESIS=0
     export USE_AZURE_QUEUE_STORAGE=0
@@ -161,6 +161,56 @@ To initialize Kafka and queue sample messages:
     docker compose up worker
     ```
 
+## Apache Pulsar
+
+To initialize Apache Pulsar and queue sample messages:
+
+1. Bring up ministack, Pulsar, and Redis:
+
+    ```
+    docker compose up -d ministack pulsar redis
+    ```
+
+2. Run the `make-local-aws-resources.sh` script (creates shared local AWS resources such as Redis SSM params):
+
+    ```
+    ./make-local-aws-resources.sh
+    ```
+
+3. Wait for Pulsar to become ready, then create the local topic with `make-local-pulsar-resources.py` (uses the admin HTTP API; no extra Python packages):
+
+    ```
+    ./make-local-pulsar-resources.py
+    ```
+
+4. Use the `send-pulsar-job.py` script (requires the `pulsar-client` module) to publish a message to `persistent://public/default/jobs`. Specify the number of seconds the worker should sleep for in the first argument:
+
+    ```
+    ./send-pulsar-job.py 12
+    ```
+
+5. Before starting the worker, make sure that `USE_PULSAR` is set to `1` and that other `USE_` environment variables are not set to `1`.
+    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
+
+    ```
+    export USE_PULSAR=1
+    export USE_KAFKA=0
+    export USE_ACTIVEMQ=0
+    export USE_KINESIS=0
+    export USE_AZURE_QUEUE_STORAGE=0
+    export USE_AZURE_SERVICE_BUS=0
+    export USE_NATS=0
+    export USE_RABBITMQ=0
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+    ```
+
+6. Bring up the worker:
+
+    ```
+    docker compose up worker
+    ```
+
+Pulsar dead-letter handling uses the client `DeadLetterPolicy` (`JOB_SOURCE__PULSAR__MAX_REDELIVER_COUNT`, default `3`). Failed jobs are negatively acknowledged so they redeliver into that policy; unacknowledged messages also become eligible for redelivery after `JOB_SOURCE__PULSAR__ACK_TIMEOUT_SECONDS` (default `300`). Undeliverable messages that exceed the redelivery count are moved to Pulsar's dead letter topic (default name `{topic}-{subscription}-DLQ`).
 ### RabbitMQ
 
 RabbitMQ takes a few more steps to set up than the other input sources.
@@ -205,6 +255,7 @@ To initialize RabbitMQ and queue messages:
     export USE_RABBITMQ=0
     export USE_KINESIS=0
     export USE_KAFKA=0
+    export USE_PULSAR=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
@@ -283,6 +334,7 @@ To initialize RabbitMQ and queue messages:
     export USE_ACTIVEMQ=1
     export USE_KINESIS=0
     export USE_KAFKA=0
+    export USE_PULSAR=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
@@ -349,6 +401,7 @@ To install the `nats` command:
     export USE_NATS=1
     export USE_ACTIVEMQ=0
     export USE_KAFKA=0
+    export USE_PULSAR=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
     export USE_KINESIS=0
@@ -483,6 +536,7 @@ VSCode automatically knows how to point to your local `azurite` server after the
     export USE_NATS=0
     export USE_REDIS_STREAMS=0
     export USE_KAFKA=0
+    export USE_PULSAR=0
     export USE_ACTIVEMQ=0
     export USE_KINESIS=0
     export USE_RABBITMQ=0
@@ -565,6 +619,7 @@ pip install azure.servicebus azure.identity azure.keyvault
     export USE_NATS=0
     export USE_REDIS_STREAMS=0
     export USE_KAFKA=0
+    export USE_PULSAR=0
     export USE_ACTIVEMQ=0
     export USE_KINESIS=0
     export USE_RABBITMQ=0

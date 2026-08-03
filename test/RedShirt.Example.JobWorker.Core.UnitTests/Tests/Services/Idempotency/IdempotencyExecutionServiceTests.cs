@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
@@ -17,15 +16,50 @@ public class IdempotencyExecutionServiceTests
     private static IdempotencyConfigurationModel CreateOptions(
         bool enabled = true,
         int resultCacheDurationSeconds = 30,
-        bool idempotencyIdsCanRepeat = false)
+        bool idempotencyIdsCanRepeat = false,
+        bool enableTraceLogging = false)
     {
         return new IdempotencyConfigurationModel
         {
             Enabled = enabled,
             ResultCacheDurationSeconds = resultCacheDurationSeconds,
             MonitorIntervalSeconds = 5,
-            IdempotencyIdsCanRepeat = idempotencyIdsCanRepeat
+            IdempotencyIdsCanRepeat = idempotencyIdsCanRepeat,
+            EnableTraceLogging = enableTraceLogging
         };
+    }
+
+    private static Mock<ILogger<IdempotencyExecutionService>> CreateLogger(bool enableTraceLevel = true)
+    {
+        var logger = new Mock<ILogger<IdempotencyExecutionService>>();
+        logger.Setup(l => l.IsEnabled(LogLevel.Trace)).Returns(enableTraceLevel);
+        logger.Setup(l => l.IsEnabled(LogLevel.Warning)).Returns(true);
+        return logger;
+    }
+
+    private static void VerifyNoTraceLogs(Mock<ILogger<IdempotencyExecutionService>> logger)
+    {
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Trace,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Never);
+    }
+
+    private static void VerifyTraceLogContains(Mock<ILogger<IdempotencyExecutionService>> logger,
+        string expectedFragment, Times times)
+    {
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Trace,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains(expectedFragment)),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            times);
     }
 
     private static Mock<IJobModel> CreateJob(string? idempotencyId = "idem-1")
@@ -68,12 +102,39 @@ public class IdempotencyExecutionServiceTests
             .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
             .ReturnsAsync(cachedValue);
 
+        var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions()), NullLogger<IdempotencyExecutionService>.Instance);
+            Options.Create(CreateOptions()), logger.Object);
 
         var result = await service.GetCachedResultAsync(CreateJob().Object, TestContext.Current.CancellationToken);
 
         Assert.Null(result);
+        VerifyNoTraceLogs(logger);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not-json")]
+    public async Task GetCachedResultAsync_WhenCacheValueIsNotValid_WithTraceLogging_LogsGettingValue(
+        string? cachedValue)
+    {
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
+        var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
+        cache
+            .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
+            .ReturnsAsync(cachedValue);
+
+        var logger = CreateLogger();
+        var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
+            Options.Create(CreateOptions(enableTraceLogging: true)), logger.Object);
+
+        var result = await service.GetCachedResultAsync(CreateJob().Object, TestContext.Current.CancellationToken);
+
+        Assert.Null(result);
+        VerifyTraceLogContains(logger, "IdempotencyExecutionService.GetCachedResultAsync", Times.Once());
+        VerifyTraceLogContains(logger, "getting value", Times.Once());
+        VerifyTraceLogContains(logger, "idempotency:idem-1:result", Times.Once());
     }
 
     [Theory]
@@ -89,14 +150,41 @@ public class IdempotencyExecutionServiceTests
             .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
             .ReturnsAsync(cachedValue);
 
+        var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions()), NullLogger<IdempotencyExecutionService>.Instance);
+            Options.Create(CreateOptions()), logger.Object);
 
         var result = await service.GetCachedResultAsync(CreateJob().Object, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal(jobResult, result!.JobResult);
         Assert.Equal(acknowledgedSuccessfully, result.AcknowledgementResult.AcknowledgedSuccessfully);
+        VerifyNoTraceLogs(logger);
+    }
+
+    [Theory]
+    [InlineData(CoreJobResult.Success, true)]
+    [InlineData(CoreJobResult.Failure, false)]
+    public async Task GetCachedResultAsync_WhenCacheValueIsValid_WithTraceLogging_LogsGettingValue(
+        CoreJobResult jobResult, bool acknowledgedSuccessfully)
+    {
+        var cachedValue = SerializeCacheReport(jobResult, acknowledgedSuccessfully);
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
+        var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
+        cache
+            .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
+            .ReturnsAsync(cachedValue);
+
+        var logger = CreateLogger();
+        var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
+            Options.Create(CreateOptions(enableTraceLogging: true)), logger.Object);
+
+        var result = await service.GetCachedResultAsync(CreateJob().Object, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(result);
+        VerifyTraceLogContains(logger, "IdempotencyExecutionService.GetCachedResultAsync", Times.Once());
+        VerifyTraceLogContains(logger, "getting value", Times.Once());
+        VerifyTraceLogContains(logger, "idempotency:idem-1:result", Times.Once());
     }
 
     [Theory]
@@ -110,14 +198,41 @@ public class IdempotencyExecutionServiceTests
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         var job = CreateJob(idempotencyId);
+        var logger = CreateLogger();
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(enabled)), NullLogger<IdempotencyExecutionService>.Instance);
+            Options.Create(CreateOptions(enabled)), logger.Object);
 
         var result = await service.GetCachedResultAsync(job.Object, TestContext.Current.CancellationToken);
 
         Assert.Null(result);
         Assert.Empty(cache.Invocations);
+        VerifyNoTraceLogs(logger);
+    }
+
+    [Theory]
+    [InlineData(false, "idem-1", "Disabled")]
+    [InlineData(true, null, "EmptyIdempotencyKey")]
+    [InlineData(true, "", "EmptyIdempotencyKey")]
+    [InlineData(true, "   ", "EmptyIdempotencyKey")]
+    public async Task GetCachedResultAsync_WhenIdempotencyCannotProceed_WithTraceLogging_LogsReason(bool enabled,
+        string? idempotencyId, string expectedReason)
+    {
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
+        var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
+        var logger = CreateLogger();
+
+        var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
+            Options.Create(CreateOptions(enabled, enableTraceLogging: true)), logger.Object);
+
+        var result = await service.GetCachedResultAsync(CreateJob(idempotencyId).Object,
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(result);
+        Assert.Empty(cache.Invocations);
+        VerifyTraceLogContains(logger, "IdempotencyExecutionService.GetCachedResultAsync", Times.Once());
+        VerifyTraceLogContains(logger, "cannot proceed", Times.Once());
+        VerifyTraceLogContains(logger, expectedReason, Times.Once());
     }
 
     [Fact]
@@ -134,15 +249,42 @@ public class IdempotencyExecutionServiceTests
 
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         var job = CreateJob();
+        var logger = CreateLogger();
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions()), NullLogger<IdempotencyExecutionService>.Instance);
+            Options.Create(CreateOptions()), logger.Object);
 
         var result = await service.GetLockAsync(job.Object, TestContext.Current.CancellationToken);
 
         Assert.Same(expectedLock.Object, result);
         lockService.Verify(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken),
             Times.Once);
+        VerifyNoTraceLogs(logger);
+    }
+
+    [Fact]
+    public async Task GetLockAsync_WhenEnabledWithIdempotencyId_WithTraceLogging_LogsAcquireAttempts()
+    {
+        var expectedLock = new Mock<ISafeAbstractedLock>(MockBehavior.Strict);
+        expectedLock.SetupGet(l => l.IsAcquired).Returns(true);
+        expectedLock.SetupGet(l => l.IsTrulyAcquired).Returns(true);
+
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
+        lockService
+            .Setup(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken))
+            .ReturnsAsync(expectedLock.Object);
+
+        var logger = CreateLogger();
+        var service = new IdempotencyExecutionService(lockService.Object,
+            new Mock<ISafeRemoteCacheService>(MockBehavior.Strict).Object,
+            Options.Create(CreateOptions(enableTraceLogging: true)), logger.Object);
+
+        await service.GetLockAsync(CreateJob().Object, TestContext.Current.CancellationToken);
+
+        VerifyTraceLogContains(logger, "IdempotencyExecutionService.GetLockAsync", Times.Exactly(2));
+        VerifyTraceLogContains(logger, "acquiring lock", Times.Once());
+        VerifyTraceLogContains(logger, "finished attempting lock", Times.Once());
+        VerifyTraceLogContains(logger, "idempotency:idem-1:lock", Times.Exactly(2));
     }
 
     [Theory]
@@ -156,9 +298,10 @@ public class IdempotencyExecutionServiceTests
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         var job = CreateJob(idempotencyId);
+        var logger = CreateLogger();
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(enabled)), NullLogger<IdempotencyExecutionService>.Instance);
+            Options.Create(CreateOptions(enabled)), logger.Object);
 
         var result = await service.GetLockAsync(job.Object, TestContext.Current.CancellationToken);
 
@@ -166,12 +309,36 @@ public class IdempotencyExecutionServiceTests
         await result.UnlockAsync(TestContext.Current.CancellationToken);
         Assert.Empty(lockService.Invocations);
         Assert.Empty(cache.Invocations);
+        VerifyNoTraceLogs(logger);
+    }
+
+    [Theory]
+    [InlineData(false, "idem-1", "Disabled")]
+    [InlineData(true, null, "EmptyIdempotencyKey")]
+    [InlineData(true, "", "EmptyIdempotencyKey")]
+    [InlineData(true, "   ", "EmptyIdempotencyKey")]
+    public async Task GetLockAsync_WhenIdempotencyCannotProceed_WithTraceLogging_LogsReason(bool enabled,
+        string? idempotencyId, string expectedReason)
+    {
+        var logger = CreateLogger();
+        var service = new IdempotencyExecutionService(
+            new Mock<ISafeAbstractedLockService>(MockBehavior.Strict).Object,
+            new Mock<ISafeRemoteCacheService>(MockBehavior.Strict).Object,
+            Options.Create(CreateOptions(enabled, enableTraceLogging: true)), logger.Object);
+
+        var result = await service.GetLockAsync(CreateJob(idempotencyId).Object,
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsAcquired);
+        VerifyTraceLogContains(logger, "IdempotencyExecutionService.GetLockAsync", Times.Once());
+        VerifyTraceLogContains(logger, "cannot proceed", Times.Once());
+        VerifyTraceLogContains(logger, expectedReason, Times.Once());
     }
 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task GetLockAsync_WhenLockNotTrulyAcquired_LogsTrace(bool isTrulyAcquired)
+    public async Task GetLockAsync_WhenLockNotTrulyAcquired_LogsWarning(bool isTrulyAcquired)
     {
         var expectedLock = new Mock<ISafeAbstractedLock>(MockBehavior.Strict);
         expectedLock.SetupGet(l => l.IsAcquired).Returns(true);
@@ -182,8 +349,7 @@ public class IdempotencyExecutionServiceTests
             .Setup(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken))
             .ReturnsAsync(expectedLock.Object);
 
-        var logger = new Mock<ILogger<IdempotencyExecutionService>>();
-        logger.Setup(l => l.IsEnabled(LogLevel.Trace)).Returns(true);
+        var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object,
             new Mock<ISafeRemoteCacheService>(MockBehavior.Strict).Object,
             Options.Create(CreateOptions()), logger.Object);
@@ -192,7 +358,42 @@ public class IdempotencyExecutionServiceTests
 
         logger.Verify(
             l => l.Log(
-                LogLevel.Trace,
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("idem-1")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            isTrulyAcquired ? Times.Never() : Times.Once());
+        VerifyNoTraceLogs(logger);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetLockAsync_WhenLockNotTrulyAcquired_WithTraceLogging_StillLogsWarningAndTraces(
+        bool isTrulyAcquired)
+    {
+        var expectedLock = new Mock<ISafeAbstractedLock>(MockBehavior.Strict);
+        expectedLock.SetupGet(l => l.IsAcquired).Returns(true);
+        expectedLock.SetupGet(l => l.IsTrulyAcquired).Returns(isTrulyAcquired);
+
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
+        lockService
+            .Setup(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken))
+            .ReturnsAsync(expectedLock.Object);
+
+        var logger = CreateLogger();
+        var service = new IdempotencyExecutionService(lockService.Object,
+            new Mock<ISafeRemoteCacheService>(MockBehavior.Strict).Object,
+            Options.Create(CreateOptions(enableTraceLogging: true)), logger.Object);
+
+        await service.GetLockAsync(CreateJob().Object, TestContext.Current.CancellationToken);
+
+        VerifyTraceLogContains(logger, "acquiring lock", Times.Once());
+        VerifyTraceLogContains(logger, "finished attempting lock", Times.Once());
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Warning,
                 It.IsAny<EventId>(),
                 It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("idem-1")),
                 It.IsAny<Exception>(),
@@ -224,9 +425,10 @@ public class IdempotencyExecutionServiceTests
                 TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
+        var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
             Options.Create(CreateOptions(idempotencyIdsCanRepeat: idempotencyIdsCanRepeat)),
-            NullLogger<IdempotencyExecutionService>.Instance);
+            logger.Object);
 
         await service.SetResultInCacheAsync(CreateRawJob().Object, jobResult,
             new SafeAcknowledgementResult
@@ -238,6 +440,7 @@ public class IdempotencyExecutionServiceTests
         cache.Verify(
             c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken), Times.Once);
+        VerifyNoTraceLogs(logger);
     }
 
     [Fact]
@@ -251,9 +454,10 @@ public class IdempotencyExecutionServiceTests
                 TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
+        var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
             Options.Create(CreateOptions(resultCacheDurationSeconds: 1)),
-            NullLogger<IdempotencyExecutionService>.Instance);
+            logger.Object);
 
         await service.SetResultInCacheAsync(CreateRawJob().Object, CoreJobResult.Success,
             new SafeAcknowledgementResult
@@ -266,6 +470,7 @@ public class IdempotencyExecutionServiceTests
         cache.Verify(
             c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(10),
                 TestContext.Current.CancellationToken), Times.Once);
+        VerifyNoTraceLogs(logger);
     }
 
     [Fact]
@@ -279,9 +484,10 @@ public class IdempotencyExecutionServiceTests
                 TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
+        var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
             Options.Create(CreateOptions(idempotencyIdsCanRepeat: false)),
-            NullLogger<IdempotencyExecutionService>.Instance);
+            logger.Object);
 
         await service.SetResultInCacheAsync(CreateRawJob().Object, CoreJobResult.Failure,
             new SafeAcknowledgementResult
@@ -294,6 +500,7 @@ public class IdempotencyExecutionServiceTests
         cache.Verify(
             c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken), Times.Once);
+        VerifyNoTraceLogs(logger);
     }
 
     [Fact]
@@ -307,9 +514,10 @@ public class IdempotencyExecutionServiceTests
                 TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
+        var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
             Options.Create(CreateOptions(idempotencyIdsCanRepeat: true)),
-            NullLogger<IdempotencyExecutionService>.Instance);
+            logger.Object);
 
         await service.SetResultInCacheAsync(CreateRawJob().Object, CoreJobResult.Success,
             new SafeAcknowledgementResult
@@ -322,6 +530,37 @@ public class IdempotencyExecutionServiceTests
         cache.Verify(
             c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken), Times.Once);
+        VerifyNoTraceLogs(logger);
+    }
+
+    [Fact]
+    public async Task SetResultInCacheAsync_WhenAcknowledgementSucceededAndIdsCanRepeat_WithTraceLogging_LogsSet()
+    {
+        var expectedPayload = SerializeCacheReport(CoreJobResult.Success, true);
+        var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
+        cache
+            .Setup(c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
+                TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
+        var logger = CreateLogger();
+        var service = new IdempotencyExecutionService(
+            new Mock<ISafeAbstractedLockService>(MockBehavior.Strict).Object, cache.Object,
+            Options.Create(CreateOptions(idempotencyIdsCanRepeat: true, enableTraceLogging: true)),
+            logger.Object);
+
+        await service.SetResultInCacheAsync(CreateRawJob().Object, CoreJobResult.Success,
+            new SafeAcknowledgementResult
+            {
+                AcknowledgedSuccessfully = true,
+                LoggedFailureSuccessfully = null
+            },
+            TestContext.Current.CancellationToken);
+
+        VerifyTraceLogContains(logger, "IdempotencyExecutionService.SetResultInCacheAsync", Times.Exactly(2));
+        VerifyTraceLogContains(logger, "setting value", Times.Once());
+        VerifyTraceLogContains(logger, "set value", Times.Once());
+        VerifyTraceLogContains(logger, expectedPayload, Times.Once());
     }
 
     [Theory]
@@ -337,9 +576,10 @@ public class IdempotencyExecutionServiceTests
                 TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
+        var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
             Options.Create(CreateOptions(idempotencyIdsCanRepeat: false)),
-            NullLogger<IdempotencyExecutionService>.Instance);
+            logger.Object);
 
         await service.SetResultInCacheAsync(CreateRawJob().Object, jobResult,
             new SafeAcknowledgementResult
@@ -352,6 +592,39 @@ public class IdempotencyExecutionServiceTests
         cache.Verify(
             c => c.SetStringAsync("idempotency:idem-1:result", null, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken), Times.Once);
+        VerifyNoTraceLogs(logger);
+    }
+
+    [Theory]
+    [InlineData(CoreJobResult.Success)]
+    [InlineData(CoreJobResult.Failure)]
+    public async Task SetResultInCacheAsync_WhenAcknowledgementSucceededAndIdsCannotRepeat_WithTraceLogging_LogsClear(
+        CoreJobResult jobResult)
+    {
+        var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
+        cache
+            .Setup(c => c.SetStringAsync("idempotency:idem-1:result", null, TimeSpan.FromSeconds(30),
+                TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
+        var logger = CreateLogger();
+        var service = new IdempotencyExecutionService(
+            new Mock<ISafeAbstractedLockService>(MockBehavior.Strict).Object, cache.Object,
+            Options.Create(CreateOptions(idempotencyIdsCanRepeat: false, enableTraceLogging: true)),
+            logger.Object);
+
+        await service.SetResultInCacheAsync(CreateRawJob().Object, jobResult,
+            new SafeAcknowledgementResult
+            {
+                AcknowledgedSuccessfully = true,
+                LoggedFailureSuccessfully = null
+            },
+            TestContext.Current.CancellationToken);
+
+        VerifyTraceLogContains(logger, "IdempotencyExecutionService.SetResultInCacheAsync", Times.Exactly(2));
+        VerifyTraceLogContains(logger, "clearing value", Times.Once());
+        VerifyTraceLogContains(logger, "cleared value", Times.Once());
+        VerifyTraceLogContains(logger, "idempotency:idem-1:result", Times.Exactly(2));
     }
 
     [Theory]
@@ -364,9 +637,10 @@ public class IdempotencyExecutionServiceTests
     {
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
+        var logger = CreateLogger();
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(enabled)), NullLogger<IdempotencyExecutionService>.Instance);
+            Options.Create(CreateOptions(enabled)), logger.Object);
 
         await service.SetResultInCacheAsync(CreateRawJob(idempotencyId).Object, CoreJobResult.Success,
             new SafeAcknowledgementResult
@@ -377,5 +651,33 @@ public class IdempotencyExecutionServiceTests
             TestContext.Current.CancellationToken);
 
         Assert.Empty(cache.Invocations);
+        VerifyNoTraceLogs(logger);
+    }
+
+    [Theory]
+    [InlineData(false, "idem-1", "Disabled")]
+    [InlineData(true, null, "EmptyIdempotencyKey")]
+    [InlineData(true, "", "EmptyIdempotencyKey")]
+    [InlineData(true, "   ", "EmptyIdempotencyKey")]
+    public async Task SetResultInCacheAsync_WhenIdempotencyCannotProceed_WithTraceLogging_LogsReason(bool enabled,
+        string? idempotencyId, string expectedReason)
+    {
+        var logger = CreateLogger();
+        var service = new IdempotencyExecutionService(
+            new Mock<ISafeAbstractedLockService>(MockBehavior.Strict).Object,
+            new Mock<ISafeRemoteCacheService>(MockBehavior.Strict).Object,
+            Options.Create(CreateOptions(enabled, enableTraceLogging: true)), logger.Object);
+
+        await service.SetResultInCacheAsync(CreateRawJob(idempotencyId).Object, CoreJobResult.Success,
+            new SafeAcknowledgementResult
+            {
+                AcknowledgedSuccessfully = true,
+                LoggedFailureSuccessfully = null
+            },
+            TestContext.Current.CancellationToken);
+
+        VerifyTraceLogContains(logger, "IdempotencyExecutionService.SetResultInCacheAsync", Times.Once());
+        VerifyTraceLogContains(logger, "cannot proceed", Times.Once());
+        VerifyTraceLogContains(logger, expectedReason, Times.Once());
     }
 }
