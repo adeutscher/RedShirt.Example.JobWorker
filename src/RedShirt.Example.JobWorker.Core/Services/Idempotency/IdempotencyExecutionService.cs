@@ -94,25 +94,46 @@ internal sealed class IdempotencyExecutionService(
 
     public async Task<IAbstractedLock> GetLockAsync(IJobModel jobModel, CancellationToken token)
     {
-        if (!options.Value.Enabled || string.IsNullOrWhiteSpace(jobModel.IdempotencyId))
+        if (IdempotencyCannotProceed(jobModel.IdempotencyId, out var reason))
         {
+            if (options.Value.EnableTraceLogging)
+            {
+                logger.LogTrace(
+                    "{Method} cannot proceed with idempotency: {Reason}",
+                    nameof(GetCachedResultAsync), reason);
+            }
+            
             /*
              * The method invoking this method doesn't need to be aware of the ins and outs of idempotency.
              * All it needs to know is that it's clear to proceed with execution.
              */
             return new EmptyIdempotencyLock();
         }
-
-        var @lock = await abstractedLockService.GetLockAsync(GetLockKey(jobModel.IdempotencyId!), token);
-
-        if (!@lock.IsTrulyAcquired)
+        
+        if (options.Value.EnableTraceLogging)
         {
             logger.LogTrace(
+                "{Method} acquiring lock: {Key}",
+                nameof(GetCachedResultAsync), GetLockKey(jobModel.IdempotencyId!));
+        }
+
+        var lockHandle = await abstractedLockService.GetLockAsync(GetLockKey(jobModel.IdempotencyId!), token);
+
+        if (options.Value.EnableTraceLogging)
+        {
+            logger.LogTrace(
+                "{Method} finished attempting lock: {Key} (acquired: {IsAcquired}, truly acquired: {IsTrulyAcquired})",
+                nameof(GetCachedResultAsync), GetLockKey(jobModel.IdempotencyId!), lockHandle.IsAcquired, lockHandle.IsTrulyAcquired);
+        }
+        
+        if (!lockHandle.IsTrulyAcquired)
+        {
+            logger.LogWarning(
                 "Idempotency lock for {IdempotencyId} was not truly acquired; proceeding with a permissive lock",
                 jobModel.IdempotencyId);
         }
 
-        return @lock;
+        return lockHandle;
     }
 
     public async Task<IdempotencyCacheResult?> GetCachedResultAsync(IJobModel jobModel,
@@ -122,9 +143,19 @@ internal sealed class IdempotencyExecutionService(
         {
             if (options.Value.EnableTraceLogging)
             {
-                logger.LogTrace($"");
+                logger.LogTrace(
+                    "{Method} cannot proceed with idempotency: {Reason}",
+                    nameof(GetCachedResultAsync), reason);
             }
+
             return null;
+        }
+        
+        if (options.Value.EnableTraceLogging)
+        {
+            logger.LogTrace(
+                "{Method} getting value: {Key}",
+                nameof(GetCachedResultAsync), GetResultKey(jobModel.IdempotencyId!));
         }
 
         var rawResult = await cache.GetStringAsync(GetResultKey(jobModel.IdempotencyId!), cancellationToken);
@@ -145,33 +176,72 @@ internal sealed class IdempotencyExecutionService(
         };
     }
 
-    public Task SetResultInCacheAsync(IRawJobModel jobModel, CoreJobResult jobResult,
+    public async Task SetResultInCacheAsync(IRawJobModel jobModel, CoreJobResult jobResult,
         ISafeAcknowledgementResult acknowledgementResult,
         CancellationToken cancellationToken = default)
     {
         // ReSharper disable once ConvertIfStatementToReturnStatement
-        if (IdempotencyCannotProceed(jobModel.IdempotencyId, out _))
+        if (IdempotencyCannotProceed(jobModel.IdempotencyId, out var reason))
         {
-            return Task.CompletedTask;
+            if (options.Value.EnableTraceLogging)
+            {
+                logger.LogTrace(
+                    "{Method} cannot proceed with idempotency: {Reason}",
+                    nameof(SetResultInCacheAsync), reason);
+            }
+
+            return;
         }
 
         var timeSpan = TimeSpan.FromSeconds(options.Value.EffectiveResultCacheDurationSeconds);
 
         if (acknowledgementResult.Success && !options.Value.IdempotencyIdsCanRepeat)
         {
+            if (options.Value.EnableTraceLogging)
+            {
+                logger.LogTrace(
+                    "{Method} clearing value: {Key}",
+                    nameof(SetResultInCacheAsync), GetResultKey(jobModel.IdempotencyId!));
+            }
+
             // If the idempotency IDs cannot repeat,
             //   then it can be reasonably assumed that there's no point in caching the data
             //   set to null to delete data in underlying cache in an effort to save resources.
-            return cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), null, timeSpan, cancellationToken);
+            await cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), null, timeSpan, cancellationToken);
+
+            if (options.Value.EnableTraceLogging)
+            {
+                logger.LogTrace(
+                    "{Method} cleared value: {Key}",
+                    nameof(SetResultInCacheAsync), GetResultKey(jobModel.IdempotencyId!));
+            }
+
+            return;
         }
 
-        return cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), JsonSerializer.Serialize(
+        var value = JsonSerializer.Serialize(
             new CachedAcknowledgeReport
             {
                 Result = jobResult,
                 LoggedFailureSuccessfully = acknowledgementResult.LoggedFailureSuccessfully,
                 AcknowledgedSuccessfully = acknowledgementResult.AcknowledgedSuccessfully
-            }, JsonOptions), timeSpan, cancellationToken);
+            }, JsonOptions);
+
+        if (options.Value.EnableTraceLogging)
+        {
+            logger.LogTrace(
+                "{Method} setting value: {Key} -> {Value}",
+                nameof(SetResultInCacheAsync), GetResultKey(jobModel.IdempotencyId!), value);
+        }
+
+        await cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), value, timeSpan, cancellationToken);
+
+        if (options.Value.EnableTraceLogging)
+        {
+            logger.LogTrace(
+                "{Method} set value: {Key}",
+                nameof(SetResultInCacheAsync), GetResultKey(jobModel.IdempotencyId!));
+        }
     }
 
     internal sealed class CachedAcknowledgeReport
