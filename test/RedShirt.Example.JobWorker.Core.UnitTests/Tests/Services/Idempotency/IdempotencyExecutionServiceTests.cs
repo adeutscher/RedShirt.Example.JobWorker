@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
@@ -67,7 +69,7 @@ public class IdempotencyExecutionServiceTests
             .ReturnsAsync(cachedValue);
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions()));
+            Options.Create(CreateOptions()), NullLogger<IdempotencyExecutionService>.Instance);
 
         var result = await service.GetCachedResultAsync(CreateJob().Object, TestContext.Current.CancellationToken);
 
@@ -88,7 +90,7 @@ public class IdempotencyExecutionServiceTests
             .ReturnsAsync(cachedValue);
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions()));
+            Options.Create(CreateOptions()), NullLogger<IdempotencyExecutionService>.Instance);
 
         var result = await service.GetCachedResultAsync(CreateJob().Object, TestContext.Current.CancellationToken);
 
@@ -110,7 +112,7 @@ public class IdempotencyExecutionServiceTests
         var job = CreateJob(idempotencyId);
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(enabled)));
+            Options.Create(CreateOptions(enabled)), NullLogger<IdempotencyExecutionService>.Instance);
 
         var result = await service.GetCachedResultAsync(job.Object, TestContext.Current.CancellationToken);
 
@@ -123,6 +125,7 @@ public class IdempotencyExecutionServiceTests
     {
         var expectedLock = new Mock<ISafeAbstractedLock>(MockBehavior.Strict);
         expectedLock.SetupGet(l => l.IsAcquired).Returns(true);
+        expectedLock.SetupGet(l => l.IsTrulyAcquired).Returns(true);
 
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         lockService
@@ -133,7 +136,7 @@ public class IdempotencyExecutionServiceTests
         var job = CreateJob();
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions()));
+            Options.Create(CreateOptions()), NullLogger<IdempotencyExecutionService>.Instance);
 
         var result = await service.GetLockAsync(job.Object, TestContext.Current.CancellationToken);
 
@@ -155,7 +158,7 @@ public class IdempotencyExecutionServiceTests
         var job = CreateJob(idempotencyId);
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(enabled)));
+            Options.Create(CreateOptions(enabled)), NullLogger<IdempotencyExecutionService>.Instance);
 
         var result = await service.GetLockAsync(job.Object, TestContext.Current.CancellationToken);
 
@@ -163,6 +166,38 @@ public class IdempotencyExecutionServiceTests
         await result.UnlockAsync(TestContext.Current.CancellationToken);
         Assert.Empty(lockService.Invocations);
         Assert.Empty(cache.Invocations);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetLockAsync_WhenLockNotTrulyAcquired_LogsTrace(bool isTrulyAcquired)
+    {
+        var expectedLock = new Mock<ISafeAbstractedLock>(MockBehavior.Strict);
+        expectedLock.SetupGet(l => l.IsAcquired).Returns(true);
+        expectedLock.SetupGet(l => l.IsTrulyAcquired).Returns(isTrulyAcquired);
+
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
+        lockService
+            .Setup(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken))
+            .ReturnsAsync(expectedLock.Object);
+
+        var logger = new Mock<ILogger<IdempotencyExecutionService>>();
+        logger.Setup(l => l.IsEnabled(LogLevel.Trace)).Returns(true);
+        var service = new IdempotencyExecutionService(lockService.Object,
+            new Mock<ISafeRemoteCacheService>(MockBehavior.Strict).Object,
+            Options.Create(CreateOptions()), logger.Object);
+
+        await service.GetLockAsync(CreateJob().Object, TestContext.Current.CancellationToken);
+
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Trace,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("idem-1")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            isTrulyAcquired ? Times.Never() : Times.Once());
     }
 
     [Theory]
@@ -188,7 +223,8 @@ public class IdempotencyExecutionServiceTests
             .Returns(Task.CompletedTask);
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(idempotencyIdsCanRepeat: idempotencyIdsCanRepeat)));
+            Options.Create(CreateOptions(idempotencyIdsCanRepeat: idempotencyIdsCanRepeat)),
+            NullLogger<IdempotencyExecutionService>.Instance);
 
         await service.SetResultInCacheAsync(CreateRawJob().Object, jobResult,
             new SafeAcknowledgementResult
@@ -214,7 +250,8 @@ public class IdempotencyExecutionServiceTests
             .Returns(Task.CompletedTask);
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(resultCacheDurationSeconds: 1)));
+            Options.Create(CreateOptions(resultCacheDurationSeconds: 1)),
+            NullLogger<IdempotencyExecutionService>.Instance);
 
         await service.SetResultInCacheAsync(CreateRawJob().Object, CoreJobResult.Success,
             new SafeAcknowledgementResult
@@ -243,7 +280,8 @@ public class IdempotencyExecutionServiceTests
             .Returns(Task.CompletedTask);
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(idempotencyIdsCanRepeat: true)));
+            Options.Create(CreateOptions(idempotencyIdsCanRepeat: true)),
+            NullLogger<IdempotencyExecutionService>.Instance);
 
         await service.SetResultInCacheAsync(CreateRawJob().Object, jobResult,
             new SafeAcknowledgementResult
@@ -270,7 +308,7 @@ public class IdempotencyExecutionServiceTests
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(enabled)));
+            Options.Create(CreateOptions(enabled)), NullLogger<IdempotencyExecutionService>.Instance);
 
         await service.SetResultInCacheAsync(CreateRawJob(idempotencyId).Object, CoreJobResult.Success,
             new SafeAcknowledgementResult

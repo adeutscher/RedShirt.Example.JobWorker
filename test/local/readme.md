@@ -10,7 +10,7 @@ The scripts described below assume that certain Python modules are installed in 
 Run the following to install all of the assumed modules at once:
 
 ```
-pip install --user boto3 awscli awslocal stomp.py azure-cli azure.servicebus azure-storage-queue azure.identity azure.keyvault kafka-python redis
+pip install --user boto3 awscli awslocal stomp.py azure-cli azure.servicebus azure-storage-queue azure.identity azure.keyvault kafka-python redis pika
 ```
 
 ## Idempotency
@@ -180,23 +180,20 @@ To initialize RabbitMQ and queue messages:
     docker compose up -d rabbitmq
     ```
 
-4. Go to http://localhost:15672/
-
-5. Sign in with the username 'foo' and password 'bar'.
-
-6. Select the 'Queues and Streams' tab.
-
-7. Create a new queue named `RabbitQueue`. Leave all other options at default.
-
-8. Rather than cook up a new script for inserting messages, we will be using the Web GUI to submit messages for the moment. To insert a message into the queue, select `RabbitQueue` from the queue list and open the 'Publish message' section. Example of a message JSON payload:
+4. Create the RabbitMQ queue (safe to re-run if it already exists). This requires the `pika` Python module:
 
     ```
-    {"SleepDurationSeconds": 12}
+    ./make-local-rabbitmq-resources.py
     ```
 
-    * If you are testing idempotency, then remember to also set an arbitrary value to the `message_id` property.
+5. Use the `send-rabbitmq-job.py` script to publish a message to the `RabbitQueue` queue. Specify the number of seconds the worker should sleep for in the first argument. You may optionally provide a second argument to set the AMQP `message_id` property for idempotency testing:
 
-9. Before starting the worker, make sure that the `USE_RABBITMQ` is set to `1` and that other `USE_` environment variables are not set to `1`.
+    ```
+    ./send-rabbitmq-job.py 12
+    ./send-rabbitmq-job.py 12 example-idempotency-key
+    ```
+
+6. Before starting the worker, make sure that the `USE_RABBITMQ` is set to `1` and that other `USE_` environment variables are not set to `1`.
    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
     ```
@@ -211,7 +208,7 @@ To initialize RabbitMQ and queue messages:
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
-10. Bring up the worker:
+7. Bring up the worker:
 
     ```
     docker compose up worker
@@ -383,11 +380,11 @@ Redis Streams testing requires the `redis` Python module to be installed.
     ./make-local-redis-streams-resources.py
     ```
 
-4. Use the `send-redis-stream-job.py` script to publish a message to the `jobs` stream. Specify the number of seconds the worker should sleep for in the first argument. You may optionally provide a second argument to set the `message_id` field for idempotency testing:
+4. Use the `send-redis-streams-job.py` script to publish a message to the `jobs` stream. Specify the number of seconds the worker should sleep for in the first argument. You may optionally provide a second argument to set the `message_id` field for idempotency testing:
 
     ```
-    ./send-redis-stream-job.py 12
-    ./send-redis-stream-job.py 12 example-idempotency-key
+    ./send-redis-streams-job.py 12
+    ./send-redis-streams-job.py 12 example-idempotency-key
     ```
 
 5. Before starting the worker, make sure that `USE_REDIS_STREAMS` is set to `1` and that the other `USE_` environment variables are not set to `1`.

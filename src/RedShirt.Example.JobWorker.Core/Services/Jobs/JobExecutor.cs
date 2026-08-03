@@ -37,14 +37,14 @@ internal sealed class JobExecutor(
             await idempotencyExecutionService.GetCachedResultAsync(repositoryEntry.JobModel, cancellationToken);
         if (cachedAttemptResult is {JobResult: var cachedResult} && cachedResult.IsSuccessful())
         {
-            var idempotentAcknowledgementReport =
+            var newIdempotentAcknowledgementReport =
                 await safeJobAcknowledgementService.AcknowledgeSafelyAsync(
                     repositoryEntry.RawJobModel,
                     cachedResult,
                     previousAttempt: null,
                     exception: null,
                     cancellationToken: cancellationToken);
-            if (!idempotentAcknowledgementReport.Success)
+            if (!newIdempotentAcknowledgementReport.Success)
             {
                 /*
                  * An unsuccessful acknowledgement suggests that the executor somehow managed to lose custody of a message
@@ -54,9 +54,9 @@ internal sealed class JobExecutor(
                     repositoryEntry.JobModel.MessageId);
             }
 
-            // Send a notice to the idempotency execution service to refresh/remove the cache entry (depending on downstream settings) 
+            // Send a notice to the idempotency execution service to refresh/remove the cache entry (depending on downstream settings)
             await idempotencyExecutionService.SetResultInCacheAsync(repositoryEntry.RawJobModel, cachedResult,
-                idempotentAcknowledgementReport, cancellationToken);
+                newIdempotentAcknowledgementReport, cancellationToken);
             return;
         }
 
@@ -68,10 +68,6 @@ internal sealed class JobExecutor(
         var safeJobResult = await safeJobRunner.RunSafelyAsync(repositoryEntry.JobModel, cancellationToken);
         logger.LogTrace("Executor {Id} finished processing message {MessageId}. Result: {Result}", executorId,
             repositoryEntry.JobModel.MessageId, safeJobResult.Result);
-
-        await repositoryEntry.SetStateAsync(JobState.Complete, cancellationToken);
-
-        await jobRepository.RemoveJobAsync(repositoryEntry, cancellationToken);
 
         var acknowledgementSuccess =
             await safeJobAcknowledgementService.AcknowledgeSafelyAsync(repositoryEntry.RawJobModel,
@@ -89,16 +85,18 @@ internal sealed class JobExecutor(
     {
         while (await appliedExecutionEndArbiter.ExecutorsShouldKeepRunningAsync(cancellationToken))
         {
-            var job = await jobRepository.GetNextJobAsync(cancellationToken);
-            if (job is null)
+            var repositoryEntry = await jobRepository.GetNextJobAsync(cancellationToken);
+            if (repositoryEntry is null)
             {
                 // If JobRepository return null, then it implies that the execution end arbiter is about ot return false.
                 continue;
             }
 
-            logger.LogTrace("Executor {Id} received message {MessageId}", executorId, job.JobModel.MessageId);
+            logger.LogTrace("Executor {Id} received message {MessageId}", executorId,
+                repositoryEntry.JobModel.MessageId);
 
-            var idempotencyLock = await idempotencyExecutionService.GetLockAsync(job.JobModel, cancellationToken);
+            var idempotencyLock =
+                await idempotencyExecutionService.GetLockAsync(repositoryEntry.JobModel, cancellationToken);
 
             try
             {
@@ -113,12 +111,18 @@ internal sealed class JobExecutor(
                      */
                     logger.LogTrace(
                         "Executor {Id} was unable to obtain a lock on message {MessageId} , deferring to Idempotency Monitor",
-                        executorId, job.JobModel.MessageId);
-                    await job.SetStateAsync(JobState.BlockedByIdempotency, cancellationToken);
+                        executorId, repositoryEntry.JobModel.MessageId);
+                    await repositoryEntry.SetStateAsync(JobState.BlockedByIdempotency, cancellationToken);
                     continue;
                 }
 
-                await ActOnJobAsync(executorId, job, cancellationToken);
+                await ActOnJobAsync(executorId, repositoryEntry, cancellationToken);
+
+                // Mark as complete for all branches of ActOnJobAsync by doing it afterwards
+                // Reminder that JobState does not imply anything about success or acknowledgement success.
+                // It only means that the JobWorker is done with the job.
+                await repositoryEntry.SetStateAsync(JobState.Complete, cancellationToken);
+                await jobRepository.RemoveJobAsync(repositoryEntry, cancellationToken);
             }
             finally
             {

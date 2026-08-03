@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
@@ -24,7 +25,8 @@ internal interface IIdempotencyExecutionService
 internal sealed class IdempotencyExecutionService(
     ISafeAbstractedLockService abstractedLockService,
     ISafeRemoteCacheService cache,
-    IOptions<IdempotencyConfigurationModel> options) : IIdempotencyExecutionService
+    IOptions<IdempotencyConfigurationModel> options,
+    ILogger<IdempotencyExecutionService> logger) : IIdempotencyExecutionService
 {
     private const string CommonKeyPrefix = "idempotency";
 
@@ -81,7 +83,16 @@ internal sealed class IdempotencyExecutionService(
             return new EmptyIdempotencyLock();
         }
 
-        return await abstractedLockService.GetLockAsync(GetLockKey(jobModel.IdempotencyId!), token);
+        var @lock = await abstractedLockService.GetLockAsync(GetLockKey(jobModel.IdempotencyId!), token);
+
+        if (!@lock.IsTrulyAcquired)
+        {
+            logger.LogTrace(
+                "Idempotency lock for {IdempotencyId} was not truly acquired; proceeding with a permissive lock",
+                jobModel.IdempotencyId);
+        }
+
+        return @lock;
     }
 
     public async Task<IdempotencyCacheResult?> GetCachedResultAsync(IJobModel jobModel,

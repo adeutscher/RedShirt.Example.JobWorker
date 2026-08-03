@@ -156,6 +156,8 @@ public class JobExecutorTests
     public async Task WhenCachedResultIsSuccessAndAcknowledgeFails_SkipsExecution()
     {
         var (jobRepositoryEntry, jobModel, rawJobModel) = CreateRepositoryEntry();
+        jobRepositoryEntry.Setup(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
         var cachedResult = new IdempotencyCacheResult
         {
             JobResult = CoreJobResult.Success,
@@ -181,6 +183,9 @@ public class JobExecutorTests
         jobRepository
             .Setup(r => r.GetNextJobAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(jobRepositoryEntry.Object);
+        jobRepository
+            .Setup(r => r.RemoveJobAsync(jobRepositoryEntry.Object, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
 
         var idempotencyExecutionService = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
         idempotencyExecutionService
@@ -213,12 +218,18 @@ public class JobExecutorTests
             s => s.SetResultInCacheAsync(rawJobModel.Object, CoreJobResult.Success, failedAck,
                 TestContext.Current.CancellationToken),
             Times.Once);
+        jobRepositoryEntry.Verify(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken),
+            Times.Once);
+        jobRepository.Verify(r => r.RemoveJobAsync(jobRepositoryEntry.Object, TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Fact(Timeout = 2000)]
     public async Task WhenCachedResultIsSuccessAndAcknowledgeSucceeds_SkipsExecution()
     {
         var (jobRepositoryEntry, jobModel, rawJobModel) = CreateRepositoryEntry();
+        jobRepositoryEntry.Setup(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
         var cachedResult = new IdempotencyCacheResult
         {
             JobResult = CoreJobResult.Success,
@@ -244,6 +255,9 @@ public class JobExecutorTests
         jobRepository
             .Setup(r => r.GetNextJobAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(jobRepositoryEntry.Object);
+        jobRepository
+            .Setup(r => r.RemoveJobAsync(jobRepositoryEntry.Object, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
 
         var idempotencyExecutionService = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
         idempotencyExecutionService
@@ -275,6 +289,10 @@ public class JobExecutorTests
         idempotencyExecutionService.Verify(
             s => s.SetResultInCacheAsync(rawJobModel.Object, CoreJobResult.Success, successAck,
                 TestContext.Current.CancellationToken),
+            Times.Once);
+        jobRepositoryEntry.Verify(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken),
+            Times.Once);
+        jobRepository.Verify(r => r.RemoveJobAsync(jobRepositoryEntry.Object, TestContext.Current.CancellationToken),
             Times.Once);
     }
 
