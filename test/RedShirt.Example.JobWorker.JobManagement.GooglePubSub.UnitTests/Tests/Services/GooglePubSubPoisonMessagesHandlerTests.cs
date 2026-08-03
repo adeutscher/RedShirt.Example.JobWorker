@@ -44,26 +44,6 @@ public class GooglePubSubPoisonMessagesHandlerTests
         return container.Object;
     }
 
-    [Fact]
-    public async Task WhenDlqEnabled_ReturnsEnforcementNotEnabled()
-    {
-        var client = new Mock<IPubSubSubscriberClientWrapper>(MockBehavior.Strict);
-        var handler = CreateHandler(client, new GooglePubSubConfigurationModel
-        {
-            ProjectId = "local-pubsub",
-            SubscriptionId = "jobs-subscription",
-            VisibilityTimeoutSeconds = 60,
-            DlqNotEnabled = false,
-            MaximumReceives = 1
-        });
-
-        var outcome = await handler.AttemptPoisonMessageEnforcementAsync(CreateMessage(100),
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal(PoisonEnforcementResult.EnforcementNotEnabled, outcome);
-        Assert.Empty(client.Invocations);
-    }
-
     [Theory]
     [InlineData(5, 5)]
     [InlineData(6, 5)]
@@ -91,6 +71,28 @@ public class GooglePubSubPoisonMessagesHandlerTests
         client.Verify(c => c.AcknowledgeAsync(message, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Theory]
+    [InlineData(1, 5)]
+    [InlineData(4, 5)]
+    public async Task WhenDeliveryAttemptBelowMaximum_ReturnsNotEnforced(int deliveryAttempt, int maximumReceives)
+    {
+        var client = new Mock<IPubSubSubscriberClientWrapper>(MockBehavior.Strict);
+        var handler = CreateHandler(client, new GooglePubSubConfigurationModel
+        {
+            ProjectId = "local-pubsub",
+            SubscriptionId = "jobs-subscription",
+            VisibilityTimeoutSeconds = 60,
+            DlqNotEnabled = true,
+            MaximumReceives = maximumReceives
+        });
+
+        var outcome = await handler.AttemptPoisonMessageEnforcementAsync(CreateMessage(deliveryAttempt),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(PoisonEnforcementResult.NotEnforced, outcome);
+        Assert.Empty(client.Invocations);
+    }
+
     [Fact]
     public async Task WhenDeliveryAttemptMissing_ReturnsNotEnforced()
     {
@@ -111,10 +113,8 @@ public class GooglePubSubPoisonMessagesHandlerTests
         Assert.Empty(client.Invocations);
     }
 
-    [Theory]
-    [InlineData(1, 5)]
-    [InlineData(4, 5)]
-    public async Task WhenDeliveryAttemptBelowMaximum_ReturnsNotEnforced(int deliveryAttempt, int maximumReceives)
+    [Fact]
+    public async Task WhenDlqEnabled_ReturnsEnforcementNotEnabled()
     {
         var client = new Mock<IPubSubSubscriberClientWrapper>(MockBehavior.Strict);
         var handler = CreateHandler(client, new GooglePubSubConfigurationModel
@@ -122,14 +122,14 @@ public class GooglePubSubPoisonMessagesHandlerTests
             ProjectId = "local-pubsub",
             SubscriptionId = "jobs-subscription",
             VisibilityTimeoutSeconds = 60,
-            DlqNotEnabled = true,
-            MaximumReceives = maximumReceives
+            DlqNotEnabled = false,
+            MaximumReceives = 1
         });
 
-        var outcome = await handler.AttemptPoisonMessageEnforcementAsync(CreateMessage(deliveryAttempt),
+        var outcome = await handler.AttemptPoisonMessageEnforcementAsync(CreateMessage(100),
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(PoisonEnforcementResult.NotEnforced, outcome);
+        Assert.Equal(PoisonEnforcementResult.EnforcementNotEnabled, outcome);
         Assert.Empty(client.Invocations);
     }
 }

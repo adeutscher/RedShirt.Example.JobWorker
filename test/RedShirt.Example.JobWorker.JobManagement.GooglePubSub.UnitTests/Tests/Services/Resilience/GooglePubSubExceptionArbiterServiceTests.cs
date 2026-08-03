@@ -125,24 +125,6 @@ public class GooglePubSubExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_RpcException_Unavailable_SubchannelWithoutSocketException_IsStillTransient()
-    {
-        // Subchannel detail matches, but FindSocketException returns null (no Inner/Debug exception).
-        var exception = new RpcException(new Status(
-            StatusCode.Unavailable,
-            "Error connecting to subchannel."));
-
-        Assert.Null(exception.InnerException);
-        Assert.Null(exception.Status.DebugException);
-
-        var report = _sut.GetReport(exception);
-
-        Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
-        Assert.True(report.CouldBeTransient);
-    }
-
-    [Fact]
     public void GetReport_RpcException_Unavailable_SubchannelConnectionRefused_IsStillTransient()
     {
         var exception = new RpcException(new Status(
@@ -190,6 +172,24 @@ public class GooglePubSubExceptionArbiterServiceTests
         Assert.False(report.AlreadyHandled);
         Assert.False(report.IsCritical);
         Assert.False(report.CouldBeTransient);
+    }
+
+    [Fact]
+    public void GetReport_RpcException_Unavailable_SubchannelWithoutSocketException_IsStillTransient()
+    {
+        // Subchannel detail matches, but FindSocketException returns null (no Inner/Debug exception).
+        var exception = new RpcException(new Status(
+            StatusCode.Unavailable,
+            "Error connecting to subchannel."));
+
+        Assert.Null(exception.InnerException);
+        Assert.Null(exception.Status.DebugException);
+
+        var report = _sut.GetReport(exception);
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.True(report.CouldBeTransient);
     }
 
     [Fact]

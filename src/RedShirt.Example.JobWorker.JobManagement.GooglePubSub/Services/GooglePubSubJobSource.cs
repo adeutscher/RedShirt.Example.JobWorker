@@ -20,6 +20,15 @@ internal class GooglePubSubJobSource(
     ILogger<GooglePubSubJobSource> logger,
     IOptions<GooglePubSubConfigurationModel> options) : IJobSource
 {
+    private Task AcknowledgeMessageAsync(IPubSubMessageContainer message, CancellationToken cancellationToken)
+    {
+        return retryWrapperService.RunAsync(async ct =>
+        {
+            var client = await clientSource.GetSubscriberClientAsync(ct);
+            await client.AcknowledgeAsync(message, ct);
+        }, cancellationToken);
+    }
+
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
@@ -68,7 +77,8 @@ internal class GooglePubSubJobSource(
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
-        logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from Google Pub/Sub Subscription: {SubscriptionId}",
+        logger.LogTrace(
+            "Fetching up to {EffectiveBatchSize} messages from Google Pub/Sub Subscription: {SubscriptionId}",
             batchSize, options.Value.SubscriptionId);
 
         var messagesFromSource = await googlePubSubMessageSource.GetMessagesAsync(batchSize, cancellationToken);
@@ -103,11 +113,4 @@ internal class GooglePubSubJobSource(
                 options.Value.EffectiveVisibilityTimeoutSeconds, ct);
         }, cancellationToken);
     }
-
-    private Task AcknowledgeMessageAsync(IPubSubMessageContainer message, CancellationToken cancellationToken) =>
-        retryWrapperService.RunAsync(async ct =>
-        {
-            var client = await clientSource.GetSubscriberClientAsync(ct);
-            await client.AcknowledgeAsync(message, ct);
-        }, cancellationToken);
 }

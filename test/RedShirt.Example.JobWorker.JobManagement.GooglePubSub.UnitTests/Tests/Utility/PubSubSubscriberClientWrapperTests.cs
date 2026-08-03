@@ -53,6 +53,23 @@ public class PubSubSubscriberClientWrapperTests
     }
 
     [Fact]
+    public async Task GetMessagesAsync_DeadlineExceeded_ReturnsEmpty()
+    {
+        var client = new Mock<SubscriberServiceApiClient>(MockBehavior.Strict);
+        client
+            .Setup(c => c.PullAsync(Subscription, 5, It.IsAny<CallSettings>()))
+            .ThrowsAsync(new RpcException(new Status(StatusCode.DeadlineExceeded, "idle pull")))
+            .Verifiable();
+
+        var wrapper = new PubSubSubscriberClientWrapper(client.Object, Subscription);
+
+        var messages = await wrapper.GetMessagesAsync(5, TestContext.Current.CancellationToken);
+
+        Assert.Empty(messages);
+        client.Verify();
+    }
+
+    [Fact]
     public async Task GetMessagesAsync_MapsReceivedMessagesToContainers()
     {
         var pullResponse = new PullResponse();
@@ -72,23 +89,6 @@ public class PubSubSubscriberClientWrapperTests
         Assert.Equal(2, messages.Count);
         Assert.Equal("ack-a", messages[0].Message!.AckId);
         Assert.Equal("ack-b", messages[1].Message!.AckId);
-        client.Verify();
-    }
-
-    [Fact]
-    public async Task GetMessagesAsync_DeadlineExceeded_ReturnsEmpty()
-    {
-        var client = new Mock<SubscriberServiceApiClient>(MockBehavior.Strict);
-        client
-            .Setup(c => c.PullAsync(Subscription, 5, It.IsAny<CallSettings>()))
-            .ThrowsAsync(new RpcException(new Status(StatusCode.DeadlineExceeded, "idle pull")))
-            .Verifiable();
-
-        var wrapper = new PubSubSubscriberClientWrapper(client.Object, Subscription);
-
-        var messages = await wrapper.GetMessagesAsync(5, TestContext.Current.CancellationToken);
-
-        Assert.Empty(messages);
         client.Verify();
     }
 
