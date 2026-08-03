@@ -5,6 +5,7 @@ import redis
 # Connect to localhost on default port 6379
 client = redis.Redis(host='localhost', port=6379, decode_responses=True)
 
+
 def enumerate_keys(pattern='*'):
     cursor = 0
     while True:
@@ -14,6 +15,7 @@ def enumerate_keys(pattern='*'):
             print(key)
         if cursor == 0:
             break
+
 
 if __name__ == '__main__':
     enumerate_keys()

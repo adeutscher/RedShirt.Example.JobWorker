@@ -6,7 +6,8 @@ queue_name = 'RabbitQueue'
 
 credentials = pika.PlainCredentials('foo', 'bar')
 connection = pika.BlockingConnection(
-    pika.ConnectionParameters(host='localhost', credentials=credentials))
+    pika.ConnectionParameters(host='localhost', credentials=credentials)
+)
 channel = connection.channel()
 
 channel.queue_declare(queue=queue_name, durable=True)

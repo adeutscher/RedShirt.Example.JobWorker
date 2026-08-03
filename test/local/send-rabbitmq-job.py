@@ -14,13 +14,12 @@ if len(sys.argv) > 2:
 
 credentials = pika.PlainCredentials('foo', 'bar')
 connection = pika.BlockingConnection(
-    pika.ConnectionParameters(host='localhost', credentials=credentials))
+    pika.ConnectionParameters(host='localhost', credentials=credentials)
+)
 channel = connection.channel()
 
 channel.basic_publish(
-    exchange='',
-    routing_key=queue_name,
-    body=json.dumps(body),
-    properties=properties)
+    exchange='', routing_key=queue_name, body=json.dumps(body), properties=properties
+)
 
 connection.close()

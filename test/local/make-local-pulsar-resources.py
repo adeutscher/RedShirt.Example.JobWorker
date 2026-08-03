@@ -23,7 +23,9 @@ def wait_for_admin(timeout_seconds: int = 120) -> None:
     last_error = None
     while time.time() < deadline:
         try:
-            with urllib.request.urlopen(f"{ADMIN_URL}/admin/v2/clusters", timeout=2) as response:
+            with urllib.request.urlopen(
+                f"{ADMIN_URL}/admin/v2/clusters", timeout=2
+            ) as response:
                 if response.status == 200:
                     return
         except Exception as exc:  # noqa: BLE001 - local bootstrap helper
