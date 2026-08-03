@@ -77,6 +77,8 @@ services:
       # Dual listeners so the worker can use pulsar://pulsar:6650 while host scripts use pulsar://localhost:6650
       PULSAR_PREFIX_advertisedListeners: "internal:pulsar://pulsar:6650,external:pulsar://localhost:6650"
       PULSAR_PREFIX_advertisedListenerName: internal
+      # Require explicit topic creation (see make-local-pulsar-resources.py); do not auto-create on subscribe/produce
+      PULSAR_PREFIX_allowAutoTopicCreation: "false"
       PULSAR_MEM: "-Xms512m -Xmx512m -XX:MaxDirectMemorySize=256m"
     command: >
       bash -c "bin/apply-config-from-env.py conf/standalone.conf && bin/pulsar standalone"
@@ -178,6 +180,7 @@ services:
       JOBS__IDEMPOTENCY__RESULT_CACHE_DURATION_SECONDS: 300
       JOBS__IDEMPOTENCY__MONITOR_INTERVAL_SECONDS: 30
       JOBS__IDEMPOTENCY__IDEMPOTENCY_IDS_CAN_REPEAT: false
+      JOBS__IDEMPOTENCY__ENABLE_TRACE_LOGGING: false
       ## Common Distributed Execution Support Cache Options (Safety Layer Settings)
       COMMON__DISTRIBUTED__SAFETY__DISGRACE_PERIOD_SECONDS: 60
       COMMON__DISTRIBUTED__LOCKS__TIMEOUT_SECONDS: 30

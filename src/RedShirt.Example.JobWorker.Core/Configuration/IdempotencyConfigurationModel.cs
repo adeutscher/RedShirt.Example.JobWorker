@@ -16,4 +16,6 @@ internal sealed class IdempotencyConfigurationModel
     ///     where caching the result of a job is not necessary.
     /// </summary>
     public required bool IdempotencyIdsCanRepeat { get; init; }
+
+    public required bool EnableTraceLogging { get; init; }
 }

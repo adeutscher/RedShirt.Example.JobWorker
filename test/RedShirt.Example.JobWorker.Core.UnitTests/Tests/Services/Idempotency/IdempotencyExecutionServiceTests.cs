@@ -24,7 +24,8 @@ public class IdempotencyExecutionServiceTests
             Enabled = enabled,
             ResultCacheDurationSeconds = resultCacheDurationSeconds,
             MonitorIntervalSeconds = 5,
-            IdempotencyIdsCanRepeat = idempotencyIdsCanRepeat
+            IdempotencyIdsCanRepeat = idempotencyIdsCanRepeat,
+            EnableTraceLogging = false
         };
     }
 

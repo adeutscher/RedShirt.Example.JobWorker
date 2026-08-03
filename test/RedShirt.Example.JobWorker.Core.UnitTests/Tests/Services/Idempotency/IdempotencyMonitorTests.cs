@@ -21,7 +21,8 @@ public class IdempotencyMonitorTests
             Enabled = enabled,
             ResultCacheDurationSeconds = 30,
             MonitorIntervalSeconds = monitorIntervalSeconds,
-            IdempotencyIdsCanRepeat = false
+            IdempotencyIdsCanRepeat = false,
+            EnableTraceLogging = false
         };
     }
 

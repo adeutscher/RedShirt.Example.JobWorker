@@ -35,9 +35,29 @@ internal sealed class IdempotencyExecutionService(
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    private bool IdempotencyCannotProceed(string? idempotencyId)
+    private enum IdempotencyCannotProceedReason
     {
-        return !options.Value.Enabled || string.IsNullOrWhiteSpace(idempotencyId);
+        Unknown,
+        Disabled,
+        EmptyIdempotencyKey
+    }
+
+    private bool IdempotencyCannotProceed(string? idempotencyId, out IdempotencyCannotProceedReason reason)
+    {
+        if (!options.Value.Enabled)
+        {
+            reason = IdempotencyCannotProceedReason.Disabled;
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(idempotencyId))
+        {
+            reason = IdempotencyCannotProceedReason.EmptyIdempotencyKey;
+            return true;
+        }
+
+        reason = default;
+        return false;
     }
 
     private static string GetKey(string idempotencyId, string type)
@@ -98,8 +118,12 @@ internal sealed class IdempotencyExecutionService(
     public async Task<IdempotencyCacheResult?> GetCachedResultAsync(IJobModel jobModel,
         CancellationToken cancellationToken = default)
     {
-        if (IdempotencyCannotProceed(jobModel.IdempotencyId))
+        if (IdempotencyCannotProceed(jobModel.IdempotencyId, out var reason))
         {
+            if (options.Value.EnableTraceLogging)
+            {
+                logger.LogTrace($"");
+            }
             return null;
         }
 
@@ -126,7 +150,7 @@ internal sealed class IdempotencyExecutionService(
         CancellationToken cancellationToken = default)
     {
         // ReSharper disable once ConvertIfStatementToReturnStatement
-        if (IdempotencyCannotProceed(jobModel.IdempotencyId))
+        if (IdempotencyCannotProceed(jobModel.IdempotencyId, out _))
         {
             return Task.CompletedTask;
         }
