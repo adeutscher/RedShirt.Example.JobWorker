@@ -19,7 +19,9 @@ internal class PulsarMessageSource(
     public async Task<IPulsarMessageSourceResponse> GetMessagesAsync(int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var consumer = await consumerSource.GetConsumerAsync(cancellationToken);
+        var consumer = await retryWrapperService.RunAsync(
+            consumerSource.GetConsumerAsync,
+            cancellationToken);
         var messages = new List<IPulsarMessageContainer>();
 
         while (messages.Count < batchSize)
