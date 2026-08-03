@@ -3,7 +3,7 @@ using Pulsar.Client.Api;
 using Pulsar.Client.Common;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Models;
-using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services;
+using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.UnitTests.Tests.Services;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Utility;
 

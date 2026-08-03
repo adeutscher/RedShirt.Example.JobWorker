@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services;
+using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.Extensions;
 

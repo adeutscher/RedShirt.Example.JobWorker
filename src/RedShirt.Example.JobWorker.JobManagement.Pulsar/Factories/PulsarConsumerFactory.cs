@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Options;
 using Pulsar.Client.Api;
 using Pulsar.Client.Common;
-using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services;
+using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Utility;
 using System.Text;
 

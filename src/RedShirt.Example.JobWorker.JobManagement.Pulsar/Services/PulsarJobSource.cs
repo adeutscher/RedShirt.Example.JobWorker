@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Logging;
+using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Models;
+using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.Services;
 
@@ -11,13 +13,12 @@ internal class PulsarJobSource(
     IPulsarConsumerSource consumerSource,
     IPulsarMessageSource pulsarMessageSource,
     IPulsarRetryWrapperService retryWrapperService,
-    ISourceMessageConverter converter,
     ILogger<PulsarJobSource> logger) : IJobSource
 {
     private readonly SemaphoreSlim _sessionSemaphore = new(1, 1);
     internal PulsarTrackerSession? Session;
 
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
         if (message is not PulsarJobModel pulsarJobModel
@@ -40,13 +41,14 @@ internal class PulsarJobSource(
              * Most of the important code within the consumer wrapper implementation is itself wrapped by the retryWrapper.
              * Wrapping again just in case there's something exception-worthy coming from another part of the code.
              *
-             * Success acknowledges the message. Failure negatively acknowledges so Pulsar redelivers and the
-             * consumer DeadLetterPolicy can move the message to the DLQ after MaxRedeliverCount.
+             * Success acknowledges the message. Non-success negatively acknowledges so Pulsar redelivers and the
+             * consumer DeadLetterPolicy can move the message to the DLQ after MaxRedeliverCount
+             * (recoverable failures redeliver for retry; Empty / Parsing / Broken also nack toward DLQ).
              */
             await retryWrapperService.RunAsync(async ct =>
             {
                 var consumer = consumerSource.GetConsumer();
-                if (success)
+                if (result.IsSuccessful())
                 {
                     await consumer.AcknowledgeAsync(pulsarJobModel.Message, ct);
                 }
@@ -69,7 +71,7 @@ internal class PulsarJobSource(
         }
     }
 
-    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
+    public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         if (Session is not null)
         {
@@ -91,65 +93,23 @@ internal class PulsarJobSource(
 
         var messageSourceResponse = await pulsarMessageSource.GetMessagesAsync(batchSize, cancellationToken);
 
-        var items = new List<IJobModel>();
+        var items = new List<IRawJobModel>();
         var messagesToProcess = new List<IPulsarMessageContainer>();
-        var deadLetterMessages = new List<IPulsarMessageContainer>();
         var totalMessages = new List<IPulsarMessageContainer>();
 
         foreach (var receivedMessage in messageSourceResponse.Messages)
         {
             totalMessages.Add(receivedMessage);
 
-            var messageBody = receivedMessage.Value;
+            logger.LogTrace("Raw Pulsar message: {MessageBody}", receivedMessage.Value);
 
-            if (string.IsNullOrWhiteSpace(messageBody))
+            items.Add(new PulsarJobModel
             {
-                logger.LogWarning("Empty Pulsar message body for {MessageId}; negatively acknowledging",
-                    receivedMessage.MessageId);
-                deadLetterMessages.Add(receivedMessage);
-                continue;
-            }
-
-            try
-            {
-                logger.LogTrace("Raw Pulsar message: {MessageBody}", messageBody);
-
-                var @object = converter.Convert(messageBody);
-                if (@object is null)
-                {
-                    logger.LogWarning(
-                        "Pulsar message conversion returned null for {MessageId}; negatively acknowledging",
-                        receivedMessage.MessageId);
-                    deadLetterMessages.Add(receivedMessage);
-                    continue;
-                }
-
-                var data = new PulsarJobModel
-                {
-                    Message = receivedMessage,
-                    CreatedAtUtc = DateTime.UtcNow,
-                    Data = @object
-                };
-
-                items.Add(data);
-                messagesToProcess.Add(receivedMessage);
-            }
-            catch (Exception e)
-            {
-                logger.LogWarning(e, "Error parsing Pulsar message: {MessageBody}", messageBody);
-                deadLetterMessages.Add(receivedMessage);
-            }
-        }
-
-        if (deadLetterMessages.Count > 0)
-        {
-            /*
-             * Unparseable / empty messages are negatively acknowledged immediately so they redeliver into
-             * DeadLetterPolicy (same role as Azure Service Bus DeadLetterMessageAsync for poison payloads).
-             */
-            await retryWrapperService.RunAsync(
-                ct => consumerSource.GetConsumer().NegativeAcknowledgeAsync(deadLetterMessages, ct),
-                cancellationToken);
+                Message = receivedMessage,
+                CreatedAtUtc = DateTime.UtcNow,
+                Body = receivedMessage.Value
+            });
+            messagesToProcess.Add(receivedMessage);
         }
 
         // ReSharper disable once InvertIf
@@ -179,7 +139,7 @@ internal class PulsarJobSource(
     /// </summary>
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
-    public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         /*
          * Not necessary. Subscription heartbeats / flow control are managed by the underlying Pulsar client.

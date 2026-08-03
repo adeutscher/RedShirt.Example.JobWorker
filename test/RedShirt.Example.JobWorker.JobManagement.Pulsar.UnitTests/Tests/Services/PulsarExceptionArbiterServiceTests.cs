@@ -1,6 +1,6 @@
 using Pulsar.Client.Api;
 using RedShirt.Example.JobWorker.Core.Exceptions;
-using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services;
+using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services.Resilience;
 using System.Net.Sockets;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.UnitTests.Tests.Services;

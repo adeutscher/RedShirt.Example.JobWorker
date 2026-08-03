@@ -1,7 +1,7 @@
 using RedShirt.Example.JobWorker.Core.Exceptions;
-using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Utility;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Models;
-using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services;
+using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.UnitTests.Tests.Services;
 

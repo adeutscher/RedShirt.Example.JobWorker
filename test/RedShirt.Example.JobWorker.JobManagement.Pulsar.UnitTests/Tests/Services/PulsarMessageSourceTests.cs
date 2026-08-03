@@ -1,6 +1,7 @@
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Models;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services;
+using RedShirt.Example.JobWorker.JobManagement.Pulsar.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.UnitTests.Tests.Services;

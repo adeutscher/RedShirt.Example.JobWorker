@@ -3,7 +3,7 @@ using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Models;
 using System.Net.Sockets;
 
-namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.Services;
+namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.Services.Resilience;
 
 /// <summary>
 ///     Classifies Pulsar client exceptions for retry decisions.
