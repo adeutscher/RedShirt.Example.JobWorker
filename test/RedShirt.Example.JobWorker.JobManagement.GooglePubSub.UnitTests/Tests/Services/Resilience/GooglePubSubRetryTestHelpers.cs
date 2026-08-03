@@ -1,7 +1,7 @@
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Models;
-using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services.Resilience;
 
-namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.Tests.Services.Resilience;
 
 internal static class GooglePubSubRetryTestHelpers
 {

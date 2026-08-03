@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Factories;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Models;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services;
 

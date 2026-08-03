@@ -2,9 +2,11 @@ using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Configuration;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Enums;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Factories;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Models;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.Tests.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.Tests.Services;
@@ -43,7 +45,7 @@ public class GooglePubSubPoisonMessagesHandlerTests
     }
 
     [Fact]
-    public async Task WhenDlqEnabled_DoesNotAcknowledge()
+    public async Task WhenDlqEnabled_ReturnsEnforcementNotEnabled()
     {
         var client = new Mock<IPubSubSubscriberClientWrapper>(MockBehavior.Strict);
         var handler = CreateHandler(client, new GooglePubSubConfigurationModel
@@ -56,10 +58,10 @@ public class GooglePubSubPoisonMessagesHandlerTests
             MaximumReceives = 1
         });
 
-        var removed = await handler.AttemptPoisonMessageEnforcementAsync(CreateMessage(100),
+        var outcome = await handler.AttemptPoisonMessageEnforcementAsync(CreateMessage(100),
             TestContext.Current.CancellationToken);
 
-        Assert.False(removed);
+        Assert.Equal(PoisonEnforcementResult.EnforcementNotEnabled, outcome);
         Assert.Empty(client.Invocations);
     }
 
@@ -68,7 +70,7 @@ public class GooglePubSubPoisonMessagesHandlerTests
     [InlineData(6, 5)]
     [InlineData(1, 1)]
     [InlineData(1, 0)] // EffectiveMaximumReceives floors at 1
-    public async Task WhenDeliveryAttemptAtOrAboveMaximum_AcknowledgesMessage(int deliveryAttempt,
+    public async Task WhenDeliveryAttemptAtOrAboveMaximum_ReturnsEnforced(int deliveryAttempt,
         int maximumReceives)
     {
         var client = new Mock<IPubSubSubscriberClientWrapper>();
@@ -84,15 +86,15 @@ public class GooglePubSubPoisonMessagesHandlerTests
 
         var message = CreateMessage(deliveryAttempt);
 
-        var removed = await handler.AttemptPoisonMessageEnforcementAsync(message,
+        var outcome = await handler.AttemptPoisonMessageEnforcementAsync(message,
             TestContext.Current.CancellationToken);
 
-        Assert.True(removed);
+        Assert.Equal(PoisonEnforcementResult.Enforced, outcome);
         client.Verify(c => c.AcknowledgeAsync(message, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task WhenDeliveryAttemptMissing_DoesNotAcknowledge()
+    public async Task WhenDeliveryAttemptMissing_ReturnsNotEnforced()
     {
         var client = new Mock<IPubSubSubscriberClientWrapper>(MockBehavior.Strict);
         var handler = CreateHandler(client, new GooglePubSubConfigurationModel
@@ -105,17 +107,17 @@ public class GooglePubSubPoisonMessagesHandlerTests
             MaximumReceives = 1
         });
 
-        var removed = await handler.AttemptPoisonMessageEnforcementAsync(CreateMessage(0),
+        var outcome = await handler.AttemptPoisonMessageEnforcementAsync(CreateMessage(0),
             TestContext.Current.CancellationToken);
 
-        Assert.False(removed);
+        Assert.Equal(PoisonEnforcementResult.NotEnforced, outcome);
         Assert.Empty(client.Invocations);
     }
 
     [Theory]
     [InlineData(1, 5)]
     [InlineData(4, 5)]
-    public async Task WhenDeliveryAttemptBelowMaximum_DoesNotAcknowledge(int deliveryAttempt, int maximumReceives)
+    public async Task WhenDeliveryAttemptBelowMaximum_ReturnsNotEnforced(int deliveryAttempt, int maximumReceives)
     {
         var client = new Mock<IPubSubSubscriberClientWrapper>(MockBehavior.Strict);
         var handler = CreateHandler(client, new GooglePubSubConfigurationModel
@@ -128,10 +130,10 @@ public class GooglePubSubPoisonMessagesHandlerTests
             MaximumReceives = maximumReceives
         });
 
-        var removed = await handler.AttemptPoisonMessageEnforcementAsync(CreateMessage(deliveryAttempt),
+        var outcome = await handler.AttemptPoisonMessageEnforcementAsync(CreateMessage(deliveryAttempt),
             TestContext.Current.CancellationToken);
 
-        Assert.False(removed);
+        Assert.Equal(PoisonEnforcementResult.NotEnforced, outcome);
         Assert.Empty(client.Invocations);
     }
 }

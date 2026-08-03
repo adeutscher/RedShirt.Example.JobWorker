@@ -3,6 +3,7 @@ using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Factories;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Models;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.Tests.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.Tests.Services;

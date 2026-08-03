@@ -1,71 +1,81 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Configuration;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Enums;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Factories;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Models;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.Tests.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.Tests.Services;
 
 public class GooglePubSubJobSourceTests
 {
-    private static GooglePubSubConfigurationModel DefaultOptions()
+    private static GooglePubSubConfigurationModel DefaultOptions(int visibilityTimeoutSeconds = 60)
     {
         return new GooglePubSubConfigurationModel
         {
             ProjectId = "local-pubsub",
             SubscriptionId = "jobs-subscription",
-            VisibilityTimeoutSeconds = 60,
+            VisibilityTimeoutSeconds = visibilityTimeoutSeconds,
             MaxMessagesPerRequest = 100,
             DlqNotEnabled = true,
             MaximumReceives = 3
         };
     }
 
-    private static Mock<IGooglePubSubPoisonMessagesHandler> CreatePassthroughPoisonHandler()
+    private static Mock<IGooglePubSubPoisonMessagesHandler> CreatePassthroughPoisonHandler(
+        PoisonEnforcementResult result = PoisonEnforcementResult.NotEnforced)
     {
         var poison = new Mock<IGooglePubSubPoisonMessagesHandler>(MockBehavior.Strict);
         poison
             .Setup(p => p.AttemptPoisonMessageEnforcementAsync(It.IsAny<IPubSubMessageContainer>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(false);
+            .ReturnsAsync(result);
         return poison;
     }
 
-    [Fact]
-    public async Task AcknowledgeAndHeartbeat_IgnoreNonPubSubJobs()
+    private static GooglePubSubJobModel CreateJob(IPubSubMessageContainer message)
     {
-        var client = new Mock<IPubSubSubscriberClientWrapper>();
-        var source = new Mock<IPubSubSubscriberClientSource>();
-        source
-            .Setup(s => s.GetSubscriberClientAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(client.Object);
-
-        var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
-            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            CreatePassthroughPoisonHandler().Object,
-            new Mock<ISourceMessageConverter>().Object,
-            new Mock<IGooglePubSubBodyStringRetriever>().Object,
-            new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
-
-        await jobSource.AcknowledgeCompletionAsync(new Mock<IJobModel>().Object, true,
-            TestContext.Current.CancellationToken);
-        await jobSource.HeartbeatAsync(new Mock<IJobModel>().Object, TestContext.Current.CancellationToken);
-
-        client.Verify(c => c.AcknowledgeAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-        client.Verify(
-            c => c.ModifyAckDeadlineAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<int>(),
-                It.IsAny<CancellationToken>()), Times.Never);
+        return new GooglePubSubJobModel
+        {
+            Message = message,
+            CreatedAtUtc = DateTime.UtcNow
+        };
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task TestAcknowledgeCompletionAsync(bool success)
+    [InlineData(CoreJobResult.Success)]
+    [InlineData(CoreJobResult.Failure)]
+    [InlineData(CoreJobResult.Empty)]
+    public async Task Test_AcknowledgeAsync_IncompatibleMessage(CoreJobResult result)
+    {
+        var client = new Mock<IPubSubSubscriberClientWrapper>(MockBehavior.Strict);
+        var source = new Mock<IPubSubSubscriberClientSource>(MockBehavior.Strict);
+        var poison = new Mock<IGooglePubSubPoisonMessagesHandler>(MockBehavior.Strict);
+
+        var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
+            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            poison.Object, Options.Create(DefaultOptions()));
+
+        var job = new OutsideContextJobModel
+        {
+            MessageId = Guid.NewGuid().ToString(),
+            CreatedAtUtc = DateTime.UtcNow,
+            Body = Guid.NewGuid().ToString()
+        };
+
+        await jobSource.AcknowledgeAsync(job, result, TestContext.Current.CancellationToken);
+
+        Assert.Empty(client.Invocations);
+        Assert.Empty(source.Invocations);
+        Assert.Empty(poison.Invocations);
+    }
+
+    [Fact]
+    public async Task Test_AcknowledgeAsync_Success()
     {
         var client = new Mock<IPubSubSubscriberClientWrapper>();
         var source = new Mock<IPubSubSubscriberClientSource>();
@@ -74,38 +84,59 @@ public class GooglePubSubJobSourceTests
             .ReturnsAsync(client.Object);
 
         var message = new Mock<IPubSubMessageContainer>();
-        var job = new GooglePubSubJobModel
-        {
-            Message = message.Object,
-            CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object
-        };
+        var poison = new Mock<IGooglePubSubPoisonMessagesHandler>(MockBehavior.Strict);
 
         var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            CreatePassthroughPoisonHandler().Object,
-            new Mock<ISourceMessageConverter>().Object,
-            new Mock<IGooglePubSubBodyStringRetriever>().Object,
-            new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
+            poison.Object, Options.Create(DefaultOptions()));
 
-        await jobSource.AcknowledgeCompletionAsync(job, success, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeAsync(CreateJob(message.Object), CoreJobResult.Success,
+            TestContext.Current.CancellationToken);
 
-        if (success)
-        {
-            client.Verify(c => c.AcknowledgeAsync(message.Object, It.IsAny<CancellationToken>()), Times.Once);
-            client.Verify(c => c.NackAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<CancellationToken>()),
-                Times.Never);
-        }
-        else
-        {
-            client.Verify(c => c.NackAsync(message.Object, It.IsAny<CancellationToken>()), Times.Once);
-            client.Verify(c => c.AcknowledgeAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<CancellationToken>()),
-                Times.Never);
-        }
+        client.Verify(c => c.AcknowledgeAsync(message.Object, It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(c => c.NackAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        Assert.Empty(poison.Invocations);
     }
 
-    [Fact]
-    public async Task TestAcknowledgeCompletionAsync_WhenPoisonHandled_DoesNotNack()
+    [Theory]
+    [InlineData(CoreJobResult.Empty)]
+    [InlineData(CoreJobResult.Parsing)]
+    [InlineData(CoreJobResult.Broken)]
+    public async Task Test_AcknowledgeAsync_NonRecoverable_AcknowledgesWhenNotAlreadyEnforced(
+        CoreJobResult result)
+    {
+        var client = new Mock<IPubSubSubscriberClientWrapper>();
+        var source = new Mock<IPubSubSubscriberClientSource>();
+        source
+            .Setup(s => s.GetSubscriberClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var message = new Mock<IPubSubMessageContainer>();
+        var poison = CreatePassthroughPoisonHandler();
+
+        var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
+            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            poison.Object, Options.Create(DefaultOptions()));
+
+        await jobSource.AcknowledgeAsync(CreateJob(message.Object), result,
+            TestContext.Current.CancellationToken);
+
+        poison.Verify(
+            p => p.AttemptPoisonMessageEnforcementAsync(message.Object, TestContext.Current.CancellationToken),
+            Times.Once);
+        client.Verify(c => c.AcknowledgeAsync(message.Object, It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(c => c.NackAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Theory]
+    [InlineData(CoreJobResult.Empty)]
+    [InlineData(CoreJobResult.Parsing)]
+    [InlineData(CoreJobResult.Broken)]
+    [InlineData(CoreJobResult.Failure)]
+    [InlineData(CoreJobResult.Cancelled)]
+    public async Task Test_AcknowledgeAsync_SkipsClientCallsWhenAlreadyEnforced(CoreJobResult result)
     {
         var client = new Mock<IPubSubSubscriberClientWrapper>(MockBehavior.Strict);
         var source = new Mock<IPubSubSubscriberClientSource>();
@@ -114,124 +145,25 @@ public class GooglePubSubJobSourceTests
             .ReturnsAsync(client.Object);
 
         var message = new Mock<IPubSubMessageContainer>();
-        var job = new GooglePubSubJobModel
-        {
-            Message = message.Object,
-            CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object
-        };
-
-        var poison = new Mock<IGooglePubSubPoisonMessagesHandler>(MockBehavior.Strict);
-        poison
-            .Setup(p => p.AttemptPoisonMessageEnforcementAsync(message.Object, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+        var poison = CreatePassthroughPoisonHandler(PoisonEnforcementResult.Enforced);
 
         var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            poison.Object,
-            new Mock<ISourceMessageConverter>().Object,
-            new Mock<IGooglePubSubBodyStringRetriever>().Object,
-            new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
+            poison.Object, Options.Create(DefaultOptions()));
 
-        await jobSource.AcknowledgeCompletionAsync(job, false, TestContext.Current.CancellationToken);
+        await jobSource.AcknowledgeAsync(CreateJob(message.Object), result,
+            TestContext.Current.CancellationToken);
 
-        poison.Verify(p => p.AttemptPoisonMessageEnforcementAsync(message.Object, It.IsAny<CancellationToken>()),
+        poison.Verify(
+            p => p.AttemptPoisonMessageEnforcementAsync(message.Object, TestContext.Current.CancellationToken),
             Times.Once);
         Assert.Empty(client.Invocations);
     }
 
     [Theory]
-    [InlineData(2)]
-    [InlineData(5)]
-    [InlineData(10)]
-    public async Task TestGetJobsAsync(int batchSize)
-    {
-        var data1 = Guid.NewGuid().ToString();
-        var mock1 = new Mock<IJobDataModel>().Object;
-        var data2 = Guid.NewGuid().ToString();
-        var mock2 = new Mock<IJobDataModel>().Object;
-
-        var data3 = Guid.NewGuid().ToString();
-        var data4 = Guid.NewGuid().ToString();
-
-        var client = new Mock<IPubSubSubscriberClientWrapper>();
-        var source = new Mock<IPubSubSubscriberClientSource>();
-        source
-            .Setup(s => s.GetSubscriberClientAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(client.Object);
-
-        var bodyRetriever = new Mock<IGooglePubSubBodyStringRetriever>();
-
-        var message1 = new Mock<IPubSubMessageContainer>();
-        bodyRetriever.Setup(m => m.GetBody(message1.Object)).Returns(data1);
-        var message2 = new Mock<IPubSubMessageContainer>();
-        bodyRetriever.Setup(m => m.GetBody(message2.Object)).Returns(data2);
-        var message3 = new Mock<IPubSubMessageContainer>();
-        bodyRetriever.Setup(m => m.GetBody(message3.Object)).Returns(data3);
-        var message4 = new Mock<IPubSubMessageContainer>();
-        bodyRetriever.Setup(m => m.GetBody(message4.Object)).Returns(data4);
-
-        var pubSubMessageSource = new Mock<IGooglePubSubMessageSource>(MockBehavior.Strict);
-        pubSubMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([message1.Object, message2.Object, message3.Object, message4.Object]);
-
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(data1)).Returns(mock1);
-        converter.Setup(c => c.Convert(data2)).Returns(mock2);
-        converter.Setup(c => c.Convert(data3)).Returns((IJobDataModel?) null);
-        converter.Setup(c => c.Convert(data4)).Returns((string _) => throw new Exception());
-
-        var jobSource = new GooglePubSubJobSource(source.Object, pubSubMessageSource.Object,
-            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            CreatePassthroughPoisonHandler().Object, converter.Object,
-            bodyRetriever.Object,
-            new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
-
-        var response = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
-        Assert.Equal(2, response.Items.Count);
-
-        pubSubMessageSource.Verify(a => a.GetMessagesAsync(batchSize, It.IsAny<CancellationToken>()), Times.Once);
-        // Unusable messages without a DeliveryAttempt are acknowledged to avoid infinite loops
-        client.Verify(c => c.AcknowledgeAsync(message3.Object, It.IsAny<CancellationToken>()), Times.Once);
-        client.Verify(c => c.AcknowledgeAsync(message4.Object, It.IsAny<CancellationToken>()), Times.Once);
-
-        Assert.Same(mock1, response.Items[0].Data);
-        Assert.Same(mock2, response.Items[1].Data);
-    }
-
-    [Fact]
-    public async Task TestGetJobsAsync_FailedToGetBody_AcknowledgesWhenDeliveryAttemptUnavailable()
-    {
-        var client = new Mock<IPubSubSubscriberClientWrapper>();
-        var source = new Mock<IPubSubSubscriberClientSource>();
-        source
-            .Setup(s => s.GetSubscriberClientAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(client.Object);
-
-        var bodyRetriever = new Mock<IGooglePubSubBodyStringRetriever>();
-        var message1 = new Mock<IPubSubMessageContainer>();
-        bodyRetriever.Setup(m => m.GetBody(message1.Object))
-            .Returns(() => throw new Exception("Controlled Test Blast"));
-
-        var pubSubMessageSource = new Mock<IGooglePubSubMessageSource>(MockBehavior.Strict);
-        pubSubMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([message1.Object]);
-
-        var jobSource = new GooglePubSubJobSource(source.Object, pubSubMessageSource.Object,
-            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            CreatePassthroughPoisonHandler().Object,
-            new Mock<ISourceMessageConverter>().Object,
-            bodyRetriever.Object,
-            new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
-
-        var response = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
-
-        Assert.Empty(response.Items);
-        client.Verify(c => c.AcknowledgeAsync(message1.Object, It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task TestHeartbeatAsync()
+    [InlineData(CoreJobResult.Failure)]
+    [InlineData(CoreJobResult.Cancelled)]
+    public async Task Test_AcknowledgeAsync_RecoverableFailure_NacksWhenNotEnforced(CoreJobResult result)
     {
         var client = new Mock<IPubSubSubscriberClientWrapper>();
         var source = new Mock<IPubSubSubscriberClientSource>();
@@ -240,24 +172,186 @@ public class GooglePubSubJobSourceTests
             .ReturnsAsync(client.Object);
 
         var message = new Mock<IPubSubMessageContainer>();
-        var job = new GooglePubSubJobModel
-        {
-            Message = message.Object,
-            CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object
-        };
+        var poison = CreatePassthroughPoisonHandler();
 
         var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            CreatePassthroughPoisonHandler().Object,
-            new Mock<ISourceMessageConverter>().Object,
-            new Mock<IGooglePubSubBodyStringRetriever>().Object,
-            new NullLogger<GooglePubSubJobSource>(), Options.Create(DefaultOptions()));
+            poison.Object, Options.Create(DefaultOptions()));
+
+        await jobSource.AcknowledgeAsync(CreateJob(message.Object), result,
+            TestContext.Current.CancellationToken);
+
+        poison.Verify(
+            p => p.AttemptPoisonMessageEnforcementAsync(message.Object, TestContext.Current.CancellationToken),
+            Times.Once);
+        client.Verify(c => c.NackAsync(message.Object, It.IsAny<CancellationToken>()), Times.Once);
+        client.Verify(c => c.AcknowledgeAsync(It.IsAny<IPubSubMessageContainer>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(5)]
+    [InlineData(10)]
+    public async Task TestGetJobsAsync(int batchSize)
+    {
+        var messageId1 = Guid.NewGuid().ToString();
+        var data1 = Guid.NewGuid().ToString();
+        var messageId2 = Guid.NewGuid().ToString();
+        var data2 = Guid.NewGuid().ToString();
+        var data3 = Guid.NewGuid().ToString();
+        var data4 = Guid.NewGuid().ToString();
+
+        var message1 = CreateContainer(messageId1, data1);
+        var message2 = CreateContainer(messageId2, data2);
+        var message3 = CreateContainer(Guid.NewGuid().ToString(), data3);
+        var message4 = CreateContainer(Guid.NewGuid().ToString(), data4);
+
+        var pubSubMessageSource = new Mock<IGooglePubSubMessageSource>(MockBehavior.Strict);
+        pubSubMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([message1, message2, message3, message4]);
+
+        var jobSource = new GooglePubSubJobSource(new Mock<IPubSubSubscriberClientSource>().Object,
+            pubSubMessageSource.Object,
+            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            CreatePassthroughPoisonHandler().Object, Options.Create(DefaultOptions()));
+
+        var response = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
+        Assert.Equal(4, response.Items.Count);
+
+        pubSubMessageSource.Verify(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        pubSubMessageSource.Verify(a => a.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken),
+            Times.Once);
+
+        Assert.Equal(messageId1, response.Items[0].MessageId);
+        Assert.Equal(data1, response.Items[0].Body);
+        Assert.Equal(messageId2, response.Items[1].MessageId);
+        Assert.Equal(data2, response.Items[1].Body);
+        Assert.Equal(data3, response.Items[2].Body);
+        Assert.Equal(data4, response.Items[3].Body);
+        Assert.All(response.Items, item => Assert.IsType<GooglePubSubJobModel>(item));
+    }
+
+    [Fact]
+    public void TestGetRecommendedHeartbeatInterval()
+    {
+        var jobSource = new GooglePubSubJobSource(null!, null!,
+            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            Mock.Of<IGooglePubSubPoisonMessagesHandler>(),
+            Options.Create(DefaultOptions(20)));
+
+        Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
+    }
+
+    [Fact]
+    public async Task Test_HeartbeatAsync()
+    {
+        var client = new Mock<IPubSubSubscriberClientWrapper>();
+        var source = new Mock<IPubSubSubscriberClientSource>();
+        source
+            .Setup(s => s.GetSubscriberClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var message = new Mock<IPubSubMessageContainer>();
+        var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
+            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            CreatePassthroughPoisonHandler().Object, Options.Create(DefaultOptions()));
 
         Assert.Equal(45, jobSource.RecommendedHeartbeatIntervalSeconds);
 
-        await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken);
+        await jobSource.HeartbeatAsync(CreateJob(message.Object), TestContext.Current.CancellationToken);
 
         client.Verify(c => c.ModifyAckDeadlineAsync(message.Object, 60, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Test_HeartbeatAsync_IncompatibleMessage()
+    {
+        var client = new Mock<IPubSubSubscriberClientWrapper>(MockBehavior.Strict);
+        var source = new Mock<IPubSubSubscriberClientSource>(MockBehavior.Strict);
+
+        var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
+            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            CreatePassthroughPoisonHandler().Object, Options.Create(DefaultOptions(30)));
+
+        var job = new OutsideContextJobModel
+        {
+            MessageId = Guid.NewGuid().ToString(),
+            CreatedAtUtc = DateTime.UtcNow,
+            Body = Guid.NewGuid().ToString()
+        };
+
+        await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken);
+
+        Assert.Empty(client.Invocations);
+        Assert.Empty(source.Invocations);
+    }
+
+    private static IPubSubMessageContainer CreateContainer(string messageId, string body)
+    {
+        var received = new Google.Cloud.PubSub.V1.ReceivedMessage
+        {
+            AckId = Guid.NewGuid().ToString(),
+            Message = new Google.Cloud.PubSub.V1.PubsubMessage
+            {
+                MessageId = messageId,
+                Data = Google.Protobuf.ByteString.CopyFromUtf8(body)
+            }
+        };
+
+        var container = new Mock<IPubSubMessageContainer>();
+        container.SetupGet(c => c.Message).Returns(received);
+        return container.Object;
+    }
+
+    public class OutsideContextJobModelTests
+    {
+        [Fact]
+        public void ImplementsIRawJobModel()
+        {
+            var model = new OutsideContextJobModel
+            {
+                MessageId = Guid.NewGuid().ToString(),
+                CreatedAtUtc = DateTime.UtcNow,
+                Body = Guid.NewGuid().ToString()
+            };
+
+            Assert.IsType<IRawJobModel>(model, false);
+        }
+
+        [Fact]
+        public void Properties_RoundTripAssignedValues()
+        {
+            var messageId = Guid.NewGuid().ToString();
+            var date = DateTime.UtcNow - TimeSpan.FromDays(1);
+            var body = Guid.NewGuid().ToString();
+
+            var model = new OutsideContextJobModel
+            {
+                MessageId = messageId,
+                CreatedAtUtc = date,
+                Body = body
+            };
+
+            Assert.Equal(messageId, model.MessageId);
+            Assert.Equal(messageId, model.IdempotencyId);
+            Assert.Equal(date, model.CreatedAtUtc);
+            Assert.Equal(body, model.Body);
+        }
+    }
+
+    /// <summary>
+    ///     Stand-in IRawJobModel that is not a <see cref="GooglePubSubJobModel" />, used to exercise
+    ///     GooglePubSubJobSource paths that ignore messages from outside this job source.
+    /// </summary>
+    private class OutsideContextJobModel : IRawJobModel
+    {
+        public required string MessageId { get; init; }
+
+        // ReSharper disable once ReturnTypeCanBeNotNullable
+        public string? IdempotencyId => MessageId;
+        public required DateTime CreatedAtUtc { get; init; }
+        public required string? Body { get; init; }
     }
 }

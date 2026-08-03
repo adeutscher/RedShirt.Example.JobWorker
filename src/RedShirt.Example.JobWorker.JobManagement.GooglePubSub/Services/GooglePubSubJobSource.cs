@@ -1,12 +1,13 @@
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Configuration;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Enums;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Factories;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Models;
-using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Utility;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services;
 
@@ -15,42 +16,9 @@ internal class GooglePubSubJobSource(
     IGooglePubSubMessageSource googlePubSubMessageSource,
     IGooglePubSubRetryWrapperService retryWrapperService,
     IGooglePubSubPoisonMessagesHandler poisonMessagesHandler,
-    ISourceMessageConverter converter,
-    IGooglePubSubBodyStringRetriever bodyStringRetriever,
-    ILogger<GooglePubSubJobSource> logger,
     IOptions<GooglePubSubConfigurationModel> options) : IJobSource
 {
-    private async Task HandleUnusableMessageAsync(IPubSubMessageContainer receivedMessage,
-        CancellationToken cancellationToken)
-    {
-        if (await poisonMessagesHandler.AttemptPoisonMessageEnforcementAsync(receivedMessage, cancellationToken))
-        {
-            return;
-        }
-
-        if (options.Value.DlqNotEnabled &&
-            PubSubMessageAttributeRetriever.TryGetDeliveryAttempt(receivedMessage) is null)
-        {
-            /*
-             * Pub/Sub only populates DeliveryAttempt when a dead-letter policy exists.
-             * Without a usable receive count, acknowledging prevents unparseable messages from looping forever.
-             */
-            await retryWrapperService.RunAsync(async ct =>
-            {
-                var client = await clientSource.GetSubscriberClientAsync(ct);
-                await client.AcknowledgeAsync(receivedMessage, ct);
-            }, cancellationToken);
-            return;
-        }
-
-        await retryWrapperService.RunAsync(async ct =>
-        {
-            var client = await clientSource.GetSubscriberClientAsync(ct);
-            await client.NackAsync(receivedMessage, ct);
-        }, cancellationToken);
-    }
-
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
         if (message is not GooglePubSubJobModel messageAsPubSubJobModel)
@@ -59,87 +27,52 @@ internal class GooglePubSubJobSource(
             return;
         }
 
-        if (!success)
+        if (result.IsSuccessful())
         {
-            if (await poisonMessagesHandler.AttemptPoisonMessageEnforcementAsync(messageAsPubSubJobModel.Message,
-                    cancellationToken))
-            {
-                return;
-            }
-
-            /*
-             * Failed jobs are nacked (ack deadline set to 0) so they become available for redelivery.
-             * Behaviour beyond that defers to the subscription's dead-letter / max-delivery configuration
-             * when DlqNotEnabled is false.
-             */
-            await retryWrapperService.RunAsync(async ct =>
-            {
-                var client = await clientSource.GetSubscriberClientAsync(ct);
-                await client.NackAsync(messageAsPubSubJobModel.Message, ct);
-            }, cancellationToken);
+            await AcknowledgeMessageAsync(messageAsPubSubJobModel.Message, cancellationToken);
             return;
         }
 
+        // Whether the failed message was recoverable or not,
+        //  the Pub/Sub implementation's reaction is to attempt to enforce
+        //  a consumer-based poison-handling system
+        var poisonEnforcementResult =
+            await poisonMessagesHandler.AttemptPoisonMessageEnforcementAsync(messageAsPubSubJobModel.Message,
+                cancellationToken);
+
+        if (poisonEnforcementResult == PoisonEnforcementResult.Enforced)
+        {
+            return;
+        }
+
+        if (!result.IsRecoverableFailure())
+        {
+            // The message was not already acknowledged by consumer-based poison message handling
+            // and the message is not recoverable, so the message should be acknowledged away.
+            await AcknowledgeMessageAsync(messageAsPubSubJobModel.Message, cancellationToken);
+            return;
+        }
+
+        /*
+         * Recoverable execution failures: nack (ack deadline set to 0) so the message becomes available again /
+         * counts toward the subscription's configured max-delivery / dead-letter policy when present.
+         */
         await retryWrapperService.RunAsync(async ct =>
         {
             var client = await clientSource.GetSubscriberClientAsync(ct);
-            await client.AcknowledgeAsync(messageAsPubSubJobModel.Message, ct);
+            await client.NackAsync(messageAsPubSubJobModel.Message, ct);
         }, cancellationToken);
     }
 
-    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
+    public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
-        var messages = await googlePubSubMessageSource.GetMessagesAsync(batchSize, cancellationToken);
-        var items = new List<IJobModel>();
-
-        foreach (var receivedMessage in messages)
-        {
-            string messageBody;
-            try
+        var messagesFromSource = await googlePubSubMessageSource.GetMessagesAsync(batchSize, cancellationToken);
+        var items = messagesFromSource
+            .Select(receivedMessage => new GooglePubSubJobModel
             {
-                messageBody = bodyStringRetriever.GetBody(receivedMessage);
-            }
-            catch (Exception e)
-            {
-                logger.LogWarning(e, "Error parsing Google Pub/Sub message: {MessageBody}", e.Message);
-
-                await HandleUnusableMessageAsync(receivedMessage, cancellationToken);
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(messageBody))
-            {
-                await HandleUnusableMessageAsync(receivedMessage, cancellationToken);
-                continue;
-            }
-
-            try
-            {
-                logger.LogTrace("Raw Google Pub/Sub message: {MessageBody}", messageBody);
-
-                var @object = converter.Convert(messageBody);
-                if (@object is null)
-                {
-                    await HandleUnusableMessageAsync(receivedMessage, cancellationToken);
-                    continue;
-                }
-
-                var data = new GooglePubSubJobModel
-                {
-                    Message = receivedMessage,
-                    CreatedAtUtc = DateTime.UtcNow,
-                    Data = @object
-                };
-
-                items.Add(data);
-            }
-            catch (Exception e)
-            {
-                logger.LogWarning(e, "Error parsing Google Pub/Sub message: {MessageBody}", messageBody);
-
-                await HandleUnusableMessageAsync(receivedMessage, cancellationToken);
-            }
-        }
+                Message = receivedMessage,
+                CreatedAtUtc = DateTime.UtcNow
+            } as IRawJobModel).ToList();
 
         return new JobSourceResponse
         {
@@ -150,7 +83,7 @@ internal class GooglePubSubJobSource(
     public int RecommendedHeartbeatIntervalSeconds =>
         (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
-    public async Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         if (message is not GooglePubSubJobModel messageAsPubSubJobModel)
             // For consideration: Throw some kind of exception?
@@ -165,4 +98,11 @@ internal class GooglePubSubJobSource(
                 options.Value.EffectiveVisibilityTimeoutSeconds, ct);
         }, cancellationToken);
     }
+
+    private Task AcknowledgeMessageAsync(IPubSubMessageContainer message, CancellationToken cancellationToken) =>
+        retryWrapperService.RunAsync(async ct =>
+        {
+            var client = await clientSource.GetSubscriberClientAsync(ct);
+            await client.AcknowledgeAsync(message, ct);
+        }, cancellationToken);
 }

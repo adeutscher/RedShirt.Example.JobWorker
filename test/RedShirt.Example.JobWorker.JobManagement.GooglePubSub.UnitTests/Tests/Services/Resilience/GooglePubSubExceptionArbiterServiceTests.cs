@@ -1,9 +1,9 @@
 using Grpc.Core;
 using RedShirt.Example.JobWorker.Core.Exceptions;
-using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services.Resilience;
 using System.Net.Sockets;
 
-namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.Tests.Services.Resilience;
 
 public class GooglePubSubExceptionArbiterServiceTests
 {

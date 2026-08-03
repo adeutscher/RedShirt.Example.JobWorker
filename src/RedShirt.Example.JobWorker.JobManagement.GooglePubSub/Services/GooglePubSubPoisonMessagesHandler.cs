@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Configuration;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Enums;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Factories;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Models;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services;
@@ -12,10 +14,7 @@ internal interface IGooglePubSubPoisonMessagesHandler
     ///     When the subscription has no dead-letter topic configured, acknowledge (drop) the message once its
     ///     delivery attempt reaches <see cref="GooglePubSubConfigurationModel.MaximumReceives" />.
     /// </summary>
-    /// <returns>
-    ///     <c>true</c> if the message was acknowledged as poison; <c>false</c> if no action was taken.
-    /// </returns>
-    Task<bool> AttemptPoisonMessageEnforcementAsync(IPubSubMessageContainer message,
+    Task<PoisonEnforcementResult> AttemptPoisonMessageEnforcementAsync(IPubSubMessageContainer message,
         CancellationToken cancellationToken = default);
 }
 
@@ -25,15 +24,16 @@ internal class GooglePubSubPoisonMessagesHandler(
     IOptions<GooglePubSubConfigurationModel> options)
     : IGooglePubSubPoisonMessagesHandler
 {
-    public async Task<bool> AttemptPoisonMessageEnforcementAsync(IPubSubMessageContainer message,
+    public async Task<PoisonEnforcementResult> AttemptPoisonMessageEnforcementAsync(IPubSubMessageContainer message,
         CancellationToken cancellationToken = default)
     {
         if (!options.Value.DlqNotEnabled)
         {
             // If a dead-letter topic is configured, leave poison message handling to the subscription policy
-            return false;
+            return PoisonEnforcementResult.EnforcementNotEnabled;
         }
 
+        // ReSharper disable once InvertIf
         if ((PubSubMessageAttributeRetriever.TryGetDeliveryAttempt(message) ?? 0) >=
             options.Value.EffectiveMaximumReceives)
         {
@@ -43,10 +43,9 @@ internal class GooglePubSubPoisonMessagesHandler(
                 var client = await clientSource.GetSubscriberClientAsync(ct);
                 await client.AcknowledgeAsync(message, ct);
             }, cancellationToken);
-
-            return true;
+            return PoisonEnforcementResult.Enforced;
         }
 
-        return false;
+        return PoisonEnforcementResult.NotEnforced;
     }
 }

@@ -3,7 +3,7 @@ using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Models;
 using System.Net.Sockets;
 
-namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services;
+namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services.Resilience;
 
 /// <summary>
 ///     Classifies Google Pub/Sub client exceptions for retry decisions.

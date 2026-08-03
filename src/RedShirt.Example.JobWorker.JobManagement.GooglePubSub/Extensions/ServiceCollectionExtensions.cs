@@ -4,6 +4,7 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Factories;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Extensions;
 
@@ -23,7 +24,6 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IGooglePubSubExceptionArbiterService, GooglePubSubExceptionArbiterService>()
             .AddSingleton<IGooglePubSubRetryWrapperService, GooglePubSubRetryWrapperService>()
             .AddSingleton<IGooglePubSubPoisonMessagesHandler, GooglePubSubPoisonMessagesHandler>()
-            .AddSingleton<IGooglePubSubMessageSource, GooglePubSubMessageSource>()
-            .AddSingleton<IGooglePubSubBodyStringRetriever, GooglePubSubBodyStringRetriever>();
+            .AddSingleton<IGooglePubSubMessageSource, GooglePubSubMessageSource>();
     }
 }
