@@ -585,7 +585,7 @@ To initialize Google Pub/Sub and queue sample messages:
 1. Bring up the Pub/Sub emulator, ministack, and Redis:
 
     ```
-    docker compose up -d pubsub ministack redis
+    docker compose up -d google-pubsub-emulator ministack redis
     ```
 
 2. Run the `make-local-aws-resources.sh` script (creates the Redis SSM parameter used for idempotency):
