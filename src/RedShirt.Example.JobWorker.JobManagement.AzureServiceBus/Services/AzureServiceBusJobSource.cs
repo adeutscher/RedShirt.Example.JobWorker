@@ -1,8 +1,8 @@
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Models;
@@ -12,111 +12,54 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services;
 internal class AzureServiceBusJobSource(
     IBusReceiverClientSource clientSource,
     IAzureServiceBusMessageSource azureServiceBusServiceSource,
-    ISourceMessageConverter converter,
-    IAzureServiceBusBodyStringRetriever bodyStringRetriever,
-    ILogger<AzureServiceBusJobSource> logger,
     IOptions<AzureServiceBusConfigurationModel> options) : IJobSource
 {
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
-        if (message is not AzureJobModel messageAsAzureJobModel)
+        if (message is not AzureRawJobModel messageAsAzureJobModel)
             // For consideration: Throw some kind of exception?
         {
             return;
         }
 
-        var client = await clientSource.GetQueueClientAsync();
+        var client = await clientSource.GetQueueClientAsync(cancellationToken);
 
-        if (success)
+        if (result.IsSuccessful())
         {
             await client.CompleteMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
         }
-        else
+        else if (result.IsRecoverableFailure())
         {
             /*
-             * This template will treat failed Azure Service Bus jobs similar to the strategy used for SQS.
-             * Messages will not be completed, and behaviour will defer to the service bus queue's configured maximum delivery count.
-             * Using the service bus client's AbandonMessageAsync method, but one could choose to adjust this template to
-             * just let the message time out and fall back into the queue if desired.
+             * Recoverable execution failures: explicitly abandon so the message becomes available again /
+             * counts toward the service bus queue's configured maximum delivery count.
+             *
+             * On a case-by-case basis, there could be a benefit to instead letting the message sit in flight for a moment
+             * and fall back into the queue naturally. Marked as a future improvement in issue tracking.
              */
             await client.AbandonMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
         }
+        else
+        {
+            // Empty / Parsing / Broken: dead-letter immediately.
+            // One could argue that there's no point in even bothering to dead-letter Empty problems,
+            //  but on the other hand there could be useful properties for debugging on the message.
+            // This application's priority is just getting unrecoverable messages out of the way ASAP.
+            await client.DeadLetterMessageAsync(messageAsAzureJobModel.Message, result.ToString(),
+                cancellationToken: cancellationToken);
+        }
     }
 
-    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
+    public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
-        var messages = await azureServiceBusServiceSource.GetMessagesAsync(batchSize, cancellationToken);
-        var items = new List<IJobModel>();
-
-        foreach (var receivedMessage in messages)
-        {
-            string messageBody;
-            try
+        var messagesFromSource = await azureServiceBusServiceSource.GetMessagesAsync(batchSize, cancellationToken);
+        var items = messagesFromSource
+            .Select(receivedMessage => new AzureRawJobModel
             {
-                messageBody = bodyStringRetriever.GetBody(receivedMessage);
-            }
-            catch (Exception e)
-            {
-                logger.LogWarning(e, "Error parsing Azure Service Bus message: {MessageBody}", e.Message);
-
-                /*
-                 * What exactly to do with bad messages is a bit up in the air at the moment.
-                 * Marking them for the dead-letter queue is 'good enough' for now in this general template.
-                 */
-
-                // Send the message to the dead-letter so that it cannot keep gumming up the message bus
-                var client = await clientSource.GetQueueClientAsync(cancellationToken);
-                await client.DeadLetterMessageAsync(receivedMessage, "Body parsing error",
-                    e.Message + " " + e.StackTrace, cancellationToken);
-
-                // Proceed to the next message
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(messageBody))
-            {
-                // Avoiding unhandled hung message
-
-                // Send the message to the dead-letter so that it cannot keep gumming up the message bus
-                var client = await clientSource.GetQueueClientAsync(cancellationToken);
-                await client.DeadLetterMessageAsync(receivedMessage, "Empty body",
-                    "Empty body", cancellationToken);
-
-                // Proceed to next message
-                continue;
-            }
-
-            try
-            {
-                logger.LogTrace("Raw Azure Service Bus message: {MessageBody}", messageBody);
-
-                var @object = converter.Convert(messageBody);
-                if (@object is null)
-                {
-                    // Assume a deterministic conversion failure
-                    var client = await clientSource.GetQueueClientAsync(cancellationToken);
-                    await client.DeadLetterMessageAsync(receivedMessage, "Conversion failure",
-                        "Conversion failure", cancellationToken);
-
-                    // Proceed to next message
-                    continue;
-                }
-
-                var data = new AzureJobModel
-                {
-                    Message = receivedMessage,
-                    CreatedAtUtc = DateTime.UtcNow,
-                    Data = @object
-                };
-
-                items.Add(data);
-            }
-            catch (Exception e)
-            {
-                logger.LogWarning(e, "Error parsing Azure Service Bus message: {MessageBody}", messageBody);
-            }
-        }
+                Message = receivedMessage,
+                CreatedAtUtc = DateTime.UtcNow
+            } as IRawJobModel).ToList();
 
         var response = new JobSourceResponse
         {
@@ -129,9 +72,9 @@ internal class AzureServiceBusJobSource(
     public int RecommendedHeartbeatIntervalSeconds =>
         (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
-    public async Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
-        if (message is not AzureJobModel messageAsAzureJobModel)
+        if (message is not AzureRawJobModel messageAsAzureJobModel)
             // For consideration: Throw some kind of exception?
         {
             return;

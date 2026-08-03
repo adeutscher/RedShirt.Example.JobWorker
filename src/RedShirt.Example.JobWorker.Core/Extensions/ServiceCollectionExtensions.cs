@@ -3,9 +3,13 @@ using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Heartbeats;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
+using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
+using RedShirt.Example.JobWorker.Core.Services.Safety;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
+using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Extensions;
 
@@ -19,18 +23,24 @@ public static class ServiceCollectionExtensions
         services = services
             // General
             .AddSingleton<IHandler, Handler>()
+            .AddSingleton<IJobLoaderLoop, JobLoaderLoop>()
             .AddSingleton<IJobExecutor, JobExecutor>()
             .AddSingleton<IAppliedExecutionEndArbiter, AppliedExecutionEndArbiter>()
-            .AddSingleton<IMaintainer, Maintainer>()
+            .AddSingleton<IHeartbeatMaintainer, HeartbeatMaintainer>()
             .AddSingleton<IHeartbeatCalculator, HeartbeatCalculator>()
             .AddSingleton<ISafeJobRunner, SafeJobRunner>()
+            .AddSingleton<ITimeBorderWrapperService, TimeBorderWrapperService>()
             .AddSingleton<ISafeJobAcknowledgementService, SafeJobAcknowledgementService>()
+            .AddSingleton<IJobIntakeService, JobIntakeService>()
             .AddSingleton<ISleepService, SleepService>()
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
             .AddSingleton<IJobRepository, JobRepository>()
             .Configure<JobRepository.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .AddSingleton<IJobLoaderStateService, JobLoaderStateService>()
+            .AddSingleton<IJobLoaderStateReaderService>(provider =>
+                provider.GetRequiredService<IJobLoaderStateService>())
             .Configure<SafeJobRunner.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
+            .Configure<TimeBorderWrapperService.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .Configure<JobSourceConfigurationModel>(configuration.GetSection("JobSource"))
             .Configure<LoopOptionsConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .Configure<ThreadConfigurationModel>(configuration.GetSection(ConfigSectionName))

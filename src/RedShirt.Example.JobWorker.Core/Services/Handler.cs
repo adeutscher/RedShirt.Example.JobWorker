@@ -2,7 +2,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Services.Heartbeats;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
+using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 using RedShirt.Example.JobWorker.Core.Utility;
 
@@ -22,21 +24,21 @@ public interface IHandler
 /// </summary>
 internal interface IHandlerSubComponent
 {
-    Task<HandlerResponseEnum> RunAsync(CancellationToken cancellationToken = default);
+    Task<HandlerComponentResponse> RunAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>
 ///     Kick-off point for message broker job management.
 ///     It is responsible for starting all worker threads.
 /// </summary>
-/// <param name="jobLoader"></param>
-/// <param name="maintainer"></param>
+/// <param name="jobLoaderLoop"></param>
+/// <param name="heartbeatMaintainer"></param>
 /// <param name="jobExecutor"></param>
 /// <param name="idempotencyMonitor"></param>
 /// <param name="threadOptions"></param>
-internal class Handler(
-    IJobLoader jobLoader,
-    IMaintainer maintainer,
+internal sealed class Handler(
+    IJobLoaderLoop jobLoaderLoop,
+    IHeartbeatMaintainer heartbeatMaintainer,
     IJobExecutor jobExecutor,
     IIdempotencyMonitor idempotencyMonitor,
     IOptions<ThreadConfigurationModel> threadOptions,
@@ -47,9 +49,9 @@ internal class Handler(
     private readonly AsyncManualResetEvent _workerDoneEvent = new();
     private Exception? _workerException;
 
-    private async Task RunWorkerAsync(Func<Task<HandlerResponseEnum>> callback)
+    private async Task RunWorkerAsync(Func<Task<HandlerComponentResponse>> callback)
     {
-        var handlerResponse = HandlerResponseEnum.Finished;
+        var handlerResponse = HandlerComponentResponse.Finished;
 
         try
         {
@@ -70,7 +72,7 @@ internal class Handler(
         }
         finally
         {
-            if (handlerResponse == HandlerResponseEnum.Finished)
+            if (handlerResponse == HandlerComponentResponse.Finished)
             {
                 // A noteworthy handler has finished
                 _workerDoneEvent.Set();
@@ -83,7 +85,7 @@ internal class Handler(
         var tasksLock = new SemaphoreSlim(1, 1);
         var tasks = new List<Task>();
 
-        var addToTaskFunc = new Func<Func<Task<HandlerResponseEnum>>, Task>(async callback =>
+        var addToTaskFunc = new Func<Func<Task<HandlerComponentResponse>>, Task>(async callback =>
         {
             await tasksLock.WaitAsync(cancellationToken);
             try
@@ -96,7 +98,7 @@ internal class Handler(
             }
         });
 
-        await addToTaskFunc(() => jobLoader.RunAsync(cancellationToken));
+        await addToTaskFunc(() => jobLoaderLoop.RunAsync(cancellationToken));
 
         // Executor threads
         for (var i = 0; i < threadOptions.Value.EffectiveWorkerThreadCount; i++)
@@ -111,7 +113,7 @@ internal class Handler(
          */
 
         // Maintainer thread
-        await addToTaskFunc(() => maintainer.RunAsync(cancellationToken));
+        await addToTaskFunc(() => heartbeatMaintainer.RunAsync(cancellationToken));
 
         // Idempotency monitor thread
         await addToTaskFunc(() => idempotencyMonitor.RunAsync(cancellationToken));

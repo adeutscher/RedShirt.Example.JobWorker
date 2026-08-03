@@ -14,6 +14,10 @@ internal class AzureQueueStorageMessageSource(
     IQueueConsumerClientSource clientSource,
     IOptions<AzureQueueStorageConfigurationModel> options) : IAzureQueueStorageMessageSource
 {
+    /// <summary>
+    ///     Azure Queue Storage allows a client to receive up to 32 messages from a queue in a single operation.
+    ///     Source: https://learn.microsoft.com/en-us/azure/storage/queues/storage-performance-checklist
+    /// </summary>
     private const int MaxBatchSizePerRequest = 32;
 
     private async Task<List<IQueueMessageModel>> GetAsync(int batchSize, CancellationToken cancellationToken = default)

@@ -16,24 +16,24 @@ public class SqsJobModelTests
             RawMessage = new Message(),
             MessageId = messageId,
             CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object
+            Body = Guid.NewGuid().ToString()
         };
 
         Assert.Equal(messageId, job.IdempotencyId);
     }
 
     [Fact]
-    public void ImplementsIJobModel()
+    public void ImplementsIRawJobModel()
     {
         var job = new SqsJobModel
         {
             RawMessage = new Message(),
             MessageId = Guid.NewGuid().ToString(),
             CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object
+            Body = Guid.NewGuid().ToString()
         };
 
-        Assert.IsAssignableFrom<IJobModel>(job);
+        Assert.IsAssignableFrom<IRawJobModel>(job);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class SqsJobModelTests
             MessageId = Guid.NewGuid().ToString(),
             ReceiptHandle = Guid.NewGuid().ToString()
         };
-        var data = new Mock<IJobDataModel>();
+        var body = Guid.NewGuid().ToString();
         var messageId = Guid.NewGuid().ToString();
         var createdAt = DateTime.UtcNow.AddMinutes(-5);
 
@@ -53,14 +53,14 @@ public class SqsJobModelTests
             RawMessage = message,
             MessageId = messageId,
             CreatedAtUtc = createdAt,
-            Data = data.Object
+            Body = body
         };
 
         Assert.Same(message, job.RawMessage);
         Assert.Equal(messageId, job.MessageId);
         Assert.Equal(messageId, job.IdempotencyId);
         Assert.Equal(createdAt, job.CreatedAtUtc);
-        Assert.Same(data.Object, job.Data);
+        Assert.Equal(body, job.Body);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class SqsJobModelTests
             RawMessage = original,
             MessageId = Guid.NewGuid().ToString(),
             CreatedAtUtc = DateTime.UtcNow,
-            Data = new Mock<IJobDataModel>().Object
+            Body = Guid.NewGuid().ToString()
         };
 
         job.RawMessage = replacement;

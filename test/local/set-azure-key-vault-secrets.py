@@ -53,7 +53,4 @@ if __name__ == '__main__':
         'azure-service-bus-connection-string',
         "Endpoint=sb://azure-service-bus-emulator;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
     )
-    set(
-        'common-distributed-redis',
-        'redis:6379'
-    )
+    set('common-distributed-redis', 'redis:6379')

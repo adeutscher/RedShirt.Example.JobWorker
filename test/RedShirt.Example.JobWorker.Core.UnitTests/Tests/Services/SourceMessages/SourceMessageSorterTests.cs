@@ -28,7 +28,7 @@ public class SourceMessageSorterTests
         var output = sorter.GetSortedListOfJobs(items.Select(i => new JobRepositoryEntry
         {
             JobModel = i,
-            LastHeartbeatTime = default
+            RawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict).Object
         }).ToList());
 
         Assert.Equal(numberOfMessages, output.Count);
