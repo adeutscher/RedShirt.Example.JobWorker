@@ -52,7 +52,6 @@ public class GooglePubSubPoisonMessagesHandlerTests
         {
             ProjectId = "local-pubsub",
             SubscriptionId = "jobs-subscription",
-            MaxMessagesPerRequest = 100,
             VisibilityTimeoutSeconds = 60,
             DlqNotEnabled = false,
             MaximumReceives = 1
@@ -78,7 +77,6 @@ public class GooglePubSubPoisonMessagesHandlerTests
         {
             ProjectId = "local-pubsub",
             SubscriptionId = "jobs-subscription",
-            MaxMessagesPerRequest = 100,
             VisibilityTimeoutSeconds = 60,
             DlqNotEnabled = true,
             MaximumReceives = maximumReceives
@@ -101,7 +99,6 @@ public class GooglePubSubPoisonMessagesHandlerTests
         {
             ProjectId = "local-pubsub",
             SubscriptionId = "jobs-subscription",
-            MaxMessagesPerRequest = 100,
             VisibilityTimeoutSeconds = 60,
             DlqNotEnabled = true,
             MaximumReceives = 1
@@ -124,7 +121,6 @@ public class GooglePubSubPoisonMessagesHandlerTests
         {
             ProjectId = "local-pubsub",
             SubscriptionId = "jobs-subscription",
-            MaxMessagesPerRequest = 100,
             VisibilityTimeoutSeconds = 60,
             DlqNotEnabled = true,
             MaximumReceives = maximumReceives

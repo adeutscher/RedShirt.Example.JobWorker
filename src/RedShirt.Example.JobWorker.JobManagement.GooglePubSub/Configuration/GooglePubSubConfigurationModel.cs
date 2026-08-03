@@ -19,7 +19,6 @@ internal sealed class GooglePubSubConfigurationModel
 
     public required string ProjectId { get; init; }
     public required string SubscriptionId { get; init; }
-    public required int MaxMessagesPerRequest { get; init; }
     public required int VisibilityTimeoutSeconds { get; init; }
 
     /// <summary>

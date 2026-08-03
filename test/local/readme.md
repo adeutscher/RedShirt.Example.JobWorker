@@ -597,13 +597,13 @@ To initialize Google Pub/Sub and queue sample messages:
 3. Create the local topic and pull subscription (emulator state is in-memory and is lost when the `pubsub` container is recreated):
 
     ```
-    ./make-local-pubsub-resources.py
+    ./make-local-google-pubsub-resources.py
     ```
 
-4. Use the `send-pubsub-job.py` script (requires the `google-cloud-pubsub` module) to publish a message to the `jobs` topic. Specify the number of seconds the worker should sleep for in the first argument:
+4. Use the `send-google-pubsub-job.py` script (requires the `google-cloud-pubsub` module) to publish a message to the `jobs` topic. Specify the number of seconds the worker should sleep for in the first argument:
 
     ```
-    ./send-pubsub-job.py 12
+    ./send-google-pubsub-job.py 12
     ```
 
 5. Before starting the worker, make sure that `USE_GOOGLE_PUB_SUB` is set to `1` and that other `USE_` environment variables are not set to `1`.

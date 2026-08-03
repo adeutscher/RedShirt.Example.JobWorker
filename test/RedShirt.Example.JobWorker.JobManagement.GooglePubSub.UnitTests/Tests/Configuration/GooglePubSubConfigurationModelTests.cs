@@ -16,7 +16,6 @@ public class GooglePubSubConfigurationModelTests
         {
             ProjectId = "local-pubsub",
             SubscriptionId = "jobs-subscription",
-            MaxMessagesPerRequest = 100,
             VisibilityTimeoutSeconds = configured,
             DlqNotEnabled = true,
             MaximumReceives = 3
@@ -35,7 +34,6 @@ public class GooglePubSubConfigurationModelTests
         {
             ProjectId = "local-pubsub",
             SubscriptionId = "jobs-subscription",
-            MaxMessagesPerRequest = 100,
             VisibilityTimeoutSeconds = 60,
             DlqNotEnabled = true,
             MaximumReceives = configured

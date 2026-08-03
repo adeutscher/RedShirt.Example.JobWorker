@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Factories;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Models;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services.Resilience;
@@ -14,16 +12,23 @@ internal interface IGooglePubSubMessageSource
 
 internal class GooglePubSubMessageSource(
     IPubSubSubscriberClientSource clientSource,
-    IGooglePubSubRetryWrapperService retryWrapperService,
-    IOptions<GooglePubSubConfigurationModel> options) : IGooglePubSubMessageSource
+    IGooglePubSubRetryWrapperService retryWrapperService) : IGooglePubSubMessageSource
 {
-    private Task<List<IPubSubMessageContainer>> GetAsync(int batchSize,
+    /// <summary>
+    ///     Unary Pull responses are capped at 1,000 messages by Pub/Sub.
+    /// </summary>
+    private const int MaxMessagesPerRequest = 1000;
+
+    /// <summary>
+    ///     Issues one unary Pull for up to <paramref name="pullSize" /> messages.
+    /// </summary>
+    private Task<List<IPubSubMessageContainer>> PullAsync(int pullSize,
         CancellationToken cancellationToken = default)
     {
         return retryWrapperService.RunAsync(async ct =>
         {
             var client = await clientSource.GetSubscriberClientAsync(ct);
-            var rawMessages = await client.GetMessagesAsync(batchSize, ct);
+            var rawMessages = await client.GetMessagesAsync(pullSize, ct);
             return rawMessages.ToList();
         }, cancellationToken);
     }
@@ -33,24 +38,23 @@ internal class GooglePubSubMessageSource(
     {
         var messages = new List<IPubSubMessageContainer>();
 
-        while (batchSize > options.Value.MaxMessagesPerRequest)
+        while (batchSize > MaxMessagesPerRequest)
         {
-            var loopResult =
-                await GetAsync(Math.Min(batchSize, options.Value.MaxMessagesPerRequest), cancellationToken);
+            var loopResult = await PullAsync(MaxMessagesPerRequest, cancellationToken);
 
             messages.AddRange(loopResult);
 
-            if (loopResult.Count < options.Value.MaxMessagesPerRequest)
+            if (loopResult.Count < MaxMessagesPerRequest)
             {
                 break;
             }
 
-            batchSize -= options.Value.MaxMessagesPerRequest;
+            batchSize -= MaxMessagesPerRequest;
         }
 
-        if (batchSize > 0 && batchSize <= options.Value.MaxMessagesPerRequest)
+        if (batchSize is > 0 and <= MaxMessagesPerRequest)
         {
-            messages.AddRange(await GetAsync(batchSize, cancellationToken));
+            messages.AddRange(await PullAsync(batchSize, cancellationToken));
         }
 
         return messages;

@@ -20,7 +20,6 @@ public class GooglePubSubJobSourceTests
             ProjectId = "local-pubsub",
             SubscriptionId = "jobs-subscription",
             VisibilityTimeoutSeconds = visibilityTimeoutSeconds,
-            MaxMessagesPerRequest = 100,
             DlqNotEnabled = true,
             MaximumReceives = 3
         };

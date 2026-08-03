@@ -17,7 +17,6 @@ public class PubSubSubscriberClientFactoryTests
         {
             ProjectId = projectId!,
             SubscriptionId = "jobs-subscription",
-            MaxMessagesPerRequest = 100,
             VisibilityTimeoutSeconds = 60,
             DlqNotEnabled = true,
             MaximumReceives = 3
@@ -37,7 +36,6 @@ public class PubSubSubscriberClientFactoryTests
         {
             ProjectId = "local-pubsub",
             SubscriptionId = subscriptionId!,
-            MaxMessagesPerRequest = 100,
             VisibilityTimeoutSeconds = 60,
             DlqNotEnabled = true,
             MaximumReceives = 3
