@@ -37,7 +37,7 @@ internal class RedisStreamsJobSource(
         {
             var database = await redisConnectionCacheService.GetDatabaseAsync(ct);
             await database.StreamAcknowledgeAsync(options.Value.StreamName,
-                options.Value.GroupName, redisStreamJobModel.Message.Id, CommandFlags.None);
+                options.Value.GroupName, redisStreamJobModel.Message.Id);
         }, cancellationToken);
     }
 
@@ -65,10 +65,10 @@ internal class RedisStreamsJobSource(
         {
             Items = entries
                 // ReSharper disable once CanReplaceCastWithLambdaReturnType
-                .Select(entry=>(IRawJobModel)new RedisStreamRawJobModel
+                .Select(entry => (IRawJobModel) new RedisStreamRawJobModel
                 {
                     Message = entry,
-                    MessageId = ((string?)entry.Id) ?? "UNKNOWN",
+                    MessageId = (string?) entry.Id ?? "UNKNOWN",
                     CreatedAtUtc = DateTime.UtcNow
                 }).ToList()
         };

@@ -71,6 +71,16 @@ public class RedisStreamsExceptionArbiterServiceTests
     }
 
     [Fact]
+    public void GetReport_RedisServerException_Loading_IsNotCriticalAndTransient()
+    {
+        var report = _sut.GetReport(new RedisServerException("LOADING Redis is loading the dataset in memory"));
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.True(report.CouldBeTransient);
+    }
+
+    [Fact]
     public void GetReport_RedisServerException_NoGroup_IsNotCriticalAndNotTransient()
     {
         var report = _sut.GetReport(new RedisServerException(
@@ -82,9 +92,9 @@ public class RedisStreamsExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_RedisServerException_Loading_IsNotCriticalAndTransient()
+    public void GetReport_RedisTimeoutException_IsNotCriticalAndTransient()
     {
-        var report = _sut.GetReport(new RedisServerException("LOADING Redis is loading the dataset in memory"));
+        var report = _sut.GetReport(new RedisTimeoutException("command timed out", CommandStatus.Unknown));
 
         Assert.False(report.AlreadyHandled);
         Assert.False(report.IsCritical);
@@ -92,9 +102,11 @@ public class RedisStreamsExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_RedisTimeoutException_IsNotCriticalAndTransient()
+    public void GetReport_SingleInnerAggregateException_Unwraps()
     {
-        var report = _sut.GetReport(new RedisTimeoutException("command timed out", CommandStatus.Unknown));
+        var exception = new AggregateException(new RedisTimeoutException("timeout", CommandStatus.Unknown));
+
+        var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
         Assert.False(report.IsCritical);
@@ -131,19 +143,6 @@ public class RedisStreamsExceptionArbiterServiceTests
         Assert.False(report.CouldBeTransient);
     }
 
-    [Fact]
-    public void GetReport_WorkerJobSourceException_AlreadyHandled()
-    {
-        var wrapped = new WorkerJobSourceException(new RedisTimeoutException("t", CommandStatus.Unknown), false, true,
-            true);
-
-        var report = _sut.GetReport(wrapped);
-
-        Assert.True(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
-        Assert.False(report.CouldBeTransient);
-    }
-
     [Theory]
     [InlineData(true, false)]
     [InlineData(false, true)]
@@ -160,14 +159,15 @@ public class RedisStreamsExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_SingleInnerAggregateException_Unwraps()
+    public void GetReport_WorkerJobSourceException_AlreadyHandled()
     {
-        var exception = new AggregateException(new RedisTimeoutException("timeout", CommandStatus.Unknown));
+        var wrapped = new WorkerJobSourceException(new RedisTimeoutException("t", CommandStatus.Unknown), false, true,
+            true);
 
-        var report = _sut.GetReport(exception);
+        var report = _sut.GetReport(wrapped);
 
-        Assert.False(report.AlreadyHandled);
+        Assert.True(report.AlreadyHandled);
         Assert.False(report.IsCritical);
-        Assert.True(report.CouldBeTransient);
+        Assert.False(report.CouldBeTransient);
     }
 }

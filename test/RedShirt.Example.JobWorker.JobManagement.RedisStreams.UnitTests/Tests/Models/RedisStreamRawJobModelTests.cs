@@ -6,6 +6,20 @@ namespace RedShirt.Example.JobWorker.JobManagement.RedisStreams.UnitTests.Tests.
 public class RedisStreamRawJobModelTests
 {
     [Fact]
+    public void Body_MissingBody_ThrowsArgumentException()
+    {
+        var model = new RedisStreamRawJobModel
+        {
+            Message = new StreamEntry("1-0", [new NameValueEntry("message_id", "abc")]),
+            MessageId = "1-0",
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        var thrown = Assert.Throws<ArgumentException>(() => _ = model.Body);
+        Assert.Contains("body", thrown.Message);
+    }
+
+    [Fact]
     public void Body_ReturnsBodyField()
     {
         var model = new RedisStreamRawJobModel
@@ -21,20 +35,6 @@ public class RedisStreamRawJobModelTests
 
         Assert.Equal("""{"x":1}""", model.Body);
         Assert.Equal("abc", model.IdempotencyId);
-    }
-
-    [Fact]
-    public void Body_MissingBody_ThrowsArgumentException()
-    {
-        var model = new RedisStreamRawJobModel
-        {
-            Message = new StreamEntry("1-0", [new NameValueEntry("message_id", "abc")]),
-            MessageId = "1-0",
-            CreatedAtUtc = DateTime.UtcNow
-        };
-
-        var thrown = Assert.Throws<ArgumentException>(() => _ = model.Body);
-        Assert.Contains("body", thrown.Message);
     }
 
     [Fact]

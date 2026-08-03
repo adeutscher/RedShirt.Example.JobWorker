@@ -92,29 +92,6 @@ public class RedisStreamsJobSourceTests
     }
 
     [Fact]
-    public async Task GetJobsAsync_ReturnsEmpty_WhenNoEntries()
-    {
-        var database = new Mock<IDatabase>(MockBehavior.Strict);
-        database
-            .Setup(d => d.StreamReadGroupAsync("jobs", "job-worker", "worker-1", ">", 5, false, CommandFlags.None))
-            .ReturnsAsync([]);
-
-        var connection = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
-        connection.Setup(c => c.GetDatabaseAsync(It.IsAny<CancellationToken>())).ReturnsAsync(database.Object);
-
-        var jobSource = new RedisStreamsJobSource(
-            connection.Object,
-            RedisStreamsRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new NullLogger<RedisStreamsJobSource>(),
-            Options.Create(CreateConfig()));
-
-        var response = await jobSource.GetJobsAsync(5, TestContext.Current.CancellationToken);
-
-        Assert.Empty(response.Items);
-        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
-    }
-
-    [Fact]
     public async Task GetJobsAsync_MapsEntriesToRawJobModels()
     {
         var entry1 = CreateEntry("1-0", """{"a":1}""", "idem-1");
@@ -143,6 +120,29 @@ public class RedisStreamsJobSourceTests
         Assert.Equal("""{"a":1}""", response.Items[0].Body);
         Assert.Equal("1-1", response.Items[1].MessageId);
         Assert.Equal("idem-2", response.Items[1].IdempotencyId);
+    }
+
+    [Fact]
+    public async Task GetJobsAsync_ReturnsEmpty_WhenNoEntries()
+    {
+        var database = new Mock<IDatabase>(MockBehavior.Strict);
+        database
+            .Setup(d => d.StreamReadGroupAsync("jobs", "job-worker", "worker-1", ">", 5, false, CommandFlags.None))
+            .ReturnsAsync([]);
+
+        var connection = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
+        connection.Setup(c => c.GetDatabaseAsync(It.IsAny<CancellationToken>())).ReturnsAsync(database.Object);
+
+        var jobSource = new RedisStreamsJobSource(
+            connection.Object,
+            RedisStreamsRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            new NullLogger<RedisStreamsJobSource>(),
+            Options.Create(CreateConfig()));
+
+        var response = await jobSource.GetJobsAsync(5, TestContext.Current.CancellationToken);
+
+        Assert.Empty(response.Items);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
     }
 
     [Fact]
