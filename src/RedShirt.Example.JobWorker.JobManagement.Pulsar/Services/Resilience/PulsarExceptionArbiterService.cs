@@ -61,7 +61,7 @@ internal class PulsarExceptionArbiterService : IPulsarExceptionArbiterService
                 or NotAllowedException or UnsupportedVersionException or TopicTerminatedException
                 or AlreadyClosedException or ConsumerNotFoundException
                 or InvalidConfigurationException or InvalidTopicNameException => Fresh(true, false),
-            System.TimeoutException or SocketException => Fresh(false, true),
+            System.TimeoutException or SocketException or HttpRequestException => Fresh(false, true),
             TaskCanceledException => Fresh(false, true),
             OperationCanceledException => Fresh(false, false),
             ArgumentException => Fresh(false, false),

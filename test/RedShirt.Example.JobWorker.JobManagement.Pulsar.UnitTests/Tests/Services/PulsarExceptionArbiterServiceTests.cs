@@ -45,6 +45,16 @@ public class PulsarExceptionArbiterServiceTests
     }
 
     [Fact]
+    public void GetReport_HttpRequestException_IsNotCriticalAndTransient()
+    {
+        var report = _sut.GetReport(new HttpRequestException("connection reset"));
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.True(report.CouldBeTransient);
+    }
+
+    [Fact]
     public void GetReport_MultiInnerAggregateException_IsCritical()
     {
         var exception = new AggregateException(
