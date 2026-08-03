@@ -70,6 +70,27 @@ public class RedisStreamsExceptionArbiterServiceTests
     }
 
     [Fact]
+    public void GetReport_RedisServerException_NoGroup_IsNotCriticalAndNotTransient()
+    {
+        var report = _sut.GetReport(new RedisServerException(
+            "NOGROUP No such key 'jobs' or consumer group 'job-worker'"));
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.False(report.CouldBeTransient);
+    }
+
+    [Fact]
+    public void GetReport_RedisServerException_Loading_IsNotCriticalAndTransient()
+    {
+        var report = _sut.GetReport(new RedisServerException("LOADING Redis is loading the dataset in memory"));
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.True(report.CouldBeTransient);
+    }
+
+    [Fact]
     public void GetReport_RedisTimeoutException_IsNotCriticalAndTransient()
     {
         var report = _sut.GetReport(new RedisTimeoutException("command timed out", CommandStatus.Unknown));

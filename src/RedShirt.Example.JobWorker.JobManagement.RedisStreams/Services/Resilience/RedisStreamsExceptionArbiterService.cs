@@ -36,6 +36,11 @@ internal class RedisStreamsExceptionArbiterService : IRedisStreamsExceptionArbit
         ConnectionFailureType.UnableToResolvePhysicalConnection
     ];
 
+    private static bool IsNoGroup(RedisServerException exception)
+    {
+        return exception.Message.Contains("NOGROUP", StringComparison.Ordinal);
+    }
+
     private static RedisStreamsExceptionArbiterReport Fresh(bool isCritical, bool couldBeTransient)
     {
         return new RedisStreamsExceptionArbiterReport
@@ -78,7 +83,9 @@ internal class RedisStreamsExceptionArbiterService : IRedisStreamsExceptionArbit
             RedisConnectionException connection =>
                 Fresh(CriticalConnectionFailures.Contains(connection.FailureType),
                     TransientConnectionFailures.Contains(connection.FailureType)),
-            // Server-side conditions (e.g. LOADING) are often brief; treat as possibly transient.
+            // NOGROUP: consumer group (or stream) was never created — setup/config, not retryable.
+            RedisServerException server when IsNoGroup(server) => Fresh(false, false),
+            // Other server-side conditions (e.g. LOADING) are often brief; treat as possibly transient.
             RedisServerException => Fresh(false, true),
             // Generic Redis failures that were not matched above.
             RedisException => Fresh(false, true),
