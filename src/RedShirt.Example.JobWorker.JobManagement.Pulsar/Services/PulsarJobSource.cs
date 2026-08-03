@@ -33,7 +33,7 @@ internal class PulsarJobSource(
          */
         await retryWrapperService.RunAsync(async ct =>
         {
-            var consumer = consumerSource.GetConsumer();
+            var consumer = await consumerSource.GetConsumerAsync(ct);
             if (result.IsSuccessful())
             {
                 await consumer.AcknowledgeAsync(pulsarJobModel.Message, ct);

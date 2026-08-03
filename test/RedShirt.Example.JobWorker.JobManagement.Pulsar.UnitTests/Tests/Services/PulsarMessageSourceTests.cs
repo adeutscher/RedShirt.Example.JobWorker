@@ -28,7 +28,7 @@ public class PulsarMessageSourceTests
             .ReturnsAsync(() => queue.TryDequeue(out var msg) ? msg : null);
 
         var consumerSource = new Mock<IPulsarConsumerSource>(MockBehavior.Strict);
-        consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
+        consumerSource.Setup(s => s.GetConsumerAsync(It.IsAny<CancellationToken>())).ReturnsAsync(consumer.Object);
 
         return (new PulsarMessageSource(consumerSource.Object,
                 PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object), consumer, consumerSource,
@@ -51,7 +51,7 @@ public class PulsarMessageSourceTests
             .ReturnsAsync((IPulsarMessageContainer?) null);
 
         var consumerSource = new Mock<IPulsarConsumerSource>(MockBehavior.Strict);
-        consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
+        consumerSource.Setup(s => s.GetConsumerAsync(It.IsAny<CancellationToken>())).ReturnsAsync(consumer.Object);
 
         var messageSource = new PulsarMessageSource(consumerSource.Object,
             PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
@@ -92,7 +92,7 @@ public class PulsarMessageSourceTests
 
         consumer.Verify(c => c.ConsumeAsync(ExpectedConsumeTimeout, It.IsAny<CancellationToken>()),
             Times.Exactly(expectedConsumes));
-        consumerSource.Verify(s => s.GetConsumer(), Times.Once);
+        consumerSource.Verify(s => s.GetConsumerAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class PulsarMessageSourceTests
             .ReturnsAsync(() => consumeResults.Dequeue());
 
         var consumerSource = new Mock<IPulsarConsumerSource>(MockBehavior.Strict);
-        consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
+        consumerSource.Setup(s => s.GetConsumerAsync(It.IsAny<CancellationToken>())).ReturnsAsync(consumer.Object);
 
         var messageSource = new PulsarMessageSource(consumerSource.Object,
             PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
@@ -124,7 +124,7 @@ public class PulsarMessageSourceTests
     {
         var consumer = new Mock<IPulsarConsumerWrapper>(MockBehavior.Strict);
         var consumerSource = new Mock<IPulsarConsumerSource>(MockBehavior.Strict);
-        consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
+        consumerSource.Setup(s => s.GetConsumerAsync(It.IsAny<CancellationToken>())).ReturnsAsync(consumer.Object);
 
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();

@@ -25,7 +25,7 @@ public class PulsarConsumerFactoryTests
     [InlineData("")]
     [InlineData("Shared")]
     [InlineData("Failover")]
-    public void CreateConsumer_AcceptsSubscriptionTypeValues(string? subscriptionType)
+    public void CreateConsumerAsync_AcceptsSubscriptionTypeValues(string? subscriptionType)
     {
         var factory = new PulsarConsumerFactory(
             PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object,

@@ -49,7 +49,7 @@ public class PulsarJobSourceTests
             .Returns(Task.CompletedTask);
 
         var consumerSource = new Mock<IPulsarConsumerSource>(MockBehavior.Strict);
-        consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
+        consumerSource.Setup(s => s.GetConsumerAsync(It.IsAny<CancellationToken>())).ReturnsAsync(consumer.Object);
 
         var jobSource = new PulsarJobSource(consumerSource.Object,
             new Mock<IPulsarMessageSource>(MockBehavior.Strict).Object,
@@ -103,7 +103,7 @@ public class PulsarJobSourceTests
         consumer.Setup(c => c.AcknowledgeAsync(It.IsAny<IPulsarMessageContainer>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         var consumerSource = new Mock<IPulsarConsumerSource>(MockBehavior.Strict);
-        consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
+        consumerSource.Setup(s => s.GetConsumerAsync(It.IsAny<CancellationToken>())).ReturnsAsync(consumer.Object);
 
         var retry = new Mock<IPulsarRetryWrapperService>(MockBehavior.Strict);
         var retryInvoked = false;
@@ -136,7 +136,7 @@ public class PulsarJobSourceTests
         var message = CreateMessage("t:0:1", Guid.NewGuid().ToString());
 
         var consumerSource = new Mock<IPulsarConsumerSource>(MockBehavior.Strict);
-        consumerSource.Setup(s => s.GetConsumer()).Returns(new Mock<IPulsarConsumerWrapper>(MockBehavior.Strict).Object);
+        consumerSource.Setup(s => s.GetConsumerAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new Mock<IPulsarConsumerWrapper>(MockBehavior.Strict).Object);
 
         // ReSharper disable once RedundantArgumentDefaultValue
         var failure = new WorkerJobSourceException("ack failed", true);
@@ -186,7 +186,7 @@ public class PulsarJobSourceTests
         Assert.Equal(data2, response.Items[1].Body);
         Assert.Equal("t:0:1", response.Items[0].MessageId);
         Assert.Equal("t:0:2", response.Items[1].MessageId);
-        consumerSource.Verify(s => s.GetConsumer(), Times.Never);
+        consumerSource.Verify(s => s.GetConsumerAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public class PulsarJobSourceTests
         var response = await jobSource.GetJobsAsync(5, TestContext.Current.CancellationToken);
 
         Assert.Empty(response.Items);
-        consumerSource.Verify(s => s.GetConsumer(), Times.Never);
+        consumerSource.Verify(s => s.GetConsumerAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -228,7 +228,7 @@ public class PulsarJobSourceTests
 
         Assert.Equal(2, response.Items.Count);
         Assert.Equal("   ", response.Items[1].Body);
-        consumerSource.Verify(s => s.GetConsumer(), Times.Never);
+        consumerSource.Verify(s => s.GetConsumerAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

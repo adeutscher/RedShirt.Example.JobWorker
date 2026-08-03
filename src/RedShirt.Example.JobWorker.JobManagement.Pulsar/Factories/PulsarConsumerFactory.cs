@@ -9,7 +9,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.Factories;
 
 internal interface IPulsarConsumerFactory
 {
-    IPulsarConsumerWrapper CreateConsumer();
+    Task<IPulsarConsumerWrapper> CreateConsumerAsync(CancellationToken cancellationToken = default);
 }
 
 internal class PulsarConsumerFactory(
@@ -27,7 +27,7 @@ internal class PulsarConsumerFactory(
         return Enum.Parse<SubscriptionType>(subscriptionType, true);
     }
 
-    public IPulsarConsumerWrapper CreateConsumer()
+    public async Task<IPulsarConsumerWrapper> CreateConsumerAsync(CancellationToken cancellationToken = default)
     {
         /*
          * IMPORTANT:
@@ -35,15 +35,48 @@ internal class PulsarConsumerFactory(
          *  not the details of Pulsar fine-tuning.
          *
          * In particular, this template was developed using a local standalone container with no authentication.
-         * Implementing authentication is, for the moment, an exercise for the developer adapting this template.
+         * The actual implementation of authentication for Pulsar is left as an exercise for the developer
+         * implementing this template.
          *
          * Pulsar.Client is used (rather than DotPulsar) because it exposes DeadLetterPolicy / MaxRedeliveryCount.
+         *
+         * Authentication is configured on PulsarClientBuilder via .Authentication(...).
+         * Common approaches with Pulsar.Client (illustrative only — wire credentials from configuration/secrets):
+         *
+         *   // JWT / token auth
+         *   var client = await new PulsarClientBuilder()
+         *       .ServiceUrl(options.Value.ServiceUrl)
+         *       .Authentication(AuthenticationFactory.Token("eyJhbGciOi..."))
+         *       // or a supplier that refreshes the token:
+         *       // .Authentication(AuthenticationFactory.Token(() => LoadTokenFromSomewhere()))
+         *       .BuildAsync();
+         *
+         *   // TLS client-certificate auth (certFilePath is a PEM path the client loads)
+         *   var client = await new PulsarClientBuilder()
+         *       .ServiceUrl(options.Value.ServiceUrl) // typically pulsar+ssl://...
+         *       .EnableTls(true)
+         *       .Authentication(AuthenticationFactory.Tls("/path/to/client-cert.pem"))
+         *       .BuildAsync();
+         *
+         *   // OAuth2 client credentials
+         *   var client = await new PulsarClientBuilder()
+         *       .ServiceUrl(options.Value.ServiceUrl)
+         *       .Authentication(AuthenticationFactoryOAuth2.ClientCredentials(
+         *           issuerUrl: new Uri("https://auth.example.com/"),
+         *           audience: "urn:sn:pulsar:my-tenant:my-cluster",
+         *           privateKey: new Uri("file:///path/to/credentials.json"),
+         *           scope: "openid"))
+         *       .BuildAsync();
+         *
+         * Prefer EnableTls / TlsTrustCertificate / AllowTlsInsecureConnection as appropriate for your broker TLS setup.
          */
-        var client = new PulsarClientBuilder()
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var client = await new PulsarClientBuilder()
             .ServiceUrl(options.Value.ServiceUrl)
-            .BuildAsync()
-            .GetAwaiter()
-            .GetResult();
+            .BuildAsync();
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         var subscriptionType = ParseSubscriptionType(options.Value.SubscriptionType);
 
@@ -57,10 +90,7 @@ internal class PulsarConsumerFactory(
             // when messages remain unacknowledged (e.g. worker crash mid-batch).
             .AckTimeout(TimeSpan.FromSeconds(options.Value.AckTimeoutSeconds));
 
-        var consumer = consumerBuilder
-            .SubscribeAsync()
-            .GetAwaiter()
-            .GetResult();
+        var consumer = await consumerBuilder.SubscribeAsync();
 
         return new PulsarConsumerWrapper(retryWrapperService, client, consumer, options.Value.Topic);
     }
