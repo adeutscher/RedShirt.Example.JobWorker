@@ -8,12 +8,18 @@ using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Enums;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Models;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
+using RedShirt.Example.JobWorker.JobManagement.Sqs.Services.Resilience;
 using System.Net;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests.Tests.Services;
 
 public class SqsJobSourceTests
 {
+    private static ISqsJobSourceRetryWrapperService CreatePassthroughRetryWrapper()
+    {
+        return new PassthroughRetryWrapper();
+    }
+
     private static SqsConfigurationModel CreateConfig(string? queueUrl = null, int visibilityTimeoutSeconds = 0,
         bool dlqNotEnabled = false, int maximumReceives = 1)
     {
@@ -80,7 +86,7 @@ public class SqsJobSourceTests
 
         var source = new SqsJobSource(sqs.Object, sqsMessageSource.Object,
             poisonMessageHandler.Object,
-            Options.Create(CreateConfig(queueUrl, visibilityTimeoutInSeconds)));
+            CreatePassthroughRetryWrapper(), Options.Create(CreateConfig(queueUrl, visibilityTimeoutInSeconds)));
 
         var response = await source.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
         Assert.Equal(4, response.Items.Count);
@@ -106,7 +112,7 @@ public class SqsJobSourceTests
         var options = CreateConfig(visibilityTimeoutSeconds: 20);
 
         var jobSource = new SqsJobSource(null!, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
-            Options.Create(options));
+            CreatePassthroughRetryWrapper(), Options.Create(options));
 
         Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
     }
@@ -122,7 +128,7 @@ public class SqsJobSourceTests
         var config = CreateConfig();
 
         var source = new SqsJobSource(sqs.Object, null!, poisonMessageHandler.Object,
-            Options.Create(config));
+            CreatePassthroughRetryWrapper(), Options.Create(config));
 
         var job = new OutsideContextJobModel
         {
@@ -156,7 +162,7 @@ public class SqsJobSourceTests
 
         var config = CreateConfig();
         var source = new SqsJobSource(sqs.Object, null!, poisonMessageHandler.Object,
-            Options.Create(config));
+            CreatePassthroughRetryWrapper(), Options.Create(config));
 
         var receiptHandle = Guid.NewGuid().ToString();
         var rawMessage = new Message {ReceiptHandle = receiptHandle};
@@ -195,7 +201,7 @@ public class SqsJobSourceTests
 
         var config = CreateConfig();
         var source = new SqsJobSource(sqs.Object, null!, poisonMessageHandler.Object,
-            Options.Create(config));
+            CreatePassthroughRetryWrapper(), Options.Create(config));
 
         var rawMessage = new Message {ReceiptHandle = Guid.NewGuid().ToString()};
         var job = new SqsJobModel
@@ -227,7 +233,7 @@ public class SqsJobSourceTests
 
         var config = CreateConfig();
         var source = new SqsJobSource(sqs.Object, null!, poisonMessageHandler.Object,
-            Options.Create(config));
+            CreatePassthroughRetryWrapper(), Options.Create(config));
 
         var rawMessage = new Message {ReceiptHandle = Guid.NewGuid().ToString()};
         var job = new SqsJobModel
@@ -254,7 +260,7 @@ public class SqsJobSourceTests
         var config = CreateConfig();
 
         var source = new SqsJobSource(sqs.Object, null!, poisonMessageHandler.Object,
-            Options.Create(config));
+            CreatePassthroughRetryWrapper(), Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
         var receiptHandle = Guid.NewGuid().ToString();
@@ -301,7 +307,7 @@ public class SqsJobSourceTests
 
         var config = CreateConfig(visibilityTimeoutSeconds: timeoutSeconds);
         var source = new SqsJobSource(sqs.Object, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
-            Options.Create(config));
+            CreatePassthroughRetryWrapper(), Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
         var receiptHandle = Guid.NewGuid().ToString();
@@ -349,7 +355,7 @@ public class SqsJobSourceTests
 
         var config = CreateConfig(visibilityTimeoutSeconds: timeoutSeconds);
         var source = new SqsJobSource(sqs.Object, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
-            Options.Create(config));
+            CreatePassthroughRetryWrapper(), Options.Create(config));
 
         var messageId = Guid.NewGuid().ToString();
         var receiptHandle = Guid.NewGuid().ToString();
@@ -392,7 +398,7 @@ public class SqsJobSourceTests
         var config = CreateConfig(visibilityTimeoutSeconds: 30);
 
         var source = new SqsJobSource(sqs.Object, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
-            Options.Create(config));
+            CreatePassthroughRetryWrapper(), Options.Create(config));
 
         var job = new OutsideContextJobModel
         {
@@ -404,6 +410,19 @@ public class SqsJobSourceTests
         await source.HeartbeatAsync(job, TestContext.Current.CancellationToken);
 
         Assert.Empty(sqs.Invocations);
+    }
+
+    private sealed class PassthroughRetryWrapper : ISqsJobSourceRetryWrapperService
+    {
+        public Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
+
+        public Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
     }
 
     public class OutsideContextJobModelTests

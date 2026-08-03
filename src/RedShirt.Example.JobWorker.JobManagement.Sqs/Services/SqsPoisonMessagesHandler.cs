@@ -3,6 +3,7 @@ using Amazon.SQS.Model;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Enums;
+using RedShirt.Example.JobWorker.JobManagement.Sqs.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
@@ -13,7 +14,10 @@ internal interface ISqsPoisonMessagesHandler
         CancellationToken cancellationToken = default);
 }
 
-internal class SqsPoisonMessagesHandler(IAmazonSQS sqs, IOptions<SqsConfigurationModel> options)
+internal class SqsPoisonMessagesHandler(
+    IAmazonSQS sqs,
+    ISqsJobSourceRetryWrapperService retryWrapperService,
+    IOptions<SqsConfigurationModel> options)
     : ISqsPoisonMessagesHandler
 {
     public async Task<PoisonEnforcementResult> AttemptPoisonMessageEnforcementAsync(Message message,
@@ -30,11 +34,11 @@ internal class SqsPoisonMessagesHandler(IAmazonSQS sqs, IOptions<SqsConfiguratio
             options.Value.EffectiveMaximumReceives)
         {
             // If the DLQ is not enabled, then attempt to deal with poison messages
-            await sqs.DeleteMessageAsync(new DeleteMessageRequest
+            await retryWrapperService.RunAsync(ct => sqs.DeleteMessageAsync(new DeleteMessageRequest
             {
                 QueueUrl = options.Value.QueueUrl,
                 ReceiptHandle = message.ReceiptHandle
-            }, cancellationToken);
+            }, ct), cancellationToken);
             return PoisonEnforcementResult.Enforced;
         }
 

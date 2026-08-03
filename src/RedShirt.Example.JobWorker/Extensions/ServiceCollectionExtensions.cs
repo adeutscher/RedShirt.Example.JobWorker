@@ -9,12 +9,14 @@ using RedShirt.Example.JobWorker.Core.Logic.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.RedisStreams.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Extensions;
 
 namespace RedShirt.Example.JobWorker.Extensions;
@@ -47,13 +49,20 @@ public static class ServiceCollectionExtensions
         var useActiveMqRaw = configuration.GetValue("UseActiveMq", "0");
         var useAzureQueueStorageRaw = configuration.GetValue("UseAzureQueueStorage", "0");
         var useAzureServiceBusRaw = configuration.GetValue("UseAzureServiceBus", "0");
+        var useGooglePubSubRaw = configuration.GetValue("UseGooglePubSub", "0");
         var useNatsRaw = configuration.GetValue("UseNats", "0");
+        var useRedisStreamsRaw = configuration.GetValue("UseRedisStreams", "0");
         var useRabbitMqRaw = configuration.GetValue("UseRabbitMq", "0");
 
         if (int.TryParse(useNatsRaw, out var useNats) && useNats == 1)
         {
             services = services
                 .AddNatsJobManagement(configuration);
+        }
+        else if (int.TryParse(useRedisStreamsRaw, out var useRedisStreams) && useRedisStreams == 1)
+        {
+            services = services
+                .AddRedisStreamsJobManagement(configuration);
         }
         else if (int.TryParse(useAzureQueueStorageRaw, out var useAzureQueueStorage) && useAzureQueueStorage == 1)
         {
@@ -66,6 +75,11 @@ public static class ServiceCollectionExtensions
             services = services
                 .AddSecretManagerAzureKeyVault(configuration)
                 .AddAzureServiceBusJobManagement(configuration);
+        }
+        else if (int.TryParse(useGooglePubSubRaw, out var useGooglePubSub) && useGooglePubSub == 1)
+        {
+            services = services
+                .AddGooglePubSubJobManagement(configuration);
         }
         else if (int.TryParse(useRabbitMqRaw, out var useRabbitMq) && useRabbitMq == 1)
         {

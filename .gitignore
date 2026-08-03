@@ -38,3 +38,14 @@ Desktop.ini
 
 # Vim Swapfiles
 .*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/

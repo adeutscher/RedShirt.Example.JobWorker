@@ -73,7 +73,8 @@ internal class RedisDistributedExceptionArbiterService : IRedisDistributedExcept
             WorkerDistributedException workerDistributed =>
                 Handled(workerDistributed.IsCritical, workerDistributed.IsTransient),
             WorkerSecretManagerException secretManager =>
-                Handled(secretManager.IsCritical, secretManager.IsTransient),
+                Handled(secretManager.IsCritical,
+                    secretManager is {IsHandled: false, IsTransient: true}),
             // Command / connection timeouts from StackExchange.Redis.
             RedisTimeoutException => Fresh(false, true),
             // Connection failures: critical types surface raw, transient types may be retried.

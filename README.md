@@ -14,8 +14,10 @@ Repo features:
     * [Apache Kafka](https://kafka.apache.org/)
     * [Azure Queue Storage](https://learn.microsoft.com/en-us/azure/storage/queues/storage-queues-introduction)
     * [Azure Service Bus](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview)
+    * [Google Pub/Sub](https://cloud.google.com/pubsub/docs)
     * [NATS](https://nats.io/)
     * [RabbitMQ](https://www.rabbitmq.com/)
+    * [Redis Streams](https://redis.io/docs/latest/develop/data-types/streams/)
 * Cache-based idempotency support
     * Prevents the same message from being run twice in the event that an executor loses custody of a message.
         * Messages could be dropped by connection issues with the message source or because of a protocol decision by

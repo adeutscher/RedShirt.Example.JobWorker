@@ -1,7 +1,6 @@
-using Amazon.SQS;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using RedShirt.Example.JobWorker.Common.Aws.Extensions;
+using RedShirt.Example.JobWorker.Common.Aws.Sqs.Extensions;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Services;
 
@@ -13,7 +12,7 @@ public static class ServiceCollectionExtensions
         IConfigurationRoot configuration)
     {
         return services
-            .AddAwsServiceWithLocalSupport<IAmazonSQS>()
+            .AddSqs()
             .AddSingleton<IJobFailureHandler, SqsQueueFailureHandler>()
             .Configure<SqsQueueFailureHandler.ConfigurationModel>(
                 configuration.GetSection("JobSource:Kafka:Failures"));

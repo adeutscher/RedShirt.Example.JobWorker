@@ -190,6 +190,19 @@ public class RedisDistributedExceptionArbiterServiceTests
 
         Assert.True(report.AlreadyHandled);
         Assert.Equal(isCritical, report.IsCritical);
+        // Unhandled WorkerSecretManagerException may still be retried upstream when transient.
         Assert.Equal(isTransient, report.CouldBeTransient);
+    }
+
+    [Fact]
+    public void GetReport_WorkerSecretManagerException_WhenAlreadyHandled_IsNotTransientForUpstream()
+    {
+        var exception = new WorkerSecretManagerException("secret failure", false, true, true);
+
+        var report = _sut.GetReport(exception);
+
+        Assert.True(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.False(report.CouldBeTransient);
     }
 }

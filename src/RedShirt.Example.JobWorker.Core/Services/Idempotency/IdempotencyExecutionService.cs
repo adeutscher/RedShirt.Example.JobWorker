@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
@@ -24,7 +25,8 @@ internal interface IIdempotencyExecutionService
 internal sealed class IdempotencyExecutionService(
     ISafeAbstractedLockService abstractedLockService,
     ISafeRemoteCacheService cache,
-    IOptions<IdempotencyConfigurationModel> options) : IIdempotencyExecutionService
+    IOptions<IdempotencyConfigurationModel> options,
+    ILogger<IdempotencyExecutionService> logger) : IIdempotencyExecutionService
 {
     private const string CommonKeyPrefix = "idempotency";
 
@@ -81,7 +83,16 @@ internal sealed class IdempotencyExecutionService(
             return new EmptyIdempotencyLock();
         }
 
-        return await abstractedLockService.GetLockAsync(GetLockKey(jobModel.IdempotencyId!), token);
+        var @lock = await abstractedLockService.GetLockAsync(GetLockKey(jobModel.IdempotencyId!), token);
+
+        if (!@lock.IsTrulyAcquired)
+        {
+            logger.LogTrace(
+                "Idempotency lock for {IdempotencyId} was not truly acquired; proceeding with a permissive lock",
+                jobModel.IdempotencyId);
+        }
+
+        return @lock;
     }
 
     public async Task<IdempotencyCacheResult?> GetCachedResultAsync(IJobModel jobModel,
@@ -122,8 +133,11 @@ internal sealed class IdempotencyExecutionService(
 
         var timeSpan = TimeSpan.FromSeconds(options.Value.EffectiveResultCacheDurationSeconds);
 
-        if (acknowledgementResult.Success && options.Value.IdempotencyIdsCanRepeat)
+        if (acknowledgementResult.Success && !options.Value.IdempotencyIdsCanRepeat)
         {
+            // If the idempotency IDs cannot repeat,
+            //   then it can be reasonably assumed that there's no point in caching the data
+            //   set to null to delete data in underlying cache in an effort to save resources.
             return cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), null, timeSpan, cancellationToken);
         }
 

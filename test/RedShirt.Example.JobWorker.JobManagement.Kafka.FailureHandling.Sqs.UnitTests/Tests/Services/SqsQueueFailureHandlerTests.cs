@@ -1,6 +1,7 @@
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.Aws.Sqs.Services.Resilience;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Services;
@@ -20,10 +21,11 @@ public class SqsQueueFailureHandlerTests
     public async Task SendFailure_NoQueueUrl()
     {
         var sqs = new Mock<IAmazonSQS>();
-        var sender = new SqsQueueFailureHandler(sqs.Object, Options.Create(new SqsQueueFailureHandler.ConfigurationModel
-        {
-            QueueUrl = null!
-        }));
+        var sender = new SqsQueueFailureHandler(sqs.Object, new PassthroughRetryWrapper(), Options.Create(
+            new SqsQueueFailureHandler.ConfigurationModel
+            {
+                QueueUrl = null!
+            }));
 
         await sender.HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution, null,
             TestContext.Current.CancellationToken);
@@ -36,10 +38,11 @@ public class SqsQueueFailureHandlerTests
     {
         var sqs = new Mock<IAmazonSQS>();
         var body = Guid.NewGuid().ToString();
-        var sender = new SqsQueueFailureHandler(sqs.Object, Options.Create(new SqsQueueFailureHandler.ConfigurationModel
-        {
-            QueueUrl = "foo"
-        }));
+        var sender = new SqsQueueFailureHandler(sqs.Object, new PassthroughRetryWrapper(), Options.Create(
+            new SqsQueueFailureHandler.ConfigurationModel
+            {
+                QueueUrl = "foo"
+            }));
 
         await sender.HandleFailureAsync(CreateRawJobModel(body).Object, FailureType.Execution, null,
             TestContext.Current.CancellationToken);
@@ -49,5 +52,18 @@ public class SqsQueueFailureHandlerTests
         sqs.Verify(
             a => a.SendMessageAsync(It.Is<SendMessageRequest>(r => r.QueueUrl == "foo" && r.MessageBody == body),
                 TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    private sealed class PassthroughRetryWrapper : ISqsRetryWrapperService
+    {
+        public Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
+
+        public Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
     }
 }

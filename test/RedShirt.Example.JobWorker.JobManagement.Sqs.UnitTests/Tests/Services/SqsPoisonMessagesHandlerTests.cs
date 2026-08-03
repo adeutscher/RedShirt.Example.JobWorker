@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Enums;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
+using RedShirt.Example.JobWorker.JobManagement.Sqs.Services.Resilience;
 using System.Net;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests.Tests.Services;
@@ -12,7 +13,7 @@ public class SqsPoisonMessagesHandlerTests
 {
     private static SqsPoisonMessagesHandler CreateHandler(Mock<IAmazonSQS> sqs, SqsConfigurationModel config)
     {
-        return new SqsPoisonMessagesHandler(sqs.Object, Options.Create(config));
+        return new SqsPoisonMessagesHandler(sqs.Object, new PassthroughRetryWrapper(), Options.Create(config));
     }
 
     private static Message CreateMessage(int receiveCount, string? receiptHandle = null)
@@ -170,5 +171,18 @@ public class SqsPoisonMessagesHandlerTests
 
         Assert.Equal(PoisonEnforcementResult.NotEnforced, outcome);
         Assert.Empty(sqs.Invocations);
+    }
+
+    private sealed class PassthroughRetryWrapper : ISqsJobSourceRetryWrapperService
+    {
+        public Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
+
+        public Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
     }
 }

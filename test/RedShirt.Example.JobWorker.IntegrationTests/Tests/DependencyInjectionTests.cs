@@ -15,7 +15,9 @@ public class DependencyInjectionTests
             ["UseActiveMq"] = "1",
             ["UseAzureQueueStorage"] = "0",
             ["UseAzureServiceBus"] = "0",
+            ["UseGooglePubSub"] = "0",
             ["UseNats"] = "0",
+            ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "0",
             ["UseKinesis"] = "0",
             ["UseKafka"] = "0",
@@ -35,7 +37,9 @@ public class DependencyInjectionTests
             ["UseActiveMq"] = "0",
             ["UseAzureQueueStorage"] = "1",
             ["UseAzureServiceBus"] = "0",
+            ["UseGooglePubSub"] = "0",
             ["UseNats"] = "0",
+            ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "0",
             ["UseKinesis"] = "0",
             ["UseKafka"] = "0",
@@ -55,11 +59,33 @@ public class DependencyInjectionTests
             ["UseActiveMq"] = "0",
             ["UseAzureQueueStorage"] = "0",
             ["UseAzureServiceBus"] = "1",
+            ["UseGooglePubSub"] = "0",
             ["UseNats"] = "0",
             ["UseRabbitMq"] = "0",
             ["UseKinesis"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
+        }, () => { Assert.NotNull(Setup.GetRunner()); });
+    }
+
+    [Fact]
+    public void Test_Get_Runner_GooglePubSub()
+    {
+        TestUtilities.WrapEnvironment(new Dictionary<string, string>
+        {
+            ["AWS_SERVICE_URL"] = "http://foo.bar",
+            ["AWS_ACCESS_KEY_ID"] = "foo",
+            ["AWS_SECRET_ACCESS_KEY"] = "bar",
+            ["AWS_SESSION_TOKEN"] = "foobar",
+            ["UseActiveMq"] = "0",
+            ["UseAzureQueueStorage"] = "0",
+            ["UseAzureServiceBus"] = "0",
+            ["UseGooglePubSub"] = "1",
+            ["UseNats"] = "0",
+            ["UseRedisStreams"] = "0",
+            ["UseRabbitMq"] = "0",
+            ["UseKinesis"] = "0",
+            ["UseKafka"] = "0"
         }, () => { Assert.NotNull(Setup.GetRunner()); });
     }
 
@@ -75,7 +101,9 @@ public class DependencyInjectionTests
             ["UseActiveMq"] = "0",
             ["UseAzureQueueStorage"] = "0",
             ["UseAzureServiceBus"] = "0",
+            ["UseGooglePubSub"] = "0",
             ["UseNats"] = "0",
+            ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "0",
             ["UseKinesis"] = "0",
             ["UseKafka"] = "1",
@@ -95,7 +123,9 @@ public class DependencyInjectionTests
             ["UseActiveMq"] = "0",
             ["UseAzureQueueStorage"] = "0",
             ["UseAzureServiceBus"] = "0",
+            ["UseGooglePubSub"] = "0",
             ["UseNats"] = "0",
+            ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "0",
             ["UseKinesis"] = "1",
             ["UseKafka"] = "0",
@@ -116,7 +146,9 @@ public class DependencyInjectionTests
             ["UseKinesis"] = "0",
             ["UseAzureQueueStorage"] = "0",
             ["UseAzureServiceBus"] = "0",
+            ["UseGooglePubSub"] = "0",
             ["UseNats"] = "1",
+            ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
@@ -155,11 +187,33 @@ public class DependencyInjectionTests
             ["UseActiveMq"] = "0",
             ["UseAzureQueueStorage"] = "0",
             ["UseAzureServiceBus"] = "0",
+            ["UseGooglePubSub"] = "0",
             ["UseKinesis"] = "0",
             ["UseNats"] = "0",
+            ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "1",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
+        }, () => { Assert.NotNull(Setup.GetRunner()); });
+    }
+
+    [Fact]
+    public void Test_Get_Runner_RedisStreams()
+    {
+        TestUtilities.WrapEnvironment(new Dictionary<string, string>
+        {
+            ["AWS_SERVICE_URL"] = "http://foo.bar",
+            ["AWS_ACCESS_KEY_ID"] = "foo",
+            ["AWS_SECRET_ACCESS_KEY"] = "bar",
+            ["AWS_SESSION_TOKEN"] = "foobar",
+            ["UseActiveMq"] = "0",
+            ["UseAzureQueueStorage"] = "0",
+            ["UseAzureServiceBus"] = "0",
+            ["UseKinesis"] = "0",
+            ["UseNats"] = "0",
+            ["UseRedisStreams"] = "1",
+            ["UseRabbitMq"] = "0",
+            ["UseKafka"] = "0"
         }, () => { Assert.NotNull(Setup.GetRunner()); });
     }
 
@@ -176,8 +230,10 @@ public class DependencyInjectionTests
             ["UseActiveMq"] = "0",
             ["UseAzureQueueStorage"] = "0",
             ["UseAzureServiceBus"] = "0",
+            ["UseGooglePubSub"] = "0",
             ["UseKinesis"] = "0",
             ["UseNats"] = "0",
+            ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
@@ -197,8 +253,10 @@ public class DependencyInjectionTests
             ["UseActiveMq"] = "0",
             ["UseAzureQueueStorage"] = "0",
             ["UseAzureServiceBus"] = "0",
+            ["UseGooglePubSub"] = "0",
             ["UseKinesis"] = "0",
             ["UseNats"] = "0",
+            ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
