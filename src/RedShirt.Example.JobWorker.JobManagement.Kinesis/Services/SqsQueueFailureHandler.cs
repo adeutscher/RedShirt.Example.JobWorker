@@ -4,10 +4,14 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 
-internal class SqsQueueFailureHandler(IAmazonSQS sqs, IOptions<SqsQueueFailureHandler.ConfigurationModel> options)
+internal class SqsQueueFailureHandler(
+    IAmazonSQS sqs,
+    IKinesisRetryWrapperService retryWrapperService,
+    IOptions<SqsQueueFailureHandler.ConfigurationModel> options)
     : IJobFailureHandler
 {
     public Task HandleFailureAsync(IRawJobModel rawJobModel, FailureType failureType, Exception? exception,
@@ -18,11 +22,11 @@ internal class SqsQueueFailureHandler(IAmazonSQS sqs, IOptions<SqsQueueFailureHa
             return Task.CompletedTask;
         }
 
-        return sqs.SendMessageAsync(new SendMessageRequest
+        return retryWrapperService.RunAsync(ct => sqs.SendMessageAsync(new SendMessageRequest
         {
             QueueUrl = options.Value.QueueUrl,
             MessageBody = rawJobModel.Body
-        }, cancellationToken);
+        }, ct), cancellationToken);
     }
 
     internal class ConfigurationModel

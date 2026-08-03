@@ -1,7 +1,8 @@
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
-using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Checkpoints;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Resilience;
 
-namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Services.Checkpoints;
 
 public class RemoteCacheShortTermIteratorStorageTests
 {
@@ -18,7 +19,7 @@ public class RemoteCacheShortTermIteratorStorageTests
         remoteCache.Setup(c => c.GetStringAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(value);
 
-        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object);
+        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object, new PassthroughRetryWrapper());
         var storedValue = await storage.GetAsync(key, TestContext.Current.CancellationToken);
 
         Assert.Equal(value, storedValue);
@@ -40,7 +41,7 @@ public class RemoteCacheShortTermIteratorStorageTests
         remoteCache.Setup(c => c.GetStringAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(value);
 
-        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object);
+        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object, new PassthroughRetryWrapper());
         var storedValue = await storage.GetAsync(key, TestContext.Current.CancellationToken);
 
         Assert.Equal(value, storedValue);
@@ -62,7 +63,7 @@ public class RemoteCacheShortTermIteratorStorageTests
         var key = Guid.NewGuid().ToString();
         var value = Guid.NewGuid().ToString();
 
-        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object);
+        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object, new PassthroughRetryWrapper());
         await storage.SetAsync(key, value, TestContext.Current.CancellationToken);
 
         Assert.Single(remoteCache.Invocations);
@@ -85,12 +86,25 @@ public class RemoteCacheShortTermIteratorStorageTests
         var key = Guid.NewGuid().ToString();
         string? value = null;
 
-        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object);
+        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object, new PassthroughRetryWrapper());
         await storage.SetAsync(key, value, TestContext.Current.CancellationToken);
 
         Assert.Single(remoteCache.Invocations);
         remoteCache.Verify(
             c => c.SetStringAsync(It.Is<string>(k => k.Contains(key)), null, ExpectedExpiry,
                 TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    private sealed class PassthroughRetryWrapper : IKinesisRetryWrapperService
+    {
+        public Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
+
+        public Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
     }
 }

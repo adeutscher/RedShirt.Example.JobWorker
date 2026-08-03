@@ -11,6 +11,8 @@
     <Folder Name="/src/">
         <Project
                 Path="src/RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager/RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.Common.Aws.Sqs/RedShirt.Example.JobWorker.Common.Aws.Sqs.csproj"/>
         <Project Path="src/RedShirt.Example.JobWorker.Common.Aws/RedShirt.Example.JobWorker.Common.Aws.csproj"/>
         <Project
                 Path="src/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.csproj"/>
@@ -46,6 +48,8 @@
     <Folder Name="/test/">
         <Project
                 Path="test/RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.UnitTests/RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Common.Aws.Sqs.UnitTests/RedShirt.Example.JobWorker.Common.Aws.Sqs.UnitTests.csproj"/>
         <Project
                 Path="test/RedShirt.Example.JobWorker.Common.Aws.UnitTests/RedShirt.Example.JobWorker.Common.Aws.UnitTests.csproj"/>
         <Project

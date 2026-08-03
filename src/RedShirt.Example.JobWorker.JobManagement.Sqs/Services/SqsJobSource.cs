@@ -9,6 +9,7 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Enums;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Models;
+using RedShirt.Example.JobWorker.JobManagement.Sqs.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
@@ -17,8 +18,18 @@ internal class SqsJobSource(
     IAmazonSQS sqs,
     ISqsMessageSource sqsMessageSource,
     ISqsPoisonMessagesHandler poisonMessagesHandler,
+    ISqsJobSourceRetryWrapperService retryWrapperService,
     IOptions<SqsConfigurationModel> options) : IJobSource
 {
+#pragma warning disable CA1859
+    private Task DeleteMessageAsync(SqsJobModel sqsJobModel, CancellationToken cancellationToken) =>
+#pragma warning restore CA1859
+        retryWrapperService.RunAsync(ct => sqs.DeleteMessageAsync(new DeleteMessageRequest
+        {
+            QueueUrl = options.Value.QueueUrl,
+            ReceiptHandle = sqsJobModel.RawMessage.ReceiptHandle
+        }, ct), cancellationToken);
+
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
@@ -30,11 +41,7 @@ internal class SqsJobSource(
 
         if (result.IsSuccessful())
         {
-            await sqs.DeleteMessageAsync(new DeleteMessageRequest
-            {
-                QueueUrl = options.Value.QueueUrl,
-                ReceiptHandle = sqsJobModel.RawMessage.ReceiptHandle
-            }, cancellationToken);
+            await DeleteMessageAsync(sqsJobModel, cancellationToken);
             return;
         }
 
@@ -50,12 +57,10 @@ internal class SqsJobSource(
             && !result.IsRecoverableFailure())
         {
             // The message was not already deleted by consumer-based poison message handling and the message is not recoverable, so the message should be deleted.
-            await sqs.DeleteMessageAsync(new DeleteMessageRequest
-            {
-                QueueUrl = options.Value.QueueUrl,
-                ReceiptHandle = sqsJobModel.RawMessage.ReceiptHandle
-            }, cancellationToken);
+            await DeleteMessageAsync(sqsJobModel, cancellationToken);
         }
+
+        // If the message was recoverable, then we don't really have any other option but to let it fall back into the queue.
     }
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -63,6 +68,7 @@ internal class SqsJobSource(
         var messages = await sqsMessageSource.GetMessagesAsync(batchSize, cancellationToken);
         var items = new List<IRawJobModel>();
 
+        // ReSharper disable once ForeachCanBeConvertedToQueryUsingAnotherGetEnumerator
         foreach (var message in messages)
         {
             var data = new SqsJobModel
@@ -126,17 +132,17 @@ internal class SqsJobSource(
              * AWSSDK does not return an exception when we try to extend beyond the 12-hour limit, so we are forced to apply our own.
              */
 
-            await sqs.DeleteMessageAsync(new DeleteMessageRequest
+            await retryWrapperService.RunAsync(ct => sqs.DeleteMessageAsync(new DeleteMessageRequest
             {
                 QueueUrl = options.Value.QueueUrl,
                 ReceiptHandle = sqsJobModel.RawMessage.ReceiptHandle
-            }, cancellationToken);
+            }, ct), cancellationToken);
 
             throw new WorkerJobSourceException(
                 "Message is in danger of exceeding maximum SQS visibility timeout.",
                 false);
         }
 
-        await sqs.ChangeMessageVisibilityAsync(request, cancellationToken);
+        await retryWrapperService.RunAsync(ct => sqs.ChangeMessageVisibilityAsync(request, ct), cancellationToken);
     }
 }
