@@ -22,31 +22,6 @@ public class PulsarExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_PermanentPulsarExceptions_IsNotCriticalAndNotTransient()
-    {
-        Exception[] exceptions =
-        [
-            new AuthenticationException("critical"),
-            new AuthorizationException("critical"),
-            new InvalidConfigurationException("critical"),
-            new UnsupportedVersionException("critical"),
-            new InvalidTopicNameException("critical"),
-            new TopicDoesNotExistException("missing"),
-            new AlreadyClosedException("closed"),
-            new TopicTerminatedException("terminated")
-        ];
-
-        foreach (var exception in exceptions)
-        {
-            var report = _sut.GetReport(exception);
-
-            Assert.False(report.AlreadyHandled);
-            Assert.False(report.IsCritical);
-            Assert.False(report.CouldBeTransient);
-        }
-    }
-
-    [Fact]
     public void GetReport_HttpRequestException_WithDnsSocketError_IsNotCriticalAndNotTransient()
     {
         var report = _sut.GetReport(new HttpRequestException("failed to connect",
@@ -128,6 +103,31 @@ public class PulsarExceptionArbiterServiceTests
         Assert.False(report.AlreadyHandled);
         Assert.False(report.IsCritical);
         Assert.False(report.CouldBeTransient);
+    }
+
+    [Fact]
+    public void GetReport_PermanentPulsarExceptions_IsNotCriticalAndNotTransient()
+    {
+        Exception[] exceptions =
+        [
+            new AuthenticationException("critical"),
+            new AuthorizationException("critical"),
+            new InvalidConfigurationException("critical"),
+            new UnsupportedVersionException("critical"),
+            new InvalidTopicNameException("critical"),
+            new TopicDoesNotExistException("missing"),
+            new AlreadyClosedException("closed"),
+            new TopicTerminatedException("terminated")
+        ];
+
+        foreach (var exception in exceptions)
+        {
+            var report = _sut.GetReport(exception);
+
+            Assert.False(report.AlreadyHandled);
+            Assert.False(report.IsCritical);
+            Assert.False(report.CouldBeTransient);
+        }
     }
 
     [Fact]
