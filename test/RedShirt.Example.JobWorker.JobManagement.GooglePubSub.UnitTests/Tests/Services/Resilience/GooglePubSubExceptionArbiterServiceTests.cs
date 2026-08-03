@@ -95,6 +95,71 @@ public class GooglePubSubExceptionArbiterServiceTests
     }
 
     [Fact]
+    public void GetReport_RpcException_Unavailable_DnsWithoutSubchannelDetail_IsStillTransient()
+    {
+        var exception = new RpcException(new Status(
+            StatusCode.Unavailable,
+            "service temporarily unavailable",
+            new SocketException((int) SocketError.HostNotFound)));
+
+        var report = _sut.GetReport(exception);
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.True(report.CouldBeTransient);
+    }
+
+    [Fact]
+    public void GetReport_RpcException_Unavailable_SubchannelConnectionRefused_IsStillTransient()
+    {
+        var exception = new RpcException(new Status(
+            StatusCode.Unavailable,
+            "Error connecting to subchannel.",
+            new SocketException((int) SocketError.ConnectionRefused)));
+
+        var report = _sut.GetReport(exception);
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.True(report.CouldBeTransient);
+    }
+
+    [Theory]
+    [InlineData(SocketError.HostNotFound)]
+    [InlineData(SocketError.NoData)]
+    [InlineData(SocketError.NoRecovery)]
+    [InlineData(SocketError.TryAgain)]
+    public void GetReport_RpcException_Unavailable_SubchannelDnsFailure_IsNotTransient(SocketError socketError)
+    {
+        var exception = new RpcException(new Status(
+            StatusCode.Unavailable,
+            "Error connecting to subchannel.",
+            new SocketException((int) socketError)));
+
+        var report = _sut.GetReport(exception);
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.False(report.CouldBeTransient);
+    }
+
+    [Fact]
+    public void GetReport_RpcException_Unavailable_SubchannelDnsFailure_NestedUnderHttpRequest_IsNotTransient()
+    {
+        var exception = new RpcException(new Status(
+            StatusCode.Unavailable,
+            "Error connecting to sub-channel.",
+            new HttpRequestException("failed to connect",
+                new SocketException((int) SocketError.HostNotFound))));
+
+        var report = _sut.GetReport(exception);
+
+        Assert.False(report.AlreadyHandled);
+        Assert.False(report.IsCritical);
+        Assert.False(report.CouldBeTransient);
+    }
+
+    [Fact]
     public void GetReport_SingleInnerAggregateException_JudgesUnwrappedInner()
     {
         var inner = new RpcException(new Status(StatusCode.Unavailable, "down"));

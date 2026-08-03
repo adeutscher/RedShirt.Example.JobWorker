@@ -40,16 +40,18 @@ internal class GooglePubSubMessageSource(
 
         while (batchSize > MaxMessagesPerRequest)
         {
-            var loopResult = await PullAsync(MaxMessagesPerRequest, cancellationToken);
+            // Mostly declaring pullSize separately to make a point for readability.
+            var pullSize = MaxMessagesPerRequest;
+            var loopResult = await PullAsync(pullSize, cancellationToken);
 
             messages.AddRange(loopResult);
 
-            if (loopResult.Count < MaxMessagesPerRequest)
+            if (loopResult.Count < pullSize)
             {
                 break;
             }
 
-            batchSize -= MaxMessagesPerRequest;
+            batchSize -= pullSize;
         }
 
         if (batchSize is > 0 and <= MaxMessagesPerRequest)

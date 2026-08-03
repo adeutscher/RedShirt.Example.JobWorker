@@ -42,6 +42,14 @@ internal class GooglePubSubExceptionArbiterService : IGooglePubSubExceptionArbit
         StatusCode.DataLoss
     ];
 
+    private static readonly HashSet<SocketError> DnsSocketErrors =
+    [
+        SocketError.HostNotFound,
+        SocketError.NoData,
+        SocketError.NoRecovery,
+        SocketError.TryAgain
+    ];
+
     private static GooglePubSubExceptionArbiterReport Fresh(bool isCritical, bool couldBeTransient)
     {
         return new GooglePubSubExceptionArbiterReport
@@ -62,6 +70,58 @@ internal class GooglePubSubExceptionArbiterService : IGooglePubSubExceptionArbit
         };
     }
 
+    private static GooglePubSubExceptionArbiterReport ClassifyRpcException(RpcException rpc)
+    {
+        if (PermanentStatusCodes.Contains(rpc.StatusCode))
+        {
+            return Fresh(false, false);
+        }
+
+        // Misconfigured host / DNS failure surfaces as Unavailable + "Error connecting to subchannel."
+        // with an underlying DNS SocketException. Retrying will not help.
+        if (rpc.StatusCode == StatusCode.Unavailable && IsUnavailableDnsSubchannelFailure(rpc))
+        {
+            return Fresh(false, false);
+        }
+
+        return Fresh(false, TransientStatusCodes.Contains(rpc.StatusCode));
+    }
+
+    private static bool IsUnavailableDnsSubchannelFailure(RpcException rpc)
+    {
+        return IsSubchannelConnectionDetail(rpc.Status.Detail)
+               && FindSocketException(rpc) is { } socket
+               && DnsSocketErrors.Contains(socket.SocketErrorCode);
+    }
+
+    private static bool IsSubchannelConnectionDetail(string? detail)
+    {
+        if (string.IsNullOrEmpty(detail))
+        {
+            return false;
+        }
+
+        // grpc-dotnet typically uses "Error connecting to subchannel." (no hyphen).
+        return detail.Contains("connecting to subchannel", StringComparison.OrdinalIgnoreCase)
+               || detail.Contains("connecting to sub-channel", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static SocketException? FindSocketException(RpcException rpc)
+    {
+        foreach (var root in (Exception?[]) [rpc.InnerException, rpc.Status.DebugException])
+        {
+            for (var current = root; current is not null; current = current.InnerException)
+            {
+                if (current is SocketException socket)
+                {
+                    return socket;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public GooglePubSubExceptionArbiterReport GetReport(Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
@@ -78,9 +138,7 @@ internal class GooglePubSubExceptionArbiterService : IGooglePubSubExceptionArbit
             WorkerJobSourceException workerJobSource =>
                 Handled(workerJobSource.IsCritical, workerJobSource is {IsHandled: false, CouldBeTransient: true}),
             // gRPC status from the Pub/Sub client / emulator.
-            RpcException rpc => PermanentStatusCodes.Contains(rpc.StatusCode)
-                ? Fresh(false, false)
-                : Fresh(false, TransientStatusCodes.Contains(rpc.StatusCode)),
+            RpcException rpc => ClassifyRpcException(rpc),
             TimeoutException or SocketException or HttpRequestException => Fresh(false, true),
             // HttpClient-style timeouts sometimes surface as TaskCanceledException.
             // Must be matched before OperationCanceledException (TCE derives from OCE).
