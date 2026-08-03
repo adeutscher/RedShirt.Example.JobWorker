@@ -18,6 +18,7 @@ internal class PulsarConsumerFactory(
 {
     private static SubscriptionType ParseSubscriptionType(string? subscriptionType)
     {
+        // ReSharper disable once ConvertIfStatementToReturnStatement
         if (string.IsNullOrWhiteSpace(subscriptionType))
         {
             return SubscriptionType.Shared;
