@@ -1,8 +1,11 @@
 using Microsoft.Extensions.Logging;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Checkpoints;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
@@ -12,18 +15,24 @@ internal class HighLevelStreamSource(
     IKinesisShardLister lister,
     IAbstractedLockService lockService,
     ILowLevelStreamSource lowLevelStreamSource,
+    IKinesisRetryWrapperService retryWrapperService,
     ILogger<HighLevelStreamSource> logger) : IJobSource
 {
     internal readonly Dictionary<string, KinesisTrackerSession> Sessions = new();
     private readonly SemaphoreSlim _sessionsSemaphore = new(1, 1);
 
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
         if (message is not KinesisJobModel kinesisJobModel)
         {
             return;
         }
+
+        // result is intentionally unused for shard checkpointing: the stream always advances.
+        // Unrecoverable failures are handled via IJobFailureHandler (application DLQ).
+        // The `_ = result;` phrasing prevents certain code analysis tools from flagging this as a potential issue 
+        _ = result;
 
         await _sessionsSemaphore.WaitAsync(cancellationToken);
 
@@ -64,7 +73,7 @@ internal class HighLevelStreamSource(
     /// </summary>
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
-    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
+    public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         // List through shards
         var shards = await lister.GetListOfShardsAsync(cancellationToken);
@@ -90,55 +99,72 @@ internal class HighLevelStreamSource(
             }
 
             // Try to get lock
-            var currentIterationLock = await lockService.GetLockAsync(KeyHelper.GetLockKey(shard), cancellationToken);
+            var currentIterationLock = await retryWrapperService.RunAsync(
+                ct => lockService.GetLockAsync(KeyHelper.GetLockKey(shard), ct),
+                cancellationToken);
 
-            if (!currentIterationLock.IsAcquired)
-            {
-                // If the worker cannot get a lock, then continue
-                // Already in use by another instance of this worker
-                continue;
-            }
-
-            // Got lock, we now have exclusive access to the shard
-
-            // Get iterator from storage
-            var iteratorString = await checkpointStorage.GetCheckpointAsync(shard, cancellationToken);
-
-            // Get Items
-            var lowLevelStreamResponse =
-                await lowLevelStreamSource.GetJobsAsync(batchSize, shard, iteratorString, cancellationToken);
-
-            // Compile into one 'tracker session' object
-            var trackerSession = new KinesisTrackerSession(shard, lowLevelStreamResponse, currentIterationLock);
-
-            if (trackerSession.Count == 0)
-            {
-                await MoveTrackerAsync(trackerSession, cancellationToken);
-                // No jobs, so release lock and continue    
-                await trackerSession.ReleaseLockOnShardAsync(cancellationToken);
-                continue;
-            }
-
-            // Register
-            await _sessionsSemaphore.WaitAsync(cancellationToken);
+            StreamSourceResponse? lowLevelStreamResponse;
+            var sessionIsStored = false;
             try
             {
-                /*
-                 * Note: This session-storage approach technically leaks locks.
-                 *
-                 * If you are concerned because of concerns that an AI audit brought up,
-                 * the answer would be that it's not entirely off-base.
-                 *
-                 * This system of locking ("leaking" and all) is essential to avoiding an outside-context problem such as a flavour of sudden container death causing messages to be fully lost to any instance of this application.
-                 * It is an intentional safety-mechanism.
-                 *
-                 * Because of this, the implementation of Kinesis as a job source is even more reliant than other job sources on being invoked as designed at the Core project level.
-                 */
-                Sessions[shard] = trackerSession;
+                if (!currentIterationLock.IsAcquired)
+                {
+                    // If the worker cannot get a lock, then continue
+                    // Already in use by another instance of this worker
+                    continue;
+                }
+
+                // Got lock, we now have exclusive access to the shard
+
+                // Get iterator from storage
+                var iteratorString = await checkpointStorage.GetCheckpointAsync(shard, cancellationToken);
+
+                // Get Items
+                lowLevelStreamResponse =
+                    await lowLevelStreamSource.GetJobsAsync(batchSize, shard, iteratorString, cancellationToken);
+
+                // Compile into one 'tracker session' object
+                var trackerSession = new KinesisTrackerSession(shard, lowLevelStreamResponse, currentIterationLock);
+
+                if (trackerSession.Count == 0)
+                {
+                    await MoveTrackerAsync(trackerSession, cancellationToken);
+                    // No jobs, so release continue (lock will be released by try-finally    
+                    continue;
+                }
+
+                try
+                {
+                    // Register
+                    await _sessionsSemaphore.WaitAsync(cancellationToken);
+                    /*
+                     * Note: This session-storage approach technically leaks locks by design.
+                     *
+                     * If you are concerned because of concerns that an AI audit brought up,
+                     * the answer would be that it's not entirely off-base.
+                     *
+                     * This system of locking ("leaking" and all) is essential to avoiding an outside-context problem such as a flavour of sudden container death causing messages to be fully lost to any instance of this application.
+                     * It is an intentional safety-mechanism.
+                     *
+                     * Because of this, the implementation of Kinesis as a job source is even more reliant than other job sources on being invoked as designed at the Core project level.
+                     */
+                    Sessions[shard] = trackerSession;
+                    sessionIsStored = true;
+                }
+                finally
+                {
+                    _sessionsSemaphore.Release();
+                }
             }
             finally
             {
-                _sessionsSemaphore.Release();
+                // Only unlock the current iteration if the session was not stored for later.
+                // If it was stored for later, then that suggests that the session will be unlocked
+                // in AcknowledgeAsync once all the records in the session have been acknowledged. 
+                if (!sessionIsStored)
+                {
+                    await currentIterationLock.UnlockAsync(cancellationToken);
+                }
             }
 
             return new JobSourceResponse
@@ -147,13 +173,14 @@ internal class HighLevelStreamSource(
             };
         }
 
+        // Fell through foreach, did not find any shards with records.
         return new JobSourceResponse
         {
             Items = []
         };
     }
 
-    public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         // This source does not do heartbeats
         return Task.CompletedTask;

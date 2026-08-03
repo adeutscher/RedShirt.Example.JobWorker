@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Checkpoints;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Extensions;
 

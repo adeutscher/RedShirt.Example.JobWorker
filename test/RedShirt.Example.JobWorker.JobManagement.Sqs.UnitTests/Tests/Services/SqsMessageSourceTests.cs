@@ -3,6 +3,7 @@ using Amazon.SQS.Model;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Services;
+using RedShirt.Example.JobWorker.JobManagement.Sqs.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests.Tests.Services;
 
@@ -61,7 +62,7 @@ public class SqsMessageSourceTests
             MaximumReceives = 1
         };
 
-        var messageSource = new SqsMessageSource(sqs.Object, Options.Create(options));
+        var messageSource = new SqsMessageSource(sqs.Object, new PassthroughRetryWrapper(), Options.Create(options));
 
         var messages = await messageSource.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 
@@ -108,7 +109,7 @@ public class SqsMessageSourceTests
             MaximumReceives = 1
         };
 
-        var messageSource = new SqsMessageSource(sqs.Object, Options.Create(options));
+        var messageSource = new SqsMessageSource(sqs.Object, new PassthroughRetryWrapper(), Options.Create(options));
 
         var messages = await messageSource.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 
@@ -120,5 +121,18 @@ public class SqsMessageSourceTests
                     r.QueueUrl == queueUrl
                     && r.VisibilityTimeout == visibilityTimeout),
                 TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    private sealed class PassthroughRetryWrapper : ISqsJobSourceRetryWrapperService
+    {
+        public Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
+
+        public Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
     }
 }

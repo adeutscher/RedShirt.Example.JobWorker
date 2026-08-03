@@ -42,7 +42,7 @@ Batch mode is the default mode for this template. To enable loader mode:
 
 * Set the `JOBS__USE_LOADER_MODE` environment variable to `true`.
 * If you wish to change the default or to have your application use only one polling strategy, then you can adjust the
-  logic in `RedShirt.Example.JobWorker.Core` project's `Extensions/ServiceCollectionExtensions.cs` (as part of
+  logic in the `RedShirt.Example.JobWorker.Core` project's `Extensions/ServiceCollectionExtensions.cs` (as part of
   initializing this template)
 
 ### Important Note: Loader Mode + Kinesis

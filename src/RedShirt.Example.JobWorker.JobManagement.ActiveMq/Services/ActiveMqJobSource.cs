@@ -1,9 +1,9 @@
 using Apache.NMS;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Models;
@@ -17,9 +17,9 @@ internal class ActiveMqJobSource : IJobSource
     // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
     private readonly Lazy<Task<IConnection>> _connection;
     private readonly ILogger<ActiveMqJobSource> _logger;
-    private readonly IActiveMqMessageBodyRetriever _messageBodyRetriever;
+
+    // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
     private readonly Lazy<Task<IMessageConsumer>> _messageConsumer;
-    private readonly ISourceMessageConverter _messageConverter;
 
     // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
     private readonly Lazy<Task<IQueue?>> _queue;
@@ -27,14 +27,10 @@ internal class ActiveMqJobSource : IJobSource
 
     public ActiveMqJobSource(IActiveMqConnectionFactory connectionFactory,
         IOptions<ConfigurationModel> configuration,
-        IActiveMqMessageBodyRetriever messageBodyRetriever,
-        ISourceMessageConverter messageConverter,
         ILogger<ActiveMqJobSource> logger)
     {
         _configuration = configuration;
-        _messageBodyRetriever = messageBodyRetriever;
         _logger = logger;
-        _messageConverter = messageConverter;
         _connection = new Lazy<Task<IConnection>>(async () =>
         {
             var connection = await connectionFactory.GetConnectionAsync();
@@ -67,25 +63,34 @@ internal class ActiveMqJobSource : IJobSource
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
-    public async Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+#pragma warning disable S2325
+    public Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
+#pragma warning restore S2325
     {
-        if (message is not JobModel jobModel)
+        // ReSharper disable once ConvertIfStatementToReturnStatement
+        if (message is not ActiveMqRawJobModel jobModel)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        await jobModel.Message.AcknowledgeAsync();
+        // Intentionally not using result
+        // The `_ = result;` phrasing prevents certain code analysis tools from flagging this as a potential issue
+        _ = result;
+
+        // Acknowledge whether successful, recoverable, or unrecoverable
+        // (ActiveMQ client API has no direct dead-letter call here).
+        return jobModel.Message.AcknowledgeAsync();
     }
 
-    public async Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
+    public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         batchSize = Math.Max(1, batchSize);
 
         _logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from ActiveMQ Queue: {QueueName}",
             batchSize, _configuration.Value.QueueName);
 
-        var getJobsResponseItems = new List<IJobModel>();
+        var getJobsResponseItems = new List<IRawJobModel>();
 
         var consumer = await _messageConsumer.Value;
 
@@ -99,46 +104,12 @@ internal class ActiveMqJobSource : IJobSource
                 break;
             }
 
-            IJobDataModel? convertedMessage = null;
-            string? body = null;
-            try
-            {
-                body = _messageBodyRetriever.GetMessageBody(result);
-                if (!string.IsNullOrWhiteSpace(body))
-                {
-                    convertedMessage = _messageConverter.Convert(body);
-                }
-            }
-            catch (CouldNotRetrieveMessageBodyException e)
-            {
-                _logger.LogWarning(e, "Failed to receive message body from {Type}", result.GetType().FullName);
-            }
-            catch (Exception e)
-            {
-                _logger.LogWarning(e, "Error parsing ActiveMQ message: {MessageBody}", body);
-            }
-
-            if (convertedMessage is null)
-            {
-                /*
-                 * What exactly to do with bad messages is a bit up in the air at the moment.
-                 * Deleting them from the queue is 'good enough' for now in this general template.
-                 */
-
-                // Acknowledge the message so that it cannot keep gumming up the queue
-                await result.AcknowledgeAsync();
-
-                // Try to get a message again.
-                continue;
-            }
-
             // Got a message, add it to return set.
-            getJobsResponseItems.Add(new JobModel
+            getJobsResponseItems.Add(new ActiveMqRawJobModel
             {
                 Message = result,
                 MessageId = result.NMSMessageId, // Not really used by this framework, but why not
-                CreatedAtUtc = DateTime.UtcNow,
-                Data = convertedMessage
+                CreatedAtUtc = DateTime.UtcNow
             });
         }
 
@@ -148,7 +119,7 @@ internal class ActiveMqJobSource : IJobSource
         };
     }
 
-    public Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default)
+    public Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         /*
          * Not necessary. Heartbeats are managed by the persistence of the IMessage object.

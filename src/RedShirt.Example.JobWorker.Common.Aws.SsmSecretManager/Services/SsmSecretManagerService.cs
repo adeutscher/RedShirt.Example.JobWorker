@@ -1,10 +1,13 @@
 using Amazon.SimpleSystemsManagement;
 using Amazon.SimpleSystemsManagement.Model;
+using RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.Services.Resilience;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 
 namespace RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.Services;
 
-internal class SsmSecretManagerService(IAmazonSimpleSystemsManagement ssm) : ISecretManagerService
+internal class SsmSecretManagerService(
+    IAmazonSimpleSystemsManagement ssm,
+    ISsmRetryWrapperService retryWrapperService) : ISecretManagerService
 {
     /// <summary>
     ///     AWS GetParameters allows at most 10 names per request.
@@ -13,11 +16,12 @@ internal class SsmSecretManagerService(IAmazonSimpleSystemsManagement ssm) : ISe
 
     public async Task<string> GetSecretAsync(string key, CancellationToken cancellationToken = default)
     {
-        var response = await ssm.GetParameterAsync(new GetParameterRequest
-        {
-            Name = key,
-            WithDecryption = true
-        }, cancellationToken);
+        var response = await retryWrapperService.RunAsync(ct =>
+            ssm.GetParameterAsync(new GetParameterRequest
+            {
+                Name = key,
+                WithDecryption = true
+            }, ct), cancellationToken);
 
         return response.Parameter.Value;
     }
@@ -33,11 +37,12 @@ internal class SsmSecretManagerService(IAmazonSimpleSystemsManagement ssm) : ISe
             var batch = remaining.Take(MaxNamesPerRequest).ToList();
             remaining = remaining.Skip(MaxNamesPerRequest).ToList();
 
-            var response = await ssm.GetParametersAsync(new GetParametersRequest
-            {
-                Names = batch,
-                WithDecryption = true
-            }, cancellationToken);
+            var response = await retryWrapperService.RunAsync(ct =>
+                ssm.GetParametersAsync(new GetParametersRequest
+                {
+                    Names = batch,
+                    WithDecryption = true
+                }, ct), cancellationToken);
 
             foreach (var parameter in response.Parameters)
             {

@@ -2,6 +2,7 @@ using Amazon.SQS;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.Aws.Sqs.Services.Resilience;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Services;
@@ -49,5 +50,6 @@ public class ServiceCollectionExtensionsTests
             d.ImplementationType == typeof(SqsQueueFailureHandler) &&
             d.Lifetime == ServiceLifetime.Singleton);
         Assert.Contains(services, d => d.ServiceType == typeof(IAmazonSQS));
+        Assert.Contains(services, d => d.ServiceType == typeof(ISqsRetryWrapperService));
     }
 }

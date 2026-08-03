@@ -96,7 +96,7 @@ services:
     container_name: azurite
     ports:
       - "10001:10001" # Queue service
-    command: "azurite --queueHost 0.0.0.0 --loose"
+    command: "azurite --queueHost 0.0.0.0 --loose --skipApiVersionCheck"
 
   azure-service-bus-mssql:
       image: "mcr.microsoft.com/mssql/server:2022-latest"
@@ -140,8 +140,9 @@ services:
       context: ../..
       args:
         TESTS_ENABLE: "${TESTS_ENABLE-1}"
-    depends_on:
-      - ministack
+    # Note: Deliberately not setting any depends_on values
+    #       Testing instructions assume that initialization needs to be done
+    #       between bringing up infrastructure and bringing up the worker.
     environment:
       # General
       AWS_SERVICE_URL: http://ministack:4566
@@ -151,6 +152,9 @@ services:
       # App-specific variables
       LOG_LEVEL: Trace
       JOBS__INTERNAL_RETRY_COUNT: 2
+      JOBS__MAX_JOB_TIME_SECONDS: 150
+      JOBS__TASK_WAIT_BUFFER_SECONDS: 5
+      JOBS__TRUANT_ALERT_INTERVAL_SECONDS: 30
       JOBS__MAX_IDLE_WAIT_SECONDS: 30
       JOBS__WORKER_THREAD_COUNT: 2
       JOBS__BACKLOG_SIZE: 10
@@ -213,7 +217,12 @@ services:
       JOB_SOURCE__NATS__USER_PATH: /nats/user
       JOB_SOURCE__NATS__PASSWORD_PATH: /nats/password
       JOB_SOURCE__NATS__STREAM_NAME: TestStream
-      ## Jog Management (Azure Key Vault, used by both Azure Queue Storage and Azure Service Bus)
+      ## Job Management (Redis Streams)
+      USE_REDIS_STREAMS: "${USE_REDIS_STREAMS-0}"
+      JOB_SOURCE__REDIS_STREAMS__STREAM_NAME: jobs
+      JOB_SOURCE__REDIS_STREAMS__GROUP_NAME: job-worker
+      JOB_SOURCE__REDIS_STREAMS__CONSUMER_NAME: worker-1
+      ## Job Management (Azure Key Vault, used by both Azure Queue Storage and Azure Service Bus)
       ## Job Management (Azure Queue Storage)
       USE_AZURE_QUEUE_STORAGE: "${USE_AZURE_QUEUE_STORAGE-0}"
       JOB_SOURCE__AZURE_QUEUE_STORAGE__URI: https://not-used-in-local-testing

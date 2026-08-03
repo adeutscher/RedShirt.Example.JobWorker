@@ -22,7 +22,6 @@ public static class ServiceCollectionExtensions
                 configuration.GetSection("JobSource:AzureServiceBus"))
             .AddSingleton<IBusReceiverClientFactory, BusReceiverClientFactory>()
             .AddSingleton<IBusReceiverClientSource, BusReceiverClientSource>()
-            .AddSingleton<IAzureServiceBusMessageSource, AzureServiceBusMessageSource>()
-            .AddSingleton<IAzureServiceBusBodyStringRetriever, AzureServiceBusBodyStringRetriever>();
+            .AddSingleton<IAzureServiceBusMessageSource, AzureServiceBusMessageSource>();
     }
 }

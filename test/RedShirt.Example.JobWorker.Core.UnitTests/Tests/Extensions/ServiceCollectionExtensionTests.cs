@@ -3,8 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Extensions;
-using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
+using RedShirt.Example.JobWorker.Core.Services.Safety;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Extensions;
 

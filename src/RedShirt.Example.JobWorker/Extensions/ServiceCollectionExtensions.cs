@@ -15,6 +15,7 @@ using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Extensi
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.RedisStreams.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Extensions;
 
 namespace RedShirt.Example.JobWorker.Extensions;
@@ -48,12 +49,18 @@ public static class ServiceCollectionExtensions
         var useAzureServiceBusRaw = configuration.GetValue("UseAzureServiceBus", "0");
         var useGooglePubSubRaw = configuration.GetValue("UseGooglePubSub", "0");
         var useNatsRaw = configuration.GetValue("UseNats", "0");
+        var useRedisStreamsRaw = configuration.GetValue("UseRedisStreams", "0");
         var useRabbitMqRaw = configuration.GetValue("UseRabbitMq", "0");
 
         if (int.TryParse(useNatsRaw, out var useNats) && useNats == 1)
         {
             services = services
                 .AddNatsJobManagement(configuration);
+        }
+        else if (int.TryParse(useRedisStreamsRaw, out var useRedisStreams) && useRedisStreams == 1)
+        {
+            services = services
+                .AddRedisStreamsJobManagement(configuration);
         }
         else if (int.TryParse(useAzureQueueStorageRaw, out var useAzureQueueStorage) && useAzureQueueStorage == 1)
         {

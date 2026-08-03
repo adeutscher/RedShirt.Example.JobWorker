@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]
 [assembly: InternalsVisibleTo("RedShirt.Example.JobWorker.Core.UnitTests")]
+[assembly: InternalsVisibleTo("RedShirt.Example.JobWorker.Core.IntegrationTests")]
 
 namespace RedShirt.Example.JobWorker.Core;
 

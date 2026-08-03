@@ -1,3 +1,4 @@
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 
@@ -18,10 +19,12 @@ public interface IJobSource
     /// <summary>
     ///     Acknowledge attempted processing of a job record.
     ///     This method is to be called regardless of whether the job record was successfully processed or not.
-    ///     What is done on success or failure is dependent on the mechanics of the underlying message source.
+    ///     What is done on success, recoverable failure, or unrecoverable failure depends on the underlying message source.
+    ///     Recoverable failures should typically be left to expire or NAcked for redelivery; unrecoverable results
+    ///     should be dead-lettered when the broker supports it.
     /// </summary>
     /// <param name="message"></param>
-    /// <param name="success"></param>
+    /// <param name="result"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     /// <exception cref="WorkerJobSourceException">
@@ -32,10 +35,10 @@ public interface IJobSource
     ///     has already exhausted retries and callers should not retry again.
     ///     When <see cref="WorkerJobSourceException.IsCritical" /> is <c>true</c>, callers should surface the failure.
     /// </exception>
-    Task AcknowledgeCompletionAsync(IJobModel message, bool success,
+    Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default);
 
-    Task<JobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default);
+    Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Extend the in-flight / visibility window for a job record, if the underlying message source supports it.
@@ -52,5 +55,5 @@ public interface IJobSource
     ///     has already exhausted retries and callers should not retry again.
     ///     When <see cref="WorkerJobSourceException.IsCritical" /> is <c>true</c>, callers should surface the failure.
     /// </exception>
-    Task HeartbeatAsync(IJobModel message, CancellationToken cancellationToken = default);
+    Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default);
 }

@@ -5,18 +5,26 @@ Instructions for local testing.
 
 ## General
 
-The scripts below assume that certain Python modules are installed in your environment.
+The scripts described below assume that certain Python modules are installed in your environment.
 
-Run the following to install the assumed modules:
+Run the following to install all of the assumed modules at once:
 
 ```
-pip install --user boto3 awscli awslocal stomp.py azure.servicebus azure.identity azure.keyvault kafka-python google-cloud-pubsub
+pip install --user boto3 awscli awslocal stomp.py azure-cli azure.servicebus azure-storage-queue azure.identity azure.keyvault kafka-python redis pika google-cloud-pubsub
 ```
 
 ## Idempotency
 
 Idempotency testing relies on having a reliable way of setting a message ID.
 If this template is still in general form, then I would advise testing using the RabbitMQ job source.
+
+## Loader Mode
+
+To enable loader mode in the general template, set `JOBS__USE_LOADER_MODE` to `true`:
+
+```bash
+export JOBS__USE_LOADER_MODE=true
+```
 
 ## Message Sources
 
@@ -51,6 +59,7 @@ export USE_KAFKA=0
 export USE_AZURE_QUEUE_STORAGE=0
 export USE_AZURE_SERVICE_BUS=0
 export USE_NATS=0
+export USE_REDIS_STREAMS=0
 export USE_RABBITMQ=0
 export USE_GOOGLE_PUB_SUB=0
 unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH```
@@ -93,8 +102,13 @@ To initialize Kinesis and queue sample messages:
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
+    export USE_REDIS_STREAMS=0
     export USE_RABBITMQ=0
+<<<<<<< HEAD
     export USE_GOOGLE_PUB_SUB=0
+=======
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+>>>>>>> origin/develop
     ```
 
 5. Bring up the worker:
@@ -135,6 +149,7 @@ To initialize Kafka and queue sample messages:
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
+    export USE_REDIS_STREAMS=0
     export USE_RABBITMQ=0
     export USE_GOOGLE_PUB_SUB=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
@@ -170,23 +185,20 @@ To initialize RabbitMQ and queue messages:
     docker compose up -d rabbitmq
     ```
 
-4. Go to http://localhost:15672/
-
-5. Sign in with the username 'foo' and password 'bar'.
-
-6. Select the 'Queues and Streams' tab.
-
-7. Create a new queue named `RabbitQueue`. Leave all other options at default.
-
-8. Rather than cook up a new script for inserting messages, we will be using the Web GUI to submit messages for the moment. To insert a message into the queue, select `RabbitQueue` from the queue list and open the 'Publish message' section. Example of a message JSON payload:
+4. Create the RabbitMQ queue (safe to re-run if it already exists). This requires the `pika` Python module:
 
     ```
-    {"SleepDurationSeconds": 12}
+    ./make-local-rabbitmq-resources.py
     ```
 
-    * If you are testing idempotency, then remember to also set an arbitrary value to the `message_id` property.
+5. Use the `send-rabbitmq-job.py` script to publish a message to the `RabbitQueue` queue. Specify the number of seconds the worker should sleep for in the first argument. You may optionally provide a second argument to set the AMQP `message_id` property for idempotency testing:
 
-9. Before starting the worker, make sure that the `USE_RABBITMQ` is set to `1` and that other `USE_` environment variables are not set to `1`.
+    ```
+    ./send-rabbitmq-job.py 12
+    ./send-rabbitmq-job.py 12 example-idempotency-key
+    ```
+
+6. Before starting the worker, make sure that the `USE_RABBITMQ` is set to `1` and that other `USE_` environment variables are not set to `1`.
    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
     ```
@@ -196,12 +208,13 @@ To initialize RabbitMQ and queue messages:
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
+    export USE_REDIS_STREAMS=0
     export USE_RABBITMQ=1
     export USE_GOOGLE_PUB_SUB=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
-10. Bring up the worker:
+7. Bring up the worker:
 
     ```
     docker compose up worker
@@ -273,6 +286,7 @@ To initialize RabbitMQ and queue messages:
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
+    export USE_REDIS_STREAMS=0
     export USE_RABBITMQ=0
     export USE_GOOGLE_PUB_SUB=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
@@ -338,6 +352,7 @@ To install the `nats` command:
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
     export USE_KINESIS=0
+    export USE_REDIS_STREAMS=0
     export USE_RABBITMQ=0
     export USE_GOOGLE_PUB_SUB=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
@@ -349,23 +364,79 @@ To install the `nats` command:
     docker compose up worker
     ```
 
+### Redis Streams
+
+Redis Streams testing requires the `redis` Python module to be installed.
+
+#### Testing Messages
+
+1. Bring up ministack and Redis:
+
+    ```
+    docker compose up -d ministack redis
+    ```
+
+2. Run the `make-local-aws-resources.sh` script:
+
+    ```
+    ./make-local-aws-resources.sh
+    ```
+
+3. Create the Redis stream consumer group (creates the `jobs` stream if needed). This is safe to re-run if the group already exists:
+
+    ```
+    ./make-local-redis-streams-resources.py
+    ```
+
+4. Use the `send-redis-streams-job.py` script to publish a message to the `jobs` stream. Specify the number of seconds the worker should sleep for in the first argument. You may optionally provide a second argument to set the `message_id` field for idempotency testing:
+
+    ```
+    ./send-redis-streams-job.py 12
+    ./send-redis-streams-job.py 12 example-idempotency-key
+    ```
+
+5. Before starting the worker, make sure that `USE_REDIS_STREAMS` is set to `1` and that the other `USE_` environment variables are not set to `1`.
+   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
+
+    ```
+    export USE_REDIS_STREAMS=1
+    export USE_NATS=0
+    export USE_ACTIVEMQ=0
+    export USE_KAFKA=0
+    export USE_AZURE_QUEUE_STORAGE=0
+    export USE_AZURE_SERVICE_BUS=0
+    export USE_KINESIS=0
+    export USE_RABBITMQ=0
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+    ```
+
+6. Bring up the worker:
+
+    ```
+    docker compose up worker
+    ```
+
 ### Azure Queue Storage
 
-Testing `Azure Queue Storage` will require:
+Testing `Azure Queue Storage` with the below instructions will require the various Azure-related python module to be installed:
+
+```
+pip install azure-cli azure-storage-queue azure.identity azure.keyvault
+```
+
+#### VSCode
+
+An option for testing `Azure Queue Storage` is to use Visual Studio Code (VSCode):
 
 * Visual Studio Code to be installed
-* Within Visual Studio Code (VSCode), the `Azure Tools` and `Azureite` extensions must be installed.
+* Within Visual Studio Code (VSCode), the `Azure Tools` and `azurite` extensions must be installed.
 * Azure Storage Explorer to be downloaded from [here](https://azure.microsoft.com/en-us/products/storage/storage-explorer)
 
 For more information on using Visual Studio Code to interact with `azurite`, see [here](https://rajeevpentyala.com/2025/08/16/azurite-build-azure-queues-and-functions-locally-with-c/)
 
-Testing `Azure Queue Storage` will require the various Azure-related python module to be installed:
+Using VSCode *used* to be the documented way of testing Azure Queue Storage messages, but after my own VSCode installation was uncooperative I opted to make a script-based setup. It's more consistent this way too.
 
-```
-pip install azure.identity azure.keyvault
-```
-
-#### VSCode Configuration
+##### VSCode Configuration
 
 VSCode automatically knows how to point to your local `azurite` server after the service is started.
 
@@ -389,31 +460,28 @@ VSCode automatically knows how to point to your local `azurite` server after the
     ./set-azure-key-vault-secrets.py
     ```
 
-4. Bring up `azureite`:
+4. Bring up `azurite`:
 
     ```
     docker compose up -d azurite
     ```
 
-5. In VSCode, go to the Azure tab.
-
-6. Look down in the `Workspace` section
-
-7. Create the `test-azure-queue` queue.
-
-8. Azure Storage Explorer should allow you to access the storage account for Azurite's `devstoreaccount1` without any configuration. After selecting the `test-azure-queue` queue, you can add a message to the queue. Please note that Storage Explorer's Add menu **stores the message as a Base64-encoded string by default**. So far, this seems to be unique to Storage Explorer. Because of this, **this template does not go out of its way to account for Base64**. However, but you may wish to consider it if you are adapting this into an application that uses Azure Queue Storage. Any messages added via Storage Explorer should be stored as **Plain UTF-8**. Message format.
+5. Create the `test-azure-queue` queue (if it does not already exist) and send a job that will tell the worker to sleep for the specified number of seconds:
 
     ```
-    {"SleepDurationSeconds": 12}
+    ./send-azure-queue-job.py 12
     ```
 
-9. Before starting the worker, make sure that the `USE_AZURE_QUEUE_STORAGE` is set to `1` and that other `USE_` environment variables are not set to `1`.
+    The script sends a plain UTF-8 JSON body (`{"SleepDurationSeconds": 12}`). If you instead add messages with Azure Storage Explorer, note that its Add menu **stores the message as a Base64-encoded string by default**. So far, this seems to be unique to Storage Explorer. Because of this, **this template does not go out of its way to account for Base64**. However, you may wish to consider it if you are adapting this into an application that uses Azure Queue Storage. Any messages added via Storage Explorer should be stored as **Plain UTF-8**.
+
+6. Before starting the worker, make sure that the `USE_AZURE_QUEUE_STORAGE` is set to `1` and that other `USE_` environment variables are not set to `1`.
    You will also point Redis at the Key Vault secret name created by `set-azure-key-vault-secrets.py`, as the compose file's default is to use the SSM path (Azure Key Vault key and SSM Parameter Store path formats are entirely incompatible with one another):
 
     ```
     export USE_AZURE_QUEUE_STORAGE=1
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
+    export USE_REDIS_STREAMS=0
     export USE_KAFKA=0
     export USE_ACTIVEMQ=0
     export USE_KINESIS=0
@@ -422,7 +490,7 @@ VSCode automatically knows how to point to your local `azurite` server after the
     export COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH=common-distributed-redis
     ```
 
-10. Bring up the worker:
+7. Bring up the worker:
 
     ```
     docker compose up worker
@@ -495,6 +563,7 @@ pip install azure.servicebus azure.identity azure.keyvault
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=1
     export USE_NATS=0
+    export USE_REDIS_STREAMS=0
     export USE_KAFKA=0
     export USE_ACTIVEMQ=0
     export USE_KINESIS=0

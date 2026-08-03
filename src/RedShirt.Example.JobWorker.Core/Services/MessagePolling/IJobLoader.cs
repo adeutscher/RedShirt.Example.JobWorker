@@ -1,7 +1,9 @@
 namespace RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 
 /// <summary>
-///     The loader is responsible for loading messages from the job source into the in-memory job repository for job
-///     executors to handle.
+///     The implementations of IJobLoader are responsible for running a loop iteration within JobLoaderLoop.
 /// </summary>
-internal interface IJobLoader : IHandlerSubComponent;
+internal interface IJobLoader
+{
+    Task RunAsync(CancellationToken cancellationToken = default);
+}

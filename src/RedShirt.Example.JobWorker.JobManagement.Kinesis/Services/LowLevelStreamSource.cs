@@ -1,25 +1,27 @@
 using Amazon.Kinesis;
 using Amazon.Kinesis.Model;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Resilience;
 using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 
 internal interface ILowLevelStreamSource
 {
+    /// <summary>
+    ///     Get Kinesis records from a specific shard.
+    /// </summary>
     Task<StreamSourceResponse> GetJobsAsync(int batchSize, string shardName, string iteratorString,
         CancellationToken cancellationToken = default);
 }
 
 internal class LowLevelStreamSource(
     IAmazonKinesis kinesisClient,
-    ISourceMessageConverter converter,
-    ILogger<LowLevelStreamSource> logger,
+    IKinesisRetryWrapperService retryWrapperService,
     IOptions<KinesisConfiguration> options) : ILowLevelStreamSource
 {
     public async Task<StreamSourceResponse> GetJobsAsync(int batchSize, string shardName, string iteratorString,
@@ -29,17 +31,16 @@ internal class LowLevelStreamSource(
 
         try
         {
-            kinesisResponse = await kinesisClient.GetRecordsAsync(new GetRecordsRequest
-            {
-                Limit = batchSize,
-                StreamARN = options.Value.StreamArn,
-                ShardIterator = iteratorString
-            }, cancellationToken);
+            kinesisResponse = await retryWrapperService.RunAsync(ct =>
+                kinesisClient.GetRecordsAsync(new GetRecordsRequest
+                {
+                    Limit = batchSize,
+                    StreamARN = options.Value.StreamArn,
+                    ShardIterator = iteratorString
+                }, ct), cancellationToken);
         }
-        catch (ExpiredIteratorException)
+        catch (WorkerJobSourceException exception) when (exception.InnerException is ExpiredIteratorException)
         {
-            // Not an event worth worrying about
-            // Just skip over this shard for the moment and loop around to it in another invocation
             return new StreamSourceResponse
             {
                 IteratorString = string.Empty,
@@ -48,7 +49,7 @@ internal class LowLevelStreamSource(
             };
         }
 
-        var items = new List<IJobModel>();
+        var items = new List<IRawJobModel>();
 
         string? lastSequenceNumber = null;
 
@@ -59,32 +60,15 @@ internal class LowLevelStreamSource(
             // Can only do this because the result of GetRecordsAsync is in the correct order raw from the shard. 
             lastSequenceNumber = item.SequenceNumber;
 
-            try
+            var data = new KinesisJobModel
             {
-                logger.LogTrace("Raw Kinesis message: {MessageBody}", body);
+                ShardId = shardName,
+                MessageId = item.SequenceNumber,
+                CreatedAtUtc = DateTime.UtcNow,
+                Body = body
+            };
 
-                var @object = converter.Convert(body);
-                if (@object is null)
-                {
-                    // TODO: At the moment, nulls during the parsing results in the message being ignored. Putting a pin in this issue until later, as it suggests a need for a dedicated revisit of handling bad messages for streams. Not great, but currently consistent with Kafka 
-                    continue;
-                }
-
-                var data = new KinesisJobModel
-                {
-                    ShardId = shardName,
-                    MessageId = item.SequenceNumber,
-                    CreatedAtUtc = DateTime.UtcNow,
-                    Data = @object
-                };
-
-                items.Add(data);
-            }
-            catch (Exception e)
-            {
-                logger.LogWarning(e, "Error parsing Kinesis message: {MessageBody}", body);
-                // TODO: At the moment, exceptions during the parsing results in the message being ignored. Putting a pin in this issue until later, as it suggests a need for a dedicated revisit of handling bad messages for streams. Not great, but currently consistent with Kafka
-            }
+            items.Add(data);
         }
 
         return new StreamSourceResponse

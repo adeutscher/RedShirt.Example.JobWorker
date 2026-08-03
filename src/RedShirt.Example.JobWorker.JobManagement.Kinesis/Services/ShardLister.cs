@@ -2,17 +2,25 @@ using Amazon.Kinesis;
 using Amazon.Kinesis.Model;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
 
+/// <summary>
+///     Abstraction for returning list of shards on an AWS Kinesis stream.
+///     Ordering of shards is subject to configured settings.
+/// </summary>
 internal interface IKinesisShardLister
 {
     Task<List<string>> GetListOfShardsAsync(CancellationToken cancellationToken = default);
 }
 
-internal class KinesisShardLister(IAmazonKinesis kinesis, IOptions<KinesisConfiguration> options) : IKinesisShardLister
+internal class KinesisShardLister(
+    IAmazonKinesis kinesis,
+    IKinesisRetryWrapperService retryWrapperService,
+    IOptions<KinesisConfiguration> options) : IKinesisShardLister
 {
-    private readonly HashSet<string> _roundRobinSet = new();
+    private readonly HashSet<string> _roundRobinSet = [];
 
     public async Task<List<string>> GetListOfShardsAsync(CancellationToken cancellationToken = default)
     {
@@ -21,11 +29,13 @@ internal class KinesisShardLister(IAmazonKinesis kinesis, IOptions<KinesisConfig
         var continuationToken = default(string);
         do
         {
-            var response = await kinesis.ListShardsAsync(new ListShardsRequest
-            {
-                StreamARN = options.Value.StreamArn,
-                NextToken = continuationToken
-            }, cancellationToken);
+            var token = continuationToken;
+            var response = await retryWrapperService.RunAsync(ct =>
+                kinesis.ListShardsAsync(new ListShardsRequest
+                {
+                    StreamARN = options.Value.StreamArn,
+                    NextToken = token
+                }, ct), cancellationToken);
             list.AddRange(response.Shards.Select(s => s.ShardId));
             continuationToken = response.NextToken;
         } while (!string.IsNullOrEmpty(continuationToken));
@@ -47,7 +57,7 @@ internal class KinesisShardLister(IAmazonKinesis kinesis, IOptions<KinesisConfig
             int i;
             for (i = 0; i < list.Count; i++)
             {
-                // Search for the first item in the list that hasn't been add to the persistent round-robin set.
+                // Search for the first item in the list that hasn't been added to the persistent round-robin set.
                 if (_roundRobinSet.Add(list[i]))
                 {
                     // Found it

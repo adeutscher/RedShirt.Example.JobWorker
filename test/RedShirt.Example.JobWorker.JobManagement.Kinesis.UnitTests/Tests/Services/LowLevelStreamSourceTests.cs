@@ -1,12 +1,11 @@
 using Amazon.Kinesis;
 using Amazon.Kinesis.Model;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Resilience;
 using System.Text;
 using Record = Amazon.Kinesis.Model.Record;
 
@@ -14,57 +13,6 @@ namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Servi
 
 public class LowLevelStreamSourceTests
 {
-    [Fact]
-    public async Task GetJobsAsync_AllRecordsUnusable_StillTracksLastSequenceAndIterator()
-    {
-        const string nextIterator = "still-progress";
-        var lastSequence = Guid.NewGuid().ToString();
-        var nullBody = Guid.NewGuid().ToString();
-        var throwBody = Guid.NewGuid().ToString();
-        var streamArn = Guid.NewGuid().ToString();
-
-        var kinesis = new Mock<IAmazonKinesis>(MockBehavior.Strict);
-        kinesis.Setup(a => a.GetRecordsAsync(It.IsAny<GetRecordsRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GetRecordsResponse
-            {
-                NextShardIterator = nextIterator,
-                Records =
-                [
-                    new Record
-                    {
-                        SequenceNumber = Guid.NewGuid().ToString(),
-                        Data = new MemoryStream(Encoding.UTF8.GetBytes(nullBody))
-                    },
-                    new Record
-                    {
-                        SequenceNumber = lastSequence,
-                        Data = new MemoryStream(Encoding.UTF8.GetBytes(throwBody))
-                    }
-                ]
-            });
-
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(nullBody)).Returns((IJobDataModel?) null);
-        converter.Setup(c => c.Convert(throwBody)).Throws(new InvalidOperationException("bad payload"));
-
-        var source = new LowLevelStreamSource(kinesis.Object, converter.Object,
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
-            {
-                StreamArn = streamArn,
-                RoundRobinShards = false,
-                ShuffleShards = false
-            }));
-
-        var response = await source.GetJobsAsync(10, "shard-c", "iterator-c",
-            TestContext.Current.CancellationToken);
-
-        Assert.Empty(response.Items);
-        Assert.Equal(nextIterator, response.IteratorString);
-        Assert.Equal(lastSequence, response.LastSequenceNumber);
-        converter.Verify(c => c.Convert(nullBody), Times.Once);
-        converter.Verify(c => c.Convert(throwBody), Times.Once);
-    }
-
     [Fact]
     public async Task GetJobsAsync_EmptyRecords_ReturnsNextIteratorAndNullLastSequence()
     {
@@ -80,10 +28,8 @@ public class LowLevelStreamSourceTests
                 NextShardIterator = nextIterator
             });
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-
-        var source = new LowLevelStreamSource(kinesis.Object, converter.Object,
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
+        var source = new LowLevelStreamSource(kinesis.Object, new PassthroughRetryWrapper(), Options.Create(
+            new KinesisConfiguration
             {
                 StreamArn = streamArn,
                 RoundRobinShards = false,
@@ -96,7 +42,6 @@ public class LowLevelStreamSourceTests
         Assert.Empty(response.Items);
         Assert.Equal(nextIterator, response.IteratorString);
         Assert.Null(response.LastSequenceNumber);
-        Assert.Empty(converter.Invocations);
 
         kinesis.Verify(
             a => a.GetRecordsAsync(
@@ -114,10 +59,8 @@ public class LowLevelStreamSourceTests
         kinesis.Setup(a => a.GetRecordsAsync(It.IsAny<GetRecordsRequest>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidArgumentException("bad request"));
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-
-        var source = new LowLevelStreamSource(kinesis.Object, converter.Object,
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
+        var source = new LowLevelStreamSource(kinesis.Object, new PassthroughRetryWrapper(), Options.Create(
+            new KinesisConfiguration
             {
                 StreamArn = Guid.NewGuid().ToString(),
                 RoundRobinShards = false,
@@ -126,8 +69,6 @@ public class LowLevelStreamSourceTests
 
         await Assert.ThrowsAsync<InvalidArgumentException>(() =>
             source.GetJobsAsync(10, "shard-d", "iterator-d", TestContext.Current.CancellationToken));
-
-        Assert.Empty(converter.Invocations);
     }
 
     [Theory]
@@ -147,8 +88,8 @@ public class LowLevelStreamSourceTests
                 NextShardIterator = "x"
             });
 
-        var source = new LowLevelStreamSource(kinesis.Object, Mock.Of<ISourceMessageConverter>(MockBehavior.Strict),
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
+        var source = new LowLevelStreamSource(kinesis.Object, new PassthroughRetryWrapper(), Options.Create(
+            new KinesisConfiguration
             {
                 StreamArn = streamArn,
                 RoundRobinShards = false,
@@ -174,8 +115,6 @@ public class LowLevelStreamSourceTests
         var sequenceNumber2 = Guid.NewGuid().ToString();
         var data1 = Guid.NewGuid().ToString();
         var data2 = Guid.NewGuid().ToString();
-        var mock1 = new Mock<IJobDataModel>().Object;
-        var mock2 = new Mock<IJobDataModel>().Object;
         var streamArn = Guid.NewGuid().ToString();
 
         var kinesis = new Mock<IAmazonKinesis>(MockBehavior.Strict);
@@ -198,12 +137,8 @@ public class LowLevelStreamSourceTests
                 ]
             });
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(data1)).Returns(mock1);
-        converter.Setup(c => c.Convert(data2)).Returns(mock2);
-
-        var source = new LowLevelStreamSource(kinesis.Object, converter.Object,
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
+        var source = new LowLevelStreamSource(kinesis.Object, new PassthroughRetryWrapper(), Options.Create(
+            new KinesisConfiguration
             {
                 StreamArn = streamArn,
                 RoundRobinShards = false,
@@ -223,13 +158,60 @@ public class LowLevelStreamSourceTests
         Assert.Equal("shard-b", first.ShardId);
         Assert.Equal(sequenceNumber1, first.MessageId);
         Assert.Equal(sequenceNumber1, first.IdempotencyId);
-        Assert.Same(mock1, first.Data);
+        Assert.Equal(data1, first.Body);
         Assert.InRange(first.CreatedAtUtc, before, after);
 
         var second = Assert.IsType<KinesisJobModel>(response.Items[1]);
         Assert.Equal(sequenceNumber2, second.MessageId);
         Assert.Equal(sequenceNumber2, second.IdempotencyId);
-        Assert.Same(mock2, second.Data);
+        Assert.Equal(data2, second.Body);
+    }
+
+    [Fact]
+    public async Task GetJobsAsync_ReturnsAllRecordsWithBodies_AndTracksLastSequenceAndIterator()
+    {
+        const string nextIterator = "still-progress";
+        var lastSequence = Guid.NewGuid().ToString();
+        var body1 = Guid.NewGuid().ToString();
+        var body2 = Guid.NewGuid().ToString();
+        var streamArn = Guid.NewGuid().ToString();
+
+        var kinesis = new Mock<IAmazonKinesis>(MockBehavior.Strict);
+        kinesis.Setup(a => a.GetRecordsAsync(It.IsAny<GetRecordsRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GetRecordsResponse
+            {
+                NextShardIterator = nextIterator,
+                Records =
+                [
+                    new Record
+                    {
+                        SequenceNumber = Guid.NewGuid().ToString(),
+                        Data = new MemoryStream(Encoding.UTF8.GetBytes(body1))
+                    },
+                    new Record
+                    {
+                        SequenceNumber = lastSequence,
+                        Data = new MemoryStream(Encoding.UTF8.GetBytes(body2))
+                    }
+                ]
+            });
+
+        var source = new LowLevelStreamSource(kinesis.Object, new PassthroughRetryWrapper(), Options.Create(
+            new KinesisConfiguration
+            {
+                StreamArn = streamArn,
+                RoundRobinShards = false,
+                ShuffleShards = false
+            }));
+
+        var response = await source.GetJobsAsync(10, "shard-c", "iterator-c",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, response.Items.Count);
+        Assert.Equal(body1, response.Items[0].Body);
+        Assert.Equal(body2, response.Items[1].Body);
+        Assert.Equal(nextIterator, response.IteratorString);
+        Assert.Equal(lastSequence, response.LastSequenceNumber);
     }
 
     [Fact]
@@ -237,11 +219,8 @@ public class LowLevelStreamSourceTests
     {
         var sequenceNumber1 = Guid.NewGuid().ToString();
         var data1 = Guid.NewGuid().ToString();
-        var mock1 = new Mock<IJobDataModel>().Object;
         var sequenceNumber2 = Guid.NewGuid().ToString();
         var data2 = Guid.NewGuid().ToString();
-        var mock2 = new Mock<IJobDataModel>().Object;
-
         var data3 = Guid.NewGuid().ToString();
         var data4 = Guid.NewGuid().ToString();
 
@@ -263,32 +242,22 @@ public class LowLevelStreamSourceTests
                     },
                     new Record
                     {
-                        SequenceNumber = Guid.NewGuid().ToString(), // moot
+                        SequenceNumber = Guid.NewGuid().ToString(),
                         Data = new MemoryStream(Encoding.UTF8.GetBytes(data3))
                     },
                     new Record
                     {
-                        SequenceNumber = Guid.NewGuid().ToString(), // moot
+                        SequenceNumber = Guid.NewGuid().ToString(),
                         Data = new MemoryStream(Encoding.UTF8.GetBytes(data4))
                     }
                 ]
             });
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-        converter.Setup(c => c.Convert(data1))
-            .Returns(mock1);
-        converter.Setup(c => c.Convert(data2))
-            .Returns(mock2);
-        converter.Setup(c => c.Convert(data3))
-            .Returns((IJobDataModel?) null);
-        converter.Setup(c => c.Convert(data4))
-            .Returns((string _) => throw new Exception());
-
         var streamArn = Guid.NewGuid().ToString();
         const int batchSize = 10;
 
-        var source = new LowLevelStreamSource(kinesis.Object, converter.Object,
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
+        var source = new LowLevelStreamSource(kinesis.Object, new PassthroughRetryWrapper(), Options.Create(
+            new KinesisConfiguration
             {
                 StreamArn = streamArn,
                 RoundRobinShards = false,
@@ -299,7 +268,7 @@ public class LowLevelStreamSourceTests
             TestContext.Current.CancellationToken);
         Assert.All(response.Items, r => Assert.Equal("foo-shard", (r as KinesisJobModel)!.ShardId));
         Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
-        Assert.Equal(2, response.Items.Count);
+        Assert.Equal(4, response.Items.Count);
 
         kinesis.Verify(a => a.GetRecordsAsync(It.IsAny<GetRecordsRequest>(), It.IsAny<CancellationToken>()),
             Times.Once);
@@ -311,90 +280,57 @@ public class LowLevelStreamSourceTests
                     && r.ShardIterator == "foo-iterator"),
                 TestContext.Current.CancellationToken), Times.Once);
 
-        converter.Verify(c => c.Convert(data1), Times.Once);
-        converter.Verify(c => c.Convert(data2), Times.Once);
-        converter.Verify(c => c.Convert(data3), Times.Once);
-        converter.Verify(c => c.Convert(data4), Times.Once);
-
         Assert.Equal(sequenceNumber1, response.Items[0].MessageId);
-        Assert.Same(mock1, response.Items[0].Data);
+        Assert.Equal(data1, response.Items[0].Body);
         Assert.Equal(sequenceNumber2, response.Items[1].MessageId);
-        Assert.Same(mock2, response.Items[1].Data);
+        Assert.Equal(data2, response.Items[1].Body);
+        Assert.Equal(data3, response.Items[2].Body);
+        Assert.Equal(data4, response.Items[3].Body);
     }
 
     [Fact]
-    public async Task WhenExpiredIterator_ReturnEmpty()
+    public async Task WhenWorkerJobSourceExceptionWithInnerExpiredIterator_ReturnEmpty()
     {
+        var expired = new ExpiredIteratorException("iterator expired");
+        var wrapped = new WorkerJobSourceException(expired, false, false, true);
+
+        var retryWrapper = new Mock<IKinesisRetryWrapperService>(MockBehavior.Strict);
+        retryWrapper
+            .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<GetRecordsResponse>>>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(wrapped);
+
         var kinesis = new Mock<IAmazonKinesis>(MockBehavior.Strict);
-        kinesis.Setup(a => a.GetRecordsAsync(It.IsAny<GetRecordsRequest>(), It.IsAny<CancellationToken>()))
-            .Returns(() => throw new ExpiredIteratorException("A"));
-
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-
-        var streamArn = Guid.NewGuid().ToString();
-        var batchSize = 10;
-
-        var source = new LowLevelStreamSource(kinesis.Object, converter.Object,
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
+        var source = new LowLevelStreamSource(kinesis.Object, retryWrapper.Object, Options.Create(
+            new KinesisConfiguration
             {
-                StreamArn = streamArn,
+                StreamArn = Guid.NewGuid().ToString(),
                 RoundRobinShards = false,
                 ShuffleShards = false
             }));
 
-        var response = await source.GetJobsAsync(batchSize, "foo-shard", "foo-iterator",
+        var response = await source.GetJobsAsync(10, "foo-shard", "foo-iterator",
             TestContext.Current.CancellationToken);
-        Assert.All(response.Items, r => Assert.Equal("foo-shard", (r as KinesisJobModel)!.ShardId));
-        Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
-        Assert.Empty(response.Items);
 
-        kinesis.Verify(a => a.GetRecordsAsync(It.IsAny<GetRecordsRequest>(), It.IsAny<CancellationToken>()),
-            Times.Once);
-        kinesis.Verify(
-            a => a.GetRecordsAsync(
-                It.Is<GetRecordsRequest>(r =>
-                    r.StreamARN == streamArn
-                    && r.Limit == batchSize
-                    && r.ShardIterator == "foo-iterator"),
+        Assert.Empty(response.Items);
+        Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
+        Assert.Null(response.LastSequenceNumber);
+        Assert.Empty(kinesis.Invocations);
+        retryWrapper.Verify(
+            r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<GetRecordsResponse>>>(),
                 TestContext.Current.CancellationToken), Times.Once);
     }
 
-    [Theory]
-    [InlineData(1)]
-    [InlineData(10)]
-    [InlineData(100)]
-    public async Task WhenExpiredIterator_ReturnEmpty_VariableBatchSize(int batchSize)
+    private sealed class PassthroughRetryWrapper : IKinesisRetryWrapperService
     {
-        var kinesis = new Mock<IAmazonKinesis>(MockBehavior.Strict);
-        kinesis.Setup(a => a.GetRecordsAsync(It.IsAny<GetRecordsRequest>(), It.IsAny<CancellationToken>()))
-            .Returns(() => throw new ExpiredIteratorException("A"));
+        public Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
 
-        var converter = new Mock<ISourceMessageConverter>(MockBehavior.Strict);
-
-        var streamArn = Guid.NewGuid().ToString();
-
-        var source = new LowLevelStreamSource(kinesis.Object, converter.Object,
-            new NullLogger<LowLevelStreamSource>(), Options.Create(new KinesisConfiguration
-            {
-                StreamArn = streamArn,
-                RoundRobinShards = false,
-                ShuffleShards = false
-            }));
-
-        var response = await source.GetJobsAsync(batchSize, "foo-shard", "foo-iterator",
-            TestContext.Current.CancellationToken);
-        Assert.All(response.Items, r => Assert.Equal("foo-shard", (r as KinesisJobModel)!.ShardId));
-        Assert.True(string.IsNullOrWhiteSpace(response.IteratorString));
-        Assert.Empty(response.Items);
-
-        kinesis.Verify(a => a.GetRecordsAsync(It.IsAny<GetRecordsRequest>(), It.IsAny<CancellationToken>()),
-            Times.Once);
-        kinesis.Verify(
-            a => a.GetRecordsAsync(
-                It.Is<GetRecordsRequest>(r =>
-                    r.StreamARN == streamArn
-                    && r.Limit == batchSize
-                    && r.ShardIterator == "foo-iterator"),
-                TestContext.Current.CancellationToken), Times.Once);
+        public Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
     }
 }

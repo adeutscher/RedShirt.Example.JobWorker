@@ -1,6 +1,6 @@
 namespace RedShirt.Example.JobWorker.Core.Utility;
 
-public class AsyncAutoResetEvent(bool setInitially = false)
+public sealed class AsyncAutoResetEvent(bool setInitially = false)
 {
     private readonly Queue<TaskCompletionSource<bool>> _waits = new();
     private bool _signalled = setInitially;

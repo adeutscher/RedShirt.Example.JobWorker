@@ -1,5 +1,4 @@
 using RedShirt.Example.JobWorker.Core.Enums;
-using RedShirt.Example.JobWorker.Core.Exceptions.Loader;
 
 namespace RedShirt.Example.JobWorker.Core.Models;
 
@@ -10,55 +9,94 @@ internal interface ISortableJobWrapper
 
 internal interface IJobRepositoryEntry : ISortableJobWrapper
 {
+    IRawJobModel RawJobModel { get; }
     bool CanHeartbeat { get; }
-    DateTime LastHeartbeatTime { get; set; }
+    DateTime LastHeartbeatTime { get; }
     JobState State { get; }
-    Task<Guid> AcquireLockAsync(CancellationToken cancellationToken = default);
-    Task ReleaseLockAsync(Guid lockId, CancellationToken cancellationToken = default);
-    Task SetIfFlightTimeCanBeExtendedAsync(bool flightTime, CancellationToken cancellationToken = default);
+
+    Task SetAsCannotHeartbeatAsync(CancellationToken cancellationToken = default);
+    Task SetLastHeartbeatTimeAsync(DateTime lastHeartbeatTime, CancellationToken cancellationToken = default);
     Task SetStateAsync(JobState state, CancellationToken cancellationToken = default);
 }
 
-internal class JobRepositoryEntry : IJobRepositoryEntry
+internal sealed class JobRepositoryEntry : IJobRepositoryEntry
 {
-    private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
+    /// <summary>
+    ///     Thread-safety for mutable field access from maintainer, executor, and repository threads.
+    /// </summary>
+    private readonly Lock _lock = new();
 
-    private Guid _lockId = Guid.Empty;
-    public bool CanHeartbeat { get; private set; } = true;
-    public required DateTime LastHeartbeatTime { get; set; }
+    private bool _canHeartbeat = true;
+    private DateTime _lastHeartbeatTime;
+    private JobState _state = JobState.Inactive;
+
+    public required IRawJobModel RawJobModel { get; init; }
     public required IJobModel JobModel { get; init; }
 
-    public async Task SetIfFlightTimeCanBeExtendedAsync(bool flightTime, CancellationToken cancellationToken = default)
+    public bool CanHeartbeat
     {
-        await _semaphoreSlim.WaitAsync(cancellationToken);
-        CanHeartbeat = flightTime;
-        _semaphoreSlim.Release();
-    }
-
-    public async Task SetStateAsync(JobState state, CancellationToken cancellationToken = default)
-    {
-        await _semaphoreSlim.WaitAsync(cancellationToken);
-        State = state;
-        _semaphoreSlim.Release();
-    }
-
-    public async Task<Guid> AcquireLockAsync(CancellationToken cancellationToken = default)
-    {
-        await _semaphoreSlim.WaitAsync(cancellationToken);
-        _lockId = Guid.NewGuid();
-        return _lockId;
-    }
-
-    public Task ReleaseLockAsync(Guid lockId, CancellationToken cancellationToken = default)
-    {
-        if (lockId != _lockId || lockId == Guid.Empty)
+        get
         {
-            throw new IllegalUnlockException();
+            lock (_lock)
+            {
+                return _canHeartbeat;
+            }
+        }
+    }
+
+    public DateTime LastHeartbeatTime
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _lastHeartbeatTime;
+            }
+        }
+    }
+
+    public JobState State
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _state;
+            }
+        }
+    }
+
+    public Task SetAsCannotHeartbeatAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_lock)
+        {
+            _canHeartbeat = false;
         }
 
-        _semaphoreSlim.Release();
         return Task.CompletedTask;
     }
 
-    public JobState State { get; private set; } = JobState.Inactive;
+    public Task SetLastHeartbeatTimeAsync(DateTime lastHeartbeatTime,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_lock)
+        {
+            _lastHeartbeatTime = lastHeartbeatTime;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task SetStateAsync(JobState state, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_lock)
+        {
+            _state = state;
+        }
+
+        return Task.CompletedTask;
+    }
 }
