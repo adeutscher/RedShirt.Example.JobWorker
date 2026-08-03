@@ -31,6 +31,14 @@ internal class PubSubSubscriberClientFactory(IOptions<GooglePubSubConfigurationM
         /*
          * EmulatorDetection.EmulatorOrProduction is required for C# — unlike most other languages,
          * PUBSUB_EMULATOR_HOST alone is not enough for Google.Cloud.PubSub.V1.
+         *
+         * Untestable in unit tests (without production refactor):
+         * SubscriberServiceApiClientBuilder.Build() is constructed inline with no seam to inject a
+         * mock SubscriberServiceApiClient / builder. The happy path therefore always creates a real
+         * gRPC client (credentials / channel / emulator detection), which is an integration concern.
+         * Unit coverage is limited to the ProjectId / SubscriptionId validation throws above.
+         * To unit-test client + SubscriptionName wrapping, introduce an injectable builder or
+         * ClientFactory abstraction and assert wrapper construction against a Moq client.
          */
         var client = new SubscriberServiceApiClientBuilder
         {
