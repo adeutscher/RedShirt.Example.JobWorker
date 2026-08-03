@@ -1,11 +1,20 @@
 using Amazon.SimpleSystemsManagement;
 using Amazon.SimpleSystemsManagement.Model;
 using RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.Services;
+using RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.UnitTests.Tests.Services;
 
 public class SsmSecretManagerServiceTests
 {
+    private sealed class PassthroughRetryWrapper : ISsmRetryWrapperService
+    {
+        public Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
+    }
+
     public class GetSecretAsync
     {
         [Fact]
@@ -24,7 +33,7 @@ public class SsmSecretManagerServiceTests
                     Parameter = new Parameter {Name = name, Value = value}
                 });
 
-            var service = new SsmSecretManagerService(ssm.Object);
+            var service = new SsmSecretManagerService(ssm.Object, new PassthroughRetryWrapper());
 
             var result = await service.GetSecretAsync(name, cts.Token);
 
@@ -44,7 +53,7 @@ public class SsmSecretManagerServiceTests
             ssm.Setup(s => s.GetParameterAsync(It.IsAny<GetParameterRequest>(), It.IsAny<CancellationToken>()))
                 .ThrowsAsync(new AmazonSimpleSystemsManagementException("parameter not found"));
 
-            var service = new SsmSecretManagerService(ssm.Object);
+            var service = new SsmSecretManagerService(ssm.Object, new PassthroughRetryWrapper());
 
             await Assert.ThrowsAsync<AmazonSimpleSystemsManagementException>(() =>
                 service.GetSecretAsync(name, TestContext.Current.CancellationToken));
@@ -69,7 +78,7 @@ public class SsmSecretManagerServiceTests
                     }
                 });
 
-            var service = new SsmSecretManagerService(ssm.Object);
+            var service = new SsmSecretManagerService(ssm.Object, new PassthroughRetryWrapper());
 
             var result = await service.GetSecretAsync(name, TestContext.Current.CancellationToken);
 
@@ -104,7 +113,7 @@ public class SsmSecretManagerServiceTests
                     ]
                 });
 
-            var service = new SsmSecretManagerService(ssm.Object);
+            var service = new SsmSecretManagerService(ssm.Object, new PassthroughRetryWrapper());
 
             var result = await service.GetSecretsAsync([name, name, name], TestContext.Current.CancellationToken);
 
@@ -118,7 +127,7 @@ public class SsmSecretManagerServiceTests
         public async Task EmptyList_DoesNotCallSsm()
         {
             var ssm = new Mock<IAmazonSimpleSystemsManagement>(MockBehavior.Strict);
-            var service = new SsmSecretManagerService(ssm.Object);
+            var service = new SsmSecretManagerService(ssm.Object, new PassthroughRetryWrapper());
 
             var result = await service.GetSecretsAsync([], TestContext.Current.CancellationToken);
 
@@ -143,7 +152,7 @@ public class SsmSecretManagerServiceTests
                         .ToList()
                 });
 
-            var service = new SsmSecretManagerService(ssm.Object);
+            var service = new SsmSecretManagerService(ssm.Object, new PassthroughRetryWrapper());
 
             var result = await service.GetSecretsAsync(names, TestContext.Current.CancellationToken);
 
@@ -173,7 +182,7 @@ public class SsmSecretManagerServiceTests
                     };
                 });
 
-            var service = new SsmSecretManagerService(ssm.Object);
+            var service = new SsmSecretManagerService(ssm.Object, new PassthroughRetryWrapper());
 
             var result = await service.GetSecretsAsync(names, TestContext.Current.CancellationToken);
 
@@ -203,7 +212,7 @@ public class SsmSecretManagerServiceTests
                         .ToList()
                 });
 
-            var service = new SsmSecretManagerService(ssm.Object);
+            var service = new SsmSecretManagerService(ssm.Object, new PassthroughRetryWrapper());
 
             var result = await service.GetSecretsAsync(names, TestContext.Current.CancellationToken);
 
@@ -237,7 +246,7 @@ public class SsmSecretManagerServiceTests
                     InvalidParameters = [missingName]
                 });
 
-            var service = new SsmSecretManagerService(ssm.Object);
+            var service = new SsmSecretManagerService(ssm.Object, new PassthroughRetryWrapper());
 
             var result = await service.GetSecretsAsync([foundName, missingName], TestContext.Current.CancellationToken);
 
@@ -267,7 +276,7 @@ public class SsmSecretManagerServiceTests
                     Parameters = [new Parameter {Name = name, Value = value}]
                 });
 
-            var service = new SsmSecretManagerService(ssm.Object);
+            var service = new SsmSecretManagerService(ssm.Object, new PassthroughRetryWrapper());
 
             var result = await service.GetSecretsAsync([name], cts.Token);
 
@@ -284,7 +293,7 @@ public class SsmSecretManagerServiceTests
             ssm.Setup(s => s.GetParametersAsync(It.IsAny<GetParametersRequest>(), It.IsAny<CancellationToken>()))
                 .ThrowsAsync(new AmazonSimpleSystemsManagementException("ssm unavailable"));
 
-            var service = new SsmSecretManagerService(ssm.Object);
+            var service = new SsmSecretManagerService(ssm.Object, new PassthroughRetryWrapper());
 
             await Assert.ThrowsAsync<AmazonSimpleSystemsManagementException>(() =>
                 service.GetSecretsAsync(["/a"], TestContext.Current.CancellationToken));
@@ -315,7 +324,7 @@ public class SsmSecretManagerServiceTests
                     ]
                 });
 
-            var service = new SsmSecretManagerService(ssm.Object);
+            var service = new SsmSecretManagerService(ssm.Object, new PassthroughRetryWrapper());
 
             var result = await service.GetSecretsAsync([nameA, nameB], TestContext.Current.CancellationToken);
 

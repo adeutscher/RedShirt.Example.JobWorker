@@ -1,9 +1,11 @@
 using Amazon.Kinesis;
 using Amazon.Kinesis.Model;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Resilience;
 using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
@@ -13,17 +15,13 @@ internal interface ILowLevelStreamSource
     /// <summary>
     ///     Get Kinesis records from a specific shard.
     /// </summary>
-    /// <param name="batchSize"></param>
-    /// <param name="shardName"></param>
-    /// <param name="iteratorString"></param>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
     Task<StreamSourceResponse> GetJobsAsync(int batchSize, string shardName, string iteratorString,
         CancellationToken cancellationToken = default);
 }
 
 internal class LowLevelStreamSource(
     IAmazonKinesis kinesisClient,
+    IKinesisRetryWrapperService retryWrapperService,
     IOptions<KinesisConfiguration> options) : ILowLevelStreamSource
 {
     public async Task<StreamSourceResponse> GetJobsAsync(int batchSize, string shardName, string iteratorString,
@@ -33,17 +31,16 @@ internal class LowLevelStreamSource(
 
         try
         {
-            kinesisResponse = await kinesisClient.GetRecordsAsync(new GetRecordsRequest
-            {
-                Limit = batchSize,
-                StreamARN = options.Value.StreamArn,
-                ShardIterator = iteratorString
-            }, cancellationToken);
+            kinesisResponse = await retryWrapperService.RunAsync(ct =>
+                kinesisClient.GetRecordsAsync(new GetRecordsRequest
+                {
+                    Limit = batchSize,
+                    StreamARN = options.Value.StreamArn,
+                    ShardIterator = iteratorString
+                }, ct), cancellationToken);
         }
-        catch (ExpiredIteratorException)
+        catch (WorkerJobSourceException exception) when (exception.InnerException is ExpiredIteratorException)
         {
-            // Not an event worth worrying about
-            // Just skip over this shard for the moment and loop around to it in another invocation
             return new StreamSourceResponse
             {
                 IteratorString = string.Empty,

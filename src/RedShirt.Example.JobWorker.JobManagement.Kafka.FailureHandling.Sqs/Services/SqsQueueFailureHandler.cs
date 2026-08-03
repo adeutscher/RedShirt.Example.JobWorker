@@ -1,13 +1,17 @@
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.Aws.Sqs.Services.Resilience;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Services;
 
-internal class SqsQueueFailureHandler(IAmazonSQS sqs, IOptions<SqsQueueFailureHandler.ConfigurationModel> options)
+internal class SqsQueueFailureHandler(
+    IAmazonSQS sqs,
+    ISqsRetryWrapperService retryWrapperService,
+    IOptions<SqsQueueFailureHandler.ConfigurationModel> options)
     : IJobFailureHandler
 {
     public Task HandleFailureAsync(IRawJobModel rawJobModel, FailureType failureType, Exception? exception,
@@ -18,11 +22,11 @@ internal class SqsQueueFailureHandler(IAmazonSQS sqs, IOptions<SqsQueueFailureHa
             return Task.CompletedTask;
         }
 
-        return sqs.SendMessageAsync(new SendMessageRequest
+        return retryWrapperService.RunAsync(ct => sqs.SendMessageAsync(new SendMessageRequest
         {
             QueueUrl = options.Value.QueueUrl,
             MessageBody = rawJobModel.Body
-        }, cancellationToken);
+        }, ct), cancellationToken);
     }
 
     internal class ConfigurationModel

@@ -3,6 +3,7 @@ using Amazon.Kinesis.Model;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Services;
 
@@ -38,12 +39,13 @@ public class KinesisShardListerTests
             });
 
         var streamArn = Guid.NewGuid().ToString();
-        var lister = new KinesisShardLister(kinesis.Object, Options.Create(new KinesisConfiguration
-        {
-            StreamArn = streamArn,
-            RoundRobinShards = false,
-            ShuffleShards = false
-        }));
+        var lister = new KinesisShardLister(kinesis.Object, new PassthroughRetryWrapper(), Options.Create(
+            new KinesisConfiguration
+            {
+                StreamArn = streamArn,
+                RoundRobinShards = false,
+                ShuffleShards = false
+            }));
 
         var output = await lister.GetListOfShardsAsync(TestContext.Current.CancellationToken);
         Assert.Equal(2, output.Count);
@@ -73,12 +75,13 @@ public class KinesisShardListerTests
             .ReturnsAsync((ListShardsRequest _, CancellationToken _) => new ListShardsResponse {Shards = []});
 
         var streamArn = Guid.NewGuid().ToString();
-        var lister = new KinesisShardLister(kinesis.Object, Options.Create(new KinesisConfiguration
-        {
-            StreamArn = streamArn,
-            RoundRobinShards = false,
-            ShuffleShards = false
-        }));
+        var lister = new KinesisShardLister(kinesis.Object, new PassthroughRetryWrapper(), Options.Create(
+            new KinesisConfiguration
+            {
+                StreamArn = streamArn,
+                RoundRobinShards = false,
+                ShuffleShards = false
+            }));
 
         var output = await lister.GetListOfShardsAsync(TestContext.Current.CancellationToken);
         Assert.Empty(output);
@@ -134,12 +137,13 @@ public class KinesisShardListerTests
             });
 
         var streamArn = Guid.NewGuid().ToString();
-        var lister = new KinesisShardLister(kinesis.Object, Options.Create(new KinesisConfiguration
-        {
-            StreamArn = streamArn,
-            RoundRobinShards = true,
-            ShuffleShards = false
-        }));
+        var lister = new KinesisShardLister(kinesis.Object, new PassthroughRetryWrapper(), Options.Create(
+            new KinesisConfiguration
+            {
+                StreamArn = streamArn,
+                RoundRobinShards = true,
+                ShuffleShards = false
+            }));
 
         var roundRobinCheckSet = new HashSet<string>();
         var output = await lister.GetListOfShardsAsync(TestContext.Current.CancellationToken);
@@ -222,12 +226,13 @@ public class KinesisShardListerTests
             });
 
         var streamArn = Guid.NewGuid().ToString();
-        var lister = new KinesisShardLister(kinesis.Object, Options.Create(new KinesisConfiguration
-        {
-            StreamArn = streamArn,
-            RoundRobinShards = false,
-            ShuffleShards = doShuffle
-        }));
+        var lister = new KinesisShardLister(kinesis.Object, new PassthroughRetryWrapper(), Options.Create(
+            new KinesisConfiguration
+            {
+                StreamArn = streamArn,
+                RoundRobinShards = false,
+                ShuffleShards = doShuffle
+            }));
 
         using var cts = new CancellationTokenSource();
         PopulateQueueAction();
@@ -319,5 +324,18 @@ public class KinesisShardListerTests
          */
 
         Assert.Equal(!doShuffle, output.SequenceEqual(output2));
+    }
+
+    private sealed class PassthroughRetryWrapper : IKinesisRetryWrapperService
+    {
+        public Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
+
+        public Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
     }
 }

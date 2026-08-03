@@ -1,8 +1,9 @@
 using Amazon.DynamoDBv2.DataModel;
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Checkpoints;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Resilience;
 
-namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Services.Checkpoints;
 
 public class DynamoSequenceNumberStorageTests
 {
@@ -20,7 +21,7 @@ public class DynamoSequenceNumberStorageTests
 
         var tableName = Guid.NewGuid().ToString();
 
-        var storage = new DynamoSequenceNumberStorage(ctx.Object, Options.Create(
+        var storage = new DynamoSequenceNumberStorage(ctx.Object, new PassthroughRetryWrapper(), Options.Create(
             new DynamoSequenceNumberStorage.ConfigurationModel
             {
                 TableName = tableName,
@@ -56,7 +57,7 @@ public class DynamoSequenceNumberStorageTests
 
         var tableName = Guid.NewGuid().ToString();
 
-        var storage = new DynamoSequenceNumberStorage(ctx.Object, Options.Create(
+        var storage = new DynamoSequenceNumberStorage(ctx.Object, new PassthroughRetryWrapper(), Options.Create(
             new DynamoSequenceNumberStorage.ConfigurationModel
             {
                 TableName = tableName,
@@ -92,7 +93,7 @@ public class DynamoSequenceNumberStorageTests
 
         var tableName = Guid.NewGuid().ToString();
 
-        var storage = new DynamoSequenceNumberStorage(ctx.Object, Options.Create(
+        var storage = new DynamoSequenceNumberStorage(ctx.Object, new PassthroughRetryWrapper(), Options.Create(
             new DynamoSequenceNumberStorage.ConfigurationModel
             {
                 TableName = tableName,
@@ -117,5 +118,18 @@ public class DynamoSequenceNumberStorageTests
         var opConfig = invocation.Arguments[1] as SaveConfig;
         Assert.NotNull(opConfig);
         Assert.Equal(tableName, opConfig.OverrideTableName);
+    }
+
+    private sealed class PassthroughRetryWrapper : IKinesisRetryWrapperService
+    {
+        public Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
+
+        public Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
     }
 }

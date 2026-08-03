@@ -2,9 +2,10 @@ using Amazon.Kinesis;
 using Amazon.Kinesis.Model;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
-using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Checkpoints;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Resilience;
 
-namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Services.Checkpoints;
 
 public class CheckpointStorageTests
 {
@@ -23,7 +24,8 @@ public class CheckpointStorageTests
         };
 
         var checkpointStorage =
-            new CheckpointStorage(shortTerm.Object, longTerm.Object, kinesis.Object, Options.Create(options));
+            new CheckpointStorage(shortTerm.Object, longTerm.Object, kinesis.Object, new PassthroughRetryWrapper(),
+                Options.Create(options));
 
         var iteratorString = Guid.NewGuid().ToString();
         shortTerm.Setup(s => s.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -72,7 +74,8 @@ public class CheckpointStorageTests
         };
 
         var checkpointStorage =
-            new CheckpointStorage(shortTerm.Object, longTerm.Object, kinesis.Object, Options.Create(options));
+            new CheckpointStorage(shortTerm.Object, longTerm.Object, kinesis.Object, new PassthroughRetryWrapper(),
+                Options.Create(options));
 
         var iteratorString = Guid.NewGuid().ToString();
         var sequenceNumber = Guid.NewGuid().ToString();
@@ -122,7 +125,8 @@ public class CheckpointStorageTests
         };
 
         var checkpointStorage =
-            new CheckpointStorage(shortTerm.Object, longTerm.Object, kinesis.Object, Options.Create(options));
+            new CheckpointStorage(shortTerm.Object, longTerm.Object, kinesis.Object, new PassthroughRetryWrapper(),
+                Options.Create(options));
 
         var iteratorString = Guid.NewGuid().ToString();
         shortTerm.Setup(s => s.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -154,7 +158,8 @@ public class CheckpointStorageTests
         };
 
         var checkpointStorage =
-            new CheckpointStorage(shortTerm.Object, longTerm.Object, kinesis.Object, Options.Create(options));
+            new CheckpointStorage(shortTerm.Object, longTerm.Object, kinesis.Object, new PassthroughRetryWrapper(),
+                Options.Create(options));
 
         var key = Guid.NewGuid().ToString();
         var value = Guid.NewGuid().ToString();
@@ -180,7 +185,8 @@ public class CheckpointStorageTests
         };
 
         var checkpointStorage =
-            new CheckpointStorage(shortTerm.Object, longTerm.Object, kinesis.Object, Options.Create(options));
+            new CheckpointStorage(shortTerm.Object, longTerm.Object, kinesis.Object, new PassthroughRetryWrapper(),
+                Options.Create(options));
 
         var key = Guid.NewGuid().ToString();
         var value = Guid.NewGuid().ToString();
@@ -190,5 +196,18 @@ public class CheckpointStorageTests
         shortTerm.Verify(s => s.SetAsync(key, value, TestContext.Current.CancellationToken), Times.Once);
         Assert.Empty(longTerm.Invocations);
         Assert.Empty(kinesis.Invocations);
+    }
+
+    private sealed class PassthroughRetryWrapper : IKinesisRetryWrapperService
+    {
+        public Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
+
+        public Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default)
+        {
+            return func(cancellationToken);
+        }
     }
 }

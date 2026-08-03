@@ -7,7 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.Aws\RedShirt.Example.JobWorker.Common.Aws.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.Aws.Sqs\RedShirt.Example.JobWorker.Common.Aws.Sqs.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.Distributed\RedShirt.Example.JobWorker.Common.Distributed.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.SecretManagers.Core\RedShirt.Example.JobWorker.Common.SecretManagers.Core.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Core\RedShirt.Example.JobWorker.Core.csproj"/>
@@ -17,7 +17,6 @@
         <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.102.1"/>
         <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.100.7"/>
         <PackageReference Include="AWSSDK.Kinesis" Version="4.0.100.7"/>
-        <PackageReference Include="AWSSDK.SQS" Version="4.0.100.7"/>
     </ItemGroup>
 
 </Project>
