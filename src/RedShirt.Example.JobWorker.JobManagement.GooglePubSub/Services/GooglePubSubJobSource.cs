@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Extensions;
@@ -16,6 +17,7 @@ internal class GooglePubSubJobSource(
     IGooglePubSubMessageSource googlePubSubMessageSource,
     IGooglePubSubRetryWrapperService retryWrapperService,
     IGooglePubSubPoisonMessagesHandler poisonMessagesHandler,
+    ILogger<GooglePubSubJobSource> logger,
     IOptions<GooglePubSubConfigurationModel> options) : IJobSource
 {
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
@@ -66,6 +68,9 @@ internal class GooglePubSubJobSource(
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
+        logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from Google Pub/Sub Subscription: {SubscriptionId}",
+            batchSize, options.Value.SubscriptionId);
+
         var messagesFromSource = await googlePubSubMessageSource.GetMessagesAsync(batchSize, cancellationToken);
         var items = messagesFromSource
             .Select(receivedMessage => new GooglePubSubJobModel

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
@@ -57,7 +58,7 @@ public class GooglePubSubJobSourceTests
 
         var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            poison.Object, Options.Create(DefaultOptions()));
+            poison.Object, NullLogger<GooglePubSubJobSource>.Instance, Options.Create(DefaultOptions()));
 
         var job = new OutsideContextJobModel
         {
@@ -87,7 +88,7 @@ public class GooglePubSubJobSourceTests
 
         var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            poison.Object, Options.Create(DefaultOptions()));
+            poison.Object, NullLogger<GooglePubSubJobSource>.Instance, Options.Create(DefaultOptions()));
 
         await jobSource.AcknowledgeAsync(CreateJob(message.Object), CoreJobResult.Success,
             TestContext.Current.CancellationToken);
@@ -116,7 +117,7 @@ public class GooglePubSubJobSourceTests
 
         var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            poison.Object, Options.Create(DefaultOptions()));
+            poison.Object, NullLogger<GooglePubSubJobSource>.Instance, Options.Create(DefaultOptions()));
 
         await jobSource.AcknowledgeAsync(CreateJob(message.Object), result,
             TestContext.Current.CancellationToken);
@@ -148,7 +149,7 @@ public class GooglePubSubJobSourceTests
 
         var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            poison.Object, Options.Create(DefaultOptions()));
+            poison.Object, NullLogger<GooglePubSubJobSource>.Instance, Options.Create(DefaultOptions()));
 
         await jobSource.AcknowledgeAsync(CreateJob(message.Object), result,
             TestContext.Current.CancellationToken);
@@ -175,7 +176,7 @@ public class GooglePubSubJobSourceTests
 
         var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            poison.Object, Options.Create(DefaultOptions()));
+            poison.Object, NullLogger<GooglePubSubJobSource>.Instance, Options.Create(DefaultOptions()));
 
         await jobSource.AcknowledgeAsync(CreateJob(message.Object), result,
             TestContext.Current.CancellationToken);
@@ -213,7 +214,8 @@ public class GooglePubSubJobSourceTests
         var jobSource = new GooglePubSubJobSource(new Mock<IPubSubSubscriberClientSource>().Object,
             pubSubMessageSource.Object,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            CreatePassthroughPoisonHandler().Object, Options.Create(DefaultOptions()));
+            CreatePassthroughPoisonHandler().Object, NullLogger<GooglePubSubJobSource>.Instance,
+            Options.Create(DefaultOptions()));
 
         var response = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
         Assert.Equal(4, response.Items.Count);
@@ -238,6 +240,7 @@ public class GooglePubSubJobSourceTests
         var jobSource = new GooglePubSubJobSource(null!, null!,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             Mock.Of<IGooglePubSubPoisonMessagesHandler>(),
+            NullLogger<GooglePubSubJobSource>.Instance,
             Options.Create(DefaultOptions(20)));
 
         Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
@@ -255,7 +258,8 @@ public class GooglePubSubJobSourceTests
         var message = new Mock<IPubSubMessageContainer>();
         var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            CreatePassthroughPoisonHandler().Object, Options.Create(DefaultOptions()));
+            CreatePassthroughPoisonHandler().Object, NullLogger<GooglePubSubJobSource>.Instance,
+            Options.Create(DefaultOptions()));
 
         Assert.Equal(45, jobSource.RecommendedHeartbeatIntervalSeconds);
 
@@ -272,7 +276,8 @@ public class GooglePubSubJobSourceTests
 
         var jobSource = new GooglePubSubJobSource(source.Object, new Mock<IGooglePubSubMessageSource>().Object,
             GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            CreatePassthroughPoisonHandler().Object, Options.Create(DefaultOptions(30)));
+            CreatePassthroughPoisonHandler().Object, NullLogger<GooglePubSubJobSource>.Instance,
+            Options.Create(DefaultOptions(30)));
 
         var job = new OutsideContextJobModel
         {
