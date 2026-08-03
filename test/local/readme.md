@@ -10,7 +10,7 @@ The scripts described below assume that certain Python modules are installed in 
 Run the following to install all of the assumed modules at once:
 
 ```
-pip install --user boto3 awscli awslocal stomp.py azure-cli azure.servicebus azure-storage-queue azure.identity azure.keyvault kafka-python redis pika
+pip install --user boto3 awscli awslocal stomp.py azure-cli azure.servicebus azure-storage-queue azure.identity azure.keyvault kafka-python redis pika google-cloud-pubsub
 ```
 
 ## Idempotency
@@ -61,8 +61,8 @@ export USE_AZURE_SERVICE_BUS=0
 export USE_NATS=0
 export USE_REDIS_STREAMS=0
 export USE_RABBITMQ=0
-unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
-```
+export USE_GOOGLE_PUB_SUB=0
+unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH```
 
 5. Bring up the worker:
 
@@ -104,7 +104,11 @@ To initialize Kinesis and queue sample messages:
     export USE_NATS=0
     export USE_REDIS_STREAMS=0
     export USE_RABBITMQ=0
+<<<<<<< HEAD
+    export USE_GOOGLE_PUB_SUB=0
+=======
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+>>>>>>> origin/develop
     ```
 
 5. Bring up the worker:
@@ -147,6 +151,7 @@ To initialize Kafka and queue sample messages:
     export USE_NATS=0
     export USE_REDIS_STREAMS=0
     export USE_RABBITMQ=0
+    export USE_GOOGLE_PUB_SUB=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
@@ -205,6 +210,7 @@ To initialize RabbitMQ and queue messages:
     export USE_NATS=0
     export USE_REDIS_STREAMS=0
     export USE_RABBITMQ=1
+    export USE_GOOGLE_PUB_SUB=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
@@ -282,6 +288,7 @@ To initialize RabbitMQ and queue messages:
     export USE_NATS=0
     export USE_REDIS_STREAMS=0
     export USE_RABBITMQ=0
+    export USE_GOOGLE_PUB_SUB=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
@@ -347,6 +354,7 @@ To install the `nats` command:
     export USE_KINESIS=0
     export USE_REDIS_STREAMS=0
     export USE_RABBITMQ=0
+    export USE_GOOGLE_PUB_SUB=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
@@ -478,6 +486,7 @@ VSCode automatically knows how to point to your local `azurite` server after the
     export USE_ACTIVEMQ=0
     export USE_KINESIS=0
     export USE_RABBITMQ=0
+    export USE_GOOGLE_PUB_SUB=0
     export COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH=common-distributed-redis
     ```
 
@@ -559,10 +568,60 @@ pip install azure.servicebus azure.identity azure.keyvault
     export USE_ACTIVEMQ=0
     export USE_KINESIS=0
     export USE_RABBITMQ=0
+    export USE_GOOGLE_PUB_SUB=0
     export COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH=common-distributed-redis
     ```
 
 11. Bring up the worker:
+
+    ```
+    docker compose up worker
+    ```
+
+## Google Pub/Sub
+
+To initialize Google Pub/Sub and queue sample messages:
+
+1. Bring up the Pub/Sub emulator, ministack, and Redis:
+
+    ```
+    docker compose up -d google-pubsub-emulator ministack redis
+    ```
+
+2. Run the `make-local-aws-resources.sh` script (creates the Redis SSM parameter used for idempotency):
+
+    ```
+    ./make-local-aws-resources.sh
+    ```
+
+3. Create the local topic and pull subscription (emulator state is in-memory and is lost when the `pubsub` container is recreated):
+
+    ```
+    ./make-local-google-pubsub-resources.py
+    ```
+
+4. Use the `send-google-pubsub-job.py` script (requires the `google-cloud-pubsub` module) to publish a message to the `jobs` topic. Specify the number of seconds the worker should sleep for in the first argument:
+
+    ```
+    ./send-google-pubsub-job.py 12
+    ```
+
+5. Before starting the worker, make sure that `USE_GOOGLE_PUB_SUB` is set to `1` and that other `USE_` environment variables are not set to `1`.
+   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
+
+    ```
+    export USE_GOOGLE_PUB_SUB=1
+    export USE_AZURE_QUEUE_STORAGE=0
+    export USE_AZURE_SERVICE_BUS=0
+    export USE_NATS=0
+    export USE_KAFKA=0
+    export USE_ACTIVEMQ=0
+    export USE_KINESIS=0
+    export USE_RABBITMQ=0
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+    ```
+
+6. Bring up the worker:
 
     ```
     docker compose up worker

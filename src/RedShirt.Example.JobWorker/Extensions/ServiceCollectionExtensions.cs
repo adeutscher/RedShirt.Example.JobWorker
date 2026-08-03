@@ -9,6 +9,7 @@ using RedShirt.Example.JobWorker.Core.Logic.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
@@ -46,6 +47,7 @@ public static class ServiceCollectionExtensions
         var useActiveMqRaw = configuration.GetValue("UseActiveMq", "0");
         var useAzureQueueStorageRaw = configuration.GetValue("UseAzureQueueStorage", "0");
         var useAzureServiceBusRaw = configuration.GetValue("UseAzureServiceBus", "0");
+        var useGooglePubSubRaw = configuration.GetValue("UseGooglePubSub", "0");
         var useNatsRaw = configuration.GetValue("UseNats", "0");
         var useRedisStreamsRaw = configuration.GetValue("UseRedisStreams", "0");
         var useRabbitMqRaw = configuration.GetValue("UseRabbitMq", "0");
@@ -71,6 +73,11 @@ public static class ServiceCollectionExtensions
             services = services
                 .AddSecretManagerAzureKeyVault(configuration)
                 .AddAzureServiceBusJobManagement(configuration);
+        }
+        else if (int.TryParse(useGooglePubSubRaw, out var useGooglePubSub) && useGooglePubSub == 1)
+        {
+            services = services
+                .AddGooglePubSubJobManagement(configuration);
         }
         else if (int.TryParse(useRabbitMqRaw, out var useRabbitMq) && useRabbitMq == 1)
         {

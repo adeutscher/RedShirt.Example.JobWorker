@@ -30,6 +30,8 @@
         <Project
                 Path="src/RedShirt.Example.JobWorker.JobManagement.AzureServiceBus/RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.csproj"/>
         <Project
+                Path="src/RedShirt.Example.JobWorker.JobManagement.GooglePubSub/RedShirt.Example.JobWorker.JobManagement.GooglePubSub.csproj"/>
+        <Project
                 Path="src/RedShirt.Example.JobWorker.JobManagement.Kafka/RedShirt.Example.JobWorker.JobManagement.Kafka.csproj"/>
         <Project
                 Path="src/RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs/RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.csproj"/>
@@ -74,6 +76,8 @@
                 Path="test/RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests/RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.csproj"/>
         <Project
                 Path="test/RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests/RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests/RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.csproj"/>
         <Project
                 Path="test/RedShirt.Example.JobWorker.JobManagement.Kafka.UnitTests/RedShirt.Example.JobWorker.JobManagement.Kafka.UnitTests.csproj"/>
         <Project

@@ -121,6 +121,20 @@ services:
     depends_on:
       - azure-service-bus-mssql
 
+  google-pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    container_name: pubsub
+    ports:
+      - "8085:8085"
+    command:
+      - gcloud
+      - beta
+      - emulators
+      - pubsub
+      - start
+      - --host-port=0.0.0.0:8085
+      - --project=local-pubsub
+
   worker:
     build:
       context: ../..
@@ -224,4 +238,14 @@ services:
       JOB_SOURCE__AZURE_SERVICE_BUS__CONNECTION_STRING_PATH: "azure-service-bus-connection-string"
       JOB_SOURCE__AZURE_SERVICE_BUS__FULLY_QUALIFIED_NAMESPACE: "not.used.for.local.testing"
       JOB_SOURCE__AZURE_SERVICE_BUS__QUEUE_NAME: "test-queue"
+      ## Job Management (Google Pub/Sub)
+      USE_GOOGLE_PUB_SUB: "${USE_GOOGLE_PUB_SUB-0}"
+      ### Official client-library hook for the emulator (host:port, no scheme)
+      PUBSUB_EMULATOR_HOST: google-pubsub-emulator:8085
+      PUBSUB_PROJECT_ID: local-pubsub
+      JOB_SOURCE__GOOGLE_PUB_SUB__PROJECT_ID: local-pubsub
+      JOB_SOURCE__GOOGLE_PUB_SUB__SUBSCRIPTION_ID: jobs-subscription
+      JOB_SOURCE__GOOGLE_PUB_SUB__VISIBILITY_TIMEOUT_SECONDS: 60
+      JOB_SOURCE__GOOGLE_PUB_SUB__DLQ_NOT_ENABLED: true
+      JOB_SOURCE__GOOGLE_PUB_SUB__MAXIMUM_RECEIVES: 3
 
