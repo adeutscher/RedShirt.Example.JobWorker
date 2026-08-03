@@ -45,6 +45,7 @@ internal class PulsarRetryWrapperService(
                 MaxRetryAttempts = PulsarRetryCount,
                 ShouldHandle = args =>
                 {
+                    // ReSharper disable once DuplicatedSequentialIfBodies
                     if (args.Outcome.Exception is not { } exception)
                     {
                         return PredicateResult.False();

@@ -117,10 +117,11 @@ internal class PulsarExceptionArbiterService : IPulsarExceptionArbiterService
                 or NotAllowedException
                 or UnsupportedVersionException
                 or TopicTerminatedException
+                or TopicDoesNotExistException
                 or AlreadyClosedException
                 or ConsumerNotFoundException
                 or InvalidConfigurationException
-                or InvalidTopicNameException => Fresh(true, false),
+                or InvalidTopicNameException => Fresh(false, false),
             // HTTP failures (e.g. OAuth token fetch): classify by status / DNS, not as blanket-transient.
             HttpRequestException httpRequest => ClassifyHttpRequestException(httpRequest),
             System.TimeoutException
@@ -128,6 +129,7 @@ internal class PulsarExceptionArbiterService : IPulsarExceptionArbiterService
             TaskCanceledException => Fresh(false, true),
             OperationCanceledException => Fresh(false, false),
             ArgumentException => Fresh(false, false),
+            // Unrecognized exception type — treat as critical so callers surface the raw failure.
             _ => Fresh(true, false)
         };
     }

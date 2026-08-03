@@ -22,7 +22,7 @@ public class PulsarExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_CriticalPulsarExceptions_IsCriticalAndNotTransient()
+    public void GetReport_PermanentPulsarExceptions_IsNotCriticalAndNotTransient()
     {
         Exception[] exceptions =
         [
@@ -31,6 +31,7 @@ public class PulsarExceptionArbiterServiceTests
             new InvalidConfigurationException("critical"),
             new UnsupportedVersionException("critical"),
             new InvalidTopicNameException("critical"),
+            new TopicDoesNotExistException("missing"),
             new AlreadyClosedException("closed"),
             new TopicTerminatedException("terminated")
         ];
@@ -40,7 +41,7 @@ public class PulsarExceptionArbiterServiceTests
             var report = _sut.GetReport(exception);
 
             Assert.False(report.AlreadyHandled);
-            Assert.True(report.IsCritical);
+            Assert.False(report.IsCritical);
             Assert.False(report.CouldBeTransient);
         }
     }
