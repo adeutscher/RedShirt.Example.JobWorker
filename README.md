@@ -12,6 +12,7 @@ Repo features:
     * [Amazon Kinesis](https://aws.amazon.com/kinesis/data-streams/)
     * [Apache ActiveMQ Artemis](https://artemis.apache.org/components/artemis/)
     * [Apache Kafka](https://kafka.apache.org/)
+    * [Apache Pulsar](https://pulsar.apache.org/)
     * [Azure Queue Storage](https://learn.microsoft.com/en-us/azure/storage/queues/storage-queues-introduction)
     * [Azure Service Bus](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview)
     * [Google Pub/Sub](https://cloud.google.com/pubsub/docs)
