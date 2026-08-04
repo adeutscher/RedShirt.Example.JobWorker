@@ -100,7 +100,7 @@ that message will be cleared or not entered into the cache at all. This is done 
 
 #### RabbitMQ Message IDs
 
-Of the current roster of job sources, RabbitMQ is the only one with no option to automatically generate a message ID for
+Of the current roster of job sources, RabbitMQ has no option to automatically generate a message ID for
 the application to take as an idempotency key. If you are using RabbitMQ and wish to make use of idempotency, then you
 will need to make sure that your message publishers are providing a message ID.
 
@@ -122,6 +122,52 @@ channel.BasicPublish(
     basicProperties: properties,
     body: body);
 ```
+
+#### Redis Streams Message IDs
+
+In practice, Redis Streams seems to also require manual setting of a message ID.
+
+Important distinction for this template: the Redis stream entry ID is exposed as the job's `MessageId`, but the
+idempotency key is taken from a `message_id` **field** on the stream entry. If you are using Redis Streams and wish to
+make use of this template's idempotency features, then your publishers should set that field.
+Auto-generating or manually specifying the Redis stream entry ID alone is not enough for the idempotency system.
+
+Example in C# (StackExchange.Redis):
+
+```csharp
+var db = multiplexer.GetDatabase();
+var fields = new NameValueEntry[]
+{
+    new("body", """{"SleepDurationSeconds":12}"""),
+    // Supply a specific Redis stream entry ID
+    new("message_id", Guid.NewGuid().ToString()) // Idempotency ID for this template
+};
+
+var specificEntryId = await db.StreamAddAsync("jobs", fields);
+```
+
+In Python (`redis-py`):
+
+```python
+#!/usr/bin/env python
+
+import json
+import uuid
+
+import redis
+
+client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+values = {
+    "body": json.dumps({"SleepDurationSeconds": 12}),
+    # Supply a specific Redis stream entry ID
+    "message_id": str(uuid.uuid4()),  # Idempotency ID for this template
+}
+
+specific_entry_id = client.xadd("jobs", values)
+```
+
+Documentation purports that one can provide an asterisk to request that Redis auto-generate an ID for a message,
+but this has not been my experience in practice.
 
 ### Redis Connection Instability Tolerance
 
