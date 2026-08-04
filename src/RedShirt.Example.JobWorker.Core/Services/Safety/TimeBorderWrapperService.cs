@@ -70,6 +70,8 @@ internal sealed class TimeBorderWrapperService(
     /// <summary>
     ///     Periodically <see cref="ISleepService.WaitAsync{TResult}" /> the
     ///     still-running callback and log until it completes, then return its result.
+    ///     Refer to the comment block above this method's invocation for more detail
+    ///     on why the decision was made to monitor an ongoing callback.
     /// </summary>
     private async Task<TOut> MonitorTruantCallbackAsync<TOut>(
         TimeSpan maxTime,
@@ -152,7 +154,7 @@ internal sealed class TimeBorderWrapperService(
              * lock resources indefinitely, or corrupt your application data.
              *
              * So, documentation says that we cannot stop a truant callback outright
-             *  and that the appropriate strategy is to build logic that respects the use CancellationToken
+             *  and that the appropriate strategy is to build logic that respects the use of CancellationToken
              *  using calls such as the CancellationToken.ThrowIfCancellationRequested() method.
              *
              * Technically, we could throw the exception up and let the system pull another job.
@@ -169,15 +171,15 @@ internal sealed class TimeBorderWrapperService(
              * limits or reprogram the job logic to respect CancellationToken.
              * Preferably both.
              *
-             * A *POSSIBLE* solution to this problem that could allow one to strictly enforce a maximum time
+             * A *POSSIBLE* solution to this problem that *MIGHT* allow one to strictly enforce a maximum time
              * *COULD* be to pass the parameters of a payload into an entirely separate process
              * that shall directly process that payload.
              * We cannot terminate a thread, but surely we could outright terminate a rogue process.
-             * This is *NOT* a fully baked idea, this is just something that I am pondering as I was implementing
+             * This is *NOT* a fully baked idea. This is just something that I am pondering as I was implementing
              * this time border service. It would, in theory, allow us to terminate rogue jobs. However, the trade-off
              * to this is that it would at the very least become significantly more awkward to trace output and relay
              * exception information back out through an intermediate service such as this one.
-             * Please take this pondering with a grain of salt, it hasn't been tested in practice.
+             * Please take this pondering on using a separate process with a grain of salt, as it hasn't been tested in any way.
              */
 
             return await MonitorTruantCallbackAsync(maxTime, jobTask, cancellationToken);
