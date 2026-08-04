@@ -2,6 +2,7 @@ using Medallion.Threading.Redis;
 using Moq;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
+using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis.Resilience;
 using System.Runtime.CompilerServices;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services.Redis;
@@ -121,7 +122,10 @@ public class DistributedLockTests
         retry
             .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task>>(),
                 TestContext.Current.CancellationToken))
-            .ThrowsAsync(new WorkerDistributedException("unlock failed", isTransient: isTransient));
+            .ThrowsAsync(new WorkerDistributedException("unlock failed")
+            {
+                CouldBeTransient = isTransient, IsHandled = false, CouldBeExternallySolvable = isTransient
+            });
 
         var @lock = new RedisLockService.DistributedLock(retry.Object, CreateOpaqueHandle());
 

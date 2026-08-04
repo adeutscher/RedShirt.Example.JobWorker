@@ -1,19 +1,20 @@
+using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Services.Utility;
 
-namespace RedShirt.Example.JobWorker.JobManagement.Kafka.Services;
+namespace RedShirt.Example.JobWorker.JobManagement.Kafka.Services.Resilience;
 
 /// <summary>
-///     Retries Kafka client operations that fail with non-critical transient exceptions,
+///     Retries Kafka client operations that fail with expected transient exceptions,
 ///     then surfaces remaining failures as <see cref="WorkerJobSourceException" /> with
 ///     <see cref="WorkerJobSourceException.IsHandled" /> set so Core does not retry again.
 /// </summary>
 internal interface IKafkaRetryWrapperService
 {
     /// <summary>
-    ///     Executes <paramref name="func" /> with retry for non-critical transient Kafka failures.
+    ///     Executes <paramref name="func" /> with retry for expected transient Kafka failures.
     /// </summary>
     /// <typeparam name="T">The result type produced by <paramref name="func" />.</typeparam>
     /// <param name="func">
@@ -34,7 +35,7 @@ internal interface IKafkaRetryWrapperService
     Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     Executes <paramref name="func" /> with retry for non-critical transient Kafka failures.
+    ///     Executes <paramref name="func" /> with retry for expected transient Kafka failures.
     /// </summary>
     /// <param name="func">
     ///     The operation to execute. Receives the same <see cref="CancellationToken" /> used for retries and backoff delays.
@@ -55,13 +56,15 @@ internal interface IKafkaRetryWrapperService
 
 /// <summary>
 ///     Polly v8-based retry wrapper for Kafka client calls.
-///     Retries when <see cref="IKafkaExceptionArbiterService" /> reports a non-critical transient failure,
+///     Retries when <see cref="IKafkaExceptionArbiterService" /> reports an expected transient failure,
 ///     using exponential backoff via <see cref="ISleepService" />.
 /// </summary>
-/// <param name="exceptionArbiterService">Classifies Kafka-related exceptions as critical/transient.</param>
+/// <param name="exceptionArbiterService">Classifies Kafka-related exceptions as expected/transient.</param>
+/// <param name="logger">Logs retry attempts.</param>
 /// <param name="sleepService">Provides cancellable backoff delays between retry attempts.</param>
 internal class KafkaRetryWrapperService(
     IKafkaExceptionArbiterService exceptionArbiterService,
+    ILogger<KafkaRetryWrapperService> logger,
     ISleepService sleepService)
     : IKafkaRetryWrapperService
 {
@@ -96,7 +99,7 @@ internal class KafkaRetryWrapperService(
                     }
 
                     var report = exceptionArbiterService.GetReport(exception);
-                    return report is {IsCritical: false, CouldBeTransient: true}
+                    return report is {IsExpected: true, CouldBeTransient: true}
                         ? PredicateResult.True()
                         : PredicateResult.False();
                 },
@@ -104,6 +107,9 @@ internal class KafkaRetryWrapperService(
                 DelayGenerator = static _ => new ValueTask<TimeSpan?>(TimeSpan.Zero),
                 OnRetry = async args =>
                 {
+                    logger.LogWarning(args.Outcome.Exception,
+                        "Retrying Kafka operation after attempt {AttemptNumber}",
+                        args.AttemptNumber);
                     // Delay is performed via ISleepService in OnRetry so tests can mock sleeps.
                     await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber)),
                         args.Context.CancellationToken);
@@ -116,22 +122,27 @@ internal class KafkaRetryWrapperService(
     {
         var report = exceptionArbiterService.GetReport(exception);
 
-        if (report.AlreadyHandled)
+        // ReSharper disable once DuplicatedSequentialIfBodies
+        if (report.AlreadyHandled && exception is WorkerJobSourceException)
         {
             return exception;
         }
 
-        if (report.IsCritical)
+        if (!report.IsExpected)
         {
             /*
-             * Critical / unrecognized. Throw raw exception.
-             * We absolutely want to raise a massive alert and get a developer's attention
-             *  so that the problem either becomes classified or the upstream cause is addressed.
+             * Unexpected / unrecognized.
+             * Unexpected failures stay raw so they raise attention and get classified.
              */
             return exception;
         }
 
-        return new WorkerJobSourceException(exception, report.IsCritical, report.CouldBeTransient, true);
+        return new WorkerJobSourceException(exception)
+        {
+            CouldBeTransient = report.CouldBeTransient,
+            IsHandled = true,
+            CouldBeExternallySolvable = report.CouldBeExternallySolvable
+        };
     }
 
     /// <inheritdoc />

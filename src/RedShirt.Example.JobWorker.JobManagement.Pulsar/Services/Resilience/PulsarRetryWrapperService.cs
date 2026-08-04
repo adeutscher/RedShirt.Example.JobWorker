@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
 using RedShirt.Example.JobWorker.Core.Exceptions;
@@ -6,30 +7,31 @@ using RedShirt.Example.JobWorker.Core.Services.Utility;
 namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.Services.Resilience;
 
 /// <summary>
-///     Retries Pulsar client operations that fail with non-critical transient exceptions,
+///     Retries Pulsar client operations that fail with expected transient exceptions,
 ///     then surfaces remaining failures as <see cref="WorkerJobSourceException" /> with
 ///     <see cref="WorkerJobSourceException.IsHandled" /> set so Core does not retry again.
 /// </summary>
 internal interface IPulsarRetryWrapperService
 {
     /// <summary>
-    ///     Executes <paramref name="func" /> with retry for non-critical transient Pulsar failures.
+    ///     Executes <paramref name="func" /> with retry for expected transient Pulsar failures.
     /// </summary>
     Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     Executes <paramref name="func" /> with retry for non-critical transient Pulsar failures.
+    ///     Executes <paramref name="func" /> with retry for expected transient Pulsar failures.
     /// </summary>
     Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
 ///     Polly v8-based retry wrapper for Pulsar client calls.
-///     Retries when <see cref="IPulsarExceptionArbiterService" /> reports a non-critical transient failure,
+///     Retries when <see cref="IPulsarExceptionArbiterService" /> reports an expected transient failure,
 ///     using exponential backoff via <see cref="ISleepService" />.
 /// </summary>
 internal class PulsarRetryWrapperService(
     IPulsarExceptionArbiterService exceptionArbiterService,
+    ILogger<PulsarRetryWrapperService> logger,
     ISleepService sleepService)
     : IPulsarRetryWrapperService
 {
@@ -57,13 +59,16 @@ internal class PulsarRetryWrapperService(
                     }
 
                     var report = exceptionArbiterService.GetReport(exception);
-                    return report is {IsCritical: false, CouldBeTransient: true}
+                    return report is {IsExpected: true, CouldBeTransient: true}
                         ? PredicateResult.True()
                         : PredicateResult.False();
                 },
                 DelayGenerator = static _ => new ValueTask<TimeSpan?>(TimeSpan.Zero),
                 OnRetry = async args =>
                 {
+                    logger.LogWarning(args.Outcome.Exception,
+                        "Retrying Pulsar operation after attempt {AttemptNumber}",
+                        args.AttemptNumber);
                     await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber)),
                         args.Context.CancellationToken);
                 }
@@ -75,22 +80,27 @@ internal class PulsarRetryWrapperService(
     {
         var report = exceptionArbiterService.GetReport(exception);
 
-        if (report.AlreadyHandled)
+        // ReSharper disable once DuplicatedSequentialIfBodies
+        if (report.AlreadyHandled && exception is WorkerJobSourceException)
         {
             return exception;
         }
 
-        if (report.IsCritical)
+        if (!report.IsExpected)
         {
             /*
-             * Critical / unrecognized. Throw raw exception.
-             * We absolutely want to raise a massive alert and get a developer's attention
-             *  so that the problem either becomes classified or the upstream cause is addressed.
+             * Unexpected / unrecognized.
+             * Unexpected failures stay raw so they raise attention and get classified.
              */
             return exception;
         }
 
-        return new WorkerJobSourceException(exception, report.IsCritical, report.CouldBeTransient, true);
+        return new WorkerJobSourceException(exception)
+        {
+            CouldBeTransient = report.CouldBeTransient,
+            IsHandled = true,
+            CouldBeExternallySolvable = report.CouldBeExternallySolvable
+        };
     }
 
     public async Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func,

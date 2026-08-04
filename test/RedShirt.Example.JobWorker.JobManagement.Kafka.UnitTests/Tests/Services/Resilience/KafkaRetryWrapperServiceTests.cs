@@ -1,69 +1,73 @@
-using Moq;
-using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
-using RedShirt.Example.JobWorker.Common.Distributed.Models;
-using RedShirt.Example.JobWorker.Common.Distributed.Services;
-using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
-using StackExchange.Redis;
+using Microsoft.Extensions.Logging.Abstractions;
+using RedShirt.Example.JobWorker.Core.Exceptions;
+using RedShirt.Example.JobWorker.Core.Services.Utility;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.Models;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.Services.Resilience;
 
-namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services.Redis;
+namespace RedShirt.Example.JobWorker.JobManagement.Kafka.UnitTests.Tests.Services.Resilience;
 
-public class RedisDistributedRetryWrapperServiceTests
+public class KafkaRetryWrapperServiceTests
 {
-    private static RedisExceptionArbiterReport TransientReport()
+    private static KafkaExceptionArbiterReport TransientReport()
     {
-        return new RedisExceptionArbiterReport
+        return new KafkaExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = false,
-            CouldBeTransient = true
+            IsExpected = true,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = true
         };
     }
 
-    private static RedisExceptionArbiterReport NonTransientReport()
+    private static KafkaExceptionArbiterReport NonTransientReport()
     {
-        return new RedisExceptionArbiterReport
+        return new KafkaExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = false,
-            CouldBeTransient = false
+            IsExpected = true,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
         };
     }
 
-    private static RedisExceptionArbiterReport AlreadyHandledReport(bool couldBeTransient)
+    private static KafkaExceptionArbiterReport AlreadyHandledReport(bool couldBeTransient)
     {
-        return new RedisExceptionArbiterReport
+        return new KafkaExceptionArbiterReport
         {
             AlreadyHandled = true,
-            IsCritical = false,
-            CouldBeTransient = couldBeTransient
+            IsExpected = true,
+            CouldBeTransient = couldBeTransient,
+            CouldBeExternallySolvable = false
         };
     }
 
-    private static RedisExceptionArbiterReport CriticalTransientReport()
+    private static KafkaExceptionArbiterReport CriticalTransientReport()
     {
-        return new RedisExceptionArbiterReport
+        return new KafkaExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = true,
-            CouldBeTransient = true
+            IsExpected = false,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = false
         };
     }
 
-    private static RedisExceptionArbiterReport UnexpectedReport()
+    private static KafkaExceptionArbiterReport UnexpectedReport()
     {
-        return new RedisExceptionArbiterReport
+        return new KafkaExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = true,
-            CouldBeTransient = false
+            IsExpected = false,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
         };
     }
 
-    private static Mock<IDistributedSleepService> CreateSleepService(
+    private static Mock<ISleepService> CreateSleepService(
         IList<TimeSpan>? capturedDelays = null,
         IList<CancellationToken>? capturedTokens = null)
     {
-        var sleepService = new Mock<IDistributedSleepService>(MockBehavior.Strict);
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
         sleepService
             .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .Returns<TimeSpan, CancellationToken>((delay, cancellationToken) =>
@@ -78,15 +82,17 @@ public class RedisDistributedRetryWrapperServiceTests
     [Fact]
     public async Task RunAsync_NonGeneric_WhenAlreadyHandled_RethrowsWithoutWrapping()
     {
-        var inner = new WorkerDistributedException("already wrapped");
+        var inner = new WorkerJobSourceException("already wrapped")
+            {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = false};
 
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport(false));
 
         var sleepService = CreateSleepService();
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
 
-        var thrown = await Assert.ThrowsAsync<WorkerDistributedException>(() => wrapper.RunAsync(
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
             _ => throw inner,
             TestContext.Current.CancellationToken));
 
@@ -99,9 +105,10 @@ public class RedisDistributedRetryWrapperServiceTests
     [Fact]
     public async Task RunAsync_NonGeneric_WhenFuncSucceeds_CompletesWithoutSleeping()
     {
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
         var ran = false;
 
         await wrapper.RunAsync(
@@ -125,9 +132,10 @@ public class RedisDistributedRetryWrapperServiceTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync(
             _ => throw new OperationCanceledException(cts.Token),
@@ -138,19 +146,20 @@ public class RedisDistributedRetryWrapperServiceTests
     }
 
     [Fact]
-    public async Task RunAsync_NonGeneric_WhenTransientFailuresExhaustRetries_Wraps()
+    public async Task RunAsync_NonGeneric_WhenTransientFailuresExhaustRetries_WrapsAsHandled()
     {
         var attempts = 0;
         var delays = new List<TimeSpan>();
         var inner = new TimeoutException("still failing");
 
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleepService = CreateSleepService(delays);
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
 
-        var thrown = await Assert.ThrowsAsync<WorkerDistributedException>(() => wrapper.RunAsync(
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
             _ =>
             {
                 attempts++;
@@ -159,8 +168,9 @@ public class RedisDistributedRetryWrapperServiceTests
             TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
-        Assert.True(thrown.IsTransient);
+        Assert.True(thrown.CouldBeTransient);
+        Assert.True(thrown.IsHandled);
+        Assert.True(thrown.CouldBeExternallySolvable);
         Assert.Equal(4, attempts);
         Assert.Equal(
             [
@@ -172,6 +182,31 @@ public class RedisDistributedRetryWrapperServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_NonGeneric_WhenUnexpected_RethrowsRawExceptionWithoutWrapping()
+    {
+        var attempts = 0;
+        var inner = new InvalidOperationException("unexpected");
+
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetReport(inner)).Returns(UnexpectedReport());
+
+        var sleepService = CreateSleepService();
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => wrapper.RunAsync(
+            _ =>
+            {
+                attempts++;
+                throw inner;
+            },
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(1, attempts);
+        Assert.Same(inner, thrown);
+    }
+
+    [Fact]
     public async Task RunAsync_PassesCancellationTokenToFuncAndRetryDelay()
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
@@ -179,11 +214,12 @@ public class RedisDistributedRetryWrapperServiceTests
         var delayTokens = new List<CancellationToken>();
         var attempts = 0;
 
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleepService = CreateSleepService(capturedTokens: delayTokens);
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var result = await wrapper.RunAsync(
             token =>
@@ -208,9 +244,10 @@ public class RedisDistributedRetryWrapperServiceTests
     [Fact]
     public async Task RunAsync_ReusesPipelineAcrossInvocations()
     {
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
 
         Assert.Equal(1, await wrapper.RunAsync(_ => Task.FromResult(1), TestContext.Current.CancellationToken));
         Assert.Equal(2, await wrapper.RunAsync(_ => Task.FromResult(2), TestContext.Current.CancellationToken));
@@ -218,18 +255,49 @@ public class RedisDistributedRetryWrapperServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenAlreadyHandledCritical_RethrowsSameInstanceWithoutRetry()
+    {
+        var inner = new WorkerJobSourceException("critical handled")
+            {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = false};
+
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetReport(inner)).Returns(new KafkaExceptionArbiterReport
+        {
+            AlreadyHandled = true,
+            IsExpected = false,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
+        });
+
+        var sleepService = CreateSleepService();
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
+
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
+            _ => throw inner,
+            TestContext.Current.CancellationToken));
+
+        Assert.Same(inner, thrown);
+        sleepService.Verify(
+            s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task RunAsync_WhenAlreadyHandled_RethrowsWithoutWrapping()
     {
         var attempts = 0;
-        var inner = new WorkerDistributedException("already wrapped");
+        var inner = new WorkerJobSourceException("already wrapped")
+            {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = false};
 
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport(false));
 
         var sleepService = CreateSleepService();
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
 
-        var thrown = await Assert.ThrowsAsync<WorkerDistributedException>(() => wrapper.RunAsync<int>(
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync<int>(
             _ =>
             {
                 attempts++;
@@ -250,11 +318,12 @@ public class RedisDistributedRetryWrapperServiceTests
         var attempts = 0;
         var inner = new InvalidOperationException("critical but looks transient");
 
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(CriticalTransientReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => wrapper.RunAsync<int>(
             _ =>
@@ -274,9 +343,10 @@ public class RedisDistributedRetryWrapperServiceTests
     [Fact]
     public async Task RunAsync_WhenFuncSucceeds_ReturnsResultWithoutSleeping()
     {
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var result = await wrapper.RunAsync(
             _ => Task.FromResult(42),
@@ -295,13 +365,14 @@ public class RedisDistributedRetryWrapperServiceTests
         var attempts = 0;
         var inner = new InvalidOperationException("not retryable");
 
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(NonTransientReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
 
-        var thrown = await Assert.ThrowsAsync<WorkerDistributedException>(() => wrapper.RunAsync<int>(
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync<int>(
             _ =>
             {
                 attempts++;
@@ -311,8 +382,9 @@ public class RedisDistributedRetryWrapperServiceTests
 
         Assert.Equal(1, attempts);
         Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
-        Assert.False(thrown.IsTransient);
+        Assert.False(thrown.CouldBeTransient);
+        Assert.True(thrown.IsHandled);
+        Assert.False(thrown.CouldBeExternallySolvable);
         sleepService.Verify(
             s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -324,9 +396,10 @@ public class RedisDistributedRetryWrapperServiceTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync<int>(
             _ => throw new OperationCanceledException(cts.Token),
@@ -337,23 +410,25 @@ public class RedisDistributedRetryWrapperServiceTests
     }
 
     [Fact]
-    public async Task RunAsync_WhenTaskCanceledWithoutCallerCancel_WrapsAsTransient()
+    public async Task RunAsync_WhenTaskCanceledWithoutCallerCancel_WrapsAsHandledTransient()
     {
-        var inner = new TaskCanceledException("http-style timeout");
+        var inner = new TaskCanceledException("broker-style timeout");
 
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(TransientReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
 
-        var thrown = await Assert.ThrowsAsync<WorkerDistributedException>(() => wrapper.RunAsync<string>(
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync<string>(
             _ => throw inner,
             TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
-        Assert.True(thrown.IsTransient);
+        Assert.True(thrown.CouldBeTransient);
+        Assert.True(thrown.IsHandled);
+        Assert.True(thrown.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -363,13 +438,14 @@ public class RedisDistributedRetryWrapperServiceTests
         var attempts = 0;
         var inner = new TimeoutException("failed while cancelling");
 
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
 
-        var thrown = await Assert.ThrowsAsync<WorkerDistributedException>(() => wrapper.RunAsync<string>(
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync<string>(
             _ =>
             {
                 attempts++;
@@ -380,44 +456,11 @@ public class RedisDistributedRetryWrapperServiceTests
 
         Assert.Equal(1, attempts);
         Assert.Same(inner, thrown.InnerException);
+        Assert.True(thrown.IsHandled);
+        Assert.True(thrown.CouldBeExternallySolvable);
         sleepService.Verify(
             s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
             Times.Never);
-    }
-
-    [Fact]
-    public async Task RunAsync_WhenTransientFailuresExhaustRetries_ThrowsWorkerDistributedException()
-    {
-        var attempts = 0;
-        var delays = new List<TimeSpan>();
-        var inner = new RedisTimeoutException("still failing", CommandStatus.Unknown);
-
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
-
-        var sleepService = CreateSleepService(delays);
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
-
-        var thrown = await Assert.ThrowsAsync<WorkerDistributedException>(() => wrapper.RunAsync<string>(
-            _ =>
-            {
-                attempts++;
-                throw inner;
-            },
-            TestContext.Current.CancellationToken));
-
-        Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
-        Assert.True(thrown.IsTransient);
-        // original attempt + 3 retries
-        Assert.Equal(4, attempts);
-        Assert.Equal(
-            [
-                TimeSpan.FromSeconds(1),
-                TimeSpan.FromSeconds(2),
-                TimeSpan.FromSeconds(4)
-            ],
-            delays);
     }
 
     [Fact]
@@ -425,11 +468,12 @@ public class RedisDistributedRetryWrapperServiceTests
     {
         var attempts = 0;
         var delays = new List<TimeSpan>();
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleepService = CreateSleepService(delays);
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var result = await wrapper.RunAsync(
             _ =>
@@ -437,8 +481,7 @@ public class RedisDistributedRetryWrapperServiceTests
                 attempts++;
                 if (attempts < 3)
                 {
-                    throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                        $"transient failure #{attempts}");
+                    throw new TimeoutException($"transient failure #{attempts}");
                 }
 
                 return Task.FromResult("recovered");
@@ -450,7 +493,6 @@ public class RedisDistributedRetryWrapperServiceTests
         Assert.Equal(
             [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)],
             delays);
-        // ShouldHandle consults the arbiter once per failed attempt.
         arbiter.Verify(a => a.GetReport(It.IsAny<Exception>()), Times.Exactly(2));
     }
 
@@ -460,11 +502,12 @@ public class RedisDistributedRetryWrapperServiceTests
         var attempts = 0;
         var inner = new InvalidOperationException("unexpected");
 
-        var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
+        var arbiter = new Mock<IKafkaExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(UnexpectedReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new RedisDistributedRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new KafkaRetryWrapperService(arbiter.Object, NullLogger<KafkaRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => wrapper.RunAsync<int>(
             _ =>

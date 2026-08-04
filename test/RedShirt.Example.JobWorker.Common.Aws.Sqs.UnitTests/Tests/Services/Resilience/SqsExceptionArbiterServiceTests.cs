@@ -20,103 +20,109 @@ public class SqsExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetJudgement_AmazonSQSException_DelegatesToAwsArbiter()
+    public void GetReport_AmazonSQSException_DelegatesToAwsArbiter()
     {
         var exception = new AmazonSQSException("generic sqs");
-        _awsArbiter.Setup(a => a.GetJudgement(exception)).Returns(new AwsExceptionArbiterReport
+        _awsArbiter.Setup(a => a.GetReport(exception)).Returns(new AwsExceptionArbiterReport
         {
-            IsCritical = false,
-            CouldBeTransient = true
+            IsExpected = true,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = true
         });
 
-        var report = _sut.GetJudgement(exception);
+        var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
-        _awsArbiter.Verify(a => a.GetJudgement(exception), Times.Once);
+        Assert.True(report.CouldBeExternallySolvable);
+        _awsArbiter.Verify(a => a.GetReport(exception), Times.Once);
     }
 
     [Fact]
-    public void GetJudgement_AmazonServiceException_IsCriticalAndNotTransient()
+    public void GetReport_AmazonServiceException_IsNotExpectedAndNotTransient()
     {
         var exception = new AmazonServiceException("generic aws service failure");
 
-        var report = _sut.GetJudgement(exception);
+        var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsCritical);
+        Assert.False(report.IsExpected);
         Assert.False(report.CouldBeTransient);
-        _awsArbiter.Verify(a => a.GetJudgement(It.IsAny<Exception>()), Times.Never);
+        _awsArbiter.Verify(a => a.GetReport(It.IsAny<Exception>()), Times.Never);
     }
 
     [Fact]
-    public void GetJudgement_KmsDisabledException_IsTransient()
+    public void GetReport_KmsDisabledException_IsTransient()
     {
-        var report = _sut.GetJudgement(new KmsDisabledException("key disabled"));
+        var report = _sut.GetReport(new KmsDisabledException("key disabled"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
     }
 
     [Fact]
-    public void GetJudgement_NullException_ThrowsArgumentNullException()
+    public void GetReport_NullException_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() => _sut.GetJudgement(null!));
+        Assert.Throws<ArgumentNullException>(() => _sut.GetReport(null!));
     }
 
     [Fact]
-    public void GetJudgement_QueueDoesNotExistException_IsPermanentNonCritical()
+    public void GetReport_QueueDoesNotExistException_IsExpectedAndNotTransient()
     {
-        var report = _sut.GetJudgement(new QueueDoesNotExistException("missing"));
+        var report = _sut.GetReport(new QueueDoesNotExistException("missing"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
     }
 
     [Fact]
-    public void GetJudgement_RequestThrottledException_IsTransient()
+    public void GetReport_RequestThrottledException_IsTransient()
     {
-        var report = _sut.GetJudgement(new RequestThrottledException("throttled"));
+        var report = _sut.GetReport(new RequestThrottledException("throttled"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
     }
 
     [Fact]
-    public void GetJudgement_SingleInnerAggregateException_JudgesUnwrappedInner()
+    public void GetReport_SingleInnerAggregateException_JudgesUnwrappedInner()
     {
-        var report = _sut.GetJudgement(new AggregateException(new RequestThrottledException("throttled")));
+        var report = _sut.GetReport(new AggregateException(new RequestThrottledException("throttled")));
 
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
     }
 
     [Fact]
-    public void GetJudgement_UnrecognizedException_IsCritical()
+    public void GetReport_UnrecognizedException_IsNotExpected()
     {
-        var report = _sut.GetJudgement(new InvalidOperationException("boom"));
+        var report = _sut.GetReport(new InvalidOperationException("boom"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsCritical);
+        Assert.False(report.IsExpected);
         Assert.False(report.CouldBeTransient);
     }
 
     [Fact]
-    public void GetJudgement_WorkerSqsException_Handled_RespectsIsHandled()
+    public void GetReport_WorkerSqsException_Handled_RespectsIsHandled()
     {
-        var unhandled = new WorkerSqsException("retryable", false, true);
-        var handled = new WorkerSqsException("exhausted", false, true, true);
+        var unhandled = new WorkerSqsException("retryable")
+            {IsHandled = false, CouldBeTransient = true, CouldBeExternallySolvable = true};
+        var handled = new WorkerSqsException("exhausted")
+            {IsHandled = true, CouldBeTransient = true, CouldBeExternallySolvable = false};
 
-        var unhandledReport = _sut.GetJudgement(unhandled);
-        var handledReport = _sut.GetJudgement(handled);
+        var unhandledReport = _sut.GetReport(unhandled);
+        var handledReport = _sut.GetReport(handled);
 
         Assert.True(unhandledReport.AlreadyHandled);
         Assert.True(unhandledReport.CouldBeTransient);
+        Assert.True(unhandledReport.CouldBeExternallySolvable);
         Assert.True(handledReport.AlreadyHandled);
         Assert.False(handledReport.CouldBeTransient);
+        Assert.False(handledReport.CouldBeExternallySolvable);
     }
 }

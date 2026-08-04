@@ -1,6 +1,6 @@
 using Confluent.Kafka;
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.JobManagement.Kafka.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.Factories;

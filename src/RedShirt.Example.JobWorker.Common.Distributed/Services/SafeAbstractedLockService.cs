@@ -47,12 +47,6 @@ internal class SafeAbstractedLockService(
         }
         catch (WorkerDistributedException e)
         {
-            if (e.IsCritical)
-            {
-                // Critical problem: bubble up
-                throw;
-            }
-
             logger.LogWarning(e, "Failure to communicate with lock service: {EMessage}", e.Message);
             safetyDisgraceStateService.EnterDisgracePeriod();
             return new PermissiveLock();

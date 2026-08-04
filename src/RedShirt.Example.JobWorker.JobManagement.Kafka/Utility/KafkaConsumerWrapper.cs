@@ -1,7 +1,7 @@
 using Confluent.Kafka;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Models;
-using RedShirt.Example.JobWorker.JobManagement.Kafka.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.Utility;
 
@@ -81,7 +81,7 @@ internal sealed class KafkaConsumerWrapper(IKafkaRetryWrapperService retryWrappe
                     return Task.CompletedTask;
                 }, cancellationToken);
             }
-            catch (WorkerJobSourceException e) when (e is {IsCritical: false})
+            catch (WorkerJobSourceException e)
             {
                 // Suppressing non-critical exceptions, temporarily
 

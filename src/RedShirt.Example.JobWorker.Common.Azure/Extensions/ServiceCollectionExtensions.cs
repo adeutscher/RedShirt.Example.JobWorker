@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using RedShirt.Example.JobWorker.Common.Azure.Services;
+using RedShirt.Example.JobWorker.Common.Azure.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.Common.Azure.Extensions;
 

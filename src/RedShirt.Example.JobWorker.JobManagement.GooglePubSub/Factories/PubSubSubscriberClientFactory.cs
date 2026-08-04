@@ -20,12 +20,22 @@ internal class PubSubSubscriberClientFactory(IOptions<GooglePubSubConfigurationM
     {
         if (string.IsNullOrWhiteSpace(options.Value.ProjectId))
         {
-            throw new WorkerJobSourceException("No Google Pub/Sub project ID has been set", false);
+            throw new WorkerJobSourceException("No Google Pub/Sub project ID has been set")
+            {
+                CouldBeTransient = false,
+                IsHandled = false,
+                CouldBeExternallySolvable = false
+            };
         }
 
         if (string.IsNullOrWhiteSpace(options.Value.SubscriptionId))
         {
-            throw new WorkerJobSourceException("No Google Pub/Sub subscription ID has been set", false);
+            throw new WorkerJobSourceException("No Google Pub/Sub subscription ID has been set")
+            {
+                CouldBeTransient = false,
+                IsHandled = false,
+                CouldBeExternallySolvable = false
+            };
         }
 
         /*

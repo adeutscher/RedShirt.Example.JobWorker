@@ -5,6 +5,7 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.UnitTests.Tests.Services;
@@ -180,8 +181,8 @@ public class KafkaJobSourceTests
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(new Mock<IKafkaConsumerWrapper>(MockBehavior.Strict).Object);
 
-        // ReSharper disable once RedundantArgumentDefaultValue
-        var failure = new WorkerJobSourceException("commit failed", true);
+        var failure = new WorkerJobSourceException("commit failed")
+            {CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false};
         var retry = new Mock<IKafkaRetryWrapperService>(MockBehavior.Strict);
         retry
             .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task>>(), It.IsAny<CancellationToken>()))
@@ -388,8 +389,8 @@ public class KafkaJobSourceTests
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumer()).Returns(new Mock<IKafkaConsumerWrapper>(MockBehavior.Strict).Object);
 
-        var failure = new WorkerJobSourceException("commit failed", false, false,
-            true);
+        var failure = new WorkerJobSourceException("commit failed")
+            {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = false};
         var retry = new Mock<IKafkaRetryWrapperService>(MockBehavior.Strict);
         retry
             .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task>>(), It.IsAny<CancellationToken>()))

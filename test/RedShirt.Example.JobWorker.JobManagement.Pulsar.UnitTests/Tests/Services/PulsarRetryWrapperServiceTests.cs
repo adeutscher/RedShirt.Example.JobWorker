@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Services.Utility;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Models;
@@ -12,8 +13,9 @@ public class PulsarRetryWrapperServiceTests
         return new PulsarExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = false,
-            CouldBeTransient = true
+            IsExpected = true,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = true
         };
     }
 
@@ -22,8 +24,9 @@ public class PulsarRetryWrapperServiceTests
         return new PulsarExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = false,
-            CouldBeTransient = false
+            IsExpected = true,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -32,8 +35,9 @@ public class PulsarRetryWrapperServiceTests
         return new PulsarExceptionArbiterReport
         {
             AlreadyHandled = true,
-            IsCritical = false,
-            CouldBeTransient = couldBeTransient
+            IsExpected = true,
+            CouldBeTransient = couldBeTransient,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -42,8 +46,9 @@ public class PulsarRetryWrapperServiceTests
         return new PulsarExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = true,
-            CouldBeTransient = true
+            IsExpected = false,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -52,8 +57,9 @@ public class PulsarRetryWrapperServiceTests
         return new PulsarExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = true,
-            CouldBeTransient = false
+            IsExpected = false,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -76,13 +82,15 @@ public class PulsarRetryWrapperServiceTests
     [Fact]
     public async Task RunAsync_NonGeneric_WhenAlreadyHandled_RethrowsWithoutWrapping()
     {
-        var inner = new WorkerJobSourceException("already wrapped", isHandled: true);
+        var inner = new WorkerJobSourceException("already wrapped")
+            {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = false};
 
         var arbiter = new Mock<IPulsarExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport(false));
 
         var sleepService = CreateSleepService();
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
             _ => throw inner,
@@ -99,7 +107,8 @@ public class PulsarRetryWrapperServiceTests
     {
         var arbiter = new Mock<IPulsarExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
         var ran = false;
 
         await wrapper.RunAsync(
@@ -125,7 +134,8 @@ public class PulsarRetryWrapperServiceTests
 
         var arbiter = new Mock<IPulsarExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync(
             _ => throw new OperationCanceledException(cts.Token),
@@ -146,7 +156,8 @@ public class PulsarRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleepService = CreateSleepService(delays);
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
             _ =>
@@ -157,9 +168,9 @@ public class PulsarRetryWrapperServiceTests
             TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
         Assert.True(thrown.CouldBeTransient);
         Assert.True(thrown.IsHandled);
+        Assert.True(thrown.CouldBeExternallySolvable);
         Assert.Equal(4, attempts);
         Assert.Equal(
             [
@@ -180,7 +191,8 @@ public class PulsarRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(inner)).Returns(UnexpectedReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => wrapper.RunAsync(
             _ =>
@@ -206,7 +218,8 @@ public class PulsarRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleepService = CreateSleepService(capturedTokens: delayTokens);
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var result = await wrapper.RunAsync(
             token =>
@@ -233,7 +246,8 @@ public class PulsarRetryWrapperServiceTests
     {
         var arbiter = new Mock<IPulsarExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         Assert.Equal(1, await wrapper.RunAsync(_ => Task.FromResult(1), TestContext.Current.CancellationToken));
         Assert.Equal(2, await wrapper.RunAsync(_ => Task.FromResult(2), TestContext.Current.CancellationToken));
@@ -243,19 +257,21 @@ public class PulsarRetryWrapperServiceTests
     [Fact]
     public async Task RunAsync_WhenAlreadyHandledCritical_RethrowsSameInstanceWithoutRetry()
     {
-        var inner = new WorkerJobSourceException("critical handled", true, false,
-            true);
+        var inner = new WorkerJobSourceException("critical handled")
+            {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = false};
 
         var arbiter = new Mock<IPulsarExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(new PulsarExceptionArbiterReport
         {
             AlreadyHandled = true,
-            IsCritical = true,
-            CouldBeTransient = false
+            IsExpected = false,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
         });
 
         var sleepService = CreateSleepService();
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
             _ => throw inner,
@@ -271,13 +287,15 @@ public class PulsarRetryWrapperServiceTests
     public async Task RunAsync_WhenAlreadyHandled_RethrowsWithoutWrapping()
     {
         var attempts = 0;
-        var inner = new WorkerJobSourceException("already wrapped", isHandled: true);
+        var inner = new WorkerJobSourceException("already wrapped")
+            {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = false};
 
         var arbiter = new Mock<IPulsarExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport(false));
 
         var sleepService = CreateSleepService();
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync<int>(
             _ =>
@@ -304,7 +322,8 @@ public class PulsarRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(inner)).Returns(CriticalTransientReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => wrapper.RunAsync<int>(
             _ =>
@@ -326,7 +345,8 @@ public class PulsarRetryWrapperServiceTests
     {
         var arbiter = new Mock<IPulsarExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var result = await wrapper.RunAsync(
             _ => Task.FromResult(42),
@@ -349,7 +369,8 @@ public class PulsarRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(inner)).Returns(NonTransientReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync<int>(
             _ =>
@@ -361,9 +382,9 @@ public class PulsarRetryWrapperServiceTests
 
         Assert.Equal(1, attempts);
         Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
         Assert.False(thrown.CouldBeTransient);
         Assert.True(thrown.IsHandled);
+        Assert.False(thrown.CouldBeExternallySolvable);
         sleepService.Verify(
             s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -377,7 +398,8 @@ public class PulsarRetryWrapperServiceTests
 
         var arbiter = new Mock<IPulsarExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync<int>(
             _ => throw new OperationCanceledException(cts.Token),
@@ -396,16 +418,17 @@ public class PulsarRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(inner)).Returns(TransientReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync<string>(
             _ => throw inner,
             TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
         Assert.True(thrown.CouldBeTransient);
         Assert.True(thrown.IsHandled);
+        Assert.True(thrown.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -419,7 +442,8 @@ public class PulsarRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync<string>(
             _ =>
@@ -433,6 +457,7 @@ public class PulsarRetryWrapperServiceTests
         Assert.Equal(1, attempts);
         Assert.Same(inner, thrown.InnerException);
         Assert.True(thrown.IsHandled);
+        Assert.True(thrown.CouldBeExternallySolvable);
         sleepService.Verify(
             s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -447,7 +472,8 @@ public class PulsarRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleepService = CreateSleepService(delays);
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var result = await wrapper.RunAsync(
             _ =>
@@ -480,7 +506,8 @@ public class PulsarRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(inner)).Returns(UnexpectedReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new PulsarRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new PulsarRetryWrapperService(arbiter.Object, NullLogger<PulsarRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => wrapper.RunAsync<int>(
             _ =>

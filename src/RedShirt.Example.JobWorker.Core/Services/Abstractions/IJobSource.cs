@@ -33,7 +33,8 @@ public interface IJobSource
     ///     when <c>false</c>, the failure should be treated as permanent.
     ///     When <see cref="WorkerJobSourceException.IsHandled" /> is <c>true</c>, a job-source retry wrapper
     ///     has already exhausted retries and callers should not retry again.
-    ///     When <see cref="WorkerJobSourceException.IsCritical" /> is <c>true</c>, callers should surface the failure.
+    ///     Unexpected (unclassified) failures are not wrapped as <see cref="WorkerJobSourceException" />
+    ///     and should surface to callers as the raw underlying exception.
     /// </exception>
     Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default);
@@ -53,7 +54,8 @@ public interface IJobSource
     ///     have its flight time extended).
     ///     When <see cref="WorkerJobSourceException.IsHandled" /> is <c>true</c>, a job-source retry wrapper
     ///     has already exhausted retries and callers should not retry again.
-    ///     When <see cref="WorkerJobSourceException.IsCritical" /> is <c>true</c>, callers should surface the failure.
+    ///     Unexpected (unclassified) failures are not wrapped as <see cref="WorkerJobSourceException" />
+    ///     and should surface to callers as the raw underlying exception.
     /// </exception>
     Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default);
 }

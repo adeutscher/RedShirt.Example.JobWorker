@@ -1,18 +1,19 @@
+using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
 using RedShirt.Example.JobWorker.Common.Azure.Exceptions;
 using RedShirt.Example.JobWorker.Core.Services.Utility;
 
-namespace RedShirt.Example.JobWorker.Common.Azure.Services;
+namespace RedShirt.Example.JobWorker.Common.Azure.Services.Resilience;
 
 /// <summary>
-///     Retries Azure client operations that fail with non-critical transient exceptions,
+///     Retries Azure client operations that fail with expected transient exceptions,
 ///     then surfaces remaining failures as <see cref="WorkerAzureException" />.
 /// </summary>
 public interface IAzureRetryWrapperService
 {
     /// <summary>
-    ///     Executes <paramref name="func" /> with retry for non-critical transient Azure failures.
+    ///     Executes <paramref name="func" /> with retry for expected transient Azure failures.
     /// </summary>
     /// <typeparam name="T">The result type produced by <paramref name="func" />.</typeparam>
     /// <param name="func">
@@ -26,21 +27,23 @@ public interface IAzureRetryWrapperService
     ///     Propagated when <paramref name="cancellationToken" /> is cancelled.
     /// </exception>
     /// <exception cref="WorkerAzureException">
-    ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerAzureException.IsTransient" />
-    ///     reflects the arbiter judgement for the final exception.
+    ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerAzureException.CouldBeTransient" />
+    ///     reflects the arbiter report for the final exception.
     /// </exception>
     Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
 ///     Polly v8-based retry wrapper for Azure SDK calls.
-///     Retries when <see cref="IAzureExceptionArbiterService" /> reports a non-critical transient failure,
+///     Retries when <see cref="IAzureExceptionArbiterService" /> reports an expected transient failure,
 ///     using exponential backoff via <see cref="ISleepService" />.
 /// </summary>
-/// <param name="exceptionArbiterService">Classifies Azure-related exceptions as critical/transient.</param>
+/// <param name="exceptionArbiterService">Classifies Azure-related exceptions as expected/transient.</param>
+/// <param name="logger">Logs retry attempts.</param>
 /// <param name="sleepService">Provides cancellable backoff delays between retry attempts.</param>
 internal class AzureRetryWrapperService(
     IAzureExceptionArbiterService exceptionArbiterService,
+    ILogger<AzureRetryWrapperService> logger,
     ISleepService sleepService)
     : IAzureRetryWrapperService
 {
@@ -50,16 +53,6 @@ internal class AzureRetryWrapperService(
     ///     Lazily built Polly v8 <see cref="ResiliencePipeline" /> shared across invocations.
     /// </summary>
     private ResiliencePipeline? _retryPipeline;
-
-    /// <summary>
-    ///     Returns whether the exception should be retried based on if the arbiter
-    ///     marks the exception as both non-critical and transient.
-    /// </summary>
-    private bool JudgeIfExceptionCanBeHandled(Exception exception)
-    {
-        var judgement = exceptionArbiterService.GetJudgement(exception);
-        return judgement is {IsCritical: false, CouldBeTransient: true};
-    }
 
     /// <summary>
     ///     Creates (once) the retry pipeline: arbiter-driven <c>ShouldHandle</c>, zero Polly delay,
@@ -84,7 +77,8 @@ internal class AzureRetryWrapperService(
                         return PredicateResult.False();
                     }
 
-                    return JudgeIfExceptionCanBeHandled(exception)
+                    var report = exceptionArbiterService.GetReport(exception);
+                    return report is {IsExpected: true, CouldBeTransient: true}
                         ? PredicateResult.True()
                         : PredicateResult.False();
                 },
@@ -92,12 +86,36 @@ internal class AzureRetryWrapperService(
                 DelayGenerator = static _ => new ValueTask<TimeSpan?>(TimeSpan.Zero),
                 OnRetry = async args =>
                 {
+                    logger.LogWarning(args.Outcome.Exception,
+                        "Retrying Azure operation after attempt {AttemptNumber}",
+                        args.AttemptNumber);
                     // Delay is performed via ISleepService in OnRetry so tests can mock sleeps.
                     await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber)),
                         args.Context.CancellationToken);
                 }
             })
             .Build();
+    }
+
+    private Exception WrapIfNeeded(Exception exception)
+    {
+        var report = exceptionArbiterService.GetReport(exception);
+
+        if (!report.IsExpected)
+        {
+            /*
+             * Unexpected / unrecognized. Return the raw exception so it stays raw and raises attention,
+             * giving a developer a chance to either classify it or address the upstream cause.
+             */
+            return exception;
+        }
+
+        return new WorkerAzureException(exception)
+        {
+            CouldBeTransient = report.CouldBeTransient,
+            IsHandled = true,
+            CouldBeExternallySolvable = report.CouldBeExternallySolvable
+        };
     }
 
     /// <inheritdoc />
@@ -116,19 +134,7 @@ internal class AzureRetryWrapperService(
         }
         catch (Exception exception)
         {
-            var report = exceptionArbiterService.GetJudgement(exception);
-
-            if (report.IsCritical)
-            {
-                /*
-                 * Critical / unrecognized. Throw raw exception.
-                 * We absolutely want to raise a massive alert and get a developer's attention
-                 *  so that the problem either becomes classified or the upstream cause is addressed.
-                 */
-                throw;
-            }
-
-            throw new WorkerAzureException(exception, false, report.CouldBeTransient);
+            throw WrapIfNeeded(exception);
         }
     }
 }

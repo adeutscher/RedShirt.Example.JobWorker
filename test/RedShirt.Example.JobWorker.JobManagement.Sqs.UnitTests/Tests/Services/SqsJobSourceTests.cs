@@ -373,7 +373,6 @@ public class SqsJobSourceTests
         var ex = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             source.HeartbeatAsync(job, TestContext.Current.CancellationToken));
 
-        Assert.False(ex.IsCritical);
         Assert.False(ex.CouldBeTransient);
 
         sqs.Verify(

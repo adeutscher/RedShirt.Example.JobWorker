@@ -10,33 +10,6 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services
 public class SafeAbstractedLockServiceTests
 {
     [Fact]
-    public async Task GetLockAsync_WhenCriticalDistributedException_PropagatesWithoutEnteringDisgrace()
-    {
-        const string lockName = "lock-critical";
-        var exception = new WorkerDistributedException(new Exception("auth failed"));
-
-        var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
-        disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(false);
-
-        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
-        lockService
-            .Setup(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken))
-            .ThrowsAsync(exception);
-
-        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object,
-            new NullLogger<SafeAbstractedLockService>());
-
-        var thrown = await Assert.ThrowsAsync<WorkerDistributedException>(() =>
-            service.GetLockAsync(lockName, TestContext.Current.CancellationToken));
-
-        Assert.Same(exception, thrown);
-        lockService.Verify(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken), Times.Once);
-        disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
-        disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Never);
-        disgraceState.VerifyNoOtherCalls();
-    }
-
-    [Fact]
     public async Task GetLockAsync_WhenInDisgrace_ReturnsPermissiveLockWithoutCallingInnerService()
     {
         var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
@@ -194,7 +167,8 @@ public class SafeAbstractedLockServiceTests
     {
         var lockName = $"lock-cache-ex-transient-{isTransient}";
         var inner = new Exception("cache unavailable");
-        var exception = new WorkerDistributedException(inner, false, isTransient);
+        var exception = new WorkerDistributedException(inner)
+            {CouldBeTransient = isTransient, IsHandled = false, CouldBeExternallySolvable = isTransient};
 
         var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
         disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(false);
@@ -243,6 +217,38 @@ public class SafeAbstractedLockServiceTests
         lockService.Verify(s => s.GetLockAsync(lockName, cts.Token), Times.Once);
         disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
         disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Never);
+        disgraceState.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task
+        GetLockAsync_WhenUnhandledNonTransientDistributedException_EntersDisgraceAndReturnsPermissiveLock()
+    {
+        const string lockName = "lock-critical";
+        var exception = new WorkerDistributedException(new Exception("auth failed"))
+        {
+            CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false
+        };
+
+        var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
+        disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(false);
+        disgraceState.Setup(s => s.EnterDisgracePeriod());
+
+        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        lockService
+            .Setup(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken))
+            .ThrowsAsync(exception);
+
+        var service = new SafeAbstractedLockService(disgraceState.Object, lockService.Object,
+            new NullLogger<SafeAbstractedLockService>());
+
+        var result = await service.GetLockAsync(lockName, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsAcquired);
+        Assert.False(result.IsTrulyAcquired);
+        lockService.Verify(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken), Times.Once);
+        disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
+        disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Once);
         disgraceState.VerifyNoOtherCalls();
     }
 }

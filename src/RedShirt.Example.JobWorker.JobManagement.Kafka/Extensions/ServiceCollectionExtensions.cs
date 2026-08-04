@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.Extensions;
 

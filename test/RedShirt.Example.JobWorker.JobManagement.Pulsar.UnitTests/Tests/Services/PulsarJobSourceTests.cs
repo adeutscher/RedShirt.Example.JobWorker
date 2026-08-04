@@ -154,8 +154,8 @@ public class PulsarJobSourceTests
         consumerSource.Setup(s => s.GetConsumerAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Mock<IPulsarConsumerWrapper>(MockBehavior.Strict).Object);
 
-        // ReSharper disable once RedundantArgumentDefaultValue
-        var failure = new WorkerJobSourceException("ack failed", true);
+        var failure = new WorkerJobSourceException("ack failed")
+            {CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false};
         var retry = new Mock<IPulsarRetryWrapperService>(MockBehavior.Strict);
         retry
             .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task>>(), It.IsAny<CancellationToken>()))

@@ -1,5 +1,6 @@
 using Moq;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
+using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis.Resilience;
 using StackExchange.Redis;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services.Redis;

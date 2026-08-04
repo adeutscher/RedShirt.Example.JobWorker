@@ -1,4 +1,5 @@
 using Amazon.Runtime;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using RedShirt.Example.JobWorker.Common.Aws.Sqs.Exceptions;
 using RedShirt.Example.JobWorker.Common.Aws.Sqs.Models;
@@ -14,8 +15,9 @@ public class SqsRetryWrapperServiceTests
         return new SqsExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = false,
-            CouldBeTransient = true
+            IsExpected = true,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = true
         };
     }
 
@@ -24,8 +26,9 @@ public class SqsRetryWrapperServiceTests
         return new SqsExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = false,
-            CouldBeTransient = false
+            IsExpected = true,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -34,8 +37,9 @@ public class SqsRetryWrapperServiceTests
         return new SqsExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = true,
-            CouldBeTransient = false
+            IsExpected = false,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -44,8 +48,9 @@ public class SqsRetryWrapperServiceTests
         return new SqsExceptionArbiterReport
         {
             AlreadyHandled = true,
-            IsCritical = false,
-            CouldBeTransient = false
+            IsExpected = true,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = true
         };
     }
 
@@ -65,9 +70,10 @@ public class SqsRetryWrapperServiceTests
     public async Task RunAsync_AmazonServiceException_IsThrownRaw()
     {
         var arbiter = new Mock<ISqsExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(It.IsAny<AmazonServiceException>())).Returns(CriticalReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<AmazonServiceException>())).Returns(CriticalReport());
         var sleep = CreateSleepService();
-        var wrapper = new SqsRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper =
+            new SqsRetryWrapperService(arbiter.Object, NullLogger<SqsRetryWrapperService>.Instance, sleep.Object);
         var exception = new AmazonServiceException("generic aws service failure");
 
         var thrown = await Assert.ThrowsAsync<AmazonServiceException>(() =>
@@ -82,7 +88,8 @@ public class SqsRetryWrapperServiceTests
     {
         var arbiter = new Mock<ISqsExceptionArbiterService>(MockBehavior.Strict);
         var sleep = CreateSleepService();
-        var wrapper = new SqsRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper =
+            new SqsRetryWrapperService(arbiter.Object, NullLogger<SqsRetryWrapperService>.Instance, sleep.Object);
 
         await wrapper.RunAsync(_ => Task.CompletedTask, TestContext.Current.CancellationToken);
 
@@ -92,18 +99,21 @@ public class SqsRetryWrapperServiceTests
     [Fact]
     public async Task RunAsync_WhenAlreadyHandled_RethrowsWithoutWrapping()
     {
-        var inner = new WorkerSqsException("already wrapped", false, false, true);
+        var inner = new WorkerSqsException("already wrapped")
+            {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = true};
 
         var arbiter = new Mock<ISqsExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(inner)).Returns(AlreadyHandledReport());
+        arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport());
 
         var sleep = CreateSleepService();
-        var wrapper = new SqsRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper =
+            new SqsRetryWrapperService(arbiter.Object, NullLogger<SqsRetryWrapperService>.Instance, sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerSqsException>(() =>
             wrapper.RunAsync(_ => throw inner, TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown);
+        Assert.Equal(inner.CouldBeExternallySolvable, thrown.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -111,7 +121,8 @@ public class SqsRetryWrapperServiceTests
     {
         var arbiter = new Mock<ISqsExceptionArbiterService>(MockBehavior.Strict);
         var sleep = CreateSleepService();
-        var wrapper = new SqsRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper =
+            new SqsRetryWrapperService(arbiter.Object, NullLogger<SqsRetryWrapperService>.Instance, sleep.Object);
 
         var result = await wrapper.RunAsync(_ => Task.FromResult("ok"), TestContext.Current.CancellationToken);
 
@@ -126,10 +137,11 @@ public class SqsRetryWrapperServiceTests
         var inner = new InvalidOperationException("permanent");
 
         var arbiter = new Mock<ISqsExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(inner)).Returns(PermanentReport());
+        arbiter.Setup(a => a.GetReport(inner)).Returns(PermanentReport());
 
         var sleep = CreateSleepService();
-        var wrapper = new SqsRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper =
+            new SqsRetryWrapperService(arbiter.Object, NullLogger<SqsRetryWrapperService>.Instance, sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerSqsException>(() => wrapper.RunAsync(
             _ =>
@@ -142,7 +154,8 @@ public class SqsRetryWrapperServiceTests
         Assert.Equal(1, attempts);
         Assert.Same(inner, thrown.InnerException);
         Assert.True(thrown.IsHandled);
-        Assert.False(thrown.IsTransient);
+        Assert.False(thrown.CouldBeTransient);
+        Assert.False(thrown.CouldBeExternallySolvable);
         Assert.Empty(sleep.Invocations);
     }
 
@@ -154,10 +167,11 @@ public class SqsRetryWrapperServiceTests
         var inner = new TimeoutException("still failing");
 
         var arbiter = new Mock<ISqsExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleep = CreateSleepService(delays);
-        var wrapper = new SqsRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper =
+            new SqsRetryWrapperService(arbiter.Object, NullLogger<SqsRetryWrapperService>.Instance, sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerSqsException>(() => wrapper.RunAsync<string>(
             _ =>
@@ -168,9 +182,9 @@ public class SqsRetryWrapperServiceTests
             TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
-        Assert.True(thrown.IsTransient);
+        Assert.True(thrown.CouldBeTransient);
         Assert.True(thrown.IsHandled);
+        Assert.True(thrown.CouldBeExternallySolvable);
         Assert.Equal(4, attempts);
         Assert.Equal(
             [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4)],
@@ -184,10 +198,11 @@ public class SqsRetryWrapperServiceTests
         var delays = new List<TimeSpan>();
 
         var arbiter = new Mock<ISqsExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleep = CreateSleepService(delays);
-        var wrapper = new SqsRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper =
+            new SqsRetryWrapperService(arbiter.Object, NullLogger<SqsRetryWrapperService>.Instance, sleep.Object);
 
         var result = await wrapper.RunAsync(
             _ =>

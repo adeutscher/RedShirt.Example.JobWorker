@@ -1,9 +1,10 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Common.Azure.Exceptions;
 using RedShirt.Example.JobWorker.Common.Azure.Models;
-using RedShirt.Example.JobWorker.Common.Azure.Services;
+using RedShirt.Example.JobWorker.Common.Azure.Services.Resilience;
 using RedShirt.Example.JobWorker.Core.Services.Utility;
 
-namespace RedShirt.Example.JobWorker.Common.Azure.UnitTests.Tests.Services;
+namespace RedShirt.Example.JobWorker.Common.Azure.UnitTests.Tests.Services.Resilience;
 
 public class AzureRetryWrapperServiceTests
 {
@@ -11,8 +12,9 @@ public class AzureRetryWrapperServiceTests
     {
         return new AzureExceptionArbiterReport
         {
-            IsCritical = false,
-            CouldBeTransient = true
+            IsExpected = true,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = true
         };
     }
 
@@ -20,8 +22,9 @@ public class AzureRetryWrapperServiceTests
     {
         return new AzureExceptionArbiterReport
         {
-            IsCritical = false,
-            CouldBeTransient = false
+            IsExpected = true,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -29,8 +32,9 @@ public class AzureRetryWrapperServiceTests
     {
         return new AzureExceptionArbiterReport
         {
-            IsCritical = true,
-            CouldBeTransient = couldBeTransient
+            IsExpected = false,
+            CouldBeTransient = couldBeTransient,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -59,10 +63,11 @@ public class AzureRetryWrapperServiceTests
         var attempts = 0;
 
         var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleepService = CreateSleepService(capturedTokens: delayTokens);
-        var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new AzureRetryWrapperService(arbiter.Object, NullLogger<AzureRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var result = await wrapper.RunAsync(
             token =>
@@ -89,7 +94,8 @@ public class AzureRetryWrapperServiceTests
     {
         var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new AzureRetryWrapperService(arbiter.Object, NullLogger<AzureRetryWrapperService>.Instance,
+            sleepService.Object);
 
         Assert.Equal(1, await wrapper.RunAsync(_ => Task.FromResult(1), TestContext.Current.CancellationToken));
         Assert.Equal(2, await wrapper.RunAsync(_ => Task.FromResult(2), TestContext.Current.CancellationToken));
@@ -101,7 +107,8 @@ public class AzureRetryWrapperServiceTests
     {
         var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new AzureRetryWrapperService(arbiter.Object, NullLogger<AzureRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var result = await wrapper.RunAsync(
             _ => Task.FromResult(42),
@@ -121,10 +128,11 @@ public class AzureRetryWrapperServiceTests
         var inner = new InvalidOperationException("not retryable");
 
         var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(inner)).Returns(NonTransientReport());
+        arbiter.Setup(a => a.GetReport(inner)).Returns(NonTransientReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new AzureRetryWrapperService(arbiter.Object, NullLogger<AzureRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerAzureException>(() => wrapper.RunAsync<int>(
             _ =>
@@ -136,8 +144,8 @@ public class AzureRetryWrapperServiceTests
 
         Assert.Equal(1, attempts);
         Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
-        Assert.False(thrown.IsTransient);
+        Assert.False(thrown.CouldBeTransient);
+        Assert.False(thrown.CouldBeExternallySolvable);
         sleepService.Verify(
             s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -151,7 +159,8 @@ public class AzureRetryWrapperServiceTests
 
         var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new AzureRetryWrapperService(arbiter.Object, NullLogger<AzureRetryWrapperService>.Instance,
+            sleepService.Object);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync<int>(
             _ => throw new OperationCanceledException(cts.Token),
@@ -168,7 +177,7 @@ public class AzureRetryWrapperServiceTests
         var attempts = 0;
 
         var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
         sleepService
@@ -179,7 +188,8 @@ public class AzureRetryWrapperServiceTests
                 return Task.FromCanceled(token);
             });
 
-        var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new AzureRetryWrapperService(arbiter.Object, NullLogger<AzureRetryWrapperService>.Instance,
+            sleepService.Object);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync<string>(
             _ =>
@@ -200,18 +210,19 @@ public class AzureRetryWrapperServiceTests
     {
         var inner = new TaskCanceledException("http-style timeout");
         var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(inner)).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(inner)).Returns(TransientReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new AzureRetryWrapperService(arbiter.Object, NullLogger<AzureRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerAzureException>(() => wrapper.RunAsync<string>(
             _ => throw inner,
             TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
-        Assert.True(thrown.IsTransient);
+        Assert.True(thrown.CouldBeTransient);
+        Assert.True(thrown.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -223,10 +234,11 @@ public class AzureRetryWrapperServiceTests
 
         var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
         // If judgement is consulted after cancel, still report transient; cancel should win in the judge.
-        arbiter.Setup(a => a.GetJudgement(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new AzureRetryWrapperService(arbiter.Object, NullLogger<AzureRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerAzureException>(() => wrapper.RunAsync<string>(
             _ =>
@@ -252,10 +264,11 @@ public class AzureRetryWrapperServiceTests
         var inner = new HttpRequestException("still failing");
 
         var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleepService = CreateSleepService(delays);
-        var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new AzureRetryWrapperService(arbiter.Object, NullLogger<AzureRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerAzureException>(() => wrapper.RunAsync<string>(
             _ =>
@@ -266,8 +279,8 @@ public class AzureRetryWrapperServiceTests
             TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
-        Assert.True(thrown.IsTransient);
+        Assert.True(thrown.CouldBeTransient);
+        Assert.True(thrown.CouldBeExternallySolvable);
         // original attempt + 3 retries
         Assert.Equal(4, attempts);
         Assert.Equal(
@@ -285,10 +298,11 @@ public class AzureRetryWrapperServiceTests
         var attempts = 0;
         var delays = new List<TimeSpan>();
         var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleepService = CreateSleepService(delays);
-        var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new AzureRetryWrapperService(arbiter.Object, NullLogger<AzureRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var result = await wrapper.RunAsync(
             _ =>
@@ -308,7 +322,7 @@ public class AzureRetryWrapperServiceTests
         Assert.Equal(
             [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)],
             delays);
-        arbiter.Verify(a => a.GetJudgement(It.IsAny<Exception>()), Times.Exactly(2));
+        arbiter.Verify(a => a.GetReport(It.IsAny<Exception>()), Times.Exactly(2));
     }
 
     [Theory]
@@ -320,10 +334,11 @@ public class AzureRetryWrapperServiceTests
         var inner = new NotSupportedException("unexpected");
 
         var arbiter = new Mock<IAzureExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(inner)).Returns(UnexpectedReport(couldBeTransient));
+        arbiter.Setup(a => a.GetReport(inner)).Returns(UnexpectedReport(couldBeTransient));
 
         var sleepService = CreateSleepService();
-        var wrapper = new AzureRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new AzureRetryWrapperService(arbiter.Object, NullLogger<AzureRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<NotSupportedException>(() => wrapper.RunAsync<int>(
             _ =>

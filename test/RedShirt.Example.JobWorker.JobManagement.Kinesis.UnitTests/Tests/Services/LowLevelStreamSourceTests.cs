@@ -292,7 +292,8 @@ public class LowLevelStreamSourceTests
     public async Task WhenWorkerJobSourceExceptionWithInnerExpiredIterator_ReturnEmpty()
     {
         var expired = new ExpiredIteratorException("iterator expired");
-        var wrapped = new WorkerJobSourceException(expired, false, false, true);
+        var wrapped = new WorkerJobSourceException(expired)
+            {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = false};
 
         var retryWrapper = new Mock<IKinesisRetryWrapperService>(MockBehavior.Strict);
         retryWrapper

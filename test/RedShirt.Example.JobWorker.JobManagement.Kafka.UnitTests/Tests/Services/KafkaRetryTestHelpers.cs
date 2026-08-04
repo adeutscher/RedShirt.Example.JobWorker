@@ -1,5 +1,5 @@
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Models;
-using RedShirt.Example.JobWorker.JobManagement.Kafka.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.UnitTests.Tests.Services;
 

@@ -86,36 +86,6 @@ public class LoaderModeJobLoaderTests
     }
 
     [Fact]
-    public async Task RunAsync_WhenCriticalWorkerJobSourceException_Propagates()
-    {
-        var critical = new WorkerJobSourceException("auth failed");
-
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository.Setup(r => r.GetBacklogMaxCount()).Returns(1);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
-
-        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
-        jobSource
-            .Setup(s => s.GetJobsAsync(1, TestContext.Current.CancellationToken))
-            .ThrowsAsync(critical);
-
-        var loader = new LoaderModeJobLoader(
-            jobSource.Object,
-            new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
-            jobRepository.Object,
-            new Mock<IJobIntakeService>(MockBehavior.Strict).Object,
-            new NullLogger<LoaderModeJobLoader>(),
-            Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
-
-        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
-            loader.RunAsync(TestContext.Current.CancellationToken));
-
-        Assert.Same(critical, thrown);
-    }
-
-    [Fact]
     public async Task RunAsync_WhenDemandWaitTimesOutAndStopping_ThrowsAbortJobLoaderLoopException()
     {
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
@@ -231,9 +201,10 @@ public class LoaderModeJobLoaderTests
     }
 
     [Fact]
-    public async Task RunAsync_WhenPermanentNonCriticalWorkerJobSourceException_Propagates()
+    public async Task RunAsync_WhenPermanentWorkerJobSourceException_Propagates()
     {
-        var permanent = new WorkerJobSourceException("unknown topic", false);
+        var permanent = new WorkerJobSourceException("unknown topic")
+            {CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false};
 
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         jobRepository.Setup(r => r.GetBacklogMaxCount()).Returns(2);
@@ -308,7 +279,8 @@ public class LoaderModeJobLoaderTests
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
             .Setup(s => s.GetJobsAsync(1, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new WorkerJobSourceException("transient pull", false, true));
+            .ThrowsAsync(new WorkerJobSourceException("transient pull")
+                {CouldBeTransient = true, IsHandled = false, CouldBeExternallySolvable = true});
 
         var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
 
@@ -325,5 +297,35 @@ public class LoaderModeJobLoaderTests
         jobIntakeService.Verify(
             s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenUnexpectedExceptionFromSource_Propagates()
+    {
+        var unexpected = new InvalidOperationException("auth failed");
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        jobRepository.Setup(r => r.GetBacklogMaxCount()).Returns(1);
+        jobRepository
+            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync(0);
+
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource
+            .Setup(s => s.GetJobsAsync(1, TestContext.Current.CancellationToken))
+            .ThrowsAsync(unexpected);
+
+        var loader = new LoaderModeJobLoader(
+            jobSource.Object,
+            new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
+            jobRepository.Object,
+            new Mock<IJobIntakeService>(MockBehavior.Strict).Object,
+            new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            loader.RunAsync(TestContext.Current.CancellationToken));
+
+        Assert.Same(unexpected, thrown);
     }
 }

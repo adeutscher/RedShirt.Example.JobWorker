@@ -6,7 +6,7 @@ namespace RedShirt.Example.JobWorker.Common.Aws.Services.Resilience;
 
 internal interface IAwsExceptionArbiterService
 {
-    AwsExceptionArbiterReport GetJudgement(Exception exception);
+    AwsExceptionArbiterReport GetReport(Exception exception);
 }
 
 internal class AwsExceptionArbiterService : IAwsExceptionArbiterService
@@ -48,12 +48,13 @@ internal class AwsExceptionArbiterService : IAwsExceptionArbiterService
         return exception;
     }
 
-    private static AwsExceptionArbiterReport Fresh(bool isCritical, bool isTransient)
+    private static AwsExceptionArbiterReport Fresh(bool isExpected, bool isTransient, bool couldBeExternallySolvable)
     {
         return new AwsExceptionArbiterReport
         {
-            IsCritical = isCritical,
-            CouldBeTransient = isTransient
+            IsExpected = isExpected,
+            CouldBeTransient = isTransient,
+            CouldBeExternallySolvable = couldBeExternallySolvable
         };
     }
 
@@ -68,7 +69,15 @@ internal class AwsExceptionArbiterService : IAwsExceptionArbiterService
         return TransientRequestStatuses.Contains((int) serviceException.StatusCode);
     }
 
-    public AwsExceptionArbiterReport GetJudgement(Exception exception)
+    // Externally solvable whenever the failure is transient (infra can be fixed/scaled) or the
+    // service returned auth/not-found (401/403/404), which ops can resolve via IAM/resource changes.
+    private static bool CouldBeExternallySolvableAmazonServiceException(AmazonServiceException serviceException)
+    {
+        return IsTransientAmazonServiceException(serviceException)
+               || (int) serviceException.StatusCode is 401 or 403 or 404;
+    }
+
+    public AwsExceptionArbiterReport GetReport(Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
 
@@ -78,18 +87,22 @@ internal class AwsExceptionArbiterService : IAwsExceptionArbiterService
         {
             // Service returned an HTTP / AWS error. Transient for throttling, timeouts, and 5xx.
             AmazonServiceException serviceException =>
-                Fresh(false, IsTransientAmazonServiceException(serviceException)),
+                Fresh(
+                    true,
+                    IsTransientAmazonServiceException(serviceException),
+                    CouldBeExternallySolvableAmazonServiceException(serviceException)),
             // Client-side AWS SDK failure before a useful service response (often connectivity).
-            AmazonClientException => Fresh(false, true),
-            HttpRequestException => Fresh(false, true),
-            SocketException => Fresh(false, true),
+            AmazonClientException => Fresh(true, true, true),
+            HttpRequestException => Fresh(true, true, true),
+            SocketException => Fresh(true, true, true),
             // HttpClient request timeouts commonly surface as TaskCanceledException; treat as retryable.
             // Must be matched before OperationCanceledException (TCE derives from OCE).
-            TaskCanceledException => Fresh(false, true),
-            OperationCanceledException => Fresh(false, false),
-            ArgumentException => Fresh(false, false),
-            // Unrecognized exception type — treat as critical so callers surface the raw failure.
-            _ => Fresh(true, false)
+            TaskCanceledException => Fresh(true, true, true),
+            // Explicit CancellationToken cancellation from the caller — not externally solvable.
+            OperationCanceledException => Fresh(true, false, false),
+            ArgumentException => Fresh(true, false, false),
+            // Unrecognized exception type — treat as unexpected so callers surface the raw failure.
+            _ => Fresh(false, false, false)
         };
     }
 }

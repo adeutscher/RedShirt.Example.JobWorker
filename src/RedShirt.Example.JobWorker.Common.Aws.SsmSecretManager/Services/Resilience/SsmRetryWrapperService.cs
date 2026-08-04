@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Exceptions;
@@ -6,7 +7,7 @@ using RedShirt.Example.JobWorker.Core.Services.Utility;
 namespace RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.Services.Resilience;
 
 /// <summary>
-///     Retries SSM operations that fail with non-critical transient exceptions,
+///     Retries SSM operations that fail with expected transient exceptions,
 ///     then surfaces remaining failures as <see cref="WorkerSecretManagerException" /> with
 ///     <see cref="WorkerSecretManagerException.IsHandled" /> set.
 /// </summary>
@@ -17,6 +18,7 @@ internal interface ISsmRetryWrapperService
 
 internal class SsmRetryWrapperService(
     ISsmExceptionArbiterService exceptionArbiterService,
+    ILogger<SsmRetryWrapperService> logger,
     ISleepService sleepService)
     : ISsmRetryWrapperService
 {
@@ -43,14 +45,17 @@ internal class SsmRetryWrapperService(
                         return PredicateResult.False();
                     }
 
-                    var report = exceptionArbiterService.GetJudgement(exception);
-                    return report is {IsCritical: false, CouldBeTransient: true}
+                    var report = exceptionArbiterService.GetReport(exception);
+                    return report is {IsExpected: true, CouldBeTransient: true}
                         ? PredicateResult.True()
                         : PredicateResult.False();
                 },
                 DelayGenerator = static _ => new ValueTask<TimeSpan?>(TimeSpan.Zero),
                 OnRetry = async args =>
                 {
+                    logger.LogWarning(args.Outcome.Exception,
+                        "Retrying SSM operation after attempt {AttemptNumber}",
+                        args.AttemptNumber);
                     await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber)),
                         args.Context.CancellationToken);
                 }
@@ -60,19 +65,29 @@ internal class SsmRetryWrapperService(
 
     private Exception WrapIfNeeded(Exception exception)
     {
-        var report = exceptionArbiterService.GetJudgement(exception);
+        var report = exceptionArbiterService.GetReport(exception);
 
-        if (report.AlreadyHandled)
+        // ReSharper disable once DuplicatedSequentialIfBodies
+        if (report.AlreadyHandled && exception is WorkerSecretManagerException)
         {
             return exception;
         }
 
-        if (report.IsCritical)
+        if (!report.IsExpected)
         {
+            /*
+             * Unexpected / unrecognized.
+             * Unexpected failures stay raw so they raise attention and get classified.
+             */
             return exception;
         }
 
-        return new WorkerSecretManagerException(exception, false, report.CouldBeTransient, true);
+        return new WorkerSecretManagerException(exception)
+        {
+            CouldBeTransient = report.CouldBeTransient,
+            IsHandled = true,
+            CouldBeExternallySolvable = report.CouldBeExternallySolvable
+        };
     }
 
     public async Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func,

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Services.Utility;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Models;
@@ -12,8 +13,9 @@ public class GooglePubSubRetryWrapperServiceTests
         return new GooglePubSubExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = false,
-            CouldBeTransient = true
+            IsExpected = true,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = true
         };
     }
 
@@ -22,8 +24,9 @@ public class GooglePubSubRetryWrapperServiceTests
         return new GooglePubSubExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = false,
-            CouldBeTransient = false
+            IsExpected = true,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -32,8 +35,9 @@ public class GooglePubSubRetryWrapperServiceTests
         return new GooglePubSubExceptionArbiterReport
         {
             AlreadyHandled = true,
-            IsCritical = false,
-            CouldBeTransient = couldBeTransient
+            IsExpected = true,
+            CouldBeTransient = couldBeTransient,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -42,8 +46,9 @@ public class GooglePubSubRetryWrapperServiceTests
         return new GooglePubSubExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = true,
-            CouldBeTransient = true
+            IsExpected = false,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -52,8 +57,9 @@ public class GooglePubSubRetryWrapperServiceTests
         return new GooglePubSubExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = true,
-            CouldBeTransient = false
+            IsExpected = false,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -76,13 +82,16 @@ public class GooglePubSubRetryWrapperServiceTests
     [Fact]
     public async Task RunAsync_NonGeneric_WhenAlreadyHandled_RethrowsWithoutWrapping()
     {
-        var inner = new WorkerJobSourceException("already wrapped", isHandled: true);
+        var inner = new WorkerJobSourceException("already wrapped")
+            {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = false};
 
         var arbiter = new Mock<IGooglePubSubExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport(false));
 
         var sleepService = CreateSleepService();
-        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object,
+            NullLogger<GooglePubSubRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
             _ => throw inner,
@@ -99,7 +108,9 @@ public class GooglePubSubRetryWrapperServiceTests
     {
         var arbiter = new Mock<IGooglePubSubExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object,
+            NullLogger<GooglePubSubRetryWrapperService>.Instance,
+            sleepService.Object);
         var ran = false;
 
         await wrapper.RunAsync(
@@ -128,7 +139,9 @@ public class GooglePubSubRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleepService = CreateSleepService(delays);
-        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object,
+            NullLogger<GooglePubSubRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
             _ =>
@@ -139,9 +152,9 @@ public class GooglePubSubRetryWrapperServiceTests
             TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
         Assert.True(thrown.CouldBeTransient);
         Assert.True(thrown.IsHandled);
+        Assert.True(thrown.CouldBeExternallySolvable);
         Assert.Equal(4, attempts);
         Assert.Equal(
             [
@@ -156,13 +169,16 @@ public class GooglePubSubRetryWrapperServiceTests
     public async Task RunAsync_WhenAlreadyHandled_RethrowsWithoutWrapping()
     {
         var attempts = 0;
-        var inner = new WorkerJobSourceException("already wrapped", isHandled: true);
+        var inner = new WorkerJobSourceException("already wrapped")
+            {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = false};
 
         var arbiter = new Mock<IGooglePubSubExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport(false));
 
         var sleepService = CreateSleepService();
-        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object,
+            NullLogger<GooglePubSubRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync<int>(
             _ =>
@@ -189,7 +205,9 @@ public class GooglePubSubRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(inner)).Returns(CriticalTransientReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object,
+            NullLogger<GooglePubSubRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => wrapper.RunAsync<int>(
             _ =>
@@ -211,7 +229,9 @@ public class GooglePubSubRetryWrapperServiceTests
     {
         var arbiter = new Mock<IGooglePubSubExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object,
+            NullLogger<GooglePubSubRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var result = await wrapper.RunAsync(
             _ => Task.FromResult(42),
@@ -234,7 +254,9 @@ public class GooglePubSubRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(inner)).Returns(NonTransientReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object,
+            NullLogger<GooglePubSubRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync<int>(
             _ =>
@@ -246,9 +268,9 @@ public class GooglePubSubRetryWrapperServiceTests
 
         Assert.Equal(1, attempts);
         Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
         Assert.False(thrown.CouldBeTransient);
         Assert.True(thrown.IsHandled);
+        Assert.False(thrown.CouldBeExternallySolvable);
         sleepService.Verify(
             s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -262,7 +284,9 @@ public class GooglePubSubRetryWrapperServiceTests
 
         var arbiter = new Mock<IGooglePubSubExceptionArbiterService>(MockBehavior.Strict);
         var sleepService = CreateSleepService();
-        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object,
+            NullLogger<GooglePubSubRetryWrapperService>.Instance,
+            sleepService.Object);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync<int>(
             _ => throw new OperationCanceledException(cts.Token),
@@ -281,7 +305,9 @@ public class GooglePubSubRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleepService = CreateSleepService(delays);
-        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object,
+            NullLogger<GooglePubSubRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var result = await wrapper.RunAsync(
             _ =>
@@ -314,7 +340,9 @@ public class GooglePubSubRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(inner)).Returns(UnexpectedReport());
 
         var sleepService = CreateSleepService();
-        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object, sleepService.Object);
+        var wrapper = new GooglePubSubRetryWrapperService(arbiter.Object,
+            NullLogger<GooglePubSubRetryWrapperService>.Instance,
+            sleepService.Object);
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => wrapper.RunAsync<int>(
             _ =>

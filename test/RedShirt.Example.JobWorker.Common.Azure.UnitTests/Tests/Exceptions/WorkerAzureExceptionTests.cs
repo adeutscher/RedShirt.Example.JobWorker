@@ -5,68 +5,82 @@ namespace RedShirt.Example.JobWorker.Common.Azure.UnitTests.Tests.Exceptions;
 public class WorkerAzureExceptionTests
 {
     [Fact]
-    public void Constructor_WithInnerException_DefaultsToCriticalAndNotTransient()
+    public void Constructor_WithInnerException_PreservesMessageAndInner()
     {
         var inner = new InvalidOperationException("boom");
 
-        var exception = new WorkerAzureException(inner);
+        var exception = new WorkerAzureException(inner)
+            {CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false};
 
-        Assert.True(exception.IsCritical);
-        Assert.False(exception.IsTransient);
+        Assert.False(exception.CouldBeTransient);
+        Assert.False(exception.IsHandled);
+        Assert.False(exception.CouldBeExternallySolvable);
         Assert.Same(inner, exception.InnerException);
         Assert.Equal(inner.Message, exception.Message);
     }
 
     [Theory]
-    [InlineData(true, true)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(false, false)]
-    public void Constructor_WithInnerException_PreservesMessageInnerAndFlags(bool isCritical, bool isTransient)
+    [InlineData(true, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, false)]
+    public void Constructor_WithInnerException_PreservesMessageInnerAndFlags(
+        bool isTransient, bool isHandled, bool couldBeExternallySolvable)
     {
         var inner = new TimeoutException("timed out talking to azure");
 
-        var exception = new WorkerAzureException(inner, isCritical, isTransient);
+        var exception = new WorkerAzureException(inner)
+        {
+            CouldBeTransient = isTransient,
+            IsHandled = isHandled,
+            CouldBeExternallySolvable = couldBeExternallySolvable
+        };
 
         Assert.Equal(inner.Message, exception.Message);
         Assert.Same(inner, exception.InnerException);
-        Assert.Equal(isCritical, exception.IsCritical);
-        Assert.Equal(isTransient, exception.IsTransient);
+        Assert.Equal(isTransient, exception.CouldBeTransient);
+        Assert.Equal(isHandled, exception.IsHandled);
+        Assert.Equal(couldBeExternallySolvable, exception.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void Constructor_WithMessage_DefaultsToCriticalAndNotTransient()
+    public void Constructor_WithMessage_SetsMessageAndFlags()
     {
-        var exception = new WorkerAzureException("azure failure");
+        var exception = new WorkerAzureException("azure failure")
+            {CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false};
 
         Assert.Equal("azure failure", exception.Message);
-        Assert.True(exception.IsCritical);
-        Assert.False(exception.IsTransient);
+        Assert.False(exception.CouldBeTransient);
+        Assert.False(exception.IsHandled);
+        Assert.False(exception.CouldBeExternallySolvable);
         Assert.Null(exception.InnerException);
     }
 
     [Theory]
-    [InlineData(true, true, "critical transient azure failure")]
-    [InlineData(true, false, "critical permanent azure failure")]
-    [InlineData(false, true, "non-critical transient azure failure")]
-    [InlineData(false, false, "non-critical permanent azure failure")]
+    [InlineData(true, true, "transient handled azure failure")]
+    [InlineData(true, false, "transient unhandled azure failure")]
+    [InlineData(false, true, "permanent handled azure failure")]
+    [InlineData(false, false, "permanent unhandled azure failure")]
     public void Constructor_WithMessage_SetsMessageAndFlagsWithoutInnerException(
-        bool isCritical,
         bool isTransient,
+        bool isHandled,
         string message)
     {
-        var exception = new WorkerAzureException(message, isCritical, isTransient);
+        var exception = new WorkerAzureException(message)
+            {CouldBeTransient = isTransient, IsHandled = isHandled, CouldBeExternallySolvable = isTransient};
 
         Assert.Equal(message, exception.Message);
         Assert.Null(exception.InnerException);
-        Assert.Equal(isCritical, exception.IsCritical);
-        Assert.Equal(isTransient, exception.IsTransient);
+        Assert.Equal(isTransient, exception.CouldBeTransient);
+        Assert.Equal(isHandled, exception.IsHandled);
+        Assert.Equal(isTransient, exception.CouldBeExternallySolvable);
     }
 
     [Fact]
     public void IsException()
     {
-        var exception = new WorkerAzureException("boom");
+        var exception = new WorkerAzureException("boom")
+            {CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false};
 
         Assert.IsAssignableFrom<Exception>(exception);
     }

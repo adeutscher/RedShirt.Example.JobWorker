@@ -11,23 +11,25 @@ public class RedisStreamsExceptionArbiterServiceTests
     private readonly RedisStreamsExceptionArbiterService _sut = new();
 
     [Fact]
-    public void GetReport_ArgumentException_IsNotCriticalAndNotTransient()
+    public void GetReport_ArgumentException_IsExpectedAndNotTransient()
     {
         var report = _sut.GetReport(new ArgumentException("bad stream", "stream"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_GenericRedisException_IsNotCriticalAndTransient()
+    public void GetReport_GenericRedisException_IsExpectedAndTransient()
     {
         var report = _sut.GetReport(new RedisException("unexpected Redis failure"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -37,68 +39,73 @@ public class RedisStreamsExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_OperationCanceledException_IsNotCriticalAndNotTransient()
+    public void GetReport_OperationCanceledException_IsExpectedAndNotTransient()
     {
         var report = _sut.GetReport(new OperationCanceledException("caller cancelled"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
     }
 
     [Theory]
-    [InlineData(ConnectionFailureType.UnableToConnect, false, true)]
-    [InlineData(ConnectionFailureType.SocketFailure, false, true)]
-    [InlineData(ConnectionFailureType.SocketClosed, false, true)]
-    [InlineData(ConnectionFailureType.Loading, false, true)]
-    [InlineData(ConnectionFailureType.UnableToResolvePhysicalConnection, false, true)]
-    [InlineData(ConnectionFailureType.AuthenticationFailure, true, false)]
-    [InlineData(ConnectionFailureType.ProtocolFailure, true, false)]
-    [InlineData(ConnectionFailureType.ConnectionDisposed, true, false)]
-    [InlineData(ConnectionFailureType.InternalFailure, true, false)]
+    [InlineData(ConnectionFailureType.UnableToConnect, true, true)]
+    [InlineData(ConnectionFailureType.SocketFailure, true, true)]
+    [InlineData(ConnectionFailureType.SocketClosed, true, true)]
+    [InlineData(ConnectionFailureType.Loading, true, true)]
+    [InlineData(ConnectionFailureType.UnableToResolvePhysicalConnection, true, true)]
+    [InlineData(ConnectionFailureType.AuthenticationFailure, false, true)]
+    [InlineData(ConnectionFailureType.ProtocolFailure, false, false)]
+    [InlineData(ConnectionFailureType.ConnectionDisposed, false, false)]
+    [InlineData(ConnectionFailureType.InternalFailure, false, false)]
     public void GetReport_RedisConnectionException_ClassifiesByFailureType(
         ConnectionFailureType failureType,
-        bool expectedCritical,
-        bool expectedTransient)
+        bool expectedTransient,
+        bool expectedExternallySolvable)
     {
         var exception = new RedisConnectionException(failureType, "connection issue");
 
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.Equal(expectedCritical, report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.Equal(expectedTransient, report.CouldBeTransient);
+        Assert.Equal(expectedExternallySolvable, report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_RedisServerException_Loading_IsNotCriticalAndTransient()
+    public void GetReport_RedisServerException_Loading_IsExpectedAndTransient()
     {
         var report = _sut.GetReport(new RedisServerException("LOADING Redis is loading the dataset in memory"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_RedisServerException_NoGroup_IsNotCriticalAndNotTransient()
+    public void GetReport_RedisServerException_NoGroup_IsExpectedAndNotTransient()
     {
         var report = _sut.GetReport(new RedisServerException(
             "NOGROUP No such key 'jobs' or consumer group 'job-worker'"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_RedisTimeoutException_IsNotCriticalAndTransient()
+    public void GetReport_RedisTimeoutException_IsExpectedAndTransient()
     {
         var report = _sut.GetReport(new RedisTimeoutException("command timed out", CommandStatus.Unknown));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -109,65 +116,85 @@ public class RedisStreamsExceptionArbiterServiceTests
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_SocketException_IsNotCriticalAndTransient()
+    public void GetReport_SocketException_IsExpectedAndTransient()
     {
         var report = _sut.GetReport(new SocketException((int) SocketError.TimedOut));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_TaskCanceledException_IsNotCriticalAndTransient()
+    public void GetReport_TaskCanceledException_IsExpectedAndTransient()
     {
         var report = _sut.GetReport(new TaskCanceledException());
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_UnrecognizedException_IsCritical()
+    public void GetReport_UnrecognizedException_IsNotExpected()
     {
         var report = _sut.GetReport(new InvalidOperationException("boom"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsCritical);
+        Assert.False(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
     }
 
     [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(false, false)]
-    public void GetReport_WorkerDistributedException_AlreadyHandled(bool isCritical, bool isTransient)
+    [InlineData(true, true, false, false)]
+    [InlineData(true, false, false, false)]
+    [InlineData(false, true, true, true)]
+    [InlineData(false, false, false, false)]
+    public void GetReport_WorkerDistributedException_AlreadyHandled(
+        bool isHandled,
+        bool couldBeTransient,
+        bool expectedTransient,
+        bool couldBeExternallySolvable)
     {
-        var wrapped = new WorkerDistributedException("Not currently connected", isCritical, isTransient);
+        var wrapped = new WorkerDistributedException("Not currently connected")
+        {
+            IsHandled = isHandled,
+            CouldBeTransient = couldBeTransient,
+            CouldBeExternallySolvable = couldBeExternallySolvable
+        };
 
         var report = _sut.GetReport(wrapped);
 
         Assert.True(report.AlreadyHandled);
-        Assert.Equal(isCritical, report.IsCritical);
-        Assert.Equal(isTransient, report.CouldBeTransient);
+        Assert.True(report.IsExpected);
+        Assert.Equal(expectedTransient, report.CouldBeTransient);
+        Assert.Equal(couldBeExternallySolvable, report.CouldBeExternallySolvable);
     }
 
     [Fact]
     public void GetReport_WorkerJobSourceException_AlreadyHandled()
     {
-        var wrapped = new WorkerJobSourceException(new RedisTimeoutException("t", CommandStatus.Unknown), false, true,
-            true);
+        var wrapped = new WorkerJobSourceException(new RedisTimeoutException("t", CommandStatus.Unknown))
+        {
+            IsHandled = true,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = true
+        };
 
         var report = _sut.GetReport(wrapped);
 
         Assert.True(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 }

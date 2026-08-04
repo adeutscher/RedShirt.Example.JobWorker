@@ -51,29 +51,6 @@ public class BatchModeJobLoaderTests
     }
 
     [Fact]
-    public async Task RunAsync_WhenCriticalWorkerJobSourceException_Propagates()
-    {
-        var critical = new WorkerJobSourceException("auth failed");
-
-        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
-        jobSource
-            .Setup(s => s.GetJobsAsync(10, TestContext.Current.CancellationToken))
-            .ThrowsAsync(critical);
-
-        var loader = new BatchModeJobLoader(
-            jobSource.Object,
-            new Mock<IJobRepository>(MockBehavior.Strict).Object,
-            new Mock<IJobIntakeService>(MockBehavior.Strict).Object,
-            new NullLogger<BatchModeJobLoader>(),
-            Options.Create(new JobSourceConfigurationModel {BatchSize = 10}));
-
-        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
-            loader.RunAsync(TestContext.Current.CancellationToken));
-
-        Assert.Same(critical, thrown);
-    }
-
-    [Fact]
     public async Task RunAsync_WhenJobsReturned_SubmitsThenWaitsForEmptyRepository()
     {
         var response = CreateJobSourceResponse([new Mock<IRawJobModel>(MockBehavior.Strict).Object]);
@@ -114,9 +91,10 @@ public class BatchModeJobLoaderTests
     }
 
     [Fact]
-    public async Task RunAsync_WhenPermanentNonCriticalWorkerJobSourceException_Propagates()
+    public async Task RunAsync_WhenPermanentWorkerJobSourceException_Propagates()
     {
-        var permanent = new WorkerJobSourceException("unknown topic", false);
+        var permanent = new WorkerJobSourceException("unknown topic")
+            {CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false};
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
@@ -175,7 +153,8 @@ public class BatchModeJobLoaderTests
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
             .Setup(s => s.GetJobsAsync(10, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new WorkerJobSourceException("transient pull", false, true));
+            .ThrowsAsync(new WorkerJobSourceException("transient pull")
+                {CouldBeTransient = true, IsHandled = false, CouldBeExternallySolvable = true});
 
         var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
@@ -192,5 +171,28 @@ public class BatchModeJobLoaderTests
         jobIntakeService.Verify(
             s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenUnexpectedExceptionFromSource_Propagates()
+    {
+        var unexpected = new InvalidOperationException("auth failed");
+
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource
+            .Setup(s => s.GetJobsAsync(10, TestContext.Current.CancellationToken))
+            .ThrowsAsync(unexpected);
+
+        var loader = new BatchModeJobLoader(
+            jobSource.Object,
+            new Mock<IJobRepository>(MockBehavior.Strict).Object,
+            new Mock<IJobIntakeService>(MockBehavior.Strict).Object,
+            new NullLogger<BatchModeJobLoader>(),
+            Options.Create(new JobSourceConfigurationModel {BatchSize = 10}));
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            loader.RunAsync(TestContext.Current.CancellationToken));
+
+        Assert.Same(unexpected, thrown);
     }
 }

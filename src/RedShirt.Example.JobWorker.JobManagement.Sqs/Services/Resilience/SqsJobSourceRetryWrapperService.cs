@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
 using RedShirt.Example.JobWorker.Core.Exceptions;
@@ -18,6 +19,7 @@ internal interface ISqsJobSourceRetryWrapperService
 
 internal class SqsJobSourceRetryWrapperService(
     ISqsJobSourceExceptionArbiterService exceptionArbiterService,
+    ILogger<SqsJobSourceRetryWrapperService> logger,
     ISleepService sleepService)
     : ISqsJobSourceRetryWrapperService
 {
@@ -44,13 +46,16 @@ internal class SqsJobSourceRetryWrapperService(
                     }
 
                     var report = exceptionArbiterService.GetReport(exception);
-                    return report is {IsCritical: false, CouldBeTransient: true}
+                    return report is {IsExpected: true, CouldBeTransient: true}
                         ? PredicateResult.True()
                         : PredicateResult.False();
                 },
                 DelayGenerator = static _ => new ValueTask<TimeSpan?>(TimeSpan.Zero),
                 OnRetry = async args =>
                 {
+                    logger.LogWarning(args.Outcome.Exception,
+                        "Retrying SQS job source operation after attempt {AttemptNumber}",
+                        args.AttemptNumber);
                     await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber)),
                         args.Context.CancellationToken);
                 }
@@ -62,17 +67,27 @@ internal class SqsJobSourceRetryWrapperService(
     {
         var report = exceptionArbiterService.GetReport(exception);
 
-        if (report.AlreadyHandled)
+        // ReSharper disable once DuplicatedSequentialIfBodies
+        if (report.AlreadyHandled && exception is WorkerJobSourceException)
         {
             return exception;
         }
 
-        if (report.IsCritical)
+        if (!report.IsExpected)
         {
+            /*
+             * Unexpected / unrecognized.
+             * Unexpected failures stay raw so they raise attention and get classified.
+             */
             return exception;
         }
 
-        return new WorkerJobSourceException(exception, report.IsCritical, report.CouldBeTransient, true);
+        return new WorkerJobSourceException(exception)
+        {
+            CouldBeTransient = report.CouldBeTransient,
+            IsHandled = true,
+            CouldBeExternallySolvable = report.CouldBeExternallySolvable
+        };
     }
 
     public async Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func,

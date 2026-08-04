@@ -58,7 +58,7 @@ public class PulsarJobModelTests
     [Fact]
     public void IdempotencyId_MatchesMessageId_WhenMessageIdIsNotDefault()
     {
-        var (_, job) = CreateJob("events:1:2:3", false);
+        var (_, job) = CreateJob("events:1:2:3");
 
         Assert.Equal(job.MessageId, job.IdempotencyId);
         Assert.Equal("events:1:2:3", job.IdempotencyId);

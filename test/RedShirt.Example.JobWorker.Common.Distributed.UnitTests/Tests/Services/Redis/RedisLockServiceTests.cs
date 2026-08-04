@@ -3,6 +3,7 @@ using Moq;
 using RedShirt.Example.JobWorker.Common.Distributed.Configuration;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
+using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis.Resilience;
 using StackExchange.Redis;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services.Redis;
@@ -79,7 +80,8 @@ public class RedisLockServiceTests
     {
         var source = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
         var retry = new Mock<IDistributedRetryWrapperService>(MockBehavior.Strict);
-        var expected = new WorkerDistributedException("redis unavailable", isTransient: true);
+        var expected = new WorkerDistributedException("redis unavailable")
+            {CouldBeTransient = true, IsHandled = false, CouldBeExternallySolvable = true};
         retry
             .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<IDatabase>>>(),
                 TestContext.Current.CancellationToken))

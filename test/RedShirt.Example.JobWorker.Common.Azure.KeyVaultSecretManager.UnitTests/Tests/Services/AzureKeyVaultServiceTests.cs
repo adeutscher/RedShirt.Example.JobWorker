@@ -2,7 +2,7 @@ using RedShirt.Example.JobWorker.Common.Azure.Exceptions;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Clients;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Factories;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Services;
-using RedShirt.Example.JobWorker.Common.Azure.Services;
+using RedShirt.Example.JobWorker.Common.Azure.Services.Resilience;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Exceptions;
 
 namespace RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.UnitTests.Tests.Services;
@@ -43,8 +43,8 @@ public class AzureKeyVaultServiceTests
                 service.GetSecretAsync(key, TestContext.Current.CancellationToken));
 
             Assert.Equal($"Invalid secret path: {key}", thrown.Message);
-            Assert.True(thrown.IsCritical);
-            Assert.False(thrown.IsTransient);
+            Assert.False(thrown.CouldBeTransient);
+            Assert.False(thrown.IsHandled);
             source.VerifyNoOtherCalls();
             client.VerifyNoOtherCalls();
             retry.VerifyNoOtherCalls();
@@ -62,8 +62,8 @@ public class AzureKeyVaultServiceTests
                 service.GetSecretAsync(key, TestContext.Current.CancellationToken));
 
             Assert.Equal($"Invalid secret path: {key}", thrown.Message);
-            Assert.True(thrown.IsCritical);
-            Assert.False(thrown.IsTransient);
+            Assert.False(thrown.CouldBeTransient);
+            Assert.False(thrown.IsHandled);
             source.VerifyNoOtherCalls();
             retry.VerifyNoOtherCalls();
         }
@@ -152,16 +152,21 @@ public class AzureKeyVaultServiceTests
         }
 
         [Theory]
-        [InlineData(true, true)]
-        [InlineData(true, false)]
-        [InlineData(false, true)]
-        [InlineData(false, false)]
+        [InlineData(true, true, true)]
+        [InlineData(true, false, false)]
+        [InlineData(false, true, true)]
+        [InlineData(false, false, false)]
         public async Task WhenRetryWrapperThrowsWorkerAzureException_WrapsAsSecretManagerException(
-            bool isCritical,
-            bool isTransient)
+            bool isTransient,
+            bool isHandled,
+            bool couldBeExternallySolvable)
         {
             var key = Guid.NewGuid().ToString("N");
-            var inner = new WorkerAzureException("vault unavailable", isCritical, isTransient);
+            var inner = new WorkerAzureException("vault unavailable")
+            {
+                CouldBeTransient = isTransient, IsHandled = isHandled,
+                CouldBeExternallySolvable = couldBeExternallySolvable
+            };
 
             var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
             var retry = new Mock<IAzureRetryWrapperService>(MockBehavior.Strict);
@@ -176,8 +181,9 @@ public class AzureKeyVaultServiceTests
                 service.GetSecretAsync(key, TestContext.Current.CancellationToken));
 
             Assert.Same(inner, thrown.InnerException);
-            Assert.Equal(isCritical, thrown.IsCritical);
-            Assert.Equal(isTransient, thrown.IsTransient);
+            Assert.Equal(isTransient, thrown.CouldBeTransient);
+            Assert.Equal(isHandled, thrown.IsHandled);
+            Assert.Equal(couldBeExternallySolvable, thrown.CouldBeExternallySolvable);
             source.VerifyNoOtherCalls();
         }
     }
@@ -244,8 +250,8 @@ public class AzureKeyVaultServiceTests
                 service.GetSecretsAsync(["ok-key", "bad key", "also bad!"], TestContext.Current.CancellationToken));
 
             Assert.Equal("Invalid secret path: bad key", thrown.Message);
-            Assert.True(thrown.IsCritical);
-            Assert.False(thrown.IsTransient);
+            Assert.False(thrown.CouldBeTransient);
+            Assert.False(thrown.IsHandled);
         }
 
         [Theory]
@@ -263,8 +269,8 @@ public class AzureKeyVaultServiceTests
                 service.GetSecretsAsync([validKey, badKey], TestContext.Current.CancellationToken));
 
             Assert.Equal($"Invalid secret path: {badKey}", thrown.Message);
-            Assert.True(thrown.IsCritical);
-            Assert.False(thrown.IsTransient);
+            Assert.False(thrown.CouldBeTransient);
+            Assert.False(thrown.IsHandled);
             source.VerifyNoOtherCalls();
             retry.VerifyNoOtherCalls();
         }
@@ -346,16 +352,21 @@ public class AzureKeyVaultServiceTests
         }
 
         [Theory]
-        [InlineData(true, true)]
-        [InlineData(true, false)]
-        [InlineData(false, true)]
-        [InlineData(false, false)]
+        [InlineData(true, true, true)]
+        [InlineData(true, false, false)]
+        [InlineData(false, true, true)]
+        [InlineData(false, false, false)]
         public async Task WhenSecretFetchThrowsWorkerAzureException_WrapsAsSecretManagerException(
-            bool isCritical,
-            bool isTransient)
+            bool isTransient,
+            bool isHandled,
+            bool couldBeExternallySolvable)
         {
             var key = Guid.NewGuid().ToString("N");
-            var azureException = new WorkerAzureException("get failed", isCritical, isTransient);
+            var azureException = new WorkerAzureException("get failed")
+            {
+                CouldBeTransient = isTransient, IsHandled = isHandled,
+                CouldBeExternallySolvable = couldBeExternallySolvable
+            };
 
             var client = new Mock<IAzureKeyVaultClientWrapper>(MockBehavior.Strict);
             var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
@@ -377,19 +388,27 @@ public class AzureKeyVaultServiceTests
                 service.GetSecretsAsync([key], TestContext.Current.CancellationToken));
 
             Assert.Same(azureException, thrown.InnerException);
-            Assert.Equal(isCritical, thrown.IsCritical);
-            Assert.Equal(isTransient, thrown.IsTransient);
+            Assert.Equal(isTransient, thrown.CouldBeTransient);
+            Assert.Equal(isHandled, thrown.IsHandled);
+            Assert.Equal(couldBeExternallySolvable, thrown.CouldBeExternallySolvable);
         }
 
         [Theory]
-        [InlineData(true, true)]
-        [InlineData(true, false)]
-        [InlineData(false, true)]
-        [InlineData(false, false)]
-        public async Task WhenWorkerAzureException_WrapsAsSecretManagerException(bool isCritical, bool isTransient)
+        [InlineData(true, true, true)]
+        [InlineData(true, false, false)]
+        [InlineData(false, true, true)]
+        [InlineData(false, false, false)]
+        public async Task WhenWorkerAzureException_WrapsAsSecretManagerException(
+            bool isTransient,
+            bool isHandled,
+            bool couldBeExternallySolvable)
         {
             var key = Guid.NewGuid().ToString("N");
-            var azureException = new WorkerAzureException("vault unavailable", isCritical, isTransient);
+            var azureException = new WorkerAzureException("vault unavailable")
+            {
+                CouldBeTransient = isTransient, IsHandled = isHandled,
+                CouldBeExternallySolvable = couldBeExternallySolvable
+            };
 
             var source = new Mock<IAzureKeyVaultClientSource>(MockBehavior.Strict);
             var retry = new Mock<IAzureRetryWrapperService>(MockBehavior.Strict);
@@ -404,8 +423,9 @@ public class AzureKeyVaultServiceTests
                 service.GetSecretsAsync([key], TestContext.Current.CancellationToken));
 
             Assert.Same(azureException, thrown.InnerException);
-            Assert.Equal(isCritical, thrown.IsCritical);
-            Assert.Equal(isTransient, thrown.IsTransient);
+            Assert.Equal(isTransient, thrown.CouldBeTransient);
+            Assert.Equal(isHandled, thrown.IsHandled);
+            Assert.Equal(couldBeExternallySolvable, thrown.CouldBeExternallySolvable);
             source.VerifyNoOtherCalls();
         }
     }

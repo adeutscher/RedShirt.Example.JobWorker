@@ -139,8 +139,12 @@ internal class SqsJobSource(
             }, ct), cancellationToken);
 
             throw new WorkerJobSourceException(
-                "Message is in danger of exceeding maximum SQS visibility timeout.",
-                false);
+                "Message is in danger of exceeding maximum SQS visibility timeout.")
+            {
+                CouldBeTransient = false,
+                IsHandled = false,
+                CouldBeExternallySolvable = false
+            };
         }
 
         await retryWrapperService.RunAsync(ct => sqs.ChangeMessageVisibilityAsync(request, ct), cancellationToken);

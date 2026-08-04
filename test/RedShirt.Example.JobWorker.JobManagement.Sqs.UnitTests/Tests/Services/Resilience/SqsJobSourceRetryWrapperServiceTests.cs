@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Services.Utility;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Models;
@@ -12,8 +13,9 @@ public class SqsJobSourceRetryWrapperServiceTests
         return new SqsJobSourceExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = false,
-            CouldBeTransient = true
+            IsExpected = true,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = true
         };
     }
 
@@ -22,8 +24,9 @@ public class SqsJobSourceRetryWrapperServiceTests
         return new SqsJobSourceExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = false,
-            CouldBeTransient = false
+            IsExpected = true,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -32,8 +35,9 @@ public class SqsJobSourceRetryWrapperServiceTests
         return new SqsJobSourceExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = true,
-            CouldBeTransient = false
+            IsExpected = false,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -42,8 +46,9 @@ public class SqsJobSourceRetryWrapperServiceTests
         return new SqsJobSourceExceptionArbiterReport
         {
             AlreadyHandled = true,
-            IsCritical = false,
-            CouldBeTransient = couldBeTransient
+            IsExpected = true,
+            CouldBeTransient = couldBeTransient,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -64,7 +69,9 @@ public class SqsJobSourceRetryWrapperServiceTests
     {
         var arbiter = new Mock<ISqsJobSourceExceptionArbiterService>(MockBehavior.Strict);
         var sleep = CreateSleepService();
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object,
+            NullLogger<SqsJobSourceRetryWrapperService>.Instance,
+            sleep.Object);
         var ran = false;
 
         await wrapper.RunAsync(_ =>
@@ -87,7 +94,9 @@ public class SqsJobSourceRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleep = CreateSleepService();
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object,
+            NullLogger<SqsJobSourceRetryWrapperService>.Instance,
+            sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
             _ =>
@@ -99,19 +108,23 @@ public class SqsJobSourceRetryWrapperServiceTests
 
         Assert.Same(inner, thrown.InnerException);
         Assert.True(thrown.IsHandled);
+        Assert.True(thrown.CouldBeExternallySolvable);
         Assert.Equal(4, attempts);
     }
 
     [Fact]
     public async Task RunAsync_WhenAlreadyHandled_RethrowsWithoutWrapping()
     {
-        var inner = new WorkerJobSourceException("already wrapped", false, false, true);
+        var inner = new WorkerJobSourceException("already wrapped")
+            {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = false};
 
         var arbiter = new Mock<ISqsJobSourceExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport(false));
 
         var sleep = CreateSleepService();
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object,
+            NullLogger<SqsJobSourceRetryWrapperService>.Instance,
+            sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             wrapper.RunAsync(_ => throw inner, TestContext.Current.CancellationToken));
@@ -129,7 +142,9 @@ public class SqsJobSourceRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(inner)).Returns(CriticalReport());
 
         var sleep = CreateSleepService();
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object,
+            NullLogger<SqsJobSourceRetryWrapperService>.Instance,
+            sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             wrapper.RunAsync<string>(_ => throw inner, TestContext.Current.CancellationToken));
@@ -143,7 +158,9 @@ public class SqsJobSourceRetryWrapperServiceTests
     {
         var arbiter = new Mock<ISqsJobSourceExceptionArbiterService>(MockBehavior.Strict);
         var sleep = CreateSleepService();
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object,
+            NullLogger<SqsJobSourceRetryWrapperService>.Instance,
+            sleep.Object);
 
         var result = await wrapper.RunAsync(_ => Task.FromResult(42), TestContext.Current.CancellationToken);
 
@@ -160,7 +177,9 @@ public class SqsJobSourceRetryWrapperServiceTests
 
         var arbiter = new Mock<ISqsJobSourceExceptionArbiterService>(MockBehavior.Strict);
         var sleep = CreateSleepService();
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object,
+            NullLogger<SqsJobSourceRetryWrapperService>.Instance,
+            sleep.Object);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync(
             _ => throw new OperationCanceledException(cts.Token),
@@ -180,7 +199,9 @@ public class SqsJobSourceRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(inner)).Returns(PermanentReport());
 
         var sleep = CreateSleepService();
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object,
+            NullLogger<SqsJobSourceRetryWrapperService>.Instance,
+            sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
             _ =>
@@ -194,6 +215,7 @@ public class SqsJobSourceRetryWrapperServiceTests
         Assert.Same(inner, thrown.InnerException);
         Assert.True(thrown.IsHandled);
         Assert.False(thrown.CouldBeTransient);
+        Assert.False(thrown.CouldBeExternallySolvable);
         Assert.Empty(sleep.Invocations);
     }
 
@@ -208,7 +230,9 @@ public class SqsJobSourceRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleep = CreateSleepService(delays);
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object,
+            NullLogger<SqsJobSourceRetryWrapperService>.Instance,
+            sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync<string>(
             _ =>
@@ -219,9 +243,9 @@ public class SqsJobSourceRetryWrapperServiceTests
             TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
         Assert.True(thrown.CouldBeTransient);
         Assert.True(thrown.IsHandled);
+        Assert.True(thrown.CouldBeExternallySolvable);
         Assert.Equal(4, attempts);
         Assert.Equal(
             [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4)],
@@ -238,7 +262,9 @@ public class SqsJobSourceRetryWrapperServiceTests
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleep = CreateSleepService(delays);
-        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper = new SqsJobSourceRetryWrapperService(arbiter.Object,
+            NullLogger<SqsJobSourceRetryWrapperService>.Instance,
+            sleep.Object);
 
         var result = await wrapper.RunAsync(
             _ =>

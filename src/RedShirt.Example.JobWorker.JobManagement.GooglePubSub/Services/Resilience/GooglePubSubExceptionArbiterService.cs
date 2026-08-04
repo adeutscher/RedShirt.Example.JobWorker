@@ -42,6 +42,16 @@ internal class GooglePubSubExceptionArbiterService : IGooglePubSubExceptionArbit
         StatusCode.DataLoss
     ];
 
+    // Subset of PermanentStatusCodes that ops can resolve externally: granting IAM (PermissionDenied /
+    // Unauthenticated) or creating the missing resource (NotFound). The rest (InvalidArgument,
+    // AlreadyExists, FailedPrecondition, OutOfRange, Unimplemented, DataLoss) are caller/config issues.
+    private static readonly HashSet<StatusCode> ExternallySolvablePermanentStatusCodes =
+    [
+        StatusCode.PermissionDenied,
+        StatusCode.Unauthenticated,
+        StatusCode.NotFound
+    ];
+
     private static readonly HashSet<SocketError> DnsSocketErrors =
     [
         SocketError.HostNotFound,
@@ -50,41 +60,56 @@ internal class GooglePubSubExceptionArbiterService : IGooglePubSubExceptionArbit
         SocketError.TryAgain
     ];
 
-    private static GooglePubSubExceptionArbiterReport Fresh(bool isCritical, bool couldBeTransient)
+    private static GooglePubSubExceptionArbiterReport Fresh(
+        bool isExpected,
+        bool couldBeTransient,
+        bool couldBeExternallySolvable)
     {
         return new GooglePubSubExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = isCritical,
-            CouldBeTransient = couldBeTransient
+            IsExpected = isExpected,
+            CouldBeTransient = couldBeTransient,
+            CouldBeExternallySolvable = couldBeExternallySolvable
         };
     }
 
-    private static GooglePubSubExceptionArbiterReport Handled(bool isCritical, bool couldBeTransient)
+    private static GooglePubSubExceptionArbiterReport Handled(
+        bool isExpected,
+        bool couldBeTransient,
+        bool couldBeExternallySolvable)
     {
         return new GooglePubSubExceptionArbiterReport
         {
             AlreadyHandled = true,
-            IsCritical = isCritical,
-            CouldBeTransient = couldBeTransient
+            IsExpected = isExpected,
+            CouldBeTransient = couldBeTransient,
+            CouldBeExternallySolvable = couldBeExternallySolvable
         };
     }
 
     private static GooglePubSubExceptionArbiterReport ClassifyRpcException(RpcException rpc)
     {
+        if (ExternallySolvablePermanentStatusCodes.Contains(rpc.StatusCode))
+        {
+            return Fresh(true, false, true);
+        }
+
         if (PermanentStatusCodes.Contains(rpc.StatusCode))
         {
-            return Fresh(false, false);
+            return Fresh(true, false, false);
         }
 
         // Misconfigured host / DNS failure surfaces as Unavailable + "Error connecting to subchannel."
-        // with an underlying DNS SocketException. Retrying will not help.
+        // with an underlying DNS SocketException. Retrying will not help, and it's a local config
+        // issue (bad host), not something ops can fix externally.
         if (rpc.StatusCode == StatusCode.Unavailable && IsUnavailableDnsSubchannelFailure(rpc))
         {
-            return Fresh(false, false);
+            return Fresh(true, false, false);
         }
 
-        return Fresh(false, TransientStatusCodes.Contains(rpc.StatusCode));
+        var isTransient = TransientStatusCodes.Contains(rpc.StatusCode);
+        return Fresh(true, isTransient, isTransient);
     }
 
     private static bool IsUnavailableDnsSubchannelFailure(RpcException rpc)
@@ -135,20 +160,26 @@ internal class GooglePubSubExceptionArbiterService : IGooglePubSubExceptionArbit
         {
             // Already classified/wrapped by an earlier job-source layer — do not wrap again.
             // Only allow further retry when the prior wrapper has not already exhausted retries.
+            // Propagate the inner wrapper's own externally-solvable classification.
             WorkerJobSourceException workerJobSource =>
-                Handled(workerJobSource.IsCritical, workerJobSource is {IsHandled: false, CouldBeTransient: true}),
+                Handled(
+                    true,
+                    workerJobSource is {IsHandled: false, CouldBeTransient: true},
+                    workerJobSource.CouldBeExternallySolvable),
             // gRPC status from the Pub/Sub client / emulator.
             RpcException rpc => ClassifyRpcException(rpc),
-            TimeoutException or SocketException or HttpRequestException => Fresh(false, true),
+            TimeoutException
+                or SocketException
+                or HttpRequestException => Fresh(true, true, true),
             // HttpClient-style timeouts sometimes surface as TaskCanceledException.
             // Must be matched before OperationCanceledException (TCE derives from OCE).
-            TaskCanceledException => Fresh(false, true),
-            // Explicit CancellationToken cancellation from the caller — do not retry.
-            OperationCanceledException => Fresh(false, false),
-            // Client-side argument validation — not retryable.
-            ArgumentException => Fresh(false, false),
-            // Unrecognized exception type — treat as critical so callers surface the raw failure.
-            _ => Fresh(true, false)
+            TaskCanceledException => Fresh(true, true, true),
+            // Explicit CancellationToken cancellation from the caller — do not retry; not externally solvable.
+            OperationCanceledException => Fresh(true, false, false),
+            // Client-side argument validation — not retryable and not externally solvable.
+            ArgumentException => Fresh(true, false, false),
+            // Unrecognized exception type — treat as unexpected so callers surface the raw failure.
+            _ => Fresh(false, false, false)
         };
     }
 }

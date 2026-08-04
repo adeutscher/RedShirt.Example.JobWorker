@@ -4,6 +4,7 @@ using RedShirt.Example.JobWorker.Common.Distributed.Configuration;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
+using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis.Resilience;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 

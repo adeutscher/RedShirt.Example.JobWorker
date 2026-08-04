@@ -1,5 +1,6 @@
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Models;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.Services;
 

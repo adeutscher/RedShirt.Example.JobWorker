@@ -26,79 +26,87 @@ public class KinesisExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_AccessDeniedException_IsCritical()
+    public void GetReport_AccessDeniedException_IsExpectedAndNotTransient()
     {
         var report = _sut.GetReport(new AccessDeniedException("denied"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
     public void GetReport_AmazonDynamoDBException_DelegatesToAwsArbiter()
     {
         var exception = new AmazonDynamoDBException("generic dynamo");
-        _awsArbiter.Setup(a => a.GetJudgement(exception)).Returns(new AwsExceptionArbiterReport
+        _awsArbiter.Setup(a => a.GetReport(exception)).Returns(new AwsExceptionArbiterReport
         {
-            IsCritical = false,
-            CouldBeTransient = false
+            IsExpected = true,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
         });
 
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
-        _awsArbiter.Verify(a => a.GetJudgement(exception), Times.Once);
+        Assert.False(report.CouldBeExternallySolvable);
+        _awsArbiter.Verify(a => a.GetReport(exception), Times.Once);
     }
 
     [Fact]
     public void GetReport_AmazonKinesisException_DelegatesToAwsArbiter()
     {
         var exception = new AmazonKinesisException("generic kinesis");
-        _awsArbiter.Setup(a => a.GetJudgement(exception)).Returns(new AwsExceptionArbiterReport
+        _awsArbiter.Setup(a => a.GetReport(exception)).Returns(new AwsExceptionArbiterReport
         {
-            IsCritical = false,
-            CouldBeTransient = true
+            IsExpected = true,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = true
         });
 
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
-        _awsArbiter.Verify(a => a.GetJudgement(exception), Times.Once);
+        Assert.True(report.CouldBeExternallySolvable);
+        _awsArbiter.Verify(a => a.GetReport(exception), Times.Once);
     }
 
     [Fact]
-    public void GetReport_DynamoDbResourceNotFoundException_IsPermanentNonCritical()
+    public void GetReport_DynamoDbResourceNotFoundException_IsExpectedAndNotTransient()
     {
         var report = _sut.GetReport(new DynamoDbResourceNotFoundException("item missing"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_ExpiredIteratorException_IsPermanentNonCritical()
+    public void GetReport_ExpiredIteratorException_IsExpectedAndNotTransient()
     {
         var report = _sut.GetReport(new ExpiredIteratorException("expired"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_KMSAccessDeniedException_IsCritical()
+    public void GetReport_KMSAccessDeniedException_IsExpectedAndNotTransient()
     {
         var report = _sut.GetReport(new KMSAccessDeniedException("kms denied"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -107,18 +115,20 @@ public class KinesisExceptionArbiterServiceTests
         var report = _sut.GetReport(new KMSDisabledException("key disabled"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_KinesisResourceNotFoundException_IsCritical()
+    public void GetReport_KinesisResourceNotFoundException_IsExpectedAndNotTransient()
     {
         var report = _sut.GetReport(new KinesisResourceNotFoundException("missing stream"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -133,8 +143,9 @@ public class KinesisExceptionArbiterServiceTests
         var report = _sut.GetReport(new KinesisProvisionedThroughputExceededException("throttled"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -142,67 +153,80 @@ public class KinesisExceptionArbiterServiceTests
     {
         var report = _sut.GetReport(new AggregateException(new AccessDeniedException("denied")));
 
-        Assert.True(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_TableNotFoundException_IsCritical()
+    public void GetReport_TableNotFoundException_IsExpectedAndNotTransient()
     {
         var report = _sut.GetReport(new TableNotFoundException("missing table"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_UnrecognizedException_IsCritical()
+    public void GetReport_UnrecognizedException_IsNotExpected()
     {
         var report = _sut.GetReport(new InvalidOperationException("boom"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsCritical);
+        Assert.False(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
         _awsArbiter.VerifyNoOtherCalls();
     }
 
     [Fact]
     public void GetReport_WorkerDistributedException_IsAlreadyHandled()
     {
-        var exception = new WorkerDistributedException("redis failure", false, true);
+        var exception = new WorkerDistributedException("redis failure")
+            {IsHandled = false, CouldBeTransient = true, CouldBeExternallySolvable = true};
 
         var report = _sut.GetReport(exception);
 
         Assert.True(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
     public void GetReport_WorkerJobSourceException_Handled_RespectsIsHandled()
     {
-        var unhandled = new WorkerJobSourceException("retryable", false, true);
-        var handled = new WorkerJobSourceException("exhausted", false, true, true);
+        var unhandled = new WorkerJobSourceException("retryable")
+            {IsHandled = false, CouldBeTransient = true, CouldBeExternallySolvable = true};
+        var handled = new WorkerJobSourceException("exhausted")
+            {IsHandled = true, CouldBeTransient = true, CouldBeExternallySolvable = false};
 
         var unhandledReport = _sut.GetReport(unhandled);
         var handledReport = _sut.GetReport(handled);
 
         Assert.True(unhandledReport.AlreadyHandled);
         Assert.True(unhandledReport.CouldBeTransient);
+        Assert.True(unhandledReport.CouldBeExternallySolvable);
 
         Assert.True(handledReport.AlreadyHandled);
         Assert.False(handledReport.CouldBeTransient);
+        Assert.False(handledReport.CouldBeExternallySolvable);
     }
 
     [Fact]
     public void GetReport_WorkerSqsException_Handled_RespectsIsHandled()
     {
-        var unhandled = new WorkerSqsException("retryable", false, true);
-        var handled = new WorkerSqsException("exhausted", false, true, true);
+        var unhandled = new WorkerSqsException("retryable")
+            {IsHandled = false, CouldBeTransient = true, CouldBeExternallySolvable = true};
+        var handled = new WorkerSqsException("exhausted")
+            {IsHandled = true, CouldBeTransient = true, CouldBeExternallySolvable = false};
 
         Assert.True(_sut.GetReport(unhandled).CouldBeTransient);
         Assert.False(_sut.GetReport(handled).CouldBeTransient);
         Assert.True(_sut.GetReport(unhandled).AlreadyHandled);
+        Assert.True(_sut.GetReport(unhandled).CouldBeExternallySolvable);
+        Assert.False(_sut.GetReport(handled).CouldBeExternallySolvable);
     }
 }

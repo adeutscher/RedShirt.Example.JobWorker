@@ -47,7 +47,7 @@ internal sealed class SafeJobAcknowledgementService(
                 MaxRetryAttempts = Globals.AcknowledgementRetryCount,
                 ShouldHandle = new PredicateBuilder()
                     .Handle<WorkerJobSourceException>(e => e is
-                        {IsCritical: false, IsHandled: false, CouldBeTransient: true}),
+                        {IsHandled: false, CouldBeTransient: true}),
                 // Do not use Polly-based delays between attempts
                 DelayGenerator = static _ => new ValueTask<TimeSpan?>(TimeSpan.Zero),
                 OnRetry = async args =>
@@ -91,7 +91,7 @@ internal sealed class SafeJobAcknowledgementService(
                 cancellationToken);
             acknowledgedSuccessfully = true;
         }
-        catch (WorkerJobSourceException e) when (!e.IsCritical)
+        catch (WorkerJobSourceException e)
         {
             logger.LogError(e, "Job acknowledge failed: {EMessage}", e.Message);
         }

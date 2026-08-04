@@ -36,15 +36,18 @@ public class RedisConnectionFactoryTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task GetConnectionAsync_WrapsSecretManagerExceptionAsWorkerDistributedException(bool isTransient)
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public async Task GetConnectionAsync_WrapsSecretManagerExceptionAsWorkerDistributedException(
+        bool isTransient, bool couldBeExternallySolvable)
     {
         const string connectionStringPath = "redis/connection-string";
-        var secretException = new WorkerSecretManagerException(
-            "secret lookup failed",
-            false,
-            isTransient);
+        var secretException = new WorkerSecretManagerException("secret lookup failed")
+        {
+            CouldBeTransient = isTransient, IsHandled = false, CouldBeExternallySolvable = couldBeExternallySolvable
+        };
 
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
         secrets
@@ -63,8 +66,9 @@ public class RedisConnectionFactoryTests
 
         Assert.Equal(secretException.Message, thrown.Message);
         Assert.Same(secretException, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
-        Assert.Equal(isTransient, thrown.IsTransient);
+        Assert.Equal(isTransient, thrown.CouldBeTransient);
+        Assert.False(thrown.IsHandled);
+        Assert.Equal(couldBeExternallySolvable, thrown.CouldBeExternallySolvable);
         secrets.Verify(s => s.GetSecretAsync(connectionStringPath, null, false, TestContext.Current.CancellationToken),
             Times.Once);
         secrets.VerifyNoOtherCalls();

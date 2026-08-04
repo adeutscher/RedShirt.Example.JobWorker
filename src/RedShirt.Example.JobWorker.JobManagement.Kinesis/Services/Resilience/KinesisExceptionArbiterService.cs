@@ -36,35 +36,43 @@ internal interface IKinesisExceptionArbiterService
 ///     (<see cref="WorkerJobSourceException" />, <see cref="WorkerSqsException" />,
 ///     <see cref="WorkerDistributedException" />) as already handled, allowing further
 ///     retry only when those wrappers have not already exhausted retries.
-///     Unrecognized exception types are marked critical so callers surface them raw.
+///     Unrecognized exception types are marked unexpected so callers surface them raw.
 /// </summary>
 internal class KinesisExceptionArbiterService(IAwsExceptionArbiterService awsExceptionArbiterService)
     : IKinesisExceptionArbiterService
 {
-    private static KinesisExceptionArbiterReport Fresh(bool isCritical, bool couldBeTransient)
+    private static KinesisExceptionArbiterReport Fresh(
+        bool isExpected,
+        bool couldBeTransient,
+        bool couldBeExternallySolvable)
     {
         return new KinesisExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = isCritical,
-            CouldBeTransient = couldBeTransient
+            IsExpected = isExpected,
+            CouldBeTransient = couldBeTransient,
+            CouldBeExternallySolvable = couldBeExternallySolvable
         };
     }
 
-    private static KinesisExceptionArbiterReport Handled(bool isCritical, bool couldBeTransient)
+    private static KinesisExceptionArbiterReport Handled(
+        bool isExpected,
+        bool couldBeTransient,
+        bool couldBeExternallySolvable)
     {
         return new KinesisExceptionArbiterReport
         {
             AlreadyHandled = true,
-            IsCritical = isCritical,
-            CouldBeTransient = couldBeTransient
+            IsExpected = isExpected,
+            CouldBeTransient = couldBeTransient,
+            CouldBeExternallySolvable = couldBeExternallySolvable
         };
     }
 
     private KinesisExceptionArbiterReport MapFromAws(AmazonServiceException exception)
     {
-        var report = awsExceptionArbiterService.GetJudgement(exception);
-        return Fresh(report.IsCritical, report.CouldBeTransient);
+        var report = awsExceptionArbiterService.GetReport(exception);
+        return Fresh(report.IsExpected, report.CouldBeTransient, report.CouldBeExternallySolvable);
     }
 
     public KinesisExceptionArbiterReport GetReport(Exception exception)
@@ -79,13 +87,12 @@ internal class KinesisExceptionArbiterService(IAwsExceptionArbiterService awsExc
         return exception switch
         {
             // --- Underlying worker exceptions
-            WorkerJobSourceException workerJobSource =>
-                Handled(workerJobSource.IsCritical,
-                    workerJobSource is {IsHandled: false, CouldBeTransient: true}),
-            WorkerSqsException workerSqs =>
-                Handled(workerSqs.IsCritical, workerSqs is {IsHandled: false, IsTransient: true}),
-            WorkerDistributedException workerDistributed =>
-                Handled(workerDistributed.IsCritical, workerDistributed.IsTransient),
+            WorkerJobSourceException w =>
+                Handled(true, w is {IsHandled: false, CouldBeTransient: true}, w.CouldBeExternallySolvable),
+            WorkerSqsException w =>
+                Handled(true, w is {IsHandled: false, CouldBeTransient: true}, w.CouldBeExternallySolvable),
+            WorkerDistributedException w =>
+                Handled(true, w is {IsHandled: false, CouldBeTransient: true}, w.CouldBeExternallySolvable),
 
             /*
              * Strictly speaking, mapping all of these Kinesis/DynamoDB inheritors
@@ -94,49 +101,61 @@ internal class KinesisExceptionArbiterService(IAwsExceptionArbiterService awsExc
              * That said, it offers a certain sense of security.
              */
 
-            // --- Kinesis: transient ---
-            KinesisProvisionedThroughputExceededException => Fresh(false, true),
-            KinesisLimitExceededException => Fresh(false, true),
-            KinesisInternalFailureException => Fresh(false, true),
-            KMSThrottlingException => Fresh(false, true),
-            KMSDisabledException => Fresh(false, true),
+            // --- Kinesis: transient --- (throughput/throttling/internal/KMS-throttling clears externally)
+            KinesisProvisionedThroughputExceededException => Fresh(true, true, true),
+            KinesisLimitExceededException => Fresh(true, true, true),
+            KinesisInternalFailureException => Fresh(true, true, true),
+            KMSThrottlingException => Fresh(true, true, true),
+            KMSDisabledException => Fresh(true, true, true),
 
             // --- Kinesis: permanent / caller must recover without blind retry ---
-            // Expired iterators need a fresh GetShardIterator, not retries of the same call.
-            ExpiredIteratorException or ExpiredNextTokenException => Fresh(false, false),
-            AccessDeniedException => Fresh(true, false),
+            // Expired iterators/tokens require the client to re-fetch a fresh iterator; retrying (or
+            // an external fix) will not help since the fix is process-local.
+            ExpiredIteratorException or ExpiredNextTokenException => Fresh(true, false, false),
+            // IAM/permissions — ops can grant access externally without a worker restart.
+            AccessDeniedException => Fresh(true, false, true),
+            // Bad local arguments/config — not retryable and not an external fix.
             // ReSharper disable once RedundantNameQualifier
-            InvalidArgumentException => Fresh(false, false),
-            ValidationException => Fresh(false, false),
-            KinesisResourceNotFoundException => Fresh(true, false),
-            KinesisResourceInUseException => Fresh(false, false),
-            KMSAccessDeniedException => Fresh(true, false),
+            InvalidArgumentException => Fresh(true, false, false),
+            ValidationException => Fresh(true, false, false),
+            // Missing stream — ops can create it externally without a worker restart.
+            KinesisResourceNotFoundException => Fresh(true, false, true),
+            // Stream already exists / in use — a naming/lifecycle conflict, not something ops resolve
+            // by creating a resource.
+            KinesisResourceInUseException => Fresh(true, false, false),
+            // KMS access/state issues ops can grant or fix on the key without a worker restart.
+            KMSAccessDeniedException => Fresh(true, false, true),
             KMSInvalidStateException
-                or KMSNotFoundException or KMSOptInRequiredException => Fresh(false, false),
-            KinesisEventStreamException => Fresh(false, true),
+                or KMSNotFoundException or KMSOptInRequiredException => Fresh(true, false, true),
+            KinesisEventStreamException => Fresh(true, true, true),
             AmazonKinesisException kinesisException => MapFromAws(kinesisException),
 
-            // --- DynamoDB: transient ---
-            DynamoDbProvisionedThroughputExceededException => Fresh(false, true),
-            RequestLimitExceededException => Fresh(false, true),
-            ThrottlingException => Fresh(false, true),
-            DynamoDbInternalServerErrorException => Fresh(false, true),
-            DynamoDbLimitExceededException => Fresh(false, true),
-            TransactionConflictException or TransactionInProgressException => Fresh(false, true),
-            ReplicatedWriteConflictException => Fresh(false, true),
-            DynamoDbResourceInUseException => Fresh(false, true),
+            // --- DynamoDB: transient --- (throughput/throttling/internal issues clear externally)
+            DynamoDbProvisionedThroughputExceededException => Fresh(true, true, true),
+            RequestLimitExceededException => Fresh(true, true, true),
+            ThrottlingException => Fresh(true, true, true),
+            DynamoDbInternalServerErrorException => Fresh(true, true, true),
+            DynamoDbLimitExceededException => Fresh(true, true, true),
+            TransactionConflictException or TransactionInProgressException => Fresh(true, true, true),
+            ReplicatedWriteConflictException => Fresh(true, true, true),
+            DynamoDbResourceInUseException => Fresh(true, true, true),
 
             // --- DynamoDB: permanent ---
-            ConditionalCheckFailedException => Fresh(false, false),
-            DynamoDbResourceNotFoundException => Fresh(false, false),
-            TableNotFoundException => Fresh(true, false),
-            TableAlreadyExistsException or TableInUseException => Fresh(false, false),
-            TransactionCanceledException => Fresh(false, false),
-            ItemCollectionSizeLimitExceededException => Fresh(false, false),
+            // A condition mismatch is a client-side logic/data issue, not an external fix.
+            ConditionalCheckFailedException => Fresh(true, false, false),
+            // Missing table — ops can create it externally without a worker restart.
+            DynamoDbResourceNotFoundException => Fresh(true, false, true),
+            TableNotFoundException => Fresh(true, false, true),
+            // Table already exists / in use — a naming/lifecycle conflict, not an external resource fix.
+            TableAlreadyExistsException or TableInUseException => Fresh(true, false, false),
+            // Explicit transaction cancellation — local logic, not an external fix.
+            TransactionCanceledException => Fresh(true, false, false),
+            // Item/partition too large for the schema — a data-model issue, not an external fix.
+            ItemCollectionSizeLimitExceededException => Fresh(true, false, false),
             AmazonDynamoDBException dynamoDbException => MapFromAws(dynamoDbException),
 
-            // Unrecognized exception type — critical so callers surface the raw failure.
-            _ => Fresh(true, false)
+            // Unrecognized exception type — unexpected so callers surface the raw failure.
+            _ => Fresh(false, false, false)
         };
     }
 }

@@ -1,6 +1,6 @@
 using RedShirt.Example.JobWorker.Common.Azure.Exceptions;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Factories;
-using RedShirt.Example.JobWorker.Common.Azure.Services;
+using RedShirt.Example.JobWorker.Common.Azure.Services.Resilience;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Exceptions;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 using System.Text.RegularExpressions;
@@ -30,8 +30,8 @@ internal partial class AzureKeyVaultService(
     {
         if (!IsValidKey(key))
         {
-            // ReSharper disable once RedundantArgumentDefaultValue
-            throw new WorkerSecretManagerException($"Invalid secret path: {key}", true);
+            throw new WorkerSecretManagerException($"Invalid secret path: {key}")
+                {CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false};
         }
 
         try
@@ -45,7 +45,12 @@ internal partial class AzureKeyVaultService(
         catch (WorkerAzureException e)
         {
             // Translate
-            throw new WorkerSecretManagerException(e, e.IsCritical, e.IsTransient);
+            throw new WorkerSecretManagerException(e)
+            {
+                CouldBeTransient = e.CouldBeTransient,
+                IsHandled = e.IsHandled,
+                CouldBeExternallySolvable = e.CouldBeExternallySolvable
+            };
         }
     }
 
@@ -54,8 +59,8 @@ internal partial class AzureKeyVaultService(
     {
         if (keys.FirstOrDefault(key => !IsValidKey(key)) is { } badKey)
         {
-            // ReSharper disable once RedundantArgumentDefaultValue
-            throw new WorkerSecretManagerException($"Invalid secret path: {badKey}", true);
+            throw new WorkerSecretManagerException($"Invalid secret path: {badKey}")
+                {CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false};
         }
 
         var items = new Dictionary<string, string>();
@@ -74,7 +79,12 @@ internal partial class AzureKeyVaultService(
         catch (WorkerAzureException e)
         {
             // Translate
-            throw new WorkerSecretManagerException(e, e.IsCritical, e.IsTransient);
+            throw new WorkerSecretManagerException(e)
+            {
+                CouldBeTransient = e.CouldBeTransient,
+                IsHandled = e.IsHandled,
+                CouldBeExternallySolvable = e.CouldBeExternallySolvable
+            };
         }
 
         return items;

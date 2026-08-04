@@ -287,7 +287,8 @@ public class HeartbeatMaintainerTests
             .Returns(1);
         jobSource
             .Setup(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken))
-            .Returns(() => throw new WorkerJobSourceException("Test", false));
+            .Returns(() => throw new WorkerJobSourceException("Test")
+                {CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false});
 
         var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
@@ -408,7 +409,8 @@ public class HeartbeatMaintainerTests
         jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(1);
         jobSource
             .Setup(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new WorkerJobSourceException(new Exception("transient"), false, true));
+            .ThrowsAsync(new WorkerJobSourceException(new Exception("transient"))
+                {CouldBeTransient = true, IsHandled = false, CouldBeExternallySolvable = true});
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
         sleepService
@@ -609,8 +611,10 @@ public class HeartbeatMaintainerTests
                 attempts++;
                 if (attempts < 3)
                 {
-                    throw new WorkerJobSourceException(new Exception($"transient {attempts}"), false,
-                        true);
+                    throw new WorkerJobSourceException(new Exception($"transient {attempts}"))
+                    {
+                        CouldBeTransient = true, IsHandled = false, CouldBeExternallySolvable = true
+                    };
                 }
 
                 return Task.CompletedTask;

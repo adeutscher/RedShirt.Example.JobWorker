@@ -24,6 +24,7 @@ public class ServiceCollectionExtensionsTests
             .Build();
 
         var services = new ServiceCollection()
+            .AddLogging()
             .AddCoreJobManagement(configuration)
             .AddSecretManagerAzureKeyVault(configuration);
 

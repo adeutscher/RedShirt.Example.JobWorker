@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
 using RedShirt.Example.JobWorker.Common.Aws.Sqs.Exceptions;
@@ -6,7 +7,7 @@ using RedShirt.Example.JobWorker.Core.Services.Utility;
 namespace RedShirt.Example.JobWorker.Common.Aws.Sqs.Services.Resilience;
 
 /// <summary>
-///     Retries SQS operations that fail with non-critical transient exceptions,
+///     Retries SQS operations that fail with expected transient exceptions,
 ///     then surfaces remaining failures as <see cref="WorkerSqsException" /> with
 ///     <see cref="WorkerSqsException.IsHandled" /> set.
 /// </summary>
@@ -19,6 +20,7 @@ public interface ISqsRetryWrapperService
 
 internal class SqsRetryWrapperService(
     ISqsExceptionArbiterService exceptionArbiterService,
+    ILogger<SqsRetryWrapperService> logger,
     ISleepService sleepService)
     : ISqsRetryWrapperService
 {
@@ -45,14 +47,17 @@ internal class SqsRetryWrapperService(
                         return PredicateResult.False();
                     }
 
-                    var report = exceptionArbiterService.GetJudgement(exception);
-                    return report is {IsCritical: false, CouldBeTransient: true}
+                    var report = exceptionArbiterService.GetReport(exception);
+                    return report is {IsExpected: true, CouldBeTransient: true}
                         ? PredicateResult.True()
                         : PredicateResult.False();
                 },
                 DelayGenerator = static _ => new ValueTask<TimeSpan?>(TimeSpan.Zero),
                 OnRetry = async args =>
                 {
+                    logger.LogWarning(args.Outcome.Exception,
+                        "Retrying SQS operation after attempt {AttemptNumber}",
+                        args.AttemptNumber);
                     await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber)),
                         args.Context.CancellationToken);
                 }
@@ -62,20 +67,29 @@ internal class SqsRetryWrapperService(
 
     private Exception WrapIfNeeded(Exception exception)
     {
-        var report = exceptionArbiterService.GetJudgement(exception);
+        var report = exceptionArbiterService.GetReport(exception);
 
         // ReSharper disable once DuplicatedSequentialIfBodies
-        if (report.AlreadyHandled)
+        if (report.AlreadyHandled && exception is WorkerSqsException)
         {
             return exception;
         }
 
-        if (report.IsCritical)
+        if (!report.IsExpected)
         {
+            /*
+             * Unexpected / unrecognized.
+             * Unexpected failures stay raw so they raise attention and get classified.
+             */
             return exception;
         }
 
-        return new WorkerSqsException(exception, false, report.CouldBeTransient, true);
+        return new WorkerSqsException(exception)
+        {
+            CouldBeTransient = report.CouldBeTransient,
+            IsHandled = true,
+            CouldBeExternallySolvable = report.CouldBeExternallySolvable
+        };
     }
 
     public async Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func,

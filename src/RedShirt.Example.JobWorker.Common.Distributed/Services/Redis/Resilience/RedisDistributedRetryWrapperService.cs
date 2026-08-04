@@ -1,8 +1,9 @@
+using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 
-namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
+namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Redis.Resilience;
 
 /// <summary>
 ///     Retries Distributed client operations that fail with expected transient exceptions,
@@ -25,7 +26,7 @@ internal interface IDistributedRetryWrapperService
     ///     Propagated when <paramref name="cancellationToken" /> is cancelled.
     /// </exception>
     /// <exception cref="WorkerDistributedException">
-    ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerDistributedException.IsTransient" />
+    ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerDistributedException.CouldBeTransient" />
     ///     reflects the arbiter judgement for the final exception.
     /// </exception>
     Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default);
@@ -43,7 +44,7 @@ internal interface IDistributedRetryWrapperService
     ///     Propagated when <paramref name="cancellationToken" /> is cancelled.
     /// </exception>
     /// <exception cref="WorkerDistributedException">
-    ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerDistributedException.IsTransient" />
+    ///     Thrown when <paramref name="func" /> ultimately fails. <see cref="WorkerDistributedException.CouldBeTransient" />
     ///     reflects the arbiter judgement for the final exception.
     /// </exception>
     Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default);
@@ -51,13 +52,15 @@ internal interface IDistributedRetryWrapperService
 
 /// <summary>
 ///     Polly v8-based retry wrapper for Redis / distributed-cache calls.
-///     Retries when <see cref="IRedisDistributedExceptionArbiterService" /> reports a possibly transient failure,
+///     Retries when <see cref="IRedisDistributedExceptionArbiterService" /> reports an expected transient failure,
 ///     using exponential backoff via <see cref="IDistributedSleepService" />.
 /// </summary>
-/// <param name="exceptionArbiterService">Classifies Redis-related exceptions as possibly transient.</param>
+/// <param name="exceptionArbiterService">Classifies Redis-related exceptions as expected/transient.</param>
+/// <param name="logger">Logs each retry attempt.</param>
 /// <param name="sleepService">Provides cancellable backoff delays between retry attempts.</param>
 internal class RedisDistributedRetryWrapperService(
     IRedisDistributedExceptionArbiterService exceptionArbiterService,
+    ILogger<RedisDistributedRetryWrapperService> logger,
     IDistributedSleepService sleepService)
     : IDistributedRetryWrapperService
 {
@@ -92,7 +95,7 @@ internal class RedisDistributedRetryWrapperService(
                     }
 
                     var report = exceptionArbiterService.GetReport(exception);
-                    return report is {IsCritical: false, CouldBeTransient: true}
+                    return report is {IsExpected: true, CouldBeTransient: true}
                         ? PredicateResult.True()
                         : PredicateResult.False();
                 },
@@ -100,6 +103,9 @@ internal class RedisDistributedRetryWrapperService(
                 DelayGenerator = static _ => new ValueTask<TimeSpan?>(TimeSpan.Zero),
                 OnRetry = async args =>
                 {
+                    logger.LogWarning(args.Outcome.Exception,
+                        "Retrying Redis distributed operation after attempt {AttemptNumber}",
+                        args.AttemptNumber);
                     // Delay is performed via IDistributedSleepService in OnRetry so tests can mock sleeps.
                     await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber)),
                         args.Context.CancellationToken);
@@ -112,22 +118,27 @@ internal class RedisDistributedRetryWrapperService(
     {
         var report = exceptionArbiterService.GetReport(exception);
 
-        if (report.IsCritical)
-        {
-            /*
-             * Critical / unrecognized. Throw raw exception.
-             * We absolutely want to raise a massive alert and get a developer's attention
-             *  so that the problem either becomes classified or the upstream cause is addressed.
-             */
-            throw exception;
-        }
-
-        if (report.AlreadyHandled)
+        // ReSharper disable once DuplicatedSequentialIfBodies
+        if (report.AlreadyHandled && exception is WorkerDistributedException)
         {
             return exception;
         }
 
-        return new WorkerDistributedException(exception, false, report.CouldBeTransient);
+        if (!report.IsExpected)
+        {
+            /*
+             * Unexpected / unrecognized.
+             * Unexpected failures stay raw so they raise attention and get classified.
+             */
+            return exception;
+        }
+
+        return new WorkerDistributedException(exception)
+        {
+            CouldBeTransient = report.CouldBeTransient,
+            IsHandled = true,
+            CouldBeExternallySolvable = report.CouldBeExternallySolvable
+        };
     }
 
     /// <inheritdoc />

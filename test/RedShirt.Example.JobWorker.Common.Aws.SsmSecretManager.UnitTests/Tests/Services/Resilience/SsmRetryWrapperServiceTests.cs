@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.Models;
 using RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.Services.Resilience;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Exceptions;
@@ -12,8 +13,9 @@ public class SsmRetryWrapperServiceTests
         return new SsmExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = false,
-            CouldBeTransient = true
+            IsExpected = true,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = true
         };
     }
 
@@ -22,8 +24,9 @@ public class SsmRetryWrapperServiceTests
         return new SsmExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = false,
-            CouldBeTransient = false
+            IsExpected = true,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -32,8 +35,9 @@ public class SsmRetryWrapperServiceTests
         return new SsmExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = true,
-            CouldBeTransient = false
+            IsExpected = false,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
         };
     }
 
@@ -42,8 +46,9 @@ public class SsmRetryWrapperServiceTests
         return new SsmExceptionArbiterReport
         {
             AlreadyHandled = true,
-            IsCritical = false,
-            CouldBeTransient = false
+            IsExpected = true,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = true
         };
     }
 
@@ -62,18 +67,21 @@ public class SsmRetryWrapperServiceTests
     [Fact]
     public async Task RunAsync_WhenAlreadyHandled_RethrowsWithoutWrapping()
     {
-        var inner = new WorkerSecretManagerException("already wrapped", false, false, true);
+        var inner = new WorkerSecretManagerException("already wrapped")
+            {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = true};
 
         var arbiter = new Mock<ISsmExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(inner)).Returns(AlreadyHandledReport());
+        arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport());
 
         var sleep = CreateSleepService();
-        var wrapper = new SsmRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper =
+            new SsmRetryWrapperService(arbiter.Object, NullLogger<SsmRetryWrapperService>.Instance, sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerSecretManagerException>(() =>
             wrapper.RunAsync<string>(_ => throw inner, TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown);
+        Assert.Equal(inner.CouldBeExternallySolvable, thrown.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -82,10 +90,11 @@ public class SsmRetryWrapperServiceTests
         var inner = new InvalidOperationException("critical");
 
         var arbiter = new Mock<ISsmExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(inner)).Returns(CriticalReport());
+        arbiter.Setup(a => a.GetReport(inner)).Returns(CriticalReport());
 
         var sleep = CreateSleepService();
-        var wrapper = new SsmRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper =
+            new SsmRetryWrapperService(arbiter.Object, NullLogger<SsmRetryWrapperService>.Instance, sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             wrapper.RunAsync<string>(_ => throw inner, TestContext.Current.CancellationToken));
@@ -98,7 +107,8 @@ public class SsmRetryWrapperServiceTests
     {
         var arbiter = new Mock<ISsmExceptionArbiterService>(MockBehavior.Strict);
         var sleep = CreateSleepService();
-        var wrapper = new SsmRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper =
+            new SsmRetryWrapperService(arbiter.Object, NullLogger<SsmRetryWrapperService>.Instance, sleep.Object);
 
         var result = await wrapper.RunAsync(_ => Task.FromResult("secret"), TestContext.Current.CancellationToken);
 
@@ -113,10 +123,11 @@ public class SsmRetryWrapperServiceTests
         var inner = new InvalidOperationException("permanent");
 
         var arbiter = new Mock<ISsmExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(inner)).Returns(PermanentReport());
+        arbiter.Setup(a => a.GetReport(inner)).Returns(PermanentReport());
 
         var sleep = CreateSleepService();
-        var wrapper = new SsmRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper =
+            new SsmRetryWrapperService(arbiter.Object, NullLogger<SsmRetryWrapperService>.Instance, sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerSecretManagerException>(() => wrapper.RunAsync<string>(
             _ =>
@@ -129,7 +140,8 @@ public class SsmRetryWrapperServiceTests
         Assert.Equal(1, attempts);
         Assert.Same(inner, thrown.InnerException);
         Assert.True(thrown.IsHandled);
-        Assert.False(thrown.IsTransient);
+        Assert.False(thrown.CouldBeTransient);
+        Assert.False(thrown.CouldBeExternallySolvable);
         Assert.Empty(sleep.Invocations);
     }
 
@@ -141,10 +153,11 @@ public class SsmRetryWrapperServiceTests
         var inner = new TimeoutException("still failing");
 
         var arbiter = new Mock<ISsmExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleep = CreateSleepService(delays);
-        var wrapper = new SsmRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper =
+            new SsmRetryWrapperService(arbiter.Object, NullLogger<SsmRetryWrapperService>.Instance, sleep.Object);
 
         var thrown = await Assert.ThrowsAsync<WorkerSecretManagerException>(() => wrapper.RunAsync<string>(
             _ =>
@@ -155,9 +168,9 @@ public class SsmRetryWrapperServiceTests
             TestContext.Current.CancellationToken));
 
         Assert.Same(inner, thrown.InnerException);
-        Assert.False(thrown.IsCritical);
-        Assert.True(thrown.IsTransient);
+        Assert.True(thrown.CouldBeTransient);
         Assert.True(thrown.IsHandled);
+        Assert.True(thrown.CouldBeExternallySolvable);
         Assert.Equal(4, attempts);
         Assert.Equal(
             [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4)],
@@ -171,10 +184,11 @@ public class SsmRetryWrapperServiceTests
         var delays = new List<TimeSpan>();
 
         var arbiter = new Mock<ISsmExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetJudgement(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
 
         var sleep = CreateSleepService(delays);
-        var wrapper = new SsmRetryWrapperService(arbiter.Object, sleep.Object);
+        var wrapper =
+            new SsmRetryWrapperService(arbiter.Object, NullLogger<SsmRetryWrapperService>.Instance, sleep.Object);
 
         var result = await wrapper.RunAsync(
             _ =>

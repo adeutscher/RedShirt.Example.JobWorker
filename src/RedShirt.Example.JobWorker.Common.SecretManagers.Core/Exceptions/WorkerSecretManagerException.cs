@@ -9,32 +9,21 @@ public sealed class WorkerSecretManagerException : Exception
     ///     When <c>true</c>, a retry wrapper inside the secret-manager layer has already exhausted retries
     ///     for the underlying cause; outer retry layers should not retry again.
     /// </summary>
-    public bool IsHandled { get; init; }
+    public required bool IsHandled { get; init; }
 
-    public bool IsCritical { get; init; }
-    public bool IsTransient { get; init; }
+    public required bool CouldBeTransient { get; init; }
 
-    public WorkerSecretManagerException(
-        Exception innerException,
-        bool isCritical = true,
-        bool isTransient = false,
-        bool isHandled = false) :
-        base(innerException.Message, innerException)
+    /// <summary>
+    ///     When <c>true</c>, a possible transient or environmental cause could be resolved outside the worker
+    ///     process (for example an infrastructure or IAM change) without restarting the job worker.
+    /// </summary>
+    public required bool CouldBeExternallySolvable { get; init; }
+
+    public WorkerSecretManagerException(Exception innerException) : base(innerException.Message, innerException)
     {
-        IsCritical = isCritical;
-        IsTransient = isTransient;
-        IsHandled = isHandled;
     }
 
-    public WorkerSecretManagerException(
-        string message,
-        bool isCritical = true,
-        bool isTransient = false,
-        bool isHandled = false) :
-        base(message)
+    public WorkerSecretManagerException(string message) : base(message)
     {
-        IsCritical = isCritical;
-        IsTransient = isTransient;
-        IsHandled = isHandled;
     }
 }

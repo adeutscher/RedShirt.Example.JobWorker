@@ -10,24 +10,26 @@ public class AwsExceptionArbiterServiceTests
     private readonly AwsExceptionArbiterService _sut = new();
 
     [Fact]
-    public void GetJudgement_AmazonClientException_IsTransient()
+    public void GetReport_AmazonClientException_IsTransient()
     {
-        var judgement = _sut.GetJudgement(new AmazonClientException("client failure"));
+        var report = _sut.GetReport(new AmazonClientException("client failure"));
 
-        Assert.False(judgement.IsCritical);
-        Assert.True(judgement.CouldBeTransient);
+        Assert.True(report.IsExpected);
+        Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetJudgement_AmazonServiceException_WithPermanentStatus_IsNotTransient()
+    public void GetReport_AmazonServiceException_WithPermanentStatus_IsNotTransient()
     {
         var exception = new AmazonServiceException("denied", ErrorType.Sender, "AccessDenied", "req",
             HttpStatusCode.Forbidden);
 
-        var judgement = _sut.GetJudgement(exception);
+        var report = _sut.GetReport(exception);
 
-        Assert.False(judgement.IsCritical);
-        Assert.False(judgement.CouldBeTransient);
+        Assert.True(report.IsExpected);
+        Assert.False(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Theory]
@@ -36,7 +38,7 @@ public class AwsExceptionArbiterServiceTests
     [InlineData("RequestLimitExceeded")]
     [InlineData("SlowDown")]
     [InlineData("InternalFailure")]
-    public void GetJudgement_AmazonServiceException_WithTransientErrorCode_IsTransient(string errorCode)
+    public void GetReport_AmazonServiceException_WithTransientErrorCode_IsTransient(string errorCode)
     {
         var exception = new AmazonServiceException("transient")
         {
@@ -44,10 +46,11 @@ public class AwsExceptionArbiterServiceTests
             StatusCode = HttpStatusCode.BadRequest
         };
 
-        var judgement = _sut.GetJudgement(exception);
+        var report = _sut.GetReport(exception);
 
-        Assert.False(judgement.IsCritical);
-        Assert.True(judgement.CouldBeTransient);
+        Assert.True(report.IsExpected);
+        Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Theory]
@@ -57,93 +60,102 @@ public class AwsExceptionArbiterServiceTests
     [InlineData(HttpStatusCode.BadGateway)]
     [InlineData(HttpStatusCode.ServiceUnavailable)]
     [InlineData(HttpStatusCode.GatewayTimeout)]
-    public void GetJudgement_AmazonServiceException_WithTransientStatus_IsTransient(HttpStatusCode statusCode)
+    public void GetReport_AmazonServiceException_WithTransientStatus_IsTransient(HttpStatusCode statusCode)
     {
         var exception = new AmazonServiceException("transient status", ErrorType.Receiver, "Other", "req", statusCode);
 
-        var judgement = _sut.GetJudgement(exception);
+        var report = _sut.GetReport(exception);
 
-        Assert.False(judgement.IsCritical);
-        Assert.True(judgement.CouldBeTransient);
+        Assert.True(report.IsExpected);
+        Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetJudgement_ArgumentException_IsNotTransient()
+    public void GetReport_ArgumentException_IsNotTransient()
     {
-        var judgement = _sut.GetJudgement(new ArgumentException("bad arg", "name"));
+        var report = _sut.GetReport(new ArgumentException("bad arg", "name"));
 
-        Assert.False(judgement.IsCritical);
-        Assert.False(judgement.CouldBeTransient);
+        Assert.True(report.IsExpected);
+        Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetJudgement_HttpRequestException_IsTransient()
+    public void GetReport_HttpRequestException_IsTransient()
     {
-        var judgement = _sut.GetJudgement(new HttpRequestException("connection reset"));
+        var report = _sut.GetReport(new HttpRequestException("connection reset"));
 
-        Assert.False(judgement.IsCritical);
-        Assert.True(judgement.CouldBeTransient);
+        Assert.True(report.IsExpected);
+        Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetJudgement_MultiInnerAggregateException_IsCritical()
+    public void GetReport_MultiInnerAggregateException_IsNotExpected()
     {
-        var judgement = _sut.GetJudgement(new AggregateException(
+        var report = _sut.GetReport(new AggregateException(
             new SocketException((int) SocketError.TimedOut),
             new HttpRequestException("also failed")));
 
-        Assert.True(judgement.IsCritical);
-        Assert.False(judgement.CouldBeTransient);
+        Assert.False(report.IsExpected);
+        Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetJudgement_NullException_ThrowsArgumentNullException()
+    public void GetReport_NullException_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() => _sut.GetJudgement(null!));
+        Assert.Throws<ArgumentNullException>(() => _sut.GetReport(null!));
     }
 
     [Fact]
-    public void GetJudgement_OperationCanceledException_IsNotTransient()
+    public void GetReport_OperationCanceledException_IsNotTransient()
     {
-        var judgement = _sut.GetJudgement(new OperationCanceledException());
+        var report = _sut.GetReport(new OperationCanceledException());
 
-        Assert.False(judgement.IsCritical);
-        Assert.False(judgement.CouldBeTransient);
+        Assert.True(report.IsExpected);
+        Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetJudgement_SingleInnerAggregateException_JudgesUnwrappedInner()
+    public void GetReport_SingleInnerAggregateException_JudgesUnwrappedInner()
     {
-        var judgement = _sut.GetJudgement(new AggregateException(new SocketException((int) SocketError.TimedOut)));
+        var report = _sut.GetReport(new AggregateException(new SocketException((int) SocketError.TimedOut)));
 
-        Assert.False(judgement.IsCritical);
-        Assert.True(judgement.CouldBeTransient);
+        Assert.True(report.IsExpected);
+        Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetJudgement_SocketException_IsTransient()
+    public void GetReport_SocketException_IsTransient()
     {
-        var judgement = _sut.GetJudgement(new SocketException((int) SocketError.TimedOut));
+        var report = _sut.GetReport(new SocketException((int) SocketError.TimedOut));
 
-        Assert.False(judgement.IsCritical);
-        Assert.True(judgement.CouldBeTransient);
+        Assert.True(report.IsExpected);
+        Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetJudgement_TaskCanceledException_IsTransient()
+    public void GetReport_TaskCanceledException_IsTransient()
     {
-        var judgement = _sut.GetJudgement(new TaskCanceledException());
+        var report = _sut.GetReport(new TaskCanceledException());
 
-        Assert.False(judgement.IsCritical);
-        Assert.True(judgement.CouldBeTransient);
+        Assert.True(report.IsExpected);
+        Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetJudgement_UnrecognizedException_IsCritical()
+    public void GetReport_UnrecognizedException_IsNotExpected()
     {
-        var judgement = _sut.GetJudgement(new InvalidOperationException("boom"));
+        var report = _sut.GetReport(new InvalidOperationException("boom"));
 
-        Assert.True(judgement.IsCritical);
-        Assert.False(judgement.CouldBeTransient);
+        Assert.False(report.IsExpected);
+        Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
     }
 }

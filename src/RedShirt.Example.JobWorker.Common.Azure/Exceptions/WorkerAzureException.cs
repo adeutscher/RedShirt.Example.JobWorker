@@ -1,21 +1,29 @@
 namespace RedShirt.Example.JobWorker.Common.Azure.Exceptions;
 
+/// <summary>
+///     Classified failure from an Azure client operation.
+/// </summary>
 public sealed class WorkerAzureException : Exception
 {
-    public bool IsCritical { get; init; }
-    public bool IsTransient { get; init; }
+    /// <summary>
+    ///     When <c>true</c>, a retry wrapper inside the Azure layer has already exhausted retries for the
+    ///     underlying cause; outer retry layers should not retry again.
+    /// </summary>
+    public required bool IsHandled { get; init; }
 
-    public WorkerAzureException(Exception innerException, bool isCritical = true, bool isTransient = false) : base(
-        innerException.Message,
-        innerException)
+    public required bool CouldBeTransient { get; init; }
+
+    /// <summary>
+    ///     When <c>true</c>, a possible transient or environmental cause could be resolved outside the worker
+    ///     process (for example an infrastructure or IAM change) without restarting the job worker.
+    /// </summary>
+    public required bool CouldBeExternallySolvable { get; init; }
+
+    public WorkerAzureException(Exception innerException) : base(innerException.Message, innerException)
     {
-        IsCritical = isCritical;
-        IsTransient = isTransient;
     }
 
-    public WorkerAzureException(string message, bool isCritical = true, bool isTransient = false) : base(message)
+    public WorkerAzureException(string message) : base(message)
     {
-        IsCritical = isCritical;
-        IsTransient = isTransient;
     }
 }

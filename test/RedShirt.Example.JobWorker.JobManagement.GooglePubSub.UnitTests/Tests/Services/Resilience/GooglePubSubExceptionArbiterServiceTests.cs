@@ -10,27 +10,29 @@ public class GooglePubSubExceptionArbiterServiceTests
     private readonly GooglePubSubExceptionArbiterService _sut = new();
 
     [Fact]
-    public void GetReport_ArgumentException_IsNotCriticalAndNotTransient()
+    public void GetReport_ArgumentException_IsExpectedAndNotTransient()
     {
         var report = _sut.GetReport(new ArgumentException("bad subscription", "subscriptionId"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_HttpRequestException_IsNotCriticalAndTransient()
+    public void GetReport_HttpRequestException_IsExpectedAndTransient()
     {
         var report = _sut.GetReport(new HttpRequestException("connection reset"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_MultiInnerAggregateException_IsCritical()
+    public void GetReport_MultiInnerAggregateException_IsNotExpected()
     {
         var exception = new AggregateException(
             new RpcException(new Status(StatusCode.Unavailable, "a")),
@@ -39,8 +41,9 @@ public class GooglePubSubExceptionArbiterServiceTests
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsCritical);
+        Assert.False(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -50,32 +53,36 @@ public class GooglePubSubExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_OperationCanceledException_IsNotCriticalAndNotTransient()
+    public void GetReport_OperationCanceledException_IsExpectedAndNotTransient()
     {
         var report = _sut.GetReport(new OperationCanceledException("caller cancelled"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
     }
 
     [Theory]
-    [InlineData(StatusCode.InvalidArgument)]
-    [InlineData(StatusCode.NotFound)]
-    [InlineData(StatusCode.AlreadyExists)]
-    [InlineData(StatusCode.PermissionDenied)]
-    [InlineData(StatusCode.Unauthenticated)]
-    [InlineData(StatusCode.FailedPrecondition)]
-    [InlineData(StatusCode.OutOfRange)]
-    [InlineData(StatusCode.Unimplemented)]
-    [InlineData(StatusCode.DataLoss)]
-    public void GetReport_RpcException_PermanentCodes_IsNotCriticalAndNotTransient(StatusCode statusCode)
+    [InlineData(StatusCode.InvalidArgument, false)]
+    [InlineData(StatusCode.NotFound, true)]
+    [InlineData(StatusCode.AlreadyExists, false)]
+    [InlineData(StatusCode.PermissionDenied, true)]
+    [InlineData(StatusCode.Unauthenticated, true)]
+    [InlineData(StatusCode.FailedPrecondition, false)]
+    [InlineData(StatusCode.OutOfRange, false)]
+    [InlineData(StatusCode.Unimplemented, false)]
+    [InlineData(StatusCode.DataLoss, false)]
+    public void GetReport_RpcException_PermanentCodes_IsExpectedAndNotTransient(
+        StatusCode statusCode,
+        bool couldBeExternallySolvable)
     {
         var report = _sut.GetReport(new RpcException(new Status(statusCode, "permanent")));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.Equal(couldBeExternallySolvable, report.CouldBeExternallySolvable);
     }
 
     [Theory]
@@ -85,13 +92,14 @@ public class GooglePubSubExceptionArbiterServiceTests
     [InlineData(StatusCode.Aborted)]
     [InlineData(StatusCode.Internal)]
     [InlineData(StatusCode.Unknown)]
-    public void GetReport_RpcException_TransientCodes_IsNotCriticalAndTransient(StatusCode statusCode)
+    public void GetReport_RpcException_TransientCodes_IsExpectedAndTransient(StatusCode statusCode)
     {
         var report = _sut.GetReport(new RpcException(new Status(statusCode, "transient")));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -105,8 +113,9 @@ public class GooglePubSubExceptionArbiterServiceTests
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -120,8 +129,9 @@ public class GooglePubSubExceptionArbiterServiceTests
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -135,8 +145,9 @@ public class GooglePubSubExceptionArbiterServiceTests
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Theory]
@@ -154,8 +165,9 @@ public class GooglePubSubExceptionArbiterServiceTests
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -170,8 +182,9 @@ public class GooglePubSubExceptionArbiterServiceTests
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -188,8 +201,9 @@ public class GooglePubSubExceptionArbiterServiceTests
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
@@ -201,72 +215,88 @@ public class GooglePubSubExceptionArbiterServiceTests
         var report = _sut.GetReport(exception);
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_SocketException_IsNotCriticalAndTransient()
+    public void GetReport_SocketException_IsExpectedAndTransient()
     {
         var report = _sut.GetReport(new SocketException((int) SocketError.TimedOut));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_TaskCanceledException_IsNotCriticalAndTransient()
+    public void GetReport_TaskCanceledException_IsExpectedAndTransient()
     {
         var report = _sut.GetReport(new TaskCanceledException("request timed out"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_TimeoutException_IsNotCriticalAndTransient()
+    public void GetReport_TimeoutException_IsExpectedAndTransient()
     {
         var report = _sut.GetReport(new TimeoutException("timed out"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
-    public void GetReport_UnrecognizedException_IsCriticalAndNotTransient()
+    public void GetReport_UnrecognizedException_IsNotExpectedAndNotTransient()
     {
         var report = _sut.GetReport(new InvalidOperationException("unexpected failure"));
 
         Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsCritical);
+        Assert.False(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
     }
 
     [Fact]
     public void GetReport_WorkerJobSourceException_Handled_DoesNotRetry()
     {
-        var exception = new WorkerJobSourceException("already handled", false, true,
-            true);
+        var exception = new WorkerJobSourceException("already handled")
+        {
+            IsHandled = true,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = true
+        };
 
         var report = _sut.GetReport(exception);
 
         Assert.True(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 
     [Fact]
     public void GetReport_WorkerJobSourceException_UnhandledTransient_MayRetry()
     {
-        var exception = new WorkerJobSourceException("transient", false, true);
+        var exception = new WorkerJobSourceException("transient")
+        {
+            IsHandled = false,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = true
+        };
 
         var report = _sut.GetReport(exception);
 
         Assert.True(report.AlreadyHandled);
-        Assert.False(report.IsCritical);
+        Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
     }
 }

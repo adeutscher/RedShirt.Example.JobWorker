@@ -29,7 +29,7 @@ internal sealed class BatchModeJobLoader(
         {
             jobResponse = await jobSource.GetJobsAsync(jobSourceOptions.Value.EffectiveBatchSize, cancellationToken);
         }
-        catch (WorkerJobSourceException e) when (e is {IsCritical: false, CouldBeTransient: true})
+        catch (WorkerJobSourceException e) when (e is {CouldBeTransient: true})
         {
             logger.LogWarning(e, "Error getting jobs from source");
             // Treat an anticipated transient error as a delay reason

@@ -17,32 +17,40 @@ internal interface ISqsJobSourceExceptionArbiterService
 internal class SqsJobSourceExceptionArbiterService(ISqsExceptionArbiterService sqsExceptionArbiterService)
     : ISqsJobSourceExceptionArbiterService
 {
-    private static SqsJobSourceExceptionArbiterReport Fresh(bool isCritical, bool couldBeTransient)
+    private static SqsJobSourceExceptionArbiterReport Fresh(
+        bool isExpected,
+        bool couldBeTransient,
+        bool couldBeExternallySolvable)
     {
         return new SqsJobSourceExceptionArbiterReport
         {
             AlreadyHandled = false,
-            IsCritical = isCritical,
-            CouldBeTransient = couldBeTransient
+            IsExpected = isExpected,
+            CouldBeTransient = couldBeTransient,
+            CouldBeExternallySolvable = couldBeExternallySolvable
         };
     }
 
-    private static SqsJobSourceExceptionArbiterReport Handled(bool isCritical, bool couldBeTransient)
+    private static SqsJobSourceExceptionArbiterReport Handled(
+        bool isExpected,
+        bool couldBeTransient,
+        bool couldBeExternallySolvable)
     {
         return new SqsJobSourceExceptionArbiterReport
         {
             AlreadyHandled = true,
-            IsCritical = isCritical,
-            CouldBeTransient = couldBeTransient
+            IsExpected = isExpected,
+            CouldBeTransient = couldBeTransient,
+            CouldBeExternallySolvable = couldBeExternallySolvable
         };
     }
 
     private SqsJobSourceExceptionArbiterReport MapFromSqsArbiter(Exception exception)
     {
-        var report = sqsExceptionArbiterService.GetJudgement(exception);
+        var report = sqsExceptionArbiterService.GetReport(exception);
         return report.AlreadyHandled
-            ? Handled(report.IsCritical, report.CouldBeTransient)
-            : Fresh(report.IsCritical, report.CouldBeTransient);
+            ? Handled(report.IsExpected, report.CouldBeTransient, report.CouldBeExternallySolvable)
+            : Fresh(report.IsExpected, report.CouldBeTransient, report.CouldBeExternallySolvable);
     }
 
     public SqsJobSourceExceptionArbiterReport GetReport(Exception exception)
@@ -56,11 +64,17 @@ internal class SqsJobSourceExceptionArbiterService(ISqsExceptionArbiterService s
 
         return exception switch
         {
+            // Propagate the inner wrapper's own externally-solvable classification.
             WorkerJobSourceException workerJobSource =>
-                Handled(workerJobSource.IsCritical,
-                    workerJobSource is {IsHandled: false, CouldBeTransient: true}),
+                Handled(
+                    true,
+                    workerJobSource is {IsHandled: false, CouldBeTransient: true},
+                    workerJobSource.CouldBeExternallySolvable),
             WorkerSqsException workerSqs =>
-                Handled(workerSqs.IsCritical, workerSqs is {IsHandled: false, IsTransient: true}),
+                Handled(
+                    true,
+                    workerSqs is {IsHandled: false, CouldBeTransient: true},
+                    workerSqs.CouldBeExternallySolvable),
             _ => MapFromSqsArbiter(exception)
         };
     }

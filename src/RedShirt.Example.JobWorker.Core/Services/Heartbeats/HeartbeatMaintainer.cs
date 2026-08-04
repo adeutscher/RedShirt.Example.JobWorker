@@ -64,7 +64,7 @@ internal sealed class HeartbeatMaintainer(
                 MaxRetryAttempts = Globals.HeartbeatRetryCount,
                 ShouldHandle = new PredicateBuilder()
                     .Handle<WorkerJobSourceException>(e => e is
-                        {IsCritical: false, IsHandled: false, CouldBeTransient: true}),
+                        {IsHandled: false, CouldBeTransient: true}),
                 // Do not use Polly-based delays between attempts
                 DelayGenerator = static _ => new ValueTask<TimeSpan?>(TimeSpan.Zero),
                 OnRetry = async args =>
@@ -109,7 +109,7 @@ internal sealed class HeartbeatMaintainer(
                 cancellationToken);
             await jobRepositoryEntry.SetLastHeartbeatTimeAsync(DateTime.UtcNow, cancellationToken);
         }
-        catch (WorkerJobSourceException e) when (!e.IsCritical)
+        catch (WorkerJobSourceException e)
         {
             logger.LogWarning(e, "Heartbeat could not be completed for message: {MessageId}",
                 jobRepositoryEntry.JobModel.MessageId);

@@ -1,7 +1,7 @@
 using Confluent.Kafka;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Models;
-using RedShirt.Example.JobWorker.JobManagement.Kafka.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.UnitTests.Tests.Services;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.Utility;
 
@@ -121,8 +121,8 @@ public class KafkaConsumerWrapperTests
                 committedPartitions.Add(offset.Partition);
             });
 
-        var permanent = new WorkerJobSourceException("lost ownership", false, false,
-            true);
+        var permanent = new WorkerJobSourceException("lost ownership")
+            {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = false};
         var retryAttempts = 0;
         var retry = new Mock<IKafkaRetryWrapperService>(MockBehavior.Strict);
         retry
