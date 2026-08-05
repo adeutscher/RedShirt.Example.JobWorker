@@ -31,6 +31,21 @@ Repo features:
 
 For configuration examples, see the `worker` section of the `test/local/docker-compose.yaml` file.
 
+## Health probes (z-pages)
+
+The executable host uses the .NET Generic Host with optional Kestrel-backed Google-style z-pages. When health endpoints are enabled, readiness is evaluated via ASP.NET Core health checks (`MapHealthChecks`) using the shared Core `IWorkerReadiness` service.
+
+| Endpoint   | Purpose | Healthy response | Unhealthy response |
+|------------|---------|------------------|--------------------|
+| `GET /livez`  | Liveness  | `200` plain text `ok` | — |
+| `GET /healthz`| Health    | `200` plain text `ok` | — |
+| `GET /readyz` | Readiness | `200` plain text `ok` | `503` plain text `not ready` |
+
+Environment variables (also bindable as `Health:Enabled` / `Health:Port`):
+
+* `HEALTH__ENABLED` — enable Kestrel and z-pages (default: `true`). When `false`, the worker runs without binding a health port.
+* `HEALTH__PORT` — TCP port for health endpoints, bound on `0.0.0.0` (default: `8080`).
+
 ## Batch Mode vs. Loader Mode
 
 This template offers two different approaches to how messages are polled from a message source (internally referred to
