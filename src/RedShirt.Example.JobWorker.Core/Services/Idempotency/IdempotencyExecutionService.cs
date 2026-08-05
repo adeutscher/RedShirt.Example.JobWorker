@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.Distributed.Enums;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Configuration;
@@ -110,24 +111,24 @@ internal sealed class IdempotencyExecutionService(
                 nameof(IdempotencyExecutionService), nameof(GetLockAsync), GetLockKey(jobModel.IdempotencyId!));
         }
 
-        var lockHandle = await abstractedLockService.GetLockAsync(GetLockKey(jobModel.IdempotencyId!), token);
+        var lockResponse = await abstractedLockService.GetLockAsync(GetLockKey(jobModel.IdempotencyId!), token);
 
         if (options.Value.EnableTraceLogging)
         {
             logger.LogTrace(
-                "{Class}.{Method} finished attempting lock: {Key} (acquired: {IsAcquired}, truly acquired: {IsTrulyAcquired})",
+                "{Class}.{Method} finished attempting lock: {Key} (result: {Result}, acquired: {IsAcquired})",
                 nameof(IdempotencyExecutionService), nameof(GetLockAsync), GetLockKey(jobModel.IdempotencyId!),
-                lockHandle.IsAcquired, lockHandle.IsTrulyAcquired);
+                lockResponse.Result, lockResponse.Lock.IsAcquired);
         }
 
-        if (!lockHandle.IsTrulyAcquired)
+        if (lockResponse.Result != SafeDistributedOperationResult.Success)
         {
             logger.LogWarning(
-                "Idempotency lock for {IdempotencyId} was not truly acquired; proceeding with a permissive lock",
-                jobModel.IdempotencyId);
+                "Idempotency lock for {IdempotencyId} was not reliably acquired (result: {Result}); proceeding with a permissive lock",
+                jobModel.IdempotencyId, lockResponse.Result);
         }
 
-        return lockHandle;
+        return lockResponse.Lock;
     }
 
     public async Task<IdempotencyCacheResult?> GetCachedResultAsync(IJobModel jobModel,
@@ -153,9 +154,10 @@ internal sealed class IdempotencyExecutionService(
                 GetResultKey(jobModel.IdempotencyId!));
         }
 
-        var rawResult = await cache.GetStringAsync(GetResultKey(jobModel.IdempotencyId!), cancellationToken);
+        var cacheResponse = await cache.GetStringAsync(GetResultKey(jobModel.IdempotencyId!), cancellationToken);
 
-        if (Deserialize(rawResult) is not { } cachedResult)
+        if (cacheResponse.Result != SafeDistributedOperationResult.Success ||
+            Deserialize(cacheResponse.Value) is not { } cachedResult)
         {
             return null;
         }

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using RedShirt.Example.JobWorker.Common.Distributed.Enums;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Distributed.Services;
@@ -9,11 +10,30 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services
 
 public class SafeAbstractedLockServiceTests
 {
+    private static readonly DateTime NextAttempt = new(2026, 8, 4, 21, 0, 0, DateTimeKind.Utc);
+    private static readonly TimeSpan LockTimeout = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan ExceedsLockTimeoutDelay = TimeSpan.FromMilliseconds(300);
+
+    private static Mock<ISafetyDisgraceStateService> CreateDisgraceState(bool inDisgrace)
+    {
+        var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
+        var nextAttempt = NextAttempt;
+        disgraceState.Setup(s => s.IsInDisgracePeriod(out nextAttempt)).Returns(inDisgrace);
+        disgraceState.Setup(s => s.GetNextAttemptTime()).Returns(NextAttempt);
+        return disgraceState;
+    }
+
+    private static Mock<IAbstractedLockService> CreateLockService()
+    {
+        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        lockService.SetupGet(s => s.Timeout).Returns(LockTimeout);
+        return lockService;
+    }
+
     [Fact]
     public async Task GetLockAsync_WhenInDisgrace_ReturnsPermissiveLockWithoutCallingInnerService()
     {
-        var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
-        disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(true);
+        var disgraceState = CreateDisgraceState(true);
 
         var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
 
@@ -21,34 +41,33 @@ public class SafeAbstractedLockServiceTests
             new NullLogger<SafeAbstractedLockService>());
         var result = await service.GetLockAsync("lock-a", TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsAcquired);
-        Assert.False(result.IsTrulyAcquired);
-        await result.UnlockAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(SafeDistributedOperationResult.DisgracePeriod, result.Result);
+        Assert.Equal(NextAttempt, result.NextAttemptTime);
+        Assert.True(result.Lock.IsAcquired);
+        await result.Lock.UnlockAsync(TestContext.Current.CancellationToken);
 
         lockService.VerifyNoOtherCalls();
-        disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
+        disgraceState.Verify(s => s.IsInDisgracePeriod(out It.Ref<DateTime>.IsAny), Times.Once);
         disgraceState.VerifyNoOtherCalls();
     }
 
-    [Fact(Timeout = 15000)]
-    public async Task GetLockAsync_WhenInnerAttemptExceedsThresholdButWasAcquired_ReportsTrulyAcquired()
+    [Fact]
+    public async Task GetLockAsync_WhenInnerAttemptExceedsThresholdButWasAcquired_ReportsSuccessWithoutDisgrace()
     {
         const string lockName = "lock-slow-acquired";
 
-        var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
-        disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(false);
-        disgraceState.Setup(s => s.EnterDisgracePeriod());
+        var disgraceState = CreateDisgraceState(false);
 
         var innerLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
         innerLock.SetupGet(l => l.IsAcquired).Returns(true);
         innerLock.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
-        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        var lockService = CreateLockService();
         lockService
             .Setup(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken))
             .Returns(async () =>
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(5100), TestContext.Current.CancellationToken);
+                await Task.Delay(ExceedsLockTimeoutDelay, TestContext.Current.CancellationToken);
                 return innerLock.Object;
             });
 
@@ -56,20 +75,23 @@ public class SafeAbstractedLockServiceTests
             new NullLogger<SafeAbstractedLockService>());
         var result = await service.GetLockAsync(lockName, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsAcquired);
-        Assert.True(result.IsTrulyAcquired);
+        Assert.Equal(SafeDistributedOperationResult.Success, result.Result);
+        Assert.Equal(NextAttempt, result.NextAttemptTime);
+        Assert.True(result.Lock.IsAcquired);
 
-        await result.UnlockAsync(TestContext.Current.CancellationToken);
-        disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Once);
+        await result.Lock.UnlockAsync(TestContext.Current.CancellationToken);
+        disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Never);
+        disgraceState.Verify(s => s.IsInDisgracePeriod(out It.Ref<DateTime>.IsAny), Times.Once);
+        disgraceState.Verify(s => s.GetNextAttemptTime(), Times.Once);
+        disgraceState.VerifyNoOtherCalls();
     }
 
-    [Fact(Timeout = 15000)]
+    [Fact]
     public async Task GetLockAsync_WhenInnerAttemptExceedsThreshold_EntersDisgraceAndForcesAcquired()
     {
         const string lockName = "lock-slow";
 
-        var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
-        disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(false);
+        var disgraceState = CreateDisgraceState(false);
         disgraceState.Setup(s => s.EnterDisgracePeriod());
 
         var innerLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
@@ -77,12 +99,12 @@ public class SafeAbstractedLockServiceTests
         innerLock.SetupGet(l => l.IsAcquired).Returns(false);
         innerLock.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
-        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        var lockService = CreateLockService();
         lockService
             .Setup(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken))
             .Returns(async () =>
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(5100), TestContext.Current.CancellationToken);
+                await Task.Delay(ExceedsLockTimeoutDelay, TestContext.Current.CancellationToken);
                 return innerLock.Object;
             });
 
@@ -90,14 +112,16 @@ public class SafeAbstractedLockServiceTests
             new NullLogger<SafeAbstractedLockService>());
         var result = await service.GetLockAsync(lockName, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsAcquired);
-        Assert.False(result.IsTrulyAcquired);
+        Assert.Equal(SafeDistributedOperationResult.Failure, result.Result);
+        Assert.True(result.Lock.IsAcquired);
 
-        await result.UnlockAsync(TestContext.Current.CancellationToken);
+        await result.Lock.UnlockAsync(TestContext.Current.CancellationToken);
         innerLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
 
         lockService.Verify(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken), Times.Once);
-        disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
+        lockService.VerifyGet(s => s.Timeout, Times.Once);
+        disgraceState.Verify(s => s.IsInDisgracePeriod(out It.Ref<DateTime>.IsAny), Times.Once);
+        disgraceState.Verify(s => s.GetNextAttemptTime(), Times.Once);
         disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Once);
         disgraceState.VerifyNoOtherCalls();
     }
@@ -109,14 +133,13 @@ public class SafeAbstractedLockServiceTests
     {
         var lockName = $"lock-quick-{isAcquired}";
 
-        var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
-        disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(false);
+        var disgraceState = CreateDisgraceState(false);
 
         var innerLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
         innerLock.SetupGet(l => l.IsAcquired).Returns(isAcquired);
         innerLock.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
-        var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
+        var lockService = CreateLockService();
         lockService
             .Setup(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken))
             .ReturnsAsync(innerLock.Object);
@@ -125,14 +148,16 @@ public class SafeAbstractedLockServiceTests
             new NullLogger<SafeAbstractedLockService>());
         var result = await service.GetLockAsync(lockName, TestContext.Current.CancellationToken);
 
-        Assert.Equal(isAcquired, result.IsAcquired);
-        Assert.Equal(isAcquired, result.IsTrulyAcquired);
+        Assert.Equal(SafeDistributedOperationResult.Success, result.Result);
+        Assert.Equal(NextAttempt, result.NextAttemptTime);
+        Assert.Equal(isAcquired, result.Lock.IsAcquired);
 
-        await result.UnlockAsync(TestContext.Current.CancellationToken);
+        await result.Lock.UnlockAsync(TestContext.Current.CancellationToken);
         innerLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
 
         lockService.Verify(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken), Times.Once);
-        disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
+        disgraceState.Verify(s => s.IsInDisgracePeriod(out It.Ref<DateTime>.IsAny), Times.Once);
+        disgraceState.Verify(s => s.GetNextAttemptTime(), Times.Once);
         disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Never);
     }
 
@@ -141,8 +166,7 @@ public class SafeAbstractedLockServiceTests
     {
         const string lockName = "lock-unexpected";
 
-        var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
-        disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(false);
+        var disgraceState = CreateDisgraceState(false);
 
         var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         lockService
@@ -155,7 +179,7 @@ public class SafeAbstractedLockServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.GetLockAsync(lockName, TestContext.Current.CancellationToken));
 
-        disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
+        disgraceState.Verify(s => s.IsInDisgracePeriod(out It.Ref<DateTime>.IsAny), Times.Once);
         disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Never);
     }
 
@@ -170,8 +194,7 @@ public class SafeAbstractedLockServiceTests
         var exception = new WorkerDistributedException(inner)
             {CouldBeTransient = isTransient, IsHandled = false, CouldBeExternallySolvable = isTransient};
 
-        var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
-        disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(false);
+        var disgraceState = CreateDisgraceState(false);
         disgraceState.Setup(s => s.EnterDisgracePeriod());
 
         var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
@@ -183,12 +206,14 @@ public class SafeAbstractedLockServiceTests
             new NullLogger<SafeAbstractedLockService>());
         var result = await service.GetLockAsync(lockName, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsAcquired);
-        Assert.False(result.IsTrulyAcquired);
-        await result.UnlockAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(SafeDistributedOperationResult.Failure, result.Result);
+        Assert.Equal(NextAttempt, result.NextAttemptTime);
+        Assert.True(result.Lock.IsAcquired);
+        await result.Lock.UnlockAsync(TestContext.Current.CancellationToken);
 
         lockService.Verify(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken), Times.Once);
-        disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
+        disgraceState.Verify(s => s.IsInDisgracePeriod(out It.Ref<DateTime>.IsAny), Times.Once);
+        disgraceState.Verify(s => s.GetNextAttemptTime(), Times.Once);
         disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Once);
         disgraceState.VerifyNoOtherCalls();
     }
@@ -200,8 +225,7 @@ public class SafeAbstractedLockServiceTests
         await cts.CancelAsync();
         const string lockName = "lock-cancelled";
 
-        var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
-        disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(false);
+        var disgraceState = CreateDisgraceState(false);
 
         var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
         lockService
@@ -215,8 +239,9 @@ public class SafeAbstractedLockServiceTests
             service.GetLockAsync(lockName, cts.Token));
 
         lockService.Verify(s => s.GetLockAsync(lockName, cts.Token), Times.Once);
-        disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
+        disgraceState.Verify(s => s.IsInDisgracePeriod(out It.Ref<DateTime>.IsAny), Times.Once);
         disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Never);
+        disgraceState.Verify(s => s.GetNextAttemptTime(), Times.Never);
         disgraceState.VerifyNoOtherCalls();
     }
 
@@ -230,8 +255,7 @@ public class SafeAbstractedLockServiceTests
             CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false
         };
 
-        var disgraceState = new Mock<ISafetyDisgraceStateService>(MockBehavior.Strict);
-        disgraceState.Setup(s => s.IsInDisgracePeriod()).Returns(false);
+        var disgraceState = CreateDisgraceState(false);
         disgraceState.Setup(s => s.EnterDisgracePeriod());
 
         var lockService = new Mock<IAbstractedLockService>(MockBehavior.Strict);
@@ -244,10 +268,11 @@ public class SafeAbstractedLockServiceTests
 
         var result = await service.GetLockAsync(lockName, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsAcquired);
-        Assert.False(result.IsTrulyAcquired);
+        Assert.Equal(SafeDistributedOperationResult.Failure, result.Result);
+        Assert.True(result.Lock.IsAcquired);
         lockService.Verify(s => s.GetLockAsync(lockName, TestContext.Current.CancellationToken), Times.Once);
-        disgraceState.Verify(s => s.IsInDisgracePeriod(), Times.Once);
+        disgraceState.Verify(s => s.IsInDisgracePeriod(out It.Ref<DateTime>.IsAny), Times.Once);
+        disgraceState.Verify(s => s.GetNextAttemptTime(), Times.Once);
         disgraceState.Verify(s => s.EnterDisgracePeriod(), Times.Once);
         disgraceState.VerifyNoOtherCalls();
     }

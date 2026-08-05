@@ -1,4 +1,4 @@
-using RedShirt.Example.JobWorker.Common.Distributed.Models;
+using RedShirt.Example.JobWorker.Common.Distributed.Models.Safety;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 
@@ -9,5 +9,6 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 /// </summary>
 public interface ISafeAbstractedLockService
 {
-    Task<ISafeAbstractedLock> GetLockAsync(string lockName, CancellationToken cancellationToken = default);
+    Task<SafeDistributedLockOperationResponse> GetLockAsync(string lockName,
+        CancellationToken cancellationToken = default);
 }

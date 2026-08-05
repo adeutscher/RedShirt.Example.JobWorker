@@ -1,3 +1,5 @@
+using RedShirt.Example.JobWorker.Common.Distributed.Models.Safety;
+
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 
 /// <summary>
@@ -12,7 +14,8 @@ public interface ISafeRemoteCacheService
     /// <param name="key"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    Task<string?> GetStringAsync(string key, CancellationToken cancellationToken = default);
+    Task<SafeDistributedGetOperationResponse<string?>> GetStringAsync(string key,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Attempt to set a string. If the value provided is a null or empty string, then instead attempt to delete the key
@@ -23,5 +26,6 @@ public interface ISafeRemoteCacheService
     /// <param name="expiry"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    Task SetStringAsync(string key, string? value, TimeSpan expiry, CancellationToken cancellationToken = default);
+    Task<SafeDistributedOperationResponse> SetStringAsync(string key, string? value, TimeSpan expiry,
+        CancellationToken cancellationToken = default);
 }

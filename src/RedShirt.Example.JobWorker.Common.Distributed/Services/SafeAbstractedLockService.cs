@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
+using RedShirt.Example.JobWorker.Common.Distributed.Enums;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
+using RedShirt.Example.JobWorker.Common.Distributed.Models.Safety;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using System.Diagnostics;
 
@@ -12,13 +14,19 @@ internal class SafeAbstractedLockService(
     ILogger<SafeAbstractedLockService> logger)
     : ISafeAbstractedLockService
 {
-    private static readonly TimeSpan LockAttemptThreshold = TimeSpan.FromSeconds(5);
+    private TimeSpan LockAttemptThreshold => lockService.Timeout;
 
-    public async Task<ISafeAbstractedLock> GetLockAsync(string lockName, CancellationToken cancellationToken = default)
+    public async Task<SafeDistributedLockOperationResponse> GetLockAsync(string lockName,
+        CancellationToken cancellationToken = default)
     {
-        if (safetyDisgraceStateService.IsInDisgracePeriod())
+        if (safetyDisgraceStateService.IsInDisgracePeriod(out var nextAttemptTime))
         {
-            return new PermissiveLock();
+            return new SafeDistributedLockOperationResponse
+            {
+                Result = SafeDistributedOperationResult.DisgracePeriod,
+                NextAttemptTime = nextAttemptTime,
+                Lock = new PermissiveLock()
+            };
         }
 
         try
@@ -31,15 +39,31 @@ internal class SafeAbstractedLockService(
              * The underlying DistributedLock.Redis-based TryAcquireAsync method consumes all exceptions internally, so we are forced
              * to make a judgement call on the disgrace period based on the time that the attempt took.
              */
-            var timeExceeded = stopwatch.Elapsed > LockAttemptThreshold;
             // ReSharper disable once InvertIf
-            if (timeExceeded)
+            if (!innerLock.IsAcquired && stopwatch.Elapsed > LockAttemptThreshold)
             {
+                // Not inverting the if statement because I think it reads more nicely this way.
+
                 logger.LogWarning("Failure to communicate with lock service: Timeout");
                 safetyDisgraceStateService.EnterDisgracePeriod();
+
+                return new SafeDistributedLockOperationResponse
+                {
+                    Result = SafeDistributedOperationResult.Failure,
+                    NextAttemptTime = safetyDisgraceStateService.GetNextAttemptTime(),
+                    Lock = new SafeLockWrapper(innerLock, true)
+                };
             }
 
-            return new SafeLockWrapper(innerLock, timeExceeded);
+            // If we have gotten to this point, then we either got the lock or had a timely failed attempt.
+
+            // Refresh nextAttemptTime; it may have drifted if the lock took a moment to acquire.
+            return new SafeDistributedLockOperationResponse
+            {
+                Result = SafeDistributedOperationResult.Success,
+                NextAttemptTime = safetyDisgraceStateService.GetNextAttemptTime(),
+                Lock = new SafeLockWrapper(innerLock, false)
+            };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -49,14 +73,18 @@ internal class SafeAbstractedLockService(
         {
             logger.LogWarning(e, "Failure to communicate with lock service: {EMessage}", e.Message);
             safetyDisgraceStateService.EnterDisgracePeriod();
-            return new PermissiveLock();
+            return new SafeDistributedLockOperationResponse
+            {
+                Result = SafeDistributedOperationResult.Failure,
+                NextAttemptTime = safetyDisgraceStateService.GetNextAttemptTime(),
+                Lock = new PermissiveLock()
+            };
         }
     }
 
-    private sealed class PermissiveLock : ISafeAbstractedLock
+    private sealed class PermissiveLock : IAbstractedLock
     {
         public bool IsAcquired => true;
-        public bool IsTrulyAcquired => false;
 
         public Task UnlockAsync(CancellationToken cancellationToken = default)
         {
@@ -64,15 +92,13 @@ internal class SafeAbstractedLockService(
         }
     }
 
-    private sealed class SafeLockWrapper(IAbstractedLock abstractedLock, bool isAcquiredOverride) : ISafeAbstractedLock
+    private sealed class SafeLockWrapper(IAbstractedLock abstractedLock, bool forceAcquired) : IAbstractedLock
     {
-        public bool IsAcquired => isAcquiredOverride || abstractedLock.IsAcquired;
+        public bool IsAcquired => forceAcquired || abstractedLock.IsAcquired;
 
         public Task UnlockAsync(CancellationToken cancellationToken = default)
         {
             return abstractedLock.UnlockAsync(cancellationToken);
         }
-
-        public bool IsTrulyAcquired => abstractedLock.IsAcquired;
     }
 }

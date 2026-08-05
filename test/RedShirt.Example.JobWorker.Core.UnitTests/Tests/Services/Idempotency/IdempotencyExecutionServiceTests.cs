@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.Distributed.Enums;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
+using RedShirt.Example.JobWorker.Common.Distributed.Models.Safety;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
@@ -90,6 +92,37 @@ public class IdempotencyExecutionServiceTests
         });
     }
 
+    private static SafeDistributedGetOperationResponse<string?> CacheGetSuccess(string? value)
+    {
+        return new SafeDistributedGetOperationResponse<string?>
+        {
+            Result = SafeDistributedOperationResult.Success,
+            NextAttemptTime = DateTime.UtcNow,
+            Value = value
+        };
+    }
+
+    private static SafeDistributedOperationResponse CacheSetSuccess()
+    {
+        return new SafeDistributedOperationResponse
+        {
+            Result = SafeDistributedOperationResult.Success,
+            NextAttemptTime = DateTime.UtcNow
+        };
+    }
+
+    private static SafeDistributedLockOperationResponse LockResponse(
+        IAbstractedLock abstractedLock,
+        SafeDistributedOperationResult result = SafeDistributedOperationResult.Success)
+    {
+        return new SafeDistributedLockOperationResponse
+        {
+            Result = result,
+            NextAttemptTime = DateTime.UtcNow,
+            Lock = abstractedLock
+        };
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -100,7 +133,7 @@ public class IdempotencyExecutionServiceTests
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
             .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
-            .ReturnsAsync(cachedValue);
+            .ReturnsAsync(CacheGetSuccess(cachedValue));
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
@@ -123,7 +156,7 @@ public class IdempotencyExecutionServiceTests
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
             .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
-            .ReturnsAsync(cachedValue);
+            .ReturnsAsync(CacheGetSuccess(cachedValue));
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
@@ -148,7 +181,7 @@ public class IdempotencyExecutionServiceTests
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
             .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
-            .ReturnsAsync(cachedValue);
+            .ReturnsAsync(CacheGetSuccess(cachedValue));
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
@@ -173,7 +206,7 @@ public class IdempotencyExecutionServiceTests
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
             .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
-            .ReturnsAsync(cachedValue);
+            .ReturnsAsync(CacheGetSuccess(cachedValue));
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
@@ -238,14 +271,13 @@ public class IdempotencyExecutionServiceTests
     [Fact]
     public async Task GetLockAsync_WhenEnabledWithIdempotencyId_DelegatesToLockService()
     {
-        var expectedLock = new Mock<ISafeAbstractedLock>(MockBehavior.Strict);
+        var expectedLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
         expectedLock.SetupGet(l => l.IsAcquired).Returns(true);
-        expectedLock.SetupGet(l => l.IsTrulyAcquired).Returns(true);
 
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         lockService
             .Setup(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken))
-            .ReturnsAsync(expectedLock.Object);
+            .ReturnsAsync(LockResponse(expectedLock.Object));
 
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         var job = CreateJob();
@@ -265,14 +297,13 @@ public class IdempotencyExecutionServiceTests
     [Fact]
     public async Task GetLockAsync_WhenEnabledWithIdempotencyId_WithTraceLogging_LogsAcquireAttempts()
     {
-        var expectedLock = new Mock<ISafeAbstractedLock>(MockBehavior.Strict);
+        var expectedLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
         expectedLock.SetupGet(l => l.IsAcquired).Returns(true);
-        expectedLock.SetupGet(l => l.IsTrulyAcquired).Returns(true);
 
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         lockService
             .Setup(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken))
-            .ReturnsAsync(expectedLock.Object);
+            .ReturnsAsync(LockResponse(expectedLock.Object));
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object,
@@ -336,18 +367,19 @@ public class IdempotencyExecutionServiceTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task GetLockAsync_WhenLockNotTrulyAcquired_LogsWarning(bool isTrulyAcquired)
+    [InlineData(SafeDistributedOperationResult.Success)]
+    [InlineData(SafeDistributedOperationResult.Failure)]
+    [InlineData(SafeDistributedOperationResult.DisgracePeriod)]
+    public async Task GetLockAsync_WhenLockResultIsNotSuccess_LogsWarning(
+        SafeDistributedOperationResult lockResult)
     {
-        var expectedLock = new Mock<ISafeAbstractedLock>(MockBehavior.Strict);
+        var expectedLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
         expectedLock.SetupGet(l => l.IsAcquired).Returns(true);
-        expectedLock.SetupGet(l => l.IsTrulyAcquired).Returns(isTrulyAcquired);
 
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         lockService
             .Setup(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken))
-            .ReturnsAsync(expectedLock.Object);
+            .ReturnsAsync(LockResponse(expectedLock.Object, lockResult));
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object,
@@ -363,24 +395,24 @@ public class IdempotencyExecutionServiceTests
                 It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("idem-1")),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            isTrulyAcquired ? Times.Never() : Times.Once());
+            lockResult == SafeDistributedOperationResult.Success ? Times.Never() : Times.Once());
         VerifyNoTraceLogs(logger);
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task GetLockAsync_WhenLockNotTrulyAcquired_WithTraceLogging_StillLogsWarningAndTraces(
-        bool isTrulyAcquired)
+    [InlineData(SafeDistributedOperationResult.Success)]
+    [InlineData(SafeDistributedOperationResult.Failure)]
+    [InlineData(SafeDistributedOperationResult.DisgracePeriod)]
+    public async Task GetLockAsync_WhenLockResultIsNotSuccess_WithTraceLogging_StillLogsWarningAndTraces(
+        SafeDistributedOperationResult lockResult)
     {
-        var expectedLock = new Mock<ISafeAbstractedLock>(MockBehavior.Strict);
+        var expectedLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
         expectedLock.SetupGet(l => l.IsAcquired).Returns(true);
-        expectedLock.SetupGet(l => l.IsTrulyAcquired).Returns(isTrulyAcquired);
 
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         lockService
             .Setup(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken))
-            .ReturnsAsync(expectedLock.Object);
+            .ReturnsAsync(LockResponse(expectedLock.Object, lockResult));
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object,
@@ -398,7 +430,7 @@ public class IdempotencyExecutionServiceTests
                 It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("idem-1")),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            isTrulyAcquired ? Times.Never() : Times.Once());
+            lockResult == SafeDistributedOperationResult.Success ? Times.Never() : Times.Once());
     }
 
     [Theory]
@@ -423,7 +455,7 @@ public class IdempotencyExecutionServiceTests
         cache
             .Setup(c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(CacheSetSuccess());
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
@@ -452,7 +484,7 @@ public class IdempotencyExecutionServiceTests
         cache
             .Setup(c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(10),
                 TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(CacheSetSuccess());
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
@@ -482,7 +514,7 @@ public class IdempotencyExecutionServiceTests
         cache
             .Setup(c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(CacheSetSuccess());
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
@@ -512,7 +544,7 @@ public class IdempotencyExecutionServiceTests
         cache
             .Setup(c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(CacheSetSuccess());
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
@@ -541,7 +573,7 @@ public class IdempotencyExecutionServiceTests
         cache
             .Setup(c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(CacheSetSuccess());
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(
@@ -574,7 +606,7 @@ public class IdempotencyExecutionServiceTests
         cache
             .Setup(c => c.SetStringAsync("idempotency:idem-1:result", null, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(CacheSetSuccess());
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
@@ -605,7 +637,7 @@ public class IdempotencyExecutionServiceTests
         cache
             .Setup(c => c.SetStringAsync("idempotency:idem-1:result", null, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(CacheSetSuccess());
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(

@@ -16,15 +16,15 @@ public class SafetyDisgraceStateServiceTests
 
         service.EnterDisgracePeriod();
         await Task.Delay(TimeSpan.FromMilliseconds(600), TestContext.Current.CancellationToken);
-        Assert.True(service.IsInDisgracePeriod());
+        Assert.True(service.IsInDisgracePeriod(out _));
 
         // Re-enter near the end of the first window; the period should extend from now.
         service.EnterDisgracePeriod();
         await Task.Delay(TimeSpan.FromMilliseconds(600), TestContext.Current.CancellationToken);
-        Assert.True(service.IsInDisgracePeriod());
+        Assert.True(service.IsInDisgracePeriod(out _));
 
         await Task.Delay(TimeSpan.FromMilliseconds(600), TestContext.Current.CancellationToken);
-        Assert.False(service.IsInDisgracePeriod());
+        Assert.False(service.IsInDisgracePeriod(out _));
     }
 
     [Theory]
@@ -41,7 +41,7 @@ public class SafetyDisgraceStateServiceTests
 
         service.EnterDisgracePeriod();
 
-        Assert.True(service.IsInDisgracePeriod());
+        Assert.True(service.IsInDisgracePeriod(out _));
     }
 
     [Fact]
@@ -55,7 +55,41 @@ public class SafetyDisgraceStateServiceTests
 
         service.EnterDisgracePeriod();
 
-        Assert.False(service.IsInDisgracePeriod());
+        Assert.False(service.IsInDisgracePeriod(out _));
+    }
+
+    [Fact]
+    public void GetNextAttemptTime_WhenInDisgrace_ReturnsDisgraceEnd()
+    {
+        var service = new SafetyDisgraceStateService(
+            Options.Create(new SafetyDisgraceStateService.ConfigurationModel
+            {
+                DisgracePeriodSeconds = 60
+            }));
+
+        var before = DateTime.UtcNow;
+        service.EnterDisgracePeriod();
+        var nextAttempt = service.GetNextAttemptTime();
+        var after = DateTime.UtcNow;
+
+        Assert.True(service.IsInDisgracePeriod(out _));
+        Assert.InRange(nextAttempt, before.AddSeconds(59), after.AddSeconds(61));
+    }
+
+    [Fact]
+    public void GetNextAttemptTime_WhenNotInDisgrace_ReturnsApproximateUtcNow()
+    {
+        var service = new SafetyDisgraceStateService(
+            Options.Create(new SafetyDisgraceStateService.ConfigurationModel
+            {
+                DisgracePeriodSeconds = 60
+            }));
+
+        var before = DateTime.UtcNow;
+        var nextAttempt = service.GetNextAttemptTime();
+        var after = DateTime.UtcNow;
+
+        Assert.InRange(nextAttempt, before.AddSeconds(-1), after.AddSeconds(1));
     }
 
     [Fact(Timeout = 3000)]
@@ -68,11 +102,29 @@ public class SafetyDisgraceStateServiceTests
             }));
 
         service.EnterDisgracePeriod();
-        Assert.True(service.IsInDisgracePeriod());
+        Assert.True(service.IsInDisgracePeriod(out _));
 
         await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken);
 
-        Assert.False(service.IsInDisgracePeriod());
+        Assert.False(service.IsInDisgracePeriod(out _));
+    }
+
+    [Fact]
+    public void IsInDisgracePeriod_WhenInDisgrace_ReturnsDisgraceEndAsNextAttemptTime()
+    {
+        var service = new SafetyDisgraceStateService(
+            Options.Create(new SafetyDisgraceStateService.ConfigurationModel
+            {
+                DisgracePeriodSeconds = 60
+            }));
+
+        var before = DateTime.UtcNow;
+        service.EnterDisgracePeriod();
+        var inDisgrace = service.IsInDisgracePeriod(out var nextAttemptTime);
+        var after = DateTime.UtcNow;
+
+        Assert.True(inDisgrace);
+        Assert.InRange(nextAttemptTime, before.AddSeconds(59), after.AddSeconds(61));
     }
 
     [Fact]
@@ -84,6 +136,23 @@ public class SafetyDisgraceStateServiceTests
                 DisgracePeriodSeconds = 60
             }));
 
-        Assert.False(service.IsInDisgracePeriod());
+        Assert.False(service.IsInDisgracePeriod(out _));
+    }
+
+    [Fact]
+    public void IsInDisgracePeriod_WhenNotInDisgrace_ReturnsApproximateUtcNowAsNextAttemptTime()
+    {
+        var service = new SafetyDisgraceStateService(
+            Options.Create(new SafetyDisgraceStateService.ConfigurationModel
+            {
+                DisgracePeriodSeconds = 60
+            }));
+
+        var before = DateTime.UtcNow;
+        var inDisgrace = service.IsInDisgracePeriod(out var nextAttemptTime);
+        var after = DateTime.UtcNow;
+
+        Assert.False(inDisgrace);
+        Assert.InRange(nextAttemptTime, before.AddSeconds(-1), after.AddSeconds(1));
     }
 }

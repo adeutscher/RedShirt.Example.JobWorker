@@ -10,7 +10,18 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
 internal interface ISafetyDisgraceStateService
 {
     void EnterDisgracePeriod();
-    bool IsInDisgracePeriod();
+
+    /// <summary>
+    ///     When in a disgrace period, the UTC time after which attempts may resume; otherwise the current UTC time.
+    /// </summary>
+    DateTime GetNextAttemptTime();
+
+    /// <summary>
+    ///     Returns whether operations are currently in a disgrace period.
+    ///     When <c>true</c>, <paramref name="nextAttemptTime" /> is the UTC time after which attempts may resume;
+    ///     otherwise it is the current UTC time.
+    /// </summary>
+    bool IsInDisgracePeriod(out DateTime nextAttemptTime);
 }
 
 internal class SafetyDisgraceStateService(IOptions<SafetyDisgraceStateService.ConfigurationModel> options)
@@ -19,12 +30,27 @@ internal class SafetyDisgraceStateService(IOptions<SafetyDisgraceStateService.Co
     private readonly Lock _disgraceLock = new();
     private DateTimeOffset? _disgraceUntil;
 
-    public bool IsInDisgracePeriod()
+    public bool IsInDisgracePeriod(out DateTime nextAttemptTime)
     {
         lock (_disgraceLock)
         {
-            return _disgraceUntil is { } until && DateTimeOffset.UtcNow < until;
+            if (_disgraceUntil is { } until && DateTimeOffset.UtcNow < until)
+            {
+                nextAttemptTime = until.UtcDateTime;
+                return true;
+            }
+
+            // Ready to go now
+            nextAttemptTime = DateTime.UtcNow;
+            // Not in disgrace period
+            return false;
         }
+    }
+
+    public DateTime GetNextAttemptTime()
+    {
+        IsInDisgracePeriod(out var nextAttemptTime);
+        return nextAttemptTime;
     }
 
     public void EnterDisgracePeriod()
