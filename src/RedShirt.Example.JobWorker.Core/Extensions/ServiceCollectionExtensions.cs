@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Heartbeats;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
@@ -39,6 +40,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobLoaderStateService, JobLoaderStateService>()
             .AddSingleton<IJobLoaderStateReaderService>(provider =>
                 provider.GetRequiredService<IJobLoaderStateService>())
+            .AddSingleton<IWorkerReadiness, WorkerReadiness>()
             .Configure<SafeJobRunner.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .Configure<TimeBorderWrapperService.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .Configure<JobSourceConfigurationModel>(configuration.GetSection("JobSource"))

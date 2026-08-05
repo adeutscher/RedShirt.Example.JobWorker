@@ -90,6 +90,34 @@ public class JobLoaderStateServiceTests
     }
 
     [Fact]
+    public void TestHasLoaderStarted_InitialState_False()
+    {
+        var service = new JobLoaderStateService();
+
+        Assert.False(service.HasLoaderStarted());
+    }
+
+    [Fact]
+    public void TestHasLoaderStarted_AfterStart_True()
+    {
+        var service = new JobLoaderStateService();
+
+        service.ReportLoaderStart();
+
+        Assert.True(service.HasLoaderStarted());
+    }
+
+    [Fact]
+    public void TestHasLoaderStarted_AfterStopOnly_False()
+    {
+        var service = new JobLoaderStateService();
+
+        service.ReportLoaderStop();
+
+        Assert.False(service.HasLoaderStarted());
+    }
+
+    [Fact]
     public void TestIsLoaderFinished_InitialState_False()
     {
         var service = new JobLoaderStateService();
