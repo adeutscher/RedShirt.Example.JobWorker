@@ -58,7 +58,7 @@ internal interface IDistributedRetryWrapperService
 /// <param name="exceptionArbiterService">Classifies Redis-related exceptions as expected/transient.</param>
 /// <param name="logger">Logs each retry attempt.</param>
 /// <param name="sleepService">Provides cancellable backoff delays between retry attempts.</param>
-internal class RedisDistributedRetryWrapperService(
+internal sealed class RedisDistributedRetryWrapperService(
     IRedisDistributedExceptionArbiterService exceptionArbiterService,
     ILogger<RedisDistributedRetryWrapperService> logger,
     IDistributedSleepService sleepService)

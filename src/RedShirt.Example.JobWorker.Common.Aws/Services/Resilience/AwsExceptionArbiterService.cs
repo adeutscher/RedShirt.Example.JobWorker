@@ -9,7 +9,7 @@ internal interface IAwsExceptionArbiterService
     AwsExceptionArbiterReport GetReport(Exception exception);
 }
 
-internal class AwsExceptionArbiterService : IAwsExceptionArbiterService
+internal sealed class AwsExceptionArbiterService : IAwsExceptionArbiterService
 {
     private static readonly HashSet<int> TransientRequestStatuses =
     [

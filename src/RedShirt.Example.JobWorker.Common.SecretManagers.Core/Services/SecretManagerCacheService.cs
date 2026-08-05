@@ -63,7 +63,7 @@ public interface ISecretManagerCacheService
 /// <summary>
 ///     Centralized in-memory cache for secrets
 /// </summary>
-internal class SecretManagerCacheService(
+internal sealed class SecretManagerCacheService(
     ISecretManagerService secretManagerService,
     IOptions<SecretManagerCacheService.ConfigurationModel> options) : ISecretManagerCacheService
 {

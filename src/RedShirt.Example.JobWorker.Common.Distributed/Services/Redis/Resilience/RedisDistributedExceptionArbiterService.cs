@@ -18,7 +18,7 @@ internal interface IRedisDistributedExceptionArbiterService
 ///     Redis-oriented exception arbiter modelled after the Azure exception arbiter:
 ///     known infrastructure failures may be transient; caller cancel and bad arguments are not.
 /// </summary>
-internal class RedisDistributedExceptionArbiterService : IRedisDistributedExceptionArbiterService
+internal sealed class RedisDistributedExceptionArbiterService : IRedisDistributedExceptionArbiterService
 {
     private static readonly HashSet<ConnectionFailureType> CriticalConnectionFailures =
     [

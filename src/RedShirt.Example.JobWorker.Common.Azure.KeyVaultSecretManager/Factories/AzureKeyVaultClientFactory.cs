@@ -14,7 +14,7 @@ internal interface IAzureKeyVaultClientFactory
     IAzureKeyVaultClientWrapper GetClient();
 }
 
-internal class AzureKeyVaultClientFactory(IOptions<AzureKeyVaultClientFactory.ConfigurationModel> options)
+internal sealed class AzureKeyVaultClientFactory(IOptions<AzureKeyVaultClientFactory.ConfigurationModel> options)
     : IAzureKeyVaultClientFactory
 {
     public IAzureKeyVaultClientWrapper GetClient()

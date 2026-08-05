@@ -12,7 +12,7 @@ internal interface IDistributedSleepService
     Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken = default);
 }
 
-internal class DistributedSleepService : IDistributedSleepService
+internal sealed class DistributedSleepService : IDistributedSleepService
 {
     public Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken = default)
     {

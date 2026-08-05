@@ -24,7 +24,7 @@ internal interface ISafetyDisgraceStateService
     bool IsInDisgracePeriod(out DateTime nextAttemptTime);
 }
 
-internal class SafetyDisgraceStateService(IOptions<SafetyDisgraceStateService.ConfigurationModel> options)
+internal sealed class SafetyDisgraceStateService(IOptions<SafetyDisgraceStateService.ConfigurationModel> options)
     : ISafetyDisgraceStateService
 {
     private readonly Lock _disgraceLock = new();

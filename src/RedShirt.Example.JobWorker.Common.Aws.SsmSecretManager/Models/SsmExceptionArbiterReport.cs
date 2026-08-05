@@ -1,6 +1,6 @@
 namespace RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.Models;
 
-internal class SsmExceptionArbiterReport
+internal sealed class SsmExceptionArbiterReport
 {
     public required bool AlreadyHandled { get; init; }
     public required bool IsExpected { get; init; }

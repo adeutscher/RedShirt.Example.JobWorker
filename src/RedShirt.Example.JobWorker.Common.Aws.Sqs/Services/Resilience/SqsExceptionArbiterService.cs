@@ -16,7 +16,7 @@ internal interface ISqsExceptionArbiterService
 ///     <see cref="AmazonSQSException" /> instances to <see cref="IAwsExceptionArbiterService" />.
 ///     Unrecognized exception types are marked unexpected so callers surface them raw.
 /// </summary>
-internal class SqsExceptionArbiterService(IAwsExceptionArbiterService awsExceptionArbiterService)
+internal sealed class SqsExceptionArbiterService(IAwsExceptionArbiterService awsExceptionArbiterService)
     : ISqsExceptionArbiterService
 {
     private static SqsExceptionArbiterReport Fresh(bool isExpected, bool couldBeTransient,

@@ -8,7 +8,7 @@ using System.Diagnostics;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
 
-internal class SafeAbstractedLockService(
+internal sealed class SafeAbstractedLockService(
     ISafetyDisgraceStateService safetyDisgraceStateService,
     IAbstractedLockService lockService,
     ILogger<SafeAbstractedLockService> logger)

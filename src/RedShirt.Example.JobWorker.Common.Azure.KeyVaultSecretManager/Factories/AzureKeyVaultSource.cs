@@ -7,7 +7,7 @@ internal interface IAzureKeyVaultClientSource
     IAzureKeyVaultClientWrapper GetKeyVaultClient();
 }
 
-internal class AzureKeyVaultClientSource(IAzureKeyVaultClientFactory factory) : IAzureKeyVaultClientSource
+internal sealed class AzureKeyVaultClientSource(IAzureKeyVaultClientFactory factory) : IAzureKeyVaultClientSource
 {
     private readonly Lazy<IAzureKeyVaultClientWrapper> _queueClient = new(factory.GetClient);
 

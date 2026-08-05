@@ -12,7 +12,7 @@ public interface IRedisConnectionCacheService
     Task<IDatabase> GetDatabaseAsync(CancellationToken cancellationToken = default);
 }
 
-internal class RedisConnectionCacheService(IRedisConnectionFactory redisConnectionFactory)
+internal sealed class RedisConnectionCacheService(IRedisConnectionFactory redisConnectionFactory)
     : IRedisConnectionCacheService
 {
     private readonly SemaphoreSlim _lock = new(1, 1);

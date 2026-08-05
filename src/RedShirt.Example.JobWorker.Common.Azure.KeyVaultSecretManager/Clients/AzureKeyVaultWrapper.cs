@@ -7,7 +7,7 @@ internal interface IAzureKeyVaultClientWrapper
     Task<string> GetSecretAsync(string secretName, CancellationToken cancellationToken = default);
 }
 
-internal class AzureKeyVaultClientWrapper(SecretClient secretClient) : IAzureKeyVaultClientWrapper
+internal sealed class AzureKeyVaultClientWrapper(SecretClient secretClient) : IAzureKeyVaultClientWrapper
 {
     internal SecretClient Client => secretClient;
 

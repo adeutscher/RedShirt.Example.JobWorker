@@ -16,7 +16,7 @@ internal interface ISsmRetryWrapperService
     Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default);
 }
 
-internal class SsmRetryWrapperService(
+internal sealed class SsmRetryWrapperService(
     ISsmExceptionArbiterService exceptionArbiterService,
     ILogger<SsmRetryWrapperService> logger,
     ISleepService sleepService)

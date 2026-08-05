@@ -6,7 +6,7 @@ using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services;
 
-internal class SafeRemoteCacheService(
+internal sealed class SafeRemoteCacheService(
     IRemoteCacheService remoteCacheService,
     ISafetyDisgraceStateService safetyDisgraceStateService,
     ILogger<SafeRemoteCacheService> logger) : ISafeRemoteCacheService

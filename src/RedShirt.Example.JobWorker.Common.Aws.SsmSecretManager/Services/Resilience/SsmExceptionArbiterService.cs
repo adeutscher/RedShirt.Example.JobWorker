@@ -16,7 +16,7 @@ internal interface ISsmExceptionArbiterService
 ///     remaining <see cref="AmazonServiceException" /> instances to <see cref="IAwsExceptionArbiterService" />.
 ///     Unrecognized exception types are marked unexpected so callers surface them raw.
 /// </summary>
-internal class SsmExceptionArbiterService(IAwsExceptionArbiterService awsExceptionArbiterService)
+internal sealed class SsmExceptionArbiterService(IAwsExceptionArbiterService awsExceptionArbiterService)
     : ISsmExceptionArbiterService
 {
     private static SsmExceptionArbiterReport Fresh(bool isExpected, bool couldBeTransient,

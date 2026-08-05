@@ -11,7 +11,7 @@ internal interface IRedisConnectionFactory
     Task<IConnectionMultiplexer> GetConnectionAsync(CancellationToken cancellationToken = default);
 }
 
-internal class RedisConnectionFactory(
+internal sealed class RedisConnectionFactory(
     ISecretManagerCacheService secretManager,
     IOptions<RedisConnectionFactory.ConfigurationModel> options) : IRedisConnectionFactory
 {

@@ -12,7 +12,7 @@ namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 ///     Redis-based locking through the DistributedLock.Redis package.
 /// </summary>
 /// <param name="redisConnectionCacheService"></param>
-internal class RedisLockService(
+internal sealed class RedisLockService(
     IDistributedRetryWrapperService retryWrapper,
     IRedisConnectionCacheService redisConnectionCacheService,
     IOptions<LockConfigurationModel> options) : IAbstractedLockService

@@ -3,7 +3,7 @@ using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis.Resilience;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 
-internal class RedisCacheService(
+internal sealed class RedisCacheService(
     IDistributedRetryWrapperService retryWrapper,
     IRedisConnectionCacheService redisConnectionCacheService) : IRemoteCacheService
 {

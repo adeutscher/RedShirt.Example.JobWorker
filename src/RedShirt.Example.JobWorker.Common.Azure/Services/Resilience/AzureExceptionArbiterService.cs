@@ -10,7 +10,7 @@ internal interface IAzureExceptionArbiterService
     AzureExceptionArbiterReport GetReport(Exception exception);
 }
 
-internal class AzureExceptionArbiterService : IAzureExceptionArbiterService
+internal sealed class AzureExceptionArbiterService : IAzureExceptionArbiterService
 {
     private static readonly HashSet<int> TransientRequestStatuses =
     [

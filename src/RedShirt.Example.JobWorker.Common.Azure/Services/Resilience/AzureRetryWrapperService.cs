@@ -41,7 +41,7 @@ public interface IAzureRetryWrapperService
 /// <param name="exceptionArbiterService">Classifies Azure-related exceptions as expected/transient.</param>
 /// <param name="logger">Logs retry attempts.</param>
 /// <param name="sleepService">Provides cancellable backoff delays between retry attempts.</param>
-internal class AzureRetryWrapperService(
+internal sealed class AzureRetryWrapperService(
     IAzureExceptionArbiterService exceptionArbiterService,
     ILogger<AzureRetryWrapperService> logger,
     ISleepService sleepService)

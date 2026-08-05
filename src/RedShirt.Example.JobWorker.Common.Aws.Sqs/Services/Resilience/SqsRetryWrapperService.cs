@@ -18,7 +18,7 @@ public interface ISqsRetryWrapperService
     Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default);
 }
 
-internal class SqsRetryWrapperService(
+internal sealed class SqsRetryWrapperService(
     ISqsExceptionArbiterService exceptionArbiterService,
     ILogger<SqsRetryWrapperService> logger,
     ISleepService sleepService)

@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 
 namespace RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Services;
 
-internal partial class AzureKeyVaultService(
+internal sealed partial class AzureKeyVaultService(
     IAzureRetryWrapperService retryWrapperService,
     IAzureKeyVaultClientSource clientSource) : ISecretManagerService
 {

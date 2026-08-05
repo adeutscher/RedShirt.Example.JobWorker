@@ -5,7 +5,7 @@ using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 
 namespace RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.Services;
 
-internal class SsmSecretManagerService(
+internal sealed class SsmSecretManagerService(
     IAmazonSimpleSystemsManagement ssm,
     ISsmRetryWrapperService retryWrapperService) : ISecretManagerService
 {
