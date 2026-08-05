@@ -33,7 +33,7 @@ For configuration examples, see the `worker` section of the `test/local/docker-c
 
 ## Health probes (z-pages)
 
-The executable host uses the .NET Generic Host with optional Kestrel-backed Google-style z-pages. When health endpoints are enabled, readiness is evaluated via ASP.NET Core health checks (`MapHealthChecks`) using the shared Core `IWorkerReadiness` service.
+The executable host uses the .NET Generic Host with optional `System.Net.HttpListener`-backed Google-style z-pages. When health endpoints are enabled, readiness is evaluated via the shared Core `IWorkerReadiness` service injected into the listener hosted service.
 
 | Endpoint   | Purpose | Healthy response | Unhealthy response |
 |------------|---------|------------------|--------------------|
@@ -43,7 +43,7 @@ The executable host uses the .NET Generic Host with optional Kestrel-backed Goog
 
 Environment variables (also bindable as `Health:Enabled` / `Health:Port`):
 
-* `HEALTH__ENABLED` — enable Kestrel and z-pages (default: `true`). When `false`, the worker runs without binding a health port.
+* `HEALTH__ENABLED` — enable the HttpListener and z-pages (default: `true`). When `false`, the worker runs without binding a health port.
 * `HEALTH__PORT` — TCP port for health endpoints, bound on `0.0.0.0` (default: `8080`).
 
 ## Batch Mode vs. Loader Mode
