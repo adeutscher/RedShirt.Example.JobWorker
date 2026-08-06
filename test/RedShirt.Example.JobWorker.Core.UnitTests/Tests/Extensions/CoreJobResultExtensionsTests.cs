@@ -11,7 +11,7 @@ public class CoreJobResultExtensionsTests
     [InlineData(CoreJobResult.Success, false)]
     [InlineData(CoreJobResult.Empty, false)]
     [InlineData(CoreJobResult.Parsing, false)]
-    [InlineData(CoreJobResult.Broken, false)]
+    [InlineData(CoreJobResult.InvalidData, false)]
     public void IsRecoverableFailure_ReturnsExpected(CoreJobResult result, bool expected)
     {
         Assert.Equal(expected, result.IsRecoverableFailure());
@@ -23,7 +23,7 @@ public class CoreJobResultExtensionsTests
     [InlineData(CoreJobResult.Cancelled, false)]
     [InlineData(CoreJobResult.Empty, false)]
     [InlineData(CoreJobResult.Parsing, false)]
-    [InlineData(CoreJobResult.Broken, false)]
+    [InlineData(CoreJobResult.InvalidData, false)]
     public void IsSuccessful_ReturnsExpected(CoreJobResult result, bool expected)
     {
         Assert.Equal(expected, result.IsSuccessful());
@@ -34,7 +34,7 @@ public class CoreJobResultExtensionsTests
     [InlineData(CoreJobResult.Parsing, FailureType.Parsing)]
     [InlineData(CoreJobResult.Failure, FailureType.Execution)]
     [InlineData(CoreJobResult.Cancelled, FailureType.Cancelled)]
-    [InlineData(CoreJobResult.Broken, FailureType.Broken)]
+    [InlineData(CoreJobResult.InvalidData, FailureType.Broken)]
     public void ToFailureType_MapsNonSuccess(CoreJobResult result, FailureType expected)
     {
         Assert.Equal(expected, result.ToFailureType());

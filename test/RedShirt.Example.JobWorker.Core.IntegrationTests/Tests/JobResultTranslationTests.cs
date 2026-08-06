@@ -9,7 +9,10 @@ using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
+using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Common.Services.Abstractions;
+using RedShirt.Example.JobWorker.Common.Enums;
+using RedShirt.Example.JobWorker.Common.Models;
 
 namespace RedShirt.Example.JobWorker.Core.IntegrationTests.Tests;
 
@@ -46,7 +49,7 @@ public class JobResultTranslationTests
     [Theory(Timeout = 2000)]
     [InlineData(JobResult.Success, CoreJobResult.Success, null)]
     [InlineData(JobResult.Failure, CoreJobResult.Failure, FailureType.Execution)]
-    [InlineData(JobResult.Broken, CoreJobResult.Broken, FailureType.Broken)]
+    [InlineData(JobResult.InvalidData, CoreJobResult.InvalidData, FailureType.Broken)]
     public async Task JobResult_FromLogicRunner_IsTranslated_ToJobSource_AndFailureHandler(
         JobResult jobResult,
         CoreJobResult expectedCoreJobResult,
@@ -131,7 +134,7 @@ public class JobResultTranslationTests
             logicRunner.Object,
             sleepService,
             new TimeBorderWrapperService(
-                new SleepService(),
+                sleepService,
                 Options.Create(new TimeBorderWrapperService.ConfigurationModel
                 {
                     TaskWaitBufferSeconds = null,

@@ -5,6 +5,7 @@ using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
+using RedShirt.Example.JobWorker.Common.Models;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Jobs;
 
@@ -89,13 +90,13 @@ public class JobIntakeServiceTests
 
         var acknowledgement = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
         acknowledgement
-            .Setup(a => a.AcknowledgeSafelyAsync(rawJob.Object, CoreJobResult.Broken, bodyException, null,
+            .Setup(a => a.AcknowledgeSafelyAsync(rawJob.Object, CoreJobResult.InvalidData, bodyException, null,
                 TestContext.Current.CancellationToken))
             .ReturnsAsync(ackResult);
 
         var idempotency = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
         idempotency
-            .Setup(i => i.SetResultInCacheAsync(rawJob.Object, CoreJobResult.Broken, ackResult,
+            .Setup(i => i.SetResultInCacheAsync(rawJob.Object, CoreJobResult.InvalidData, ackResult,
                 TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
@@ -114,11 +115,11 @@ public class JobIntakeServiceTests
 
         converter.Verify(c => c.Convert(It.IsAny<string>()), Times.Never);
         acknowledgement.Verify(
-            a => a.AcknowledgeSafelyAsync(rawJob.Object, CoreJobResult.Broken, bodyException, null,
+            a => a.AcknowledgeSafelyAsync(rawJob.Object, CoreJobResult.InvalidData, bodyException, null,
                 TestContext.Current.CancellationToken),
             Times.Once);
         idempotency.Verify(
-            i => i.SetResultInCacheAsync(rawJob.Object, CoreJobResult.Broken, ackResult,
+            i => i.SetResultInCacheAsync(rawJob.Object, CoreJobResult.InvalidData, ackResult,
                 TestContext.Current.CancellationToken),
             Times.Once);
         jobRepository.Verify(

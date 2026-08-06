@@ -153,7 +153,7 @@ public class GooglePubSubJobSourceTests
     [Theory]
     [InlineData(CoreJobResult.Empty)]
     [InlineData(CoreJobResult.Parsing)]
-    [InlineData(CoreJobResult.Broken)]
+    [InlineData(CoreJobResult.InvalidData)]
     public async Task Test_AcknowledgeAsync_NonRecoverable_AcknowledgesWhenNotAlreadyEnforced(
         CoreJobResult result)
     {
@@ -213,7 +213,7 @@ public class GooglePubSubJobSourceTests
     [Theory]
     [InlineData(CoreJobResult.Empty)]
     [InlineData(CoreJobResult.Parsing)]
-    [InlineData(CoreJobResult.Broken)]
+    [InlineData(CoreJobResult.InvalidData)]
     [InlineData(CoreJobResult.Failure)]
     [InlineData(CoreJobResult.Cancelled)]
     public async Task Test_AcknowledgeAsync_SkipsClientCallsWhenAlreadyEnforced(CoreJobResult result)

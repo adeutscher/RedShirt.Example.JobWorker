@@ -1,6 +1,4 @@
 using RedShirt.Example.JobWorker.Common.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Enums;
-using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 
 namespace RedShirt.Example.JobWorker.Common.Enums;
 
@@ -33,12 +31,12 @@ public enum JobResult
     ///     Job logic identified an unrecoverable problem.
     ///     This unrecoverable problem is translated back to the job source,
     ///     which may choose to handle it differently than a regular failure.
-    ///     To confirm phrasing, a broken job suggests that something is fundamentally
-    ///     broken with the provided job data based on implementation-specific business logic.
-    ///     A bad database connection would not warrant a Broken response, as that would be an infrastructure
+    ///     To confirm phrasing, invalid data suggests that something is fundamentally
+    ///     wrong with the provided job payload based on implementation-specific business logic.
+    ///     A bad database connection would not warrant an InvalidData response, as that would be an infrastructure
     ///     problem that could work once the underlying cause had been worked out.
     ///     An IJobDataModel payload that provided the words "roseate spoonbill" instead of a valid SHA256 checksum would
-    ///     qualify as Broken, as no number of retries could make that input work as intended.
+    ///     qualify as InvalidData, as no number of retries could make that input work as intended.
     /// </summary>
-    Broken
+    InvalidData
 }

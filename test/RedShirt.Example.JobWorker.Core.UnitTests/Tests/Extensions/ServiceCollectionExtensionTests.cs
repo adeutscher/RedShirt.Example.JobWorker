@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Extensions;
-using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
@@ -143,18 +142,6 @@ public class ServiceCollectionExtensionTests
 
         var options = provider.GetRequiredService<IOptions<ThreadConfigurationModel>>().Value;
         Assert.Equal(workerThreadCount, options.WorkerThreadCount);
-    }
-
-    [Fact]
-    public void AddCoreJobManagement_RegistersWorkerReadiness()
-    {
-        var configuration = new ConfigurationBuilder().Build();
-
-        var services = new ServiceCollection()
-            .AddCoreJobManagement(configuration);
-
-        var descriptor = Assert.Single(services, d => d.ServiceType == typeof(IWorkerReadiness));
-        Assert.Equal(typeof(WorkerReadiness), descriptor.ImplementationType);
     }
 
     [Theory]

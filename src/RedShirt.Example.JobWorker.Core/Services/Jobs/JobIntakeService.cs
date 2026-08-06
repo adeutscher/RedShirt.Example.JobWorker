@@ -4,6 +4,7 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
+using RedShirt.Example.JobWorker.Common.Models;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Jobs;
 
@@ -22,7 +23,7 @@ internal sealed class JobIntakeService(
     /// <summary>
     ///     Attempt to convert a raw message into job data.
     ///     Body retrieval is assumed to be reliably consistent; an exception from <see cref="IRawJobModel.Body" />
-    ///     is treated as <see cref="CoreJobResult.Broken" />.
+    ///     is treated as <see cref="CoreJobResult.InvalidData" />.
     /// </summary>
     private CoreJobResult TryConvert(IRawJobModel input, out IJobDataModel? convertedData, out Exception? exception)
     {
@@ -40,7 +41,7 @@ internal sealed class JobIntakeService(
         {
             exception = e;
             logger.LogError(e, "Error while retrieving job body");
-            return CoreJobResult.Broken;
+            return CoreJobResult.InvalidData;
         }
 
         if (string.IsNullOrWhiteSpace(body))

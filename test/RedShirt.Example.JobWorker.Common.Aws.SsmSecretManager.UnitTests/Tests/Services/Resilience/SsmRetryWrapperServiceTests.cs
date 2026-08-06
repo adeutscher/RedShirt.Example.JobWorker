@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.Models;
 using RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.Services.Resilience;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Exceptions;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
+using RedShirt.Example.JobWorker.Common.Services;
 
 namespace RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.UnitTests.Tests.Services.Resilience;
 

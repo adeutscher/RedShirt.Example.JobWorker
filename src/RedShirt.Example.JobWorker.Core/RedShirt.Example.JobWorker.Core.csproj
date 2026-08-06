@@ -14,11 +14,8 @@
 
     <ItemGroup>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.Distributed\RedShirt.Example.JobWorker.Common.Distributed.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.Health\RedShirt.Example.JobWorker.Common.Health.csproj" />
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Common\RedShirt.Example.JobWorker.Common.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Folder Include="Services\Health\" />
     </ItemGroup>
 
 </Project>

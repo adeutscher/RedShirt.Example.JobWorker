@@ -5,6 +5,7 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
+using RedShirt.Example.JobWorker.Common.Enums;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Jobs;
 

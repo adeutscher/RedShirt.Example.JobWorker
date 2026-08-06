@@ -1,4 +1,5 @@
 using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Common.Enums;
 
 namespace RedShirt.Example.JobWorker.Core.Models;
 

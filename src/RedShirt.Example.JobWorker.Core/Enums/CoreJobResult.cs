@@ -37,5 +37,5 @@ public enum CoreJobResult
     ///     Indicates that the job application logic handler identified an explicitly unrecoverable problem
     ///     (for example, invalid data based on business logic).
     /// </summary>
-    Broken
+    InvalidData
 }

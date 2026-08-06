@@ -27,7 +27,7 @@ public class NatsJobSourceTests
     [InlineData(CoreJobResult.Success)]
     [InlineData(CoreJobResult.Failure)]
     [InlineData(CoreJobResult.Cancelled)]
-    [InlineData(CoreJobResult.Broken)]
+    [InlineData(CoreJobResult.InvalidData)]
     [InlineData(CoreJobResult.Empty)]
     [InlineData(CoreJobResult.Parsing)]
     public async Task Test_AcknowledgeAsync_AlwaysAcks(CoreJobResult result)

@@ -36,6 +36,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobIntakeService, JobIntakeService>()
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
             .AddSingleton<IJobRepository, JobRepository>()
+            .AddSingleton<ICoreStatisticsService, CoreStatisticsService>()
             .Configure<JobRepository.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .AddSingleton<IJobLoaderStateService, JobLoaderStateService>()
             .AddSingleton<IJobLoaderStateReaderService>(provider =>

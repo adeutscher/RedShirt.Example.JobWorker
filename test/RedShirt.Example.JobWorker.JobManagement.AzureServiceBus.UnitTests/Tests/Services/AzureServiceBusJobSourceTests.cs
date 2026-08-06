@@ -85,7 +85,7 @@ public class AzureServiceBusJobSourceTests
     [Theory]
     [InlineData(CoreJobResult.Empty)]
     [InlineData(CoreJobResult.Parsing)]
-    [InlineData(CoreJobResult.Broken)]
+    [InlineData(CoreJobResult.InvalidData)]
     public async Task Test_AcknowledgeAsync_NonRecoverable_DeadLetters(CoreJobResult result)
     {
         var client = new Mock<IServiceBusClientWrapper>();

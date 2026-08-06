@@ -98,7 +98,7 @@ public class AzureQueueStorageJobSourceTests
 
     [Theory]
     [InlineData(CoreJobResult.Success)]
-    [InlineData(CoreJobResult.Broken)]
+    [InlineData(CoreJobResult.InvalidData)]
     [InlineData(CoreJobResult.Empty)]
     [InlineData(CoreJobResult.Parsing)]
     public async Task Test_AcknowledgeAsync_Deletes(CoreJobResult result)

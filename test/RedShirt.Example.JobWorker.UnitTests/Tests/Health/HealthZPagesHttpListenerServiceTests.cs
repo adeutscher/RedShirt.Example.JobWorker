@@ -3,21 +3,33 @@ using System.Net.Sockets;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Configuration;
-using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Services;
 
 namespace RedShirt.Example.JobWorker.UnitTests.Tests.Health;
 
 public class HealthZPagesHttpListenerServiceTests
 {
+    private static readonly HttpClient Client = new()
+    {
+        Timeout = TimeSpan.FromSeconds(1)
+    };
+
     [Fact]
     public async Task StartAsync_WhenDisabled_DoesNotBindPort()
     {
-        var readiness = new Mock<IWorkerReadiness>(MockBehavior.Strict);
-        var service = CreateService(new HealthConfigurationModel { Enabled = false, Port = GetFreePort() }, readiness.Object);
+        var port = GetFreePort();
+        var service = CreateService(new HealthConfigurationModel { Enabled = false, Port = port });
 
         await service.StartAsync(CancellationToken.None);
-        await service.StopAsync(CancellationToken.None);
+        try
+        {
+            await Assert.ThrowsAsync<HttpRequestException>(() =>
+                Client.GetAsync($"http://127.0.0.1:{port}/livez", TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
     }
 
     [Theory]
@@ -26,8 +38,7 @@ public class HealthZPagesHttpListenerServiceTests
     public async Task GetEndpoint_WhenEnabled_ReturnsOk(string path)
     {
         var port = GetFreePort();
-        var readiness = new Mock<IWorkerReadiness>(MockBehavior.Strict);
-        var service = CreateService(new HealthConfigurationModel { Enabled = true, Port = port }, readiness.Object);
+        var service = CreateService(new HealthConfigurationModel { Enabled = true, Port = port });
 
         await service.StartAsync(CancellationToken.None);
         try
@@ -39,61 +50,7 @@ public class HealthZPagesHttpListenerServiceTests
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("text/plain", response.Content.Headers.ContentType?.MediaType);
-            Assert.Equal("ok", await response.Content.ReadAsStringAsync());
-        }
-        finally
-        {
-            await service.StopAsync(CancellationToken.None);
-        }
-    }
-
-    [Fact]
-    public async Task ReadyZ_WhenReady_ReturnsOk()
-    {
-        var port = GetFreePort();
-        var readiness = new Mock<IWorkerReadiness>(MockBehavior.Strict);
-        readiness.Setup(r => r.IsReady()).Returns(true);
-
-        var service = CreateService(new HealthConfigurationModel { Enabled = true, Port = port }, readiness.Object);
-
-        await service.StartAsync(CancellationToken.None);
-        try
-        {
-            await WaitForEndpointAsync($"http://127.0.0.1:{port}/readyz");
-
-            using var client = new HttpClient();
-            var response = await client.GetAsync($"http://127.0.0.1:{port}/readyz");
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Equal("ok", await response.Content.ReadAsStringAsync());
-            readiness.Verify(r => r.IsReady(), Times.AtLeastOnce);
-        }
-        finally
-        {
-            await service.StopAsync(CancellationToken.None);
-        }
-    }
-
-    [Fact]
-    public async Task ReadyZ_WhenNotReady_ReturnsServiceUnavailable()
-    {
-        var port = GetFreePort();
-        var readiness = new Mock<IWorkerReadiness>(MockBehavior.Strict);
-        readiness.Setup(r => r.IsReady()).Returns(false);
-
-        var service = CreateService(new HealthConfigurationModel { Enabled = true, Port = port }, readiness.Object);
-
-        await service.StartAsync(CancellationToken.None);
-        try
-        {
-            await WaitForEndpointAsync($"http://127.0.0.1:{port}/readyz");
-
-            using var client = new HttpClient();
-            var response = await client.GetAsync($"http://127.0.0.1:{port}/readyz");
-
-            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-            Assert.Equal("not ready", await response.Content.ReadAsStringAsync());
-            readiness.Verify(r => r.IsReady(), Times.AtLeastOnce);
+            Assert.Equal("OK", await response.Content.ReadAsStringAsync());
         }
         finally
         {
@@ -105,8 +62,7 @@ public class HealthZPagesHttpListenerServiceTests
     public async Task GetEndpoint_WhenUnknownPath_ReturnsNotFound()
     {
         var port = GetFreePort();
-        var readiness = new Mock<IWorkerReadiness>(MockBehavior.Strict);
-        var service = CreateService(new HealthConfigurationModel { Enabled = true, Port = port }, readiness.Object);
+        var service = CreateService(new HealthConfigurationModel { Enabled = true, Port = port });
 
         await service.StartAsync(CancellationToken.None);
         try
@@ -124,11 +80,10 @@ public class HealthZPagesHttpListenerServiceTests
         }
     }
 
-    private static HealthZPagesHttpListenerService CreateService(HealthConfigurationModel configurationModel, IWorkerReadiness readiness)
+    private static HealthZPagesHttpListenerService CreateService(HealthConfigurationModel configurationModel)
     {
         return new HealthZPagesHttpListenerService(
             Options.Create(configurationModel),
-            readiness,
             NullLogger<HealthZPagesHttpListenerService>.Instance);
     }
 

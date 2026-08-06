@@ -54,7 +54,7 @@ internal class RabbitMqJobSource : IJobSource
             else
             {
                 // If recoverable, then NAck with requeue so the message can be delivered again.
-                // Empty / Parsing / Broken: NAck without requeue (dead-letter if the queue is configured for it).
+                // Empty / Parsing / InvalidData: NAck without requeue (dead-letter if the queue is configured for it).
                 await channel.BasicNackAsync(rabbitMqJobModel.DeliveryTag, false, result.IsRecoverableFailure(),
                     cancellationToken);
             }

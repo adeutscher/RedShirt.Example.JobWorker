@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Common.Azure.Exceptions;
 using RedShirt.Example.JobWorker.Common.Azure.Models;
 using RedShirt.Example.JobWorker.Common.Azure.Services.Resilience;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
+using RedShirt.Example.JobWorker.Common.Services;
 
 namespace RedShirt.Example.JobWorker.Common.Azure.UnitTests.Tests.Services.Resilience;
 

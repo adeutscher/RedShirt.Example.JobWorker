@@ -3,8 +3,9 @@ using System.Text;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.Health.Constants;
 using RedShirt.Example.JobWorker.Configuration;
-using RedShirt.Example.JobWorker.Core.Services.Health;
+using System.Text.Json;
 
 namespace RedShirt.Example.JobWorker.Services;
 
@@ -89,8 +90,8 @@ public sealed class HealthZPagesHttpListenerService(
 
             switch (path)
             {
-                case "/livez":
-                case "/healthz":
+                case HealthPathConstants.LivePath:
+                case HealthPathConstants.HealthPath:
                     await WritePlainTextAsync(context, 200, "OK");
                     break;
                 default:
@@ -115,6 +116,16 @@ public sealed class HealthZPagesHttpListenerService(
         }
     }
 
+    private static async Task WriteJsonAsync(HttpListenerContext context, int statusCode, object content)
+    {
+        var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(content));
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = "text/plain";
+        context.Response.ContentLength64 = bytes.Length;
+        await context.Response.OutputStream.WriteAsync(bytes);
+        context.Response.Close();
+    }
+    
     private static async Task WritePlainTextAsync(HttpListenerContext context, int statusCode, string body)
     {
         var bytes = Encoding.UTF8.GetBytes(body);

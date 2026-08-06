@@ -2,10 +2,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
-using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
+using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Common.Services.Abstractions;
+using RedShirt.Example.JobWorker.Common.Exceptions;
+using RedShirt.Example.JobWorker.Common.Enums;
+using RedShirt.Example.JobWorker.Common.Models;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Safety;
 
@@ -186,13 +188,13 @@ public class SafeJobRunnerTests
     }
 
     [Fact]
-    public async Task RunSafelyAsync_WhenLogicReturnsBroken_MapsToBrokenWithoutException()
+    public async Task RunSafelyAsync_WhenLogicReturnsInvalidData_MapsToInvalidDataWithoutException()
     {
         var job = new Mock<IJobModel>(MockBehavior.Strict);
         var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
         logicRunner
             .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(JobResult.Broken);
+            .ReturnsAsync(JobResult.InvalidData);
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
 
@@ -209,7 +211,7 @@ public class SafeJobRunnerTests
 
         var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
 
-        Assert.Equal(CoreJobResult.Broken, result.Result);
+        Assert.Equal(CoreJobResult.InvalidData, result.Result);
         Assert.Null(result.Exception);
         logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
     }

@@ -15,6 +15,7 @@
         <Project Path="src/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.csproj" />
         <Project Path="src/RedShirt.Example.JobWorker.Common.Azure/RedShirt.Example.JobWorker.Common.Azure.csproj" />
         <Project Path="src/RedShirt.Example.JobWorker.Common.Distributed/RedShirt.Example.JobWorker.Common.Distributed.csproj" />
+        <Project Path="src/RedShirt.Example.JobWorker.Common.Health/RedShirt.Example.JobWorker.Common.Health.csproj" />
         <Project Path="src/RedShirt.Example.JobWorker.Common.SecretManagers.Core/RedShirt.Example.JobWorker.Common.SecretManagers.Core.csproj" />
         <Project Path="src/RedShirt.Example.JobWorker.Common/RedShirt.Example.JobWorker.Common.csproj" />
         <Project Path="src/RedShirt.Example.JobWorker.Core.Logic/RedShirt.Example.JobWorker.Core.Logic.csproj" />

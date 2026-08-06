@@ -48,7 +48,7 @@ public class PulsarJobSourceTests
     [InlineData(CoreJobResult.Cancelled, false)]
     [InlineData(CoreJobResult.Empty, false)]
     [InlineData(CoreJobResult.Parsing, false)]
-    [InlineData(CoreJobResult.Broken, false)]
+    [InlineData(CoreJobResult.InvalidData, false)]
     public async Task AcknowledgeAsync_AcksOrNacksIndependently(CoreJobResult result, bool expectAck)
     {
         var message = CreateMessage("t:0:1", Guid.NewGuid().ToString());
