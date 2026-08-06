@@ -25,7 +25,7 @@ public static class Setup
                 builder.Configuration.GetSection(CommonHealthConfigurationModel.SectionName))
             .Configure<HealthConfigurationModel>(
                 builder.Configuration.GetSection(CommonHealthConfigurationModel.SectionName))
-            .AddHostedService<HealthZPagesHttpListenerService>();
+            .AddHostedService<HealthPagesHttpListenerService>();
 
         return builder.Build();
     }

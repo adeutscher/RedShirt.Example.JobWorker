@@ -11,7 +11,7 @@ using RedShirt.Example.JobWorker.Services;
 
 namespace RedShirt.Example.JobWorker.UnitTests.Tests.Health;
 
-public class HealthZPagesHttpListenerServiceTests
+public class HealthPagesHttpListenerServiceTests
 {
     private static readonly HttpClient Client = new()
     {
@@ -114,7 +114,7 @@ public class HealthZPagesHttpListenerServiceTests
         }
     }
 
-    private static HealthZPagesHttpListenerService CreateService(
+    private static HealthPagesHttpListenerService CreateService(
         bool enabled,
         int port,
         ICoreHealthStateReaderService? healthService = null,
@@ -123,12 +123,12 @@ public class HealthZPagesHttpListenerServiceTests
         healthService ??= CreateHealthyReader();
         statisticsService ??= CreateEmptyStatisticsService();
 
-        return new HealthZPagesHttpListenerService(
+        return new HealthPagesHttpListenerService(
             healthService,
             statisticsService,
             Options.Create(new CommonHealthConfigurationModel { Enabled = enabled }),
             Options.Create(new HealthConfigurationModel { Port = port }),
-            NullLogger<HealthZPagesHttpListenerService>.Instance);
+            NullLogger<HealthPagesHttpListenerService>.Instance);
     }
 
     private static ICoreHealthStateReaderService CreateHealthyReader()

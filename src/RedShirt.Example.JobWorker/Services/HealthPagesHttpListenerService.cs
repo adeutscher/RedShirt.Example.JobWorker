@@ -11,12 +11,12 @@ using RedShirt.Example.JobWorker.Core.Services.Health;
 
 namespace RedShirt.Example.JobWorker.Services;
 
-public sealed class HealthZPagesHttpListenerService(
+public sealed class HealthPagesHttpListenerService(
     ICoreHealthStateReaderService healthService,
     ICoreStatisticsService statisticsService,
     IOptions<CommonHealthConfigurationModel> commonOptions,
     IOptions<HealthConfigurationModel> hostOptions,
-    ILogger<HealthZPagesHttpListenerService> logger) : BackgroundService
+    ILogger<HealthPagesHttpListenerService> logger) : BackgroundService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
