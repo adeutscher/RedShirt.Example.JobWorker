@@ -1,8 +1,8 @@
-using RedShirt.Example.JobWorker.Core.Enums;
-using RedShirt.Example.JobWorker.Core.Exceptions;
-using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Common.Enums;
+using RedShirt.Example.JobWorker.Common.Exceptions;
+using RedShirt.Example.JobWorker.Common.Models;
 
-namespace RedShirt.Example.JobWorker.Core.Services.Abstractions;
+namespace RedShirt.Example.JobWorker.Common.Services.Abstractions;
 
 /// <summary>
 ///     BatchHandler of actual job logic. Used by Core.Logic project to implement consumer-specific logic.
@@ -16,8 +16,8 @@ public interface IJobLogicRunner
     ///     (equivalent to an uncaught exception in application logic),
     ///     or <see cref="JobResult.Broken" /> when the job is identified as unrecoverable without throwing.
     ///     Unexpected exceptions (and exhausted <see cref="JobRetryException" /> retries) are treated by Core as a
-    ///     recoverable <see cref="CoreJobResult.Failure" />; a returned <see cref="JobResult.Failure" /> maps the same way;
-    ///     a returned <see cref="JobResult.Broken" /> maps to <see cref="CoreJobResult.Broken" />.
+    ///     recoverable failure; a returned <see cref="JobResult.Failure" /> maps the same way;
+    ///     a returned <see cref="JobResult.Broken" /> also maps an invalid job. />.
     /// </summary>
     /// <param name="job">Parsed job model ready for business logic.</param>
     /// <param name="cancellationToken">Token used to cancel in-flight work.</param>

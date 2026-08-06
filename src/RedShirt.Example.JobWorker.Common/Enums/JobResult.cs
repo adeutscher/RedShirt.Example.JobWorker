@@ -1,9 +1,11 @@
+using RedShirt.Example.JobWorker.Common.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 
-namespace RedShirt.Example.JobWorker.Core.Enums;
+namespace RedShirt.Example.JobWorker.Common.Enums;
 
 /// <summary>
-///     Outcome returned by a job's application logic (<see cref="Services.Abstractions.IJobLogicRunner" />).
+///     Outcome returned by a job's application logic (<see cref="IJobLogicRunner" />).
 /// </summary>
 public enum JobResult
 {
@@ -14,14 +16,13 @@ public enum JobResult
 
     /// <summary>
     ///     Job logic reported a recoverable failure without throwing.
-    ///     Handled the same way as an exception in the job application logic not being caught;
-    ///     maps to <see cref="CoreJobResult.Failure" />.
+    ///     Handled the same way as an exception in the job application logic not being caught.
     ///     A failure does not rule out the possibility that the job could be retried successfully,
     ///     which the job source may choose to take into consideration when it is tasked with acknowledgement.
     ///     Although it is an option, it is recommended that the developer implementing this template
     ///     consider just letting an exception be thrown. This is especially true if the exception is from a third-party
     ///     library.
-    ///     Throwing an exception could give the <see cref="IJobFailureHandler" /> implementation a bit more context
+    ///     Throwing an exception could give the failure handling implementation inside the core project a bit more context
     ///     to pass along when it handles a problem.
     ///     In a way, main whole point of this specific enum value is to provide a staging ground to nicely ask the developer
     ///     to let an exception bubble up instead of using it.

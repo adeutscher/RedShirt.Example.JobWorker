@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using RedShirt.Example.JobWorker.Common.Extensions;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
@@ -10,7 +11,6 @@ using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Extensions;
 
@@ -22,6 +22,7 @@ public static class ServiceCollectionExtensions
         IConfigurationRoot configuration)
     {
         services = services
+            .AddCommon()
             // General
             .AddSingleton<IHandler, Handler>()
             .AddSingleton<IJobLoaderLoop, JobLoaderLoop>()
@@ -33,7 +34,6 @@ public static class ServiceCollectionExtensions
             .AddSingleton<ITimeBorderWrapperService, TimeBorderWrapperService>()
             .AddSingleton<ISafeJobAcknowledgementService, SafeJobAcknowledgementService>()
             .AddSingleton<IJobIntakeService, JobIntakeService>()
-            .AddSingleton<ISleepService, SleepService>()
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
             .AddSingleton<IJobRepository, JobRepository>()
             .Configure<JobRepository.ConfigurationModel>(configuration.GetSection(ConfigSectionName))

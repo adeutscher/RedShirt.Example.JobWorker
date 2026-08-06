@@ -93,10 +93,6 @@ public sealed class HealthZPagesHttpListenerService(
                 case "/healthz":
                     await WritePlainTextAsync(context, 200, "OK");
                     break;
-                case "/readyz":
-                    var isReady = readiness.IsReady();
-                    await WritePlainTextAsync(context, isReady ? 200 : 503, isReady ? "OK" : "not ready");
-                    break;
                 default:
                     context.Response.StatusCode = 404;
                     context.Response.Close();

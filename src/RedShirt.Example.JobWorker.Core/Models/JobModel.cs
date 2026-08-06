@@ -1,15 +1,6 @@
-namespace RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Common.Models;
 
-/// <summary>
-///     Contains message data and metadata.
-/// </summary>
-public interface IJobModel
-{
-    string MessageId { get; }
-    string? IdempotencyId { get; }
-    DateTime CreatedAtUtc { get; }
-    IJobDataModel Data { get; }
-}
+namespace RedShirt.Example.JobWorker.Core.Models;
 
 public sealed class JobModel : IJobModel
 {

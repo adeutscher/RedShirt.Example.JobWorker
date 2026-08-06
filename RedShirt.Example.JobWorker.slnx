@@ -41,6 +41,7 @@
         <Project Path="test/RedShirt.Example.JobWorker.Common.Azure.UnitTests/RedShirt.Example.JobWorker.Common.Azure.UnitTests.csproj" />
         <Project Path="test/RedShirt.Example.JobWorker.Common.Distributed.UnitTests/RedShirt.Example.JobWorker.Common.Distributed.UnitTests.csproj" />
         <Project Path="test/RedShirt.Example.JobWorker.Common.SecretManagers.Core.UnitTests/RedShirt.Example.JobWorker.Common.SecretManagers.Core.UnitTests.csproj" />
+        <Project Path="test/RedShirt.Example.JobWorker.Common.UnitTests/RedShirt.Example.JobWorker.Common.UnitTests.csproj" />
         <Project Path="test/RedShirt.Example.JobWorker.Core.Logic.UnitTests/RedShirt.Example.JobWorker.Core.Logic.UnitTests.csproj" />
         <Project Path="test/RedShirt.Example.JobWorker.Core.UnitTests/RedShirt.Example.JobWorker.Core.UnitTests.csproj" />
         <Project Path="test/RedShirt.Example.JobWorker.Core.IntegrationTests/RedShirt.Example.JobWorker.Core.IntegrationTests.csproj" />
