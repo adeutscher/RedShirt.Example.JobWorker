@@ -1,64 +1,104 @@
 <Solution>
     <Configurations>
-        <Platform Name="Any CPU" />
-        <Platform Name="x64" />
-        <Platform Name="x86" />
+        <Platform Name="Any CPU"/>
+        <Platform Name="x64"/>
+        <Platform Name="x86"/>
     </Configurations>
     <Folder Name="/Solution Items/">
-        <File Path="Dockerfile" />
-        <File Path="README.md" />
+        <File Path="Dockerfile"/>
+        <File Path="README.md"/>
     </Folder>
     <Folder Name="/src/">
-        <Project Path="src/RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager/RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.Common.Aws.Sqs/RedShirt.Example.JobWorker.Common.Aws.Sqs.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.Common.Aws/RedShirt.Example.JobWorker.Common.Aws.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.Common.Azure/RedShirt.Example.JobWorker.Common.Azure.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.Common.Distributed/RedShirt.Example.JobWorker.Common.Distributed.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.Common.Health/RedShirt.Example.JobWorker.Common.Health.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.Common.SecretManagers.Core/RedShirt.Example.JobWorker.Common.SecretManagers.Core.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.Common/RedShirt.Example.JobWorker.Common.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.Core.Logic/RedShirt.Example.JobWorker.Core.Logic.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.Core/RedShirt.Example.JobWorker.Core.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.JobManagement.ActiveMq/RedShirt.Example.JobWorker.JobManagement.ActiveMq.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.JobManagement.AzureQueue/RedShirt.Example.JobWorker.JobManagement.AzureQueue.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.JobManagement.AzureServiceBus/RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.JobManagement.GooglePubSub/RedShirt.Example.JobWorker.JobManagement.GooglePubSub.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.JobManagement.Kafka/RedShirt.Example.JobWorker.JobManagement.Kafka.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs/RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.JobManagement.Kinesis/RedShirt.Example.JobWorker.JobManagement.Kinesis.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.JobManagement.Nats/RedShirt.Example.JobWorker.JobManagement.Nats.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.JobManagement.Pulsar/RedShirt.Example.JobWorker.JobManagement.Pulsar.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.JobManagement.RabbitMq/RedShirt.Example.JobWorker.JobManagement.RabbitMq.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.JobManagement.RedisStreams/RedShirt.Example.JobWorker.JobManagement.RedisStreams.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker.JobManagement.Sqs/RedShirt.Example.JobWorker.JobManagement.Sqs.csproj" />
-        <Project Path="src/RedShirt.Example.JobWorker/RedShirt.Example.JobWorker.csproj" />
+        <Project
+                Path="src/RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager/RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.csproj"/>
+        <Project Path="src/RedShirt.Example.JobWorker.Common.Aws.Sqs/RedShirt.Example.JobWorker.Common.Aws.Sqs.csproj"/>
+        <Project Path="src/RedShirt.Example.JobWorker.Common.Aws/RedShirt.Example.JobWorker.Common.Aws.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.csproj"/>
+        <Project Path="src/RedShirt.Example.JobWorker.Common.Azure/RedShirt.Example.JobWorker.Common.Azure.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.Common.Distributed/RedShirt.Example.JobWorker.Common.Distributed.csproj"/>
+        <Project Path="src/RedShirt.Example.JobWorker.Common.Health/RedShirt.Example.JobWorker.Common.Health.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.Common.SecretManagers.Core/RedShirt.Example.JobWorker.Common.SecretManagers.Core.csproj"/>
+        <Project Path="src/RedShirt.Example.JobWorker.Common/RedShirt.Example.JobWorker.Common.csproj"/>
+        <Project Path="src/RedShirt.Example.JobWorker.Core.Logic/RedShirt.Example.JobWorker.Core.Logic.csproj"/>
+        <Project Path="src/RedShirt.Example.JobWorker.Core/RedShirt.Example.JobWorker.Core.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.JobManagement.ActiveMq/RedShirt.Example.JobWorker.JobManagement.ActiveMq.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.JobManagement.AzureQueue/RedShirt.Example.JobWorker.JobManagement.AzureQueue.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.JobManagement.AzureServiceBus/RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.JobManagement.GooglePubSub/RedShirt.Example.JobWorker.JobManagement.GooglePubSub.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.JobManagement.Kafka/RedShirt.Example.JobWorker.JobManagement.Kafka.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs/RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.JobManagement.Kinesis/RedShirt.Example.JobWorker.JobManagement.Kinesis.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.JobManagement.Nats/RedShirt.Example.JobWorker.JobManagement.Nats.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.JobManagement.Pulsar/RedShirt.Example.JobWorker.JobManagement.Pulsar.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.JobManagement.RabbitMq/RedShirt.Example.JobWorker.JobManagement.RabbitMq.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.JobManagement.RedisStreams/RedShirt.Example.JobWorker.JobManagement.RedisStreams.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.JobManagement.Sqs/RedShirt.Example.JobWorker.JobManagement.Sqs.csproj"/>
+        <Project Path="src/RedShirt.Example.JobWorker/RedShirt.Example.JobWorker.csproj"/>
     </Folder>
     <Folder Name="/test/">
-        <Project Path="test/RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.UnitTests/RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.Common.Aws.Sqs.UnitTests/RedShirt.Example.JobWorker.Common.Aws.Sqs.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.Common.Aws.UnitTests/RedShirt.Example.JobWorker.Common.Aws.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.UnitTests/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.Common.Azure.UnitTests/RedShirt.Example.JobWorker.Common.Azure.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.Common.Distributed.UnitTests/RedShirt.Example.JobWorker.Common.Distributed.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.Common.SecretManagers.Core.UnitTests/RedShirt.Example.JobWorker.Common.SecretManagers.Core.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.Common.UnitTests/RedShirt.Example.JobWorker.Common.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.Core.Logic.UnitTests/RedShirt.Example.JobWorker.Core.Logic.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.Core.UnitTests/RedShirt.Example.JobWorker.Core.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.Core.IntegrationTests/RedShirt.Example.JobWorker.Core.IntegrationTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.IntegrationTests/RedShirt.Example.JobWorker.IntegrationTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.JobManagement.ActiveMq.UnitTests/RedShirt.Example.JobWorker.JobManagement.ActiveMq.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests/RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests/RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests/RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.JobManagement.Kafka.UnitTests/RedShirt.Example.JobWorker.JobManagement.Kafka.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.UnitTests/RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests/RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests/RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.JobManagement.Pulsar.UnitTests/RedShirt.Example.JobWorker.JobManagement.Pulsar.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests/RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.JobManagement.RedisStreams.UnitTests/RedShirt.Example.JobWorker.JobManagement.RedisStreams.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests/RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests.csproj" />
-        <Project Path="test/RedShirt.Example.JobWorker.UnitTests/RedShirt.Example.JobWorker.UnitTests.csproj" />
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.UnitTests/RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Common.Aws.Sqs.UnitTests/RedShirt.Example.JobWorker.Common.Aws.Sqs.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Common.Aws.UnitTests/RedShirt.Example.JobWorker.Common.Aws.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.UnitTests/RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Common.Azure.UnitTests/RedShirt.Example.JobWorker.Common.Azure.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Common.Distributed.UnitTests/RedShirt.Example.JobWorker.Common.Distributed.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Common.SecretManagers.Core.UnitTests/RedShirt.Example.JobWorker.Common.SecretManagers.Core.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Common.UnitTests/RedShirt.Example.JobWorker.Common.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Core.Logic.UnitTests/RedShirt.Example.JobWorker.Core.Logic.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Core.UnitTests/RedShirt.Example.JobWorker.Core.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Core.IntegrationTests/RedShirt.Example.JobWorker.Core.IntegrationTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.IntegrationTests/RedShirt.Example.JobWorker.IntegrationTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.JobManagement.ActiveMq.UnitTests/RedShirt.Example.JobWorker.JobManagement.ActiveMq.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests/RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests/RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests/RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.JobManagement.Kafka.UnitTests/RedShirt.Example.JobWorker.JobManagement.Kafka.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.UnitTests/RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests/RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests/RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.JobManagement.Pulsar.UnitTests/RedShirt.Example.JobWorker.JobManagement.Pulsar.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests/RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.JobManagement.RedisStreams.UnitTests/RedShirt.Example.JobWorker.JobManagement.RedisStreams.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests/RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests.csproj"/>
+        <Project Path="test/RedShirt.Example.JobWorker.UnitTests/RedShirt.Example.JobWorker.UnitTests.csproj"/>
     </Folder>
 </Solution>

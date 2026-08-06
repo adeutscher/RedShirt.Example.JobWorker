@@ -12,22 +12,12 @@ namespace RedShirt.Example.JobWorker;
 
 public static class Setup
 {
-    public static IHost GetHost(string[]? args = null)
+    private static void ConfigureWorkerServices(IServiceCollection services, ConfigurationManager configuration)
     {
-        var builder = Host.CreateApplicationBuilder(args ?? []);
-        builder.Configuration.AddEnvironmentVariablesWithSegmentSupport();
-
-        ConfigureLogging(builder);
-        ConfigureWorkerServices(builder.Services, builder.Configuration);
-
-        builder.Services
-            .Configure<CommonHealthConfigurationModel>(
-                builder.Configuration.GetSection(CommonHealthConfigurationModel.SectionName))
-            .Configure<HealthConfigurationModel>(
-                builder.Configuration.GetSection(CommonHealthConfigurationModel.SectionName))
-            .AddHostedService<HealthPagesHttpListenerService>();
-
-        return builder.Build();
+        services
+            .AddOptions()
+            .ConfigureWorker(configuration)
+            .AddHostedService<JobWorkerHostedService>();
     }
 
     /// <summary>
@@ -58,11 +48,21 @@ public static class Setup
         builder.Logging.SetMinimumLevel(logLevel);
     }
 
-    private static void ConfigureWorkerServices(IServiceCollection services, ConfigurationManager configuration)
+    public static IHost GetHost(string[]? args = null)
     {
-        services
-            .AddOptions()
-            .ConfigureWorker(configuration)
-            .AddHostedService<JobWorkerHostedService>();
+        var builder = Host.CreateApplicationBuilder(args ?? []);
+        builder.Configuration.AddEnvironmentVariablesWithSegmentSupport();
+
+        ConfigureLogging(builder);
+        ConfigureWorkerServices(builder.Services, builder.Configuration);
+
+        builder.Services
+            .Configure<CommonHealthConfigurationModel>(
+                builder.Configuration.GetSection(CommonHealthConfigurationModel.SectionName))
+            .Configure<HealthConfigurationModel>(
+                builder.Configuration.GetSection(CommonHealthConfigurationModel.SectionName))
+            .AddHostedService<HealthPagesHttpListenerService>();
+
+        return builder.Build();
     }
 }

@@ -1,12 +1,12 @@
 using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
+using RedShirt.Example.JobWorker.Common.Services;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Common.Services;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Safety;
 

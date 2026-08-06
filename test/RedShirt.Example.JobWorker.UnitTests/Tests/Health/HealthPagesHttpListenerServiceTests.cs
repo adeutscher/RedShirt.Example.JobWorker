@@ -1,13 +1,13 @@
-using System.Net;
-using System.Net.Sockets;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options; 
+using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Health.Configuration;
 using RedShirt.Example.JobWorker.Common.Health.Constants;
 using RedShirt.Example.JobWorker.Common.Health.Models;
 using RedShirt.Example.JobWorker.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Services;
+using System.Net;
+using System.Net.Sockets;
 
 namespace RedShirt.Example.JobWorker.UnitTests.Tests.Health;
 
@@ -17,102 +17,6 @@ public class HealthPagesHttpListenerServiceTests
     {
         Timeout = TimeSpan.FromSeconds(1)
     };
-
-    [Fact]
-    public async Task StartAsync_WhenDisabled_DoesNotBindPort()
-    {
-        var port = GetFreePort();
-        var service = CreateService(enabled: false, port: port);
-
-        await service.StartAsync(CancellationToken.None);
-        try
-        {
-            await Assert.ThrowsAsync<HttpRequestException>(() =>
-                Client.GetAsync($"http://127.0.0.1:{port}{HealthPathConstants.LivePath}",
-                    TestContext.Current.CancellationToken));
-        }
-        finally
-        {
-            await service.StopAsync(CancellationToken.None);
-        }
-    }
-
-    [Theory]
-    [InlineData(HealthPathConstants.LivePath)]
-    [InlineData(HealthPathConstants.HealthPath)]
-    public async Task GetEndpoint_WhenEnabled_ReturnsOk(string path)
-    {
-        var port = GetFreePort();
-        var service = CreateService(enabled: true, port: port);
-
-        await service.StartAsync(CancellationToken.None);
-        try
-        {
-            await WaitForEndpointAsync($"http://127.0.0.1:{port}{path}");
-
-            using var client = new HttpClient();
-            var response = await client.GetAsync($"http://127.0.0.1:{port}{path}",
-                TestContext.Current.CancellationToken);
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Equal("text/plain", response.Content.Headers.ContentType?.MediaType);
-            Assert.Equal("OK", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        }
-        finally
-        {
-            await service.StopAsync(CancellationToken.None);
-        }
-    }
-
-    [Fact]
-    public async Task HealthPath_WhenUnhealthy_ReturnsServiceUnavailable()
-    {
-        var port = GetFreePort();
-        var health = new Mock<ICoreHealthStateReaderService>(MockBehavior.Strict);
-        health.Setup(h => h.IsHealthy()).Returns(false);
-        var service = CreateService(enabled: true, port: port, healthService: health.Object);
-
-        await service.StartAsync(CancellationToken.None);
-        try
-        {
-            await WaitForEndpointAsync($"http://127.0.0.1:{port}{HealthPathConstants.LivePath}");
-
-            using var client = new HttpClient();
-            var response = await client.GetAsync($"http://127.0.0.1:{port}{HealthPathConstants.HealthPath}",
-                TestContext.Current.CancellationToken);
-
-            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-            Assert.Equal("unhealthy", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-            health.Verify(h => h.IsHealthy(), Times.AtLeastOnce);
-        }
-        finally
-        {
-            await service.StopAsync(CancellationToken.None);
-        }
-    }
-
-    [Fact]
-    public async Task GetEndpoint_WhenUnknownPath_ReturnsNotFound()
-    {
-        var port = GetFreePort();
-        var service = CreateService(enabled: true, port: port);
-
-        await service.StartAsync(CancellationToken.None);
-        try
-        {
-            await WaitForEndpointAsync($"http://127.0.0.1:{port}{HealthPathConstants.LivePath}");
-
-            using var client = new HttpClient();
-            var response = await client.GetAsync($"http://127.0.0.1:{port}/unknown",
-                TestContext.Current.CancellationToken);
-
-            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        }
-        finally
-        {
-            await service.StopAsync(CancellationToken.None);
-        }
-    }
 
     private static HealthPagesHttpListenerService CreateService(
         bool enabled,
@@ -126,8 +30,8 @@ public class HealthPagesHttpListenerServiceTests
         return new HealthPagesHttpListenerService(
             healthService,
             statisticsService,
-            Options.Create(new CommonHealthConfigurationModel { Enabled = enabled }),
-            Options.Create(new HealthConfigurationModel { Port = port }),
+            Options.Create(new CommonHealthConfigurationModel {Enabled = enabled}),
+            Options.Create(new HealthConfigurationModel {Port = port}),
             NullLogger<HealthPagesHttpListenerService>.Instance);
     }
 
@@ -169,7 +73,7 @@ public class HealthPagesHttpListenerServiceTests
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
+        return ((IPEndPoint) listener.LocalEndpoint).Port;
     }
 
     private static async Task WaitForEndpointAsync(string url, TimeSpan? timeout = null)
@@ -191,5 +95,101 @@ public class HealthPagesHttpListenerServiceTests
         }
 
         throw new TimeoutException($"Endpoint {url} did not become available.");
+    }
+
+    [Theory]
+    [InlineData(HealthPathConstants.LivePath)]
+    [InlineData(HealthPathConstants.HealthPath)]
+    public async Task GetEndpoint_WhenEnabled_ReturnsOk(string path)
+    {
+        var port = GetFreePort();
+        var service = CreateService(true, port);
+
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            await WaitForEndpointAsync($"http://127.0.0.1:{port}{path}");
+
+            using var client = new HttpClient();
+            var response = await client.GetAsync($"http://127.0.0.1:{port}{path}",
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("text/plain", response.Content.Headers.ContentType?.MediaType);
+            Assert.Equal("OK", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task GetEndpoint_WhenUnknownPath_ReturnsNotFound()
+    {
+        var port = GetFreePort();
+        var service = CreateService(true, port);
+
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            await WaitForEndpointAsync($"http://127.0.0.1:{port}{HealthPathConstants.LivePath}");
+
+            using var client = new HttpClient();
+            var response = await client.GetAsync($"http://127.0.0.1:{port}/unknown",
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task HealthPath_WhenUnhealthy_ReturnsServiceUnavailable()
+    {
+        var port = GetFreePort();
+        var health = new Mock<ICoreHealthStateReaderService>(MockBehavior.Strict);
+        health.Setup(h => h.IsHealthy()).Returns(false);
+        var service = CreateService(true, port, health.Object);
+
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            await WaitForEndpointAsync($"http://127.0.0.1:{port}{HealthPathConstants.LivePath}");
+
+            using var client = new HttpClient();
+            var response = await client.GetAsync($"http://127.0.0.1:{port}{HealthPathConstants.HealthPath}",
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            Assert.Equal("unhealthy", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            health.Verify(h => h.IsHealthy(), Times.AtLeastOnce);
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task StartAsync_WhenDisabled_DoesNotBindPort()
+    {
+        var port = GetFreePort();
+        var service = CreateService(false, port);
+
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            await Assert.ThrowsAsync<HttpRequestException>(() =>
+                Client.GetAsync($"http://127.0.0.1:{port}{HealthPathConstants.LivePath}",
+                    TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
     }
 }

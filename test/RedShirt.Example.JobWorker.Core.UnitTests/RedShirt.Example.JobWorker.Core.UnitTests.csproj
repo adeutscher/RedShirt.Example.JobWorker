@@ -34,7 +34,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Tests\Services\Health\" />
+        <Folder Include="Tests\Services\Health\"/>
         <Folder Include="Tests\Utility\"/>
     </ItemGroup>
 

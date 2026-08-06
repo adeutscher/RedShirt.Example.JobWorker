@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
-using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.Services.Resilience;
 

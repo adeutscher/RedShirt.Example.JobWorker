@@ -46,6 +46,7 @@ public static class ServiceCollectionExtensions
             .Configure<JobSourceConfigurationModel>(configuration.GetSection("JobSource"))
             .Configure<LoopOptionsConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .Configure<ThreadConfigurationModel>(configuration.GetSection(ConfigSectionName))
+            .Configure<CoreConfigurationModel>(configuration.GetSection(ConfigSectionName))
             // Idempotency
             .AddSingleton<IIdempotencyMonitor, IdempotencyMonitor>()
             .AddSingleton<IIdempotencyExecutionService, IdempotencyExecutionService>()

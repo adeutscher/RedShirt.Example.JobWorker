@@ -1,12 +1,12 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
-using RedShirt.Example.JobWorker.Core.Enums;
-using RedShirt.Example.JobWorker.Core.Services.Safety;
-using RedShirt.Example.JobWorker.Common.Services;
-using RedShirt.Example.JobWorker.Common.Services.Abstractions;
 using RedShirt.Example.JobWorker.Common.Enums;
 using RedShirt.Example.JobWorker.Common.Models;
+using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Common.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Services.Safety;
 
 namespace RedShirt.Example.JobWorker.Core.IntegrationTests.Tests;
 

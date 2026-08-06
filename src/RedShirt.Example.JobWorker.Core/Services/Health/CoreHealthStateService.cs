@@ -22,14 +22,6 @@ public sealed class CoreHealthStateService(
     private readonly Lock _gate = new();
     private DateTime? _lastIncident;
 
-    public void NoteIncident()
-    {
-        lock (_gate)
-        {
-            _lastIncident = DateTime.UtcNow;
-        }
-    }
-
     /// <summary>
     ///     Check to see if the service should be considered healthy.
     ///     A service shall be considered healthy if health checking is not enabled or if the time since the last incident
@@ -54,6 +46,14 @@ public sealed class CoreHealthStateService(
         }
 
         return DateTime.UtcNow - lastIncident.Value > options.Value.EffectiveRecentIncidentThreshold;
+    }
+
+    public void NoteIncident()
+    {
+        lock (_gate)
+        {
+            _lastIncident = DateTime.UtcNow;
+        }
     }
 
     public sealed class ConfigurationModel

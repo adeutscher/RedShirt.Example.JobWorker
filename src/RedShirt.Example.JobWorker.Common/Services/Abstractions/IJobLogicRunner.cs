@@ -1,7 +1,6 @@
 using RedShirt.Example.JobWorker.Common.Enums;
 using RedShirt.Example.JobWorker.Common.Exceptions;
 using RedShirt.Example.JobWorker.Common.Models;
-using RedShirt.Example.JobWorker.Common.Services.Abstractions;
 
 namespace RedShirt.Example.JobWorker.Common.Services.Abstractions;
 

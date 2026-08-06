@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.Models;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
@@ -6,7 +7,6 @@ using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.Core.Utility;
 using System.Diagnostics;
-using RedShirt.Example.JobWorker.Common.Models;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Jobs;
 

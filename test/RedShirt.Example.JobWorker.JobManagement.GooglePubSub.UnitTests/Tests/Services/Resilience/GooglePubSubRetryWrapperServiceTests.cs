@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Models;
 using RedShirt.Example.JobWorker.JobManagement.GooglePubSub.Services.Resilience;
 

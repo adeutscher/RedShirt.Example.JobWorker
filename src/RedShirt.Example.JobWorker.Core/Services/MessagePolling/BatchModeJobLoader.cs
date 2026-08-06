@@ -4,6 +4,7 @@ using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using System.Diagnostics;
 
@@ -17,7 +18,9 @@ internal sealed class BatchModeJobLoader(
     IJobSource jobSource,
     IJobRepository jobRepository,
     IJobIntakeService jobIntakeService,
+    ICoreHealthStateUpdateService healthStateUpdateService,
     ILogger<BatchModeJobLoader> logger,
+    IOptions<CoreConfigurationModel> coreOptions,
     IOptions<JobSourceConfigurationModel> jobSourceOptions) : IJobLoader
 {
     public async Task RunAsync(CancellationToken cancellationToken = default)
@@ -33,6 +36,17 @@ internal sealed class BatchModeJobLoader(
         {
             logger.LogWarning(e, "Error getting jobs from source");
             // Treat an anticipated transient error as a delay reason
+            throw new NoJobException();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            healthStateUpdateService.NoteIncident();
+            if (coreOptions.Value.HaltOnFailure)
+            {
+                throw;
+            }
+
+            // Soft-fail: treat like an empty poll so the loader loop can back off and retry.
             throw new NoJobException();
         }
 

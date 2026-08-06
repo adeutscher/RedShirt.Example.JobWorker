@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using RedShirt.Example.JobWorker.Common.Models;
+using RedShirt.Example.JobWorker.Common.Services;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
@@ -6,8 +8,6 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Heartbeats;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
-using RedShirt.Example.JobWorker.Common.Services;
-using RedShirt.Example.JobWorker.Common.Models;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Heartbeats;
 

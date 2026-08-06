@@ -2,14 +2,15 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Distributed.Enums;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
+using RedShirt.Example.JobWorker.Common.Distributed.Models.Safety;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
+using RedShirt.Example.JobWorker.Common.Models;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using RedShirt.Example.JobWorker.Common.Enums;
-using RedShirt.Example.JobWorker.Common.Models;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Idempotency;
 
@@ -28,7 +29,9 @@ internal interface IIdempotencyExecutionService
 internal sealed class IdempotencyExecutionService(
     ISafeAbstractedLockService abstractedLockService,
     ISafeRemoteCacheService cache,
+    ICoreHealthStateUpdateService healthStateUpdateService,
     IOptions<IdempotencyConfigurationModel> options,
+    IOptions<CoreConfigurationModel> coreOptions,
     ILogger<IdempotencyExecutionService> logger) : IIdempotencyExecutionService
 {
     private const string CommonKeyPrefix = "idempotency";
@@ -113,7 +116,21 @@ internal sealed class IdempotencyExecutionService(
                 nameof(IdempotencyExecutionService), nameof(GetLockAsync), GetLockKey(jobModel.IdempotencyId!));
         }
 
-        var lockResponse = await abstractedLockService.GetLockAsync(GetLockKey(jobModel.IdempotencyId!), token);
+        SafeDistributedLockOperationResponse lockResponse;
+        try
+        {
+            lockResponse = await abstractedLockService.GetLockAsync(GetLockKey(jobModel.IdempotencyId!), token);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            healthStateUpdateService.NoteIncident();
+            if (coreOptions.Value.HaltOnFailure)
+            {
+                throw;
+            }
+
+            return new EmptyIdempotencyLock();
+        }
 
         if (options.Value.EnableTraceLogging)
         {
@@ -156,7 +173,21 @@ internal sealed class IdempotencyExecutionService(
                 GetResultKey(jobModel.IdempotencyId!));
         }
 
-        var cacheResponse = await cache.GetStringAsync(GetResultKey(jobModel.IdempotencyId!), cancellationToken);
+        SafeDistributedGetOperationResponse<string> cacheResponse;
+        try
+        {
+            cacheResponse = await cache.GetStringAsync(GetResultKey(jobModel.IdempotencyId!), cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            healthStateUpdateService.NoteIncident();
+            if (coreOptions.Value.HaltOnFailure)
+            {
+                throw;
+            }
+
+            return null;
+        }
 
         if (cacheResponse.Result != SafeDistributedOperationResult.Success ||
             Deserialize(cacheResponse.Value) is not { } cachedResult)
@@ -207,7 +238,20 @@ internal sealed class IdempotencyExecutionService(
             // If the idempotency IDs cannot repeat,
             //   then it can be reasonably assumed that there's no point in caching the data
             //   set to null to delete data in underlying cache in an effort to save resources.
-            await cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), null, timeSpan, cancellationToken);
+            try
+            {
+                await cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), null, timeSpan, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                healthStateUpdateService.NoteIncident();
+                if (coreOptions.Value.HaltOnFailure)
+                {
+                    throw;
+                }
+
+                return;
+            }
 
             if (options.Value.EnableTraceLogging)
             {
@@ -236,7 +280,20 @@ internal sealed class IdempotencyExecutionService(
                 GetResultKey(jobModel.IdempotencyId!), value);
         }
 
-        await cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), value, timeSpan, cancellationToken);
+        try
+        {
+            await cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), value, timeSpan, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            healthStateUpdateService.NoteIncident();
+            if (coreOptions.Value.HaltOnFailure)
+            {
+                throw;
+            }
+
+            return;
+        }
 
         if (options.Value.EnableTraceLogging)
         {

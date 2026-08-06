@@ -1,6 +1,3 @@
-using System.Net;
-using System.Text;
-using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -8,6 +5,9 @@ using RedShirt.Example.JobWorker.Common.Health.Configuration;
 using RedShirt.Example.JobWorker.Common.Health.Constants;
 using RedShirt.Example.JobWorker.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.Health;
+using System.Net;
+using System.Text;
+using System.Text.Json;
 
 namespace RedShirt.Example.JobWorker.Services;
 
@@ -24,6 +24,69 @@ public sealed class HealthPagesHttpListenerService(
     };
 
     private HttpListener? _listener;
+
+    private async Task HandleRequestAsync(HttpListenerContext context, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var path = context.Request.Url?.AbsolutePath ?? "/";
+
+            switch (path)
+            {
+                case HealthPathConstants.LivePath:
+                    await WritePlainTextAsync(context, 200, "OK", cancellationToken);
+                    break;
+                case HealthPathConstants.HealthPath:
+                    var isHealthy = healthService.IsHealthy();
+                    await WritePlainTextAsync(context, isHealthy ? 200 : 503, isHealthy ? "OK" : "unhealthy",
+                        cancellationToken);
+                    break;
+                case HealthPathConstants.StatisticsPath:
+                    await WriteJsonAsync(context, 200, statisticsService.GetStatistics(), cancellationToken);
+                    break;
+                default:
+                    context.Response.StatusCode = 404;
+                    context.Response.Close();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error handling health request");
+
+            try
+            {
+                context.Response.StatusCode = 500;
+                context.Response.Close();
+            }
+            catch (Exception)
+            {
+                // Ignore failures while aborting a broken response.
+            }
+        }
+    }
+
+    private static async Task WriteJsonAsync(HttpListenerContext context, int statusCode, object content,
+        CancellationToken cancellationToken = default)
+    {
+        var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(content, JsonOptions));
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = "application/json";
+        context.Response.ContentLength64 = bytes.Length;
+        await context.Response.OutputStream.WriteAsync(bytes, cancellationToken);
+        context.Response.Close();
+    }
+
+    private static async Task WritePlainTextAsync(HttpListenerContext context, int statusCode, string body,
+        CancellationToken cancellationToken = default)
+    {
+        var bytes = Encoding.UTF8.GetBytes(body);
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = "text/plain";
+        context.Response.ContentLength64 = bytes.Length;
+        await context.Response.OutputStream.WriteAsync(bytes, cancellationToken);
+        context.Response.Close();
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -91,68 +154,5 @@ public sealed class HealthPagesHttpListenerService(
             _listener.Close();
             _listener = null;
         }
-    }
-
-    private async Task HandleRequestAsync(HttpListenerContext context, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var path = context.Request.Url?.AbsolutePath ?? "/";
-
-            switch (path)
-            {
-                case HealthPathConstants.LivePath:
-                    await WritePlainTextAsync(context, 200, "OK", cancellationToken);
-                    break;
-                case HealthPathConstants.HealthPath:
-                    var isHealthy = healthService.IsHealthy();
-                    await WritePlainTextAsync(context, isHealthy ? 200 : 503, isHealthy ? "OK" : "unhealthy",
-                        cancellationToken);
-                    break;
-                case HealthPathConstants.StatisticsPath:
-                    await WriteJsonAsync(context, 200, statisticsService.GetStatistics(), cancellationToken);
-                    break;
-                default:
-                    context.Response.StatusCode = 404;
-                    context.Response.Close();
-                    break;
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error handling health request");
-
-            try
-            {
-                context.Response.StatusCode = 500;
-                context.Response.Close();
-            }
-            catch (Exception)
-            {
-                // Ignore failures while aborting a broken response.
-            }
-        }
-    }
-
-    private static async Task WriteJsonAsync(HttpListenerContext context, int statusCode, object content,
-        CancellationToken cancellationToken = default)
-    {
-        var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(content, JsonOptions));
-        context.Response.StatusCode = statusCode;
-        context.Response.ContentType = "application/json";
-        context.Response.ContentLength64 = bytes.Length;
-        await context.Response.OutputStream.WriteAsync(bytes, cancellationToken);
-        context.Response.Close();
-    }
-
-    private static async Task WritePlainTextAsync(HttpListenerContext context, int statusCode, string body,
-        CancellationToken cancellationToken = default)
-    {
-        var bytes = Encoding.UTF8.GetBytes(body);
-        context.Response.StatusCode = statusCode;
-        context.Response.ContentType = "text/plain";
-        context.Response.ContentLength64 = bytes.Length;
-        await context.Response.OutputStream.WriteAsync(bytes, cancellationToken);
-        context.Response.Close();
     }
 }
