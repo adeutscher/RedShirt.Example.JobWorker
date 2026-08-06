@@ -1,29 +1,39 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.Health.Configuration;
 using RedShirt.Example.JobWorker.Common.Health.Constants;
 using RedShirt.Example.JobWorker.Configuration;
-using System.Text.Json;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 
 namespace RedShirt.Example.JobWorker.Services;
 
 public sealed class HealthZPagesHttpListenerService(
-    IOptions<HealthConfigurationModel> options,
+    ICoreHealthStateReaderService healthService,
+    ICoreStatisticsService statisticsService,
+    IOptions<CommonHealthConfigurationModel> commonOptions,
+    IOptions<HealthConfigurationModel> hostOptions,
     ILogger<HealthZPagesHttpListenerService> logger) : BackgroundService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     private HttpListener? _listener;
 
-    protected override async Task ExecuteAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!options.Value.Enabled)
+        if (!commonOptions.Value.Enabled)
         {
             return;
         }
 
         _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://+:{options.Value.Port}/");
+        _listener.Prefixes.Add($"http://+:{hostOptions.Value.Port}/");
 
         try
         {
@@ -31,13 +41,14 @@ public sealed class HealthZPagesHttpListenerService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to start health HttpListener on port {Port}", options.Value.Port);
+            logger.LogError(ex, "Failed to start health HttpListener on port {Port}: {Message}", hostOptions.Value.Port,
+                ex.Message);
             throw;
         }
 
-        logger.LogInformation("Health z-pages listening on port {Port}", options.Value.Port);
+        logger.LogInformation("Health z-pages listening on port {Port}", hostOptions.Value.Port);
 
-        cancellationToken.Register(() =>
+        stoppingToken.Register(() =>
         {
             try
             {
@@ -55,23 +66,23 @@ public sealed class HealthZPagesHttpListenerService(
 
         try
         {
-            while (!cancellationToken.IsCancellationRequested)
+            while (!stoppingToken.IsCancellationRequested)
             {
                 HttpListenerContext context;
                 try
                 {
                     context = await _listener.GetContextAsync();
                 }
-                catch (HttpListenerException) when (cancellationToken.IsCancellationRequested)
+                catch (HttpListenerException) when (stoppingToken.IsCancellationRequested)
                 {
                     break;
                 }
-                catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+                catch (ObjectDisposedException) when (stoppingToken.IsCancellationRequested)
                 {
                     break;
                 }
 
-                _ = HandleRequestAsync(context);
+                _ = HandleRequestAsync(context, stoppingToken);
             }
         }
         finally
@@ -82,7 +93,7 @@ public sealed class HealthZPagesHttpListenerService(
         }
     }
 
-    private async Task HandleRequestAsync(HttpListenerContext context)
+    private async Task HandleRequestAsync(HttpListenerContext context, CancellationToken cancellationToken)
     {
         try
         {
@@ -91,8 +102,15 @@ public sealed class HealthZPagesHttpListenerService(
             switch (path)
             {
                 case HealthPathConstants.LivePath:
+                    await WritePlainTextAsync(context, 200, "OK", cancellationToken);
+                    break;
                 case HealthPathConstants.HealthPath:
-                    await WritePlainTextAsync(context, 200, "OK");
+                    var isHealthy = healthService.IsHealthy();
+                    await WritePlainTextAsync(context, isHealthy ? 200 : 503, isHealthy ? "OK" : "unhealthy",
+                        cancellationToken);
+                    break;
+                case HealthPathConstants.StatisticsPath:
+                    await WriteJsonAsync(context, 200, statisticsService.GetStatistics(), cancellationToken);
                     break;
                 default:
                     context.Response.StatusCode = 404;
@@ -116,23 +134,25 @@ public sealed class HealthZPagesHttpListenerService(
         }
     }
 
-    private static async Task WriteJsonAsync(HttpListenerContext context, int statusCode, object content)
+    private static async Task WriteJsonAsync(HttpListenerContext context, int statusCode, object content,
+        CancellationToken cancellationToken = default)
     {
-        var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(content));
+        var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(content, JsonOptions));
         context.Response.StatusCode = statusCode;
-        context.Response.ContentType = "text/plain";
+        context.Response.ContentType = "application/json";
         context.Response.ContentLength64 = bytes.Length;
-        await context.Response.OutputStream.WriteAsync(bytes);
+        await context.Response.OutputStream.WriteAsync(bytes, cancellationToken);
         context.Response.Close();
     }
-    
-    private static async Task WritePlainTextAsync(HttpListenerContext context, int statusCode, string body)
+
+    private static async Task WritePlainTextAsync(HttpListenerContext context, int statusCode, string body,
+        CancellationToken cancellationToken = default)
     {
         var bytes = Encoding.UTF8.GetBytes(body);
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "text/plain";
         context.Response.ContentLength64 = bytes.Length;
-        await context.Response.OutputStream.WriteAsync(bytes);
+        await context.Response.OutputStream.WriteAsync(bytes, cancellationToken);
         context.Response.Close();
     }
 }

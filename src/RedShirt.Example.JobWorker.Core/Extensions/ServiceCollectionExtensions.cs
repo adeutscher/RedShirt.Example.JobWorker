@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Common.Extensions;
+using RedShirt.Example.JobWorker.Common.Health.Configuration;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
@@ -36,7 +37,6 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobIntakeService, JobIntakeService>()
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
             .AddSingleton<IJobRepository, JobRepository>()
-            .AddSingleton<ICoreStatisticsService, CoreStatisticsService>()
             .Configure<JobRepository.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .AddSingleton<IJobLoaderStateService, JobLoaderStateService>()
             .AddSingleton<IJobLoaderStateReaderService>(provider =>
@@ -67,6 +67,33 @@ public static class ServiceCollectionExtensions
         {
             services = services
                 .AddSingleton<IJobLoader, BatchModeJobLoader>();
+        }
+
+        if (configuration
+                .GetSection(CommonHealthConfigurationModel.SectionName)
+                .Get<CommonHealthConfigurationModel>()?.Enabled ?? false)
+        {
+            // Health
+            services
+                .AddSingleton<ICoreStatisticsService, CoreStatisticsService>()
+                .AddSingleton<CoreHealthStateService>()
+                .AddSingleton<ICoreHealthStateReaderService>(provider =>
+                    provider.GetRequiredService<CoreHealthStateService>())
+                .AddSingleton<ICoreHealthStateUpdateService>(provider =>
+                    provider.GetRequiredService<CoreHealthStateService>())
+                .Configure<CoreHealthStateService.ConfigurationModel>(
+                    configuration.GetSection(CommonHealthConfigurationModel.SectionName));
+        }
+        else
+        {
+            services
+                .AddSingleton<ICoreStatisticsService>(provider =>
+                    provider.GetRequiredService<StubHealthStateService>())
+                .AddSingleton<StubHealthStateService>()
+                .AddSingleton<ICoreHealthStateReaderService>(provider =>
+                    provider.GetRequiredService<StubHealthStateService>())
+                .AddSingleton<ICoreHealthStateUpdateService>(provider =>
+                    provider.GetRequiredService<StubHealthStateService>());
         }
 
         return services;

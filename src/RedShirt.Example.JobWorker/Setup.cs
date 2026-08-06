@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using RedShirt.Example.JobWorker.Common.Health.Configuration;
 using RedShirt.Example.JobWorker.Configuration;
 using RedShirt.Example.JobWorker.Extensions;
 using RedShirt.Example.JobWorker.Services;
@@ -20,7 +21,10 @@ public static class Setup
         ConfigureWorkerServices(builder.Services, builder.Configuration);
 
         builder.Services
-            .Configure<HealthConfigurationModel>(builder.Configuration.GetSection(HealthConfigurationModel.SectionName))
+            .Configure<CommonHealthConfigurationModel>(
+                builder.Configuration.GetSection(CommonHealthConfigurationModel.SectionName))
+            .Configure<HealthConfigurationModel>(
+                builder.Configuration.GetSection(CommonHealthConfigurationModel.SectionName))
             .AddHostedService<HealthZPagesHttpListenerService>();
 
         return builder.Build();
