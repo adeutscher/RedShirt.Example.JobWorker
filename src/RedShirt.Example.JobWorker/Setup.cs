@@ -17,7 +17,7 @@ public static class Setup
         var builder = Host.CreateApplicationBuilder(args ?? []);
         builder.Configuration.AddEnvironmentVariablesWithSegmentSupport();
 
-        ConfigureLogging(builder.Services, builder.Configuration);
+        ConfigureLogging(builder);
         ConfigureWorkerServices(builder.Services, builder.Configuration);
 
         builder.Services
@@ -30,22 +30,14 @@ public static class Setup
         return builder.Build();
     }
 
-    private static void ConfigureLogging(IServiceCollection services, ConfigurationManager configuration)
+    private static void ConfigureLogging(HostApplicationBuilder builder)
     {
-        /* General Logging */
-
-        if (!Enum.TryParse<LogLevel>(configuration["LogLevel"], out var logLevel))
+        if (!Enum.TryParse<LogLevel>(builder.Configuration["LogLevel"], out var logLevel))
         {
             logLevel = LogLevel.Warning;
         }
 
-        services
-            .AddLogging(loggingBuilder =>
-                loggingBuilder
-                    .AddSerilog(dispose: true)
-                    .SetMinimumLevel(logLevel));
-        
-        /* Configure Serilog */
+        // Configure Serilog before wiring it as the sole Microsoft.Extensions.Logging provider.
         Log.Logger = new LoggerConfiguration()
             // Need to set a minimum log level in both Serilog-land and Microsoft-land
             .MinimumLevel.Verbose()
@@ -53,6 +45,12 @@ public static class Setup
             .WriteTo.Console(outputTemplate:
                 "{Level:u3} {Message:l}{NewLine}{Exception}")
             .CreateLogger();
+
+        // Host.CreateApplicationBuilder registers Console/Debug providers by default;
+        // clear them so messages are not emitted twice (Microsoft.Extensions.Logging format + Serilog format).
+        builder.Logging.ClearProviders();
+        builder.Logging.AddSerilog(dispose: true);
+        builder.Logging.SetMinimumLevel(logLevel);
     }
 
     private static void ConfigureWorkerServices(IServiceCollection services, ConfigurationManager configuration)
