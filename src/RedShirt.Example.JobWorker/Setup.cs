@@ -11,34 +11,25 @@ namespace RedShirt.Example.JobWorker;
 
 public static class Setup
 {
-    public static async Task RunAsync(string[]? args = null)
+    public static IHost GetHost(string[]? args = null)
     {
-        ConfigureSerilog();
-
         var builder = Host.CreateApplicationBuilder(args ?? []);
         builder.Configuration.AddEnvironmentVariablesWithSegmentSupport();
 
-        ConfigureCommonServices(builder.Services, (IConfigurationRoot)builder.Configuration);
+        ConfigureLogging(builder.Services, builder.Configuration);
+        ConfigureWorkerServices(builder.Services, builder.Configuration);
+
         builder.Services
-            .Configure<HealthOptions>(builder.Configuration.GetSection(HealthOptions.SectionName))
+            .Configure<HealthConfigurationModel>(builder.Configuration.GetSection(HealthConfigurationModel.SectionName))
             .AddHostedService<HealthZPagesHttpListenerService>();
 
-        await builder.Build().RunAsync();
+        return builder.Build();
     }
 
-    private static void ConfigureSerilog()
+    private static void ConfigureLogging(IServiceCollection services, ConfigurationManager configuration)
     {
-        Log.Logger = new LoggerConfiguration()
-            // Need to set a minimum log level in both Serilog-land and Microsoft-land
-            .MinimumLevel.Verbose()
-            .Enrich.FromLogContext()
-            .WriteTo.Console(outputTemplate:
-                "{Level:u3} {Message:l}{NewLine}{Exception}")
-            .CreateLogger();
-    }
+        /* General Logging */
 
-    private static void ConfigureCommonServices(IServiceCollection services, IConfigurationRoot configuration)
-    {
         if (!Enum.TryParse<LogLevel>(configuration["LogLevel"], out var logLevel))
         {
             logLevel = LogLevel.Warning;
@@ -48,7 +39,21 @@ public static class Setup
             .AddLogging(loggingBuilder =>
                 loggingBuilder
                     .AddSerilog(dispose: true)
-                    .SetMinimumLevel(logLevel))
+                    .SetMinimumLevel(logLevel));
+        
+        /* Configure Serilog */
+        Log.Logger = new LoggerConfiguration()
+            // Need to set a minimum log level in both Serilog-land and Microsoft-land
+            .MinimumLevel.Verbose()
+            .Enrich.FromLogContext()
+            .WriteTo.Console(outputTemplate:
+                "{Level:u3} {Message:l}{NewLine}{Exception}")
+            .CreateLogger();
+    }
+
+    private static void ConfigureWorkerServices(IServiceCollection services, ConfigurationManager configuration)
+    {
+        services
             .AddOptions()
             .ConfigureWorker(configuration)
             .AddHostedService<JobWorkerHostedService>();

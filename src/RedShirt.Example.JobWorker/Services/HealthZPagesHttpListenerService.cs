@@ -9,13 +9,12 @@ using RedShirt.Example.JobWorker.Core.Services.Health;
 namespace RedShirt.Example.JobWorker.Services;
 
 public sealed class HealthZPagesHttpListenerService(
-    IOptions<HealthOptions> options,
-    IWorkerReadiness readiness,
+    IOptions<HealthConfigurationModel> options,
     ILogger<HealthZPagesHttpListenerService> logger) : BackgroundService
 {
     private HttpListener? _listener;
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(CancellationToken cancellationToken)
     {
         if (!options.Value.Enabled)
         {
@@ -37,7 +36,7 @@ public sealed class HealthZPagesHttpListenerService(
 
         logger.LogInformation("Health z-pages listening on port {Port}", options.Value.Port);
 
-        stoppingToken.Register(() =>
+        cancellationToken.Register(() =>
         {
             try
             {
@@ -45,26 +44,28 @@ public sealed class HealthZPagesHttpListenerService(
             }
             catch (ObjectDisposedException)
             {
+                // Pass
             }
             catch (HttpListenerException)
             {
+                // Pass
             }
         });
 
         try
         {
-            while (!stoppingToken.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 HttpListenerContext context;
                 try
                 {
                     context = await _listener.GetContextAsync();
                 }
-                catch (HttpListenerException) when (stoppingToken.IsCancellationRequested)
+                catch (HttpListenerException) when (cancellationToken.IsCancellationRequested)
                 {
                     break;
                 }
-                catch (ObjectDisposedException) when (stoppingToken.IsCancellationRequested)
+                catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
                 {
                     break;
                 }
@@ -90,11 +91,11 @@ public sealed class HealthZPagesHttpListenerService(
             {
                 case "/livez":
                 case "/healthz":
-                    await WritePlainTextAsync(context, 200, "ok");
+                    await WritePlainTextAsync(context, 200, "OK");
                     break;
                 case "/readyz":
                     var isReady = readiness.IsReady();
-                    await WritePlainTextAsync(context, isReady ? 200 : 503, isReady ? "ok" : "not ready");
+                    await WritePlainTextAsync(context, isReady ? 200 : 503, isReady ? "OK" : "not ready");
                     break;
                 default:
                     context.Response.StatusCode = 404;

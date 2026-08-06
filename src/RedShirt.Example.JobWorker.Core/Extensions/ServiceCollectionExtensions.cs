@@ -40,7 +40,6 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobLoaderStateService, JobLoaderStateService>()
             .AddSingleton<IJobLoaderStateReaderService>(provider =>
                 provider.GetRequiredService<IJobLoaderStateService>())
-            .AddSingleton<IWorkerReadiness, WorkerReadiness>()
             .Configure<SafeJobRunner.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .Configure<TimeBorderWrapperService.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .Configure<JobSourceConfigurationModel>(configuration.GetSection("JobSource"))

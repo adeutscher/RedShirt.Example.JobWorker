@@ -1,3 +1,4 @@
-﻿using RedShirt.Example.JobWorker;
+﻿using Microsoft.Extensions.Hosting;
+using RedShirt.Example.JobWorker;
 
-await Setup.RunAsync(args);
+await Setup.GetHost(args).RunAsync();

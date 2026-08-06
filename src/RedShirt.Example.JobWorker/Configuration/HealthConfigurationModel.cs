@@ -1,6 +1,6 @@
 namespace RedShirt.Example.JobWorker.Configuration;
 
-public sealed class HealthOptions
+public sealed class HealthConfigurationModel
 {
     public const string SectionName = "Health";
 

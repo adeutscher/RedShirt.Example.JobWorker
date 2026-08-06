@@ -22,7 +22,7 @@ public class DependencyInjectionTests
             ["UseKinesis"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
-        }, () => { Assert.NotNull(Setup.GetRunner()); });
+        }, () => { Assert.NotNull(Setup.GetHost()); });
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class DependencyInjectionTests
             ["UseKinesis"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
-        }, () => { Assert.NotNull(Setup.GetRunner()); });
+        }, () => { Assert.NotNull(Setup.GetHost()); });
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class DependencyInjectionTests
             ["UseKinesis"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
-        }, () => { Assert.NotNull(Setup.GetRunner()); });
+        }, () => { Assert.NotNull(Setup.GetHost()); });
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public class DependencyInjectionTests
             ["UseRabbitMq"] = "0",
             ["UseKinesis"] = "0",
             ["UseKafka"] = "0"
-        }, () => { Assert.NotNull(Setup.GetRunner()); });
+        }, () => { Assert.NotNull(Setup.GetHost()); });
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class DependencyInjectionTests
             ["UseKinesis"] = "0",
             ["UseKafka"] = "1",
             ["UsePulsar"] = "0"
-        }, () => { Assert.NotNull(Setup.GetRunner()); });
+        }, () => { Assert.NotNull(Setup.GetHost()); });
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class DependencyInjectionTests
             ["UseKinesis"] = "1",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
-        }, () => { Assert.NotNull(Setup.GetRunner()); });
+        }, () => { Assert.NotNull(Setup.GetHost()); });
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public class DependencyInjectionTests
             ["UseRabbitMq"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
-        }, () => { Assert.NotNull(Setup.GetRunner()); });
+        }, () => { Assert.NotNull(Setup.GetHost()); });
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public class DependencyInjectionTests
             ["UseKinesis"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "1"
-        }, () => { Assert.NotNull(Setup.GetRunner()); });
+        }, () => { Assert.NotNull(Setup.GetHost()); });
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class DependencyInjectionTests
             ["UseRabbitMq"] = "1",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
-        }, () => { Assert.NotNull(Setup.GetRunner()); });
+        }, () => { Assert.NotNull(Setup.GetHost()); });
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public class DependencyInjectionTests
             ["UseRedisStreams"] = "1",
             ["UseRabbitMq"] = "0",
             ["UseKafka"] = "0"
-        }, () => { Assert.NotNull(Setup.GetRunner()); });
+        }, () => { Assert.NotNull(Setup.GetHost()); });
     }
 
     [Fact]
@@ -237,7 +237,7 @@ public class DependencyInjectionTests
             ["UseRabbitMq"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
-        }, () => { Assert.NotNull(Setup.GetRunner()); });
+        }, () => { Assert.NotNull(Setup.GetHost()); });
     }
 
     [Fact]
@@ -260,6 +260,6 @@ public class DependencyInjectionTests
             ["UseRabbitMq"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
-        }, () => { Assert.NotNull(Setup.GetRunner()); });
+        }, () => { Assert.NotNull(Setup.GetHost()); });
     }
 }

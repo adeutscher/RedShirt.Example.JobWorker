@@ -14,7 +14,7 @@ public class HealthZPagesHttpListenerServiceTests
     public async Task StartAsync_WhenDisabled_DoesNotBindPort()
     {
         var readiness = new Mock<IWorkerReadiness>(MockBehavior.Strict);
-        var service = CreateService(new HealthOptions { Enabled = false, Port = GetFreePort() }, readiness.Object);
+        var service = CreateService(new HealthConfigurationModel { Enabled = false, Port = GetFreePort() }, readiness.Object);
 
         await service.StartAsync(CancellationToken.None);
         await service.StopAsync(CancellationToken.None);
@@ -27,7 +27,7 @@ public class HealthZPagesHttpListenerServiceTests
     {
         var port = GetFreePort();
         var readiness = new Mock<IWorkerReadiness>(MockBehavior.Strict);
-        var service = CreateService(new HealthOptions { Enabled = true, Port = port }, readiness.Object);
+        var service = CreateService(new HealthConfigurationModel { Enabled = true, Port = port }, readiness.Object);
 
         await service.StartAsync(CancellationToken.None);
         try
@@ -54,7 +54,7 @@ public class HealthZPagesHttpListenerServiceTests
         var readiness = new Mock<IWorkerReadiness>(MockBehavior.Strict);
         readiness.Setup(r => r.IsReady()).Returns(true);
 
-        var service = CreateService(new HealthOptions { Enabled = true, Port = port }, readiness.Object);
+        var service = CreateService(new HealthConfigurationModel { Enabled = true, Port = port }, readiness.Object);
 
         await service.StartAsync(CancellationToken.None);
         try
@@ -81,7 +81,7 @@ public class HealthZPagesHttpListenerServiceTests
         var readiness = new Mock<IWorkerReadiness>(MockBehavior.Strict);
         readiness.Setup(r => r.IsReady()).Returns(false);
 
-        var service = CreateService(new HealthOptions { Enabled = true, Port = port }, readiness.Object);
+        var service = CreateService(new HealthConfigurationModel { Enabled = true, Port = port }, readiness.Object);
 
         await service.StartAsync(CancellationToken.None);
         try
@@ -106,7 +106,7 @@ public class HealthZPagesHttpListenerServiceTests
     {
         var port = GetFreePort();
         var readiness = new Mock<IWorkerReadiness>(MockBehavior.Strict);
-        var service = CreateService(new HealthOptions { Enabled = true, Port = port }, readiness.Object);
+        var service = CreateService(new HealthConfigurationModel { Enabled = true, Port = port }, readiness.Object);
 
         await service.StartAsync(CancellationToken.None);
         try
@@ -124,10 +124,10 @@ public class HealthZPagesHttpListenerServiceTests
         }
     }
 
-    private static HealthZPagesHttpListenerService CreateService(HealthOptions options, IWorkerReadiness readiness)
+    private static HealthZPagesHttpListenerService CreateService(HealthConfigurationModel configurationModel, IWorkerReadiness readiness)
     {
         return new HealthZPagesHttpListenerService(
-            Options.Create(options),
+            Options.Create(configurationModel),
             readiness,
             NullLogger<HealthZPagesHttpListenerService>.Instance);
     }

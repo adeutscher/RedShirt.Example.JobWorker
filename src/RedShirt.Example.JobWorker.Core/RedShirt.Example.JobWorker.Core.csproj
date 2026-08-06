@@ -15,6 +15,11 @@
 
     <ItemGroup>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.Distributed\RedShirt.Example.JobWorker.Common.Distributed.csproj"/>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Common\RedShirt.Example.JobWorker.Common.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Services\Health\" />
     </ItemGroup>
 
 </Project>
