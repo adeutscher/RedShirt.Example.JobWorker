@@ -2,17 +2,18 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
+using RedShirt.Example.JobWorker.Common.Enums;
+using RedShirt.Example.JobWorker.Common.Models;
+using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Common.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
-using RedShirt.Example.JobWorker.Common.Services;
-using RedShirt.Example.JobWorker.Common.Services.Abstractions;
-using RedShirt.Example.JobWorker.Common.Enums;
-using RedShirt.Example.JobWorker.Common.Models;
 
 namespace RedShirt.Example.JobWorker.Core.IntegrationTests.Tests;
 
@@ -158,6 +159,7 @@ public class JobResultTranslationTests
             idempotencyExecutionService.Object,
             safeJobRunner,
             acknowledgementService,
+            Mock.Of<ICoreStatisticsService>(),
             new NullLogger<JobExecutor>());
 
         // Run

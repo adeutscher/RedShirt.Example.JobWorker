@@ -3,9 +3,10 @@ using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
-using RedShirt.Example.JobWorker.Common.Enums;
+using System.Diagnostics;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Jobs;
 
@@ -29,6 +30,7 @@ internal sealed class JobExecutor(
     IIdempotencyExecutionService idempotencyExecutionService,
     ISafeJobRunner safeJobRunner,
     ISafeJobAcknowledgementService safeJobAcknowledgementService,
+    ICoreStatisticsService coreStatisticsService,
     ILogger<JobExecutor> logger) : IJobExecutor
 {
     private async Task ActOnJobAsync(int executorId, IJobRepositoryEntry repositoryEntry,
@@ -58,6 +60,7 @@ internal sealed class JobExecutor(
             // Send a notice to the idempotency execution service to refresh/remove the cache entry (depending on downstream settings)
             await idempotencyExecutionService.SetResultInCacheAsync(repositoryEntry.RawJobModel, cachedResult,
                 newIdempotentAcknowledgementReport, cancellationToken);
+            coreStatisticsService.RecordResult(cachedResult);
             return;
         }
 
@@ -66,7 +69,18 @@ internal sealed class JobExecutor(
          * If the idempotency cache returned a non-success result, then assume that we need to retry
          */
 
+        var stopwatch = Stopwatch.StartNew();
         var safeJobResult = await safeJobRunner.RunSafelyAsync(repositoryEntry.JobModel, cancellationToken);
+        stopwatch.Stop();
+
+        /*
+         * Update statistics.
+         * Acknowledging that this could have an impact on how statistics could be interpreted.
+         * A dropped message that was caught by the idempotency system as only needing to be acknowledged technically isn't executed, and this could technically result in a higher statistic of successful jobs.
+         * The counter-argument is an appeal to simplicity. Accounting for idempotency details just isn't a priority at the moment, and I feel like to do so would be added complexity.
+         */
+        coreStatisticsService.RecordResult(safeJobResult.Result, stopwatch.Elapsed);
+
         logger.LogTrace("Executor {Id} finished processing message {MessageId}. Result: {Result}", executorId,
             repositoryEntry.JobModel.MessageId, safeJobResult.Result);
 

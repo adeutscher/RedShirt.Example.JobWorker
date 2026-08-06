@@ -46,7 +46,7 @@ public sealed class HealthPagesHttpListenerService(
             throw;
         }
 
-        logger.LogInformation("Health z-pages listening on port {Port}", hostOptions.Value.Port);
+        logger.LogInformation("Health listening on port {Port}", hostOptions.Value.Port);
 
         stoppingToken.Register(() =>
         {

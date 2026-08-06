@@ -1,10 +1,11 @@
 using Microsoft.Extensions.Logging;
+using RedShirt.Example.JobWorker.Common.Models;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
-using RedShirt.Example.JobWorker.Common.Models;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Jobs;
 
@@ -18,6 +19,7 @@ internal sealed class JobIntakeService(
     ISourceMessageConverter sourceMessageConverter,
     ISafeJobAcknowledgementService safeJobAcknowledgementService,
     IIdempotencyExecutionService idempotencyExecutionService,
+    ICoreStatisticsService coreStatisticsService,
     ILogger<JobIntakeService> logger) : IJobIntakeService
 {
     /// <summary>
@@ -76,6 +78,8 @@ internal sealed class JobIntakeService(
 
         foreach (var rawMessage in jobSourceResponse.Items)
         {
+            coreStatisticsService.RecordReceived();
+
             var convertResult = TryConvert(rawMessage, out var convertedData, out var exception);
             if (convertResult == CoreJobResult.Success && convertedData is not null)
             {
@@ -104,6 +108,8 @@ internal sealed class JobIntakeService(
 
         foreach (var failedMessage in failedMessages)
         {
+            coreStatisticsService.RecordResult(failedMessage.Result);
+
             var acknowledgementResult = await safeJobAcknowledgementService.AcknowledgeSafelyAsync(
                 failedMessage.RawJobModel,
                 failedMessage.Result,

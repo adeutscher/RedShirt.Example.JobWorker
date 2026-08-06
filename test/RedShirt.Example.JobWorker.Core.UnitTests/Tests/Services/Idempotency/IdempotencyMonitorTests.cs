@@ -1,21 +1,29 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
+using RedShirt.Example.JobWorker.Common.Models;
+using RedShirt.Example.JobWorker.Common.Services;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
-using RedShirt.Example.JobWorker.Common.Services;
-using RedShirt.Example.JobWorker.Common.Enums;
-using RedShirt.Example.JobWorker.Common.Models;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Idempotency;
 
 public class IdempotencyMonitorTests
 {
+    private static ICoreStatisticsService CreateStatisticsService()
+    {
+        var statistics = new Mock<ICoreStatisticsService>(MockBehavior.Strict);
+        statistics.Setup(s => s.RecordReceived());
+        statistics.Setup(s => s.RecordResult(It.IsAny<CoreJobResult>(), It.IsAny<TimeSpan>()));
+        return statistics.Object;
+    }
+
     private static IdempotencyConfigurationModel CreateOptions(bool enabled = true, int monitorIntervalSeconds = 5)
     {
         return new IdempotencyConfigurationModel
@@ -88,7 +96,8 @@ public class IdempotencyMonitorTests
         var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
             new Mock<IIdempotencyExecutionService>(MockBehavior.Strict).Object,
             new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object, sleepService.Object,
-            Options.Create(CreateOptions(monitorIntervalSeconds: 1)), new NullLogger<IdempotencyMonitor>());
+            Options.Create(CreateOptions(monitorIntervalSeconds: 1)), CreateStatisticsService(),
+            new NullLogger<IdempotencyMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
@@ -150,7 +159,8 @@ public class IdempotencyMonitorTests
 
         var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
             idempotencyExecutionService.Object, new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object,
-            CreateSleepService(), Options.Create(CreateOptions()), new NullLogger<IdempotencyMonitor>());
+            CreateSleepService(), Options.Create(CreateOptions()), CreateStatisticsService(),
+            new NullLogger<IdempotencyMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
@@ -221,7 +231,7 @@ public class IdempotencyMonitorTests
 
         var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
             idempotencyExecutionService.Object, safeJobAcknowledgementService.Object, CreateSleepService(),
-            Options.Create(CreateOptions()), new NullLogger<IdempotencyMonitor>());
+            Options.Create(CreateOptions()), CreateStatisticsService(), new NullLogger<IdempotencyMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
@@ -301,7 +311,7 @@ public class IdempotencyMonitorTests
 
         var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
             idempotencyExecutionService.Object, safeJobAcknowledgementService.Object, CreateSleepService(),
-            Options.Create(CreateOptions()), new NullLogger<IdempotencyMonitor>());
+            Options.Create(CreateOptions()), CreateStatisticsService(), new NullLogger<IdempotencyMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
@@ -319,7 +329,7 @@ public class IdempotencyMonitorTests
             new Mock<IJobRepository>(MockBehavior.Strict).Object,
             new Mock<IIdempotencyExecutionService>(MockBehavior.Strict).Object,
             new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object, CreateSleepService(),
-            Options.Create(CreateOptions(false)), new NullLogger<IdempotencyMonitor>());
+            Options.Create(CreateOptions(false)), CreateStatisticsService(), new NullLogger<IdempotencyMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
     }
@@ -357,7 +367,8 @@ public class IdempotencyMonitorTests
 
         var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
             idempotencyExecutionService.Object, new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object,
-            CreateSleepService(), Options.Create(CreateOptions()), new NullLogger<IdempotencyMonitor>());
+            CreateSleepService(), Options.Create(CreateOptions()), CreateStatisticsService(),
+            new NullLogger<IdempotencyMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
