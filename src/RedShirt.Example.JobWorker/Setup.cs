@@ -30,7 +30,12 @@ public static class Setup
         return builder.Build();
     }
 
-    private static void ConfigureLogging(HostApplicationBuilder builder)
+    /// <summary>
+    ///     Configures Serilog as the sole <see cref="ILoggerProvider" /> for
+    ///     <paramref name="builder" />, clearing providers registered by
+    ///     <see cref="Host.CreateApplicationBuilder(string[])" />.
+    /// </summary>
+    internal static void ConfigureLogging(HostApplicationBuilder builder)
     {
         if (!Enum.TryParse<LogLevel>(builder.Configuration["LogLevel"], out var logLevel))
         {
