@@ -1,12 +1,15 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Retry;
 using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Heartbeats;
@@ -21,6 +24,8 @@ internal sealed class HeartbeatMaintainer(
     IAppliedExecutionEndArbiter appliedExecutionEndArbiter,
     IJobRepository jobRepository,
     IJobSource jobSource,
+    ICoreHealthStateUpdateService healthStateUpdateService,
+    IOptions<CoreConfigurationModel> coreOptions,
     ILogger<HeartbeatMaintainer> logger,
     ISleepService sleepService) : IHeartbeatMaintainer
 {
@@ -117,6 +122,18 @@ internal sealed class HeartbeatMaintainer(
             //  by the time the next loop iteration comes around.
             //
             // The documented recommendation for a heartbeat interval is ~75% of the time until message expiry
+            await jobRepositoryEntry.SetAsCannotHeartbeatAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            healthStateUpdateService.NoteIncident();
+            if (coreOptions.Value.HaltOnFailure)
+            {
+                throw;
+            }
+
+            logger.LogWarning(ex, "Heartbeat could not be completed for message: {MessageId}",
+                jobRepositoryEntry.JobModel.MessageId);
             await jobRepositoryEntry.SetAsCannotHeartbeatAsync(cancellationToken);
         }
 

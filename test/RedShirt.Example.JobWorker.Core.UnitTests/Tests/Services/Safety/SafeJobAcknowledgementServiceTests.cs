@@ -1,15 +1,25 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Safety;
 
 public class SafeJobAcknowledgementServiceTests
 {
+    private static ICoreHealthStateUpdateService CreateHealthStateUpdateService()
+    {
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+        return health.Object;
+    }
+
     private static ISleepService CreateSleepService()
     {
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
@@ -48,7 +58,9 @@ public class SafeJobAcknowledgementServiceTests
             .Returns(Task.CompletedTask);
 
         var service = new SafeJobAcknowledgementService(jobSource.Object, jobFailureHandler.Object,
-            CreateSleepService(), new NullLogger<SafeJobAcknowledgementService>());
+            CreateSleepService(), CreateHealthStateUpdateService(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
+            new NullLogger<SafeJobAcknowledgementService>());
 
         var ackResult = await service.AcknowledgeSafelyAsync(rawJobModel.Object, result,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -80,6 +92,7 @@ public class SafeJobAcknowledgementServiceTests
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
 
         var service = new SafeJobAcknowledgementService(jobSource.Object, jobFailureHandler.Object, sleepService.Object,
+            CreateHealthStateUpdateService(), Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             new NullLogger<SafeJobAcknowledgementService>());
 
         var result = await service.AcknowledgeSafelyAsync(rawJobModel.Object, CoreJobResult.Failure,
@@ -128,7 +141,9 @@ public class SafeJobAcknowledgementServiceTests
             });
 
         var service = new SafeJobAcknowledgementService(jobSource.Object, jobFailureHandler.Object,
-            CreateSleepService(), new NullLogger<SafeJobAcknowledgementService>());
+            CreateSleepService(), CreateHealthStateUpdateService(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
+            new NullLogger<SafeJobAcknowledgementService>());
 
         var firstAttempt = await service.AcknowledgeSafelyAsync(rawJobModel.Object, CoreJobResult.Failure, exception,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -179,6 +194,7 @@ public class SafeJobAcknowledgementServiceTests
 
         var service = new SafeJobAcknowledgementService(jobSource.Object,
             new Mock<IJobFailureHandler>(MockBehavior.Strict).Object, sleepService.Object,
+            CreateHealthStateUpdateService(), Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             new NullLogger<SafeJobAcknowledgementService>());
 
         var result = await service.AcknowledgeSafelyAsync(rawJobModel.Object, CoreJobResult.Success,
@@ -209,6 +225,7 @@ public class SafeJobAcknowledgementServiceTests
 
         var service = new SafeJobAcknowledgementService(jobSource.Object,
             new Mock<IJobFailureHandler>(MockBehavior.Strict).Object, sleepService.Object,
+            CreateHealthStateUpdateService(), Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             new NullLogger<SafeJobAcknowledgementService>());
 
         var result = await service.AcknowledgeSafelyAsync(rawJobModel.Object, CoreJobResult.Success,
@@ -224,7 +241,7 @@ public class SafeJobAcknowledgementServiceTests
     }
 
     [Fact]
-    public async Task AcknowledgeSafelyAsync_WhenUnplannedException_BubblesUp()
+    public async Task AcknowledgeSafelyAsync_WhenUnplannedException_AndHaltOnFailureFalse_ReturnsFalse()
     {
         var rawJobModel = CreateRawJob();
 
@@ -234,12 +251,48 @@ public class SafeJobAcknowledgementServiceTests
                 TestContext.Current.CancellationToken))
             .ThrowsAsync(new InvalidOperationException("unexpected"));
 
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+
         var service = new SafeJobAcknowledgementService(jobSource.Object,
             new Mock<IJobFailureHandler>(MockBehavior.Strict).Object, CreateSleepService(),
+            health.Object,
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             new NullLogger<SafeJobAcknowledgementService>());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var result = await service.AcknowledgeSafelyAsync(rawJobModel.Object, CoreJobResult.Success,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.False(result.Success);
+        health.Verify(h => h.NoteIncident(), Times.Once);
+    }
+
+    [Fact]
+    public async Task AcknowledgeSafelyAsync_WhenUnplannedException_AndHaltOnFailure_Propagates()
+    {
+        var rawJobModel = CreateRawJob();
+        var unexpected = new InvalidOperationException("unexpected");
+
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource
+            .Setup(s => s.AcknowledgeAsync(rawJobModel.Object, CoreJobResult.Success,
+                TestContext.Current.CancellationToken))
+            .ThrowsAsync(unexpected);
+
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+
+        var service = new SafeJobAcknowledgementService(jobSource.Object,
+            new Mock<IJobFailureHandler>(MockBehavior.Strict).Object, CreateSleepService(),
+            health.Object,
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = true}),
+            new NullLogger<SafeJobAcknowledgementService>());
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.AcknowledgeSafelyAsync(rawJobModel.Object, CoreJobResult.Success,
                 cancellationToken: TestContext.Current.CancellationToken));
+
+        Assert.Same(unexpected, thrown);
+        health.Verify(h => h.NoteIncident(), Times.Once);
     }
 }

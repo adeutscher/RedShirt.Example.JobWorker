@@ -6,6 +6,7 @@ using RedShirt.Example.JobWorker.Common.Enums;
 using RedShirt.Example.JobWorker.Common.Models;
 using RedShirt.Example.JobWorker.Common.Services;
 using RedShirt.Example.JobWorker.Common.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -152,6 +153,8 @@ public class JobResultTranslationTests
             jobSource.Object,
             failureHandler.Object,
             sleepService,
+            Mock.Of<ICoreHealthStateUpdateService>(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             new NullLogger<SafeJobAcknowledgementService>());
         var executor = new JobExecutor(
             executionEndArbiter.Object,
