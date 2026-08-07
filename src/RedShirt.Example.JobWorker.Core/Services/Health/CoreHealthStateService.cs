@@ -58,7 +58,7 @@ public sealed class CoreHealthStateService(
 
     public sealed class ConfigurationModel
     {
-        public const int DefaultRecentIncidentThresholdSeconds = 60;
+        private const int DefaultRecentIncidentThresholdSeconds = 60;
 
         /// <summary>
         ///     When <see langword="false" />, <see cref="IsHealthy" /> always returns <see langword="true" />.
