@@ -21,7 +21,7 @@ namespace RedShirt.Example.JobWorker.Core.IntegrationTests.Tests;
 /// <summary>
 ///     Integration coverage for the path from <see cref="IJobLogicRunner" /> through
 ///     <see cref="JobExecutor" />, <see cref="SafeJobRunner" />, and <see cref="SafeJobAcknowledgementService" />
-///     into <see cref="IJobSource" /> / <see cref="IJobFailureHandler" />.
+///     into <see cref="IJobSource" /> / <see cref="IJobFailureHandler" /> / <see cref="ICoreStatisticsService" />.
 /// </summary>
 public class JobResultTranslationTests
 {
@@ -44,9 +44,9 @@ public class JobResultTranslationTests
 
     /// <summary>
     ///     Verifies that a <see cref="JobResult" /> returned by <see cref="IJobLogicRunner" /> is translated into the
-    ///     matching <see cref="CoreJobResult" /> passed to <see cref="IJobSource" />, and—when unsuccessful—the
-    ///     matching <see cref="FailureType" /> passed to <see cref="IJobFailureHandler" />, when execution is
-    ///     driven by <see cref="JobExecutor.RunAsync" />.
+    ///     matching <see cref="CoreJobResult" /> passed to <see cref="IJobSource" />, recorded on
+    ///     <see cref="ICoreStatisticsService" />, and—when unsuccessful—the matching <see cref="FailureType" />
+    ///     passed to <see cref="IJobFailureHandler" />, when execution is driven by <see cref="JobExecutor.RunAsync" />.
     /// </summary>
     [Theory(Timeout = 2000)]
     [InlineData(JobResult.Success, CoreJobResult.Success, null)]
@@ -90,6 +90,10 @@ public class JobResultTranslationTests
                     TestContext.Current.CancellationToken))
                 .Returns(Task.CompletedTask);
         }
+
+        // Statistics: expect the translated CoreJobResult
+        var statisticsService = new Mock<ICoreStatisticsService>(MockBehavior.Strict);
+        statisticsService.Setup(s => s.RecordResult(expectedCoreJobResult, It.IsAny<TimeSpan>()));
 
         // Executor loop control: process one job, then stop
         var doQuit = false;
@@ -162,7 +166,7 @@ public class JobResultTranslationTests
             idempotencyExecutionService.Object,
             safeJobRunner,
             acknowledgementService,
-            Mock.Of<ICoreStatisticsService>(),
+            statisticsService.Object,
             new NullLogger<JobExecutor>());
 
         // Run
@@ -171,6 +175,9 @@ public class JobResultTranslationTests
         // Verify
         jobSource.Verify(
             s => s.AcknowledgeAsync(rawJob.Object, expectedCoreJobResult, TestContext.Current.CancellationToken),
+            Times.Once);
+        statisticsService.Verify(
+            s => s.RecordResult(expectedCoreJobResult, It.IsAny<TimeSpan>()),
             Times.Once);
 
         if (expectedFailureType is { } expected)
