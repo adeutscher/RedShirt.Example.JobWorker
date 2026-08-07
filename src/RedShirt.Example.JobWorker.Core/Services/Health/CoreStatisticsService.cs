@@ -85,7 +85,9 @@ public sealed class CoreStatisticsService : ICoreStatisticsService
     ///     Overflow would require long.MaxValue (~9.22e18) increments; at a sustained 1,000 jobs/s,
     ///     that would take on the order of 300 million years to reach.
     ///     Suffice it to say, this is not considered to be on the table.
-    ///     This application is only supported for runtimes up to 30 million years.
+    ///     This method is only supported for runtimes up to 30 million years.
+    ///     For extended warranty beyond this, please submit a potato to your local obsidian monolith
+    ///     in the conveniently-located cradle of offerings carved into the base for immediate support.
     /// </summary>
     private static void TryIncrementTally(ref long tally)
     {
