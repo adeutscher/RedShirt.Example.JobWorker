@@ -11,9 +11,13 @@ internal sealed partial class AzureKeyVaultService(
     IAzureRetryWrapperService retryWrapperService,
     IAzureKeyVaultClientSource clientSource) : ISecretManagerService
 {
-    private static bool IsValidKey(string key)
+    private static void ThrowIfInvalidKey(string key)
     {
-        return ValidKeyRegex().IsMatch(key);
+        if (string.IsNullOrWhiteSpace(key) || !ValidKeyRegex().IsMatch(key))
+        {
+            throw new WorkerSecretManagerException($"Invalid secret path: {key}")
+                {CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false};
+        }
     }
 
     /// <summary>
@@ -28,11 +32,7 @@ internal sealed partial class AzureKeyVaultService(
 
     public async Task<string> GetSecretAsync(string key, CancellationToken cancellationToken = default)
     {
-        if (!IsValidKey(key))
-        {
-            throw new WorkerSecretManagerException($"Invalid secret path: {key}")
-                {CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false};
-        }
+        ThrowIfInvalidKey(key);
 
         try
         {
@@ -57,10 +57,9 @@ internal sealed partial class AzureKeyVaultService(
     public async Task<Dictionary<string, string>> GetSecretsAsync(List<string> keys,
         CancellationToken cancellationToken = default)
     {
-        if (keys.FirstOrDefault(key => !IsValidKey(key)) is { } badKey)
+        foreach (var key in keys)
         {
-            throw new WorkerSecretManagerException($"Invalid secret path: {badKey}")
-                {CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false};
+            ThrowIfInvalidKey(key);
         }
 
         var items = new Dictionary<string, string>();
