@@ -100,7 +100,11 @@ public sealed class HealthPagesHttpListenerService(
         {
             _listener.Start();
         }
+#pragma warning disable S2139
+        // I don't understand what Sonar's getting at raising S2139 here.
+        // It's very clearly being LogErrored and then re-thrown.
         catch (Exception ex)
+#pragma warning restore S2139
         {
             logger.LogError(ex, "Failed to start health HttpListener on port {Port}: {Message}", options.Value.Port,
                 ex.Message);

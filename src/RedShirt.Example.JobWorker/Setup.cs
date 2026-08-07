@@ -40,7 +40,7 @@ public static class Setup
                 "{Level:u3} {Message:l}{NewLine}{Exception}")
             .CreateLogger();
 
-        // Host.CreateApplicationBuilder registers Console/Debug providers by default;
+        // Host.CreateApplicationBuilder registers Console/Debug providers by default.
         // clear them so messages are not emitted twice (Microsoft.Extensions.Logging format + Serilog format).
         builder.Logging.ClearProviders();
         builder.Logging.AddSerilog(dispose: true);
