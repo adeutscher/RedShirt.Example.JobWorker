@@ -25,13 +25,14 @@ Repo features:
           the message source.
     * Prevents simultaneous execution of the same message in the event of a dropped message
     * Caches results to prevent re-running of a job if received non-concurrently
+* Container health probes
 * Documentation for local testing (see `test/local/`)
 
 # Configuration
 
 For configuration examples, see the `worker` section of the `test/local/docker-compose.yaml` file.
 
-## Health probes (z-pages)
+## Health probes
 
 The JobWorker application has a configurable set of health pages.
 When health endpoints are enabled, health is currently determined by the amount of time since the most recent major
