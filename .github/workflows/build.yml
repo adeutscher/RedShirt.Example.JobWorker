@@ -1,0 +1,31 @@
+name: Build verification
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - develop
+
+jobs:
+  build:
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore RedShirt.Example.JobWorker.slnx
+
+      - name: Build
+        run: dotnet build RedShirt.Example.JobWorker.slnx --no-restore --configuration Release
+
+      # Note: Docker build also runs tests
+      - name: Docker build
+        run: docker build --pull -t job-worker:ci-${{ github.sha }} .
