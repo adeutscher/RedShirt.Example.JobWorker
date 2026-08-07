@@ -86,7 +86,7 @@ public class RedisCacheServiceTests
     public async Task GetStringAsync_WhenDatabaseThrows_PropagatesThroughRetryWrapper()
     {
         var (service, database, _, _) = CreateService();
-        var redisException = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "offline");
+        var redisException = new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.None, "offline", null, CommandStatus.Unknown);
 
         database.Setup(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
             .ThrowsAsync(redisException);
@@ -186,7 +186,7 @@ public class RedisCacheServiceTests
     public async Task SetStringAsync_WhenSetFails_PropagatesThroughRetryWrapper()
     {
         var (service, database, _, _) = CreateService();
-        var redisException = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "offline");
+        var redisException = new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.None, "offline", null, CommandStatus.Unknown);
 
         database.Setup(d => d.StringSetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<Expiration>(),
                 It.IsAny<ValueCondition>(), It.IsAny<CommandFlags>()))

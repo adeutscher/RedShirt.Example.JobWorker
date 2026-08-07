@@ -36,7 +36,7 @@ public class RedisDistributedExceptionArbiterServiceTests
     public void GetReport_MultiInnerAggregateException_IsNotExpected()
     {
         var exception = new AggregateException(
-            new RedisTimeoutException("timeout", CommandStatus.Unknown),
+            new RedisTimeoutException(CommandFlags.None, "timeout", CommandStatus.Unknown),
             new SocketException((int) SocketError.TimedOut));
 
         var report = _sut.GetReport(exception);
@@ -79,7 +79,7 @@ public class RedisDistributedExceptionArbiterServiceTests
         bool expectedTransient,
         bool expectedExternallySolvable)
     {
-        var exception = new RedisConnectionException(failureType, "connection issue");
+        var exception = new RedisConnectionException(failureType, CommandFlags.None, "connection issue", null, CommandStatus.Unknown);
 
         var report = _sut.GetReport(exception);
 
@@ -92,7 +92,8 @@ public class RedisDistributedExceptionArbiterServiceTests
     [Fact]
     public void GetReport_RedisServerException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new RedisServerException("LOADING Redis is loading the dataset in memory"));
+        var report = _sut.GetReport(new RedisServerException(RedisErrorKind.Loading, CommandFlags.None,
+            "LOADING Redis is loading the dataset in memory"));
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -103,7 +104,7 @@ public class RedisDistributedExceptionArbiterServiceTests
     [Fact]
     public void GetReport_RedisTimeoutException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new RedisTimeoutException("command timed out", CommandStatus.Unknown));
+        var report = _sut.GetReport(new RedisTimeoutException(CommandFlags.None, "command timed out", CommandStatus.Unknown));
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -114,7 +115,7 @@ public class RedisDistributedExceptionArbiterServiceTests
     [Fact]
     public void GetReport_SingleInnerAggregateException_JudgesUnwrappedInner()
     {
-        var inner = new RedisTimeoutException("timeout", CommandStatus.Unknown);
+        var inner = new RedisTimeoutException(CommandFlags.None, "timeout", CommandStatus.Unknown);
         var exception = new AggregateException(inner);
 
         var report = _sut.GetReport(exception);

@@ -1,0 +1,11 @@
+<Project>
+    <PropertyGroup>
+        <!--
+          Microsoft.Testing.* / TestPlatform packages ship satellite resources with locales
+          the current .NET SDK does not recognize (NETSDK1188). Suppress in test projects only.
+          StackExchange.Redis RedisErrorKind is experimental (SER007) but required for non-obsolete
+          RedisServerException construction in tests.
+        -->
+        <NoWarn>$(NoWarn);NETSDK1188;SER007</NoWarn>
+    </PropertyGroup>
+</Project>
