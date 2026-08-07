@@ -15,7 +15,7 @@ internal sealed partial class SsmSecretManagerService(
     ///     AWS GetParameters allows at most 10 names per request.
     /// </summary>
     private const int MaxNamesPerRequest = 10;
-    
+
     /// <summary>
     ///     Regular expression for AWS Systems Manager Parameter Store hierarchical paths.
     ///     Paths must start with /, use only a-zA-Z0-9_.- in each segment, contain at most 15
@@ -37,7 +37,7 @@ internal sealed partial class SsmSecretManagerService(
     public async Task<string> GetSecretAsync(string key, CancellationToken cancellationToken = default)
     {
         ThrowIfInvalidKey(key);
-        
+
         var response = await retryWrapperService.RunAsync(ct =>
             ssm.GetParameterAsync(new GetParameterRequest
             {
@@ -55,7 +55,7 @@ internal sealed partial class SsmSecretManagerService(
         {
             ThrowIfInvalidKey(key);
         }
-        
+
         var result = new Dictionary<string, string>();
         var remaining = keys.Distinct().ToList();
 
