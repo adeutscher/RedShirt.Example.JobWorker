@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Health.Configuration;
 using RedShirt.Example.JobWorker.Common.Health.Constants;
-using RedShirt.Example.JobWorker.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.Health;
 using System.Net;
 using System.Text;
@@ -14,8 +13,7 @@ namespace RedShirt.Example.JobWorker.Services;
 public sealed class HealthPagesHttpListenerService(
     ICoreHealthStateReaderService healthService,
     ICoreStatisticsService statisticsService,
-    IOptions<CommonHealthConfigurationModel> commonOptions,
-    IOptions<HealthConfigurationModel> hostOptions,
+    IOptions<CommonHealthConfigurationModel> options,
     ILogger<HealthPagesHttpListenerService> logger) : BackgroundService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -90,13 +88,13 @@ public sealed class HealthPagesHttpListenerService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!commonOptions.Value.Enabled)
+        if (!options.Value.Enabled)
         {
             return;
         }
 
         _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://+:{hostOptions.Value.Port}/");
+        _listener.Prefixes.Add($"http://+:{options.Value.Port}/");
 
         try
         {
@@ -104,12 +102,12 @@ public sealed class HealthPagesHttpListenerService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to start health HttpListener on port {Port}: {Message}", hostOptions.Value.Port,
+            logger.LogError(ex, "Failed to start health HttpListener on port {Port}: {Message}", options.Value.Port,
                 ex.Message);
             throw;
         }
 
-        logger.LogInformation("Health listening on port {Port}", hostOptions.Value.Port);
+        logger.LogInformation("Health listening on port {Port}", options.Value.Port);
 
         stoppingToken.Register(() =>
         {

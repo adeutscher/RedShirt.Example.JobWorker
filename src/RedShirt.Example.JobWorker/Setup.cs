@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using RedShirt.Example.JobWorker.Common.Health.Configuration;
-using RedShirt.Example.JobWorker.Configuration;
 using RedShirt.Example.JobWorker.Extensions;
 using RedShirt.Example.JobWorker.Services;
 using Serilog;
@@ -58,8 +57,6 @@ public static class Setup
 
         builder.Services
             .Configure<CommonHealthConfigurationModel>(
-                builder.Configuration.GetSection(CommonHealthConfigurationModel.SectionName))
-            .Configure<HealthConfigurationModel>(
                 builder.Configuration.GetSection(CommonHealthConfigurationModel.SectionName))
             .AddHostedService<HealthPagesHttpListenerService>();
 

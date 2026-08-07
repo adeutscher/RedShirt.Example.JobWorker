@@ -3,7 +3,6 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Health.Configuration;
 using RedShirt.Example.JobWorker.Common.Health.Constants;
 using RedShirt.Example.JobWorker.Common.Health.Models;
-using RedShirt.Example.JobWorker.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Services;
 using System.Net;
@@ -30,8 +29,7 @@ public class HealthPagesHttpListenerServiceTests
         return new HealthPagesHttpListenerService(
             healthService,
             statisticsService,
-            Options.Create(new CommonHealthConfigurationModel {Enabled = enabled}),
-            Options.Create(new HealthConfigurationModel {Port = port}),
+            Options.Create(new CommonHealthConfigurationModel {Enabled = enabled, Port = port}),
             NullLogger<HealthPagesHttpListenerService>.Instance);
     }
 
