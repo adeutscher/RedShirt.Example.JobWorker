@@ -39,6 +39,27 @@ Desktop.ini
 # Vim Swapfiles
 .*.swp
 
+# Env / local overrides
+.env
+.env.*
+**/appsettings.*.local.json
+
+# Test / coverage / package artifacts
+[Tt]est[Rr]esults/
+*.trx
+coverage*
+*.coverage
+*.coveragexml
+*.nupkg
+*.snupkg
+artifacts/
+BenchmarkDotNet.Artifacts/
+*.log
+
+# Editor
+.vscode/
+.cursor/
+
 # Python
 __pycache__/
 *.py[cod]
