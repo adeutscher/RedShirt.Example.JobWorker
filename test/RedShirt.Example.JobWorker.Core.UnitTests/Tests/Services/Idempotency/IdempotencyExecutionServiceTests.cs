@@ -230,7 +230,7 @@ public class IdempotencyExecutionServiceTests
         var result = await service.GetCachedResultAsync(CreateJob().Object, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
-        Assert.Equal(jobResult, result!.JobResult);
+        Assert.Equal(jobResult, result.JobResult);
         Assert.Equal(acknowledgedSuccessfully, result.AcknowledgementResult.AcknowledgedSuccessfully);
         VerifyNoTraceLogs(logger);
     }
