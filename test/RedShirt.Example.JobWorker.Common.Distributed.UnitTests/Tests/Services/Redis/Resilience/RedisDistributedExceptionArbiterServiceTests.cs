@@ -79,7 +79,7 @@ public class RedisDistributedExceptionArbiterServiceTests
         bool expectedTransient,
         bool expectedExternallySolvable)
     {
-        var exception = new RedisConnectionException(failureType, CommandFlags.None, "connection issue", null, CommandStatus.Unknown);
+        var exception = new RedisConnectionException(failureType, CommandFlags.None, "connection issue");
 
         var report = _sut.GetReport(exception);
 
@@ -104,7 +104,8 @@ public class RedisDistributedExceptionArbiterServiceTests
     [Fact]
     public void GetReport_RedisTimeoutException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new RedisTimeoutException(CommandFlags.None, "command timed out", CommandStatus.Unknown));
+        var report =
+            _sut.GetReport(new RedisTimeoutException(CommandFlags.None, "command timed out", CommandStatus.Unknown));
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);

@@ -95,7 +95,7 @@ public class RedisConnectionCacheServiceTests
         var factory = new Mock<IRedisConnectionFactory>(MockBehavior.Strict);
         factory
             .SetupSequence(f => f.GetConnectionAsync(TestContext.Current.CancellationToken))
-            .ThrowsAsync(new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.None, "boom", null, CommandStatus.Unknown))
+            .ThrowsAsync(new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.None, "boom"))
             .ReturnsAsync(multiplexer.Object);
 
         var cache = new RedisConnectionCacheService(factory.Object);

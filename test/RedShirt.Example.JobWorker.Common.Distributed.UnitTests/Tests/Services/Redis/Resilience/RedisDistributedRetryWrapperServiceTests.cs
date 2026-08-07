@@ -461,7 +461,7 @@ public class RedisDistributedRetryWrapperServiceTests
                 if (attempts < 3)
                 {
                     throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                        CommandFlags.None, $"transient failure #{attempts}", null, CommandStatus.Unknown);
+                        CommandFlags.None, $"transient failure #{attempts}");
                 }
 
                 return Task.FromResult("recovered");

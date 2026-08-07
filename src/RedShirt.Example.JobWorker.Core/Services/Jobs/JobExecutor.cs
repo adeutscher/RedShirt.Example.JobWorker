@@ -103,7 +103,7 @@ internal sealed class JobExecutor(
             var repositoryEntry = await jobRepository.GetNextJobAsync(cancellationToken);
             if (repositoryEntry is null)
             {
-                // If JobRepository return null, then it implies that the execution end arbiter is about ot return false.
+                // If JobRepository return null, then it suggests that the execution end arbiter says that execution should stop.
                 continue;
             }
 

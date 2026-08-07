@@ -64,7 +64,7 @@ public class RedisStreamsExceptionArbiterServiceTests
         bool expectedTransient,
         bool expectedExternallySolvable)
     {
-        var exception = new RedisConnectionException(failureType, CommandFlags.None, "connection issue", null, CommandStatus.Unknown);
+        var exception = new RedisConnectionException(failureType, CommandFlags.None, "connection issue");
 
         var report = _sut.GetReport(exception);
 
@@ -101,7 +101,8 @@ public class RedisStreamsExceptionArbiterServiceTests
     [Fact]
     public void GetReport_RedisTimeoutException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new RedisTimeoutException(CommandFlags.None, "command timed out", CommandStatus.Unknown));
+        var report =
+            _sut.GetReport(new RedisTimeoutException(CommandFlags.None, "command timed out", CommandStatus.Unknown));
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -112,7 +113,8 @@ public class RedisStreamsExceptionArbiterServiceTests
     [Fact]
     public void GetReport_SingleInnerAggregateException_Unwraps()
     {
-        var exception = new AggregateException(new RedisTimeoutException(CommandFlags.None, "timeout", CommandStatus.Unknown));
+        var exception =
+            new AggregateException(new RedisTimeoutException(CommandFlags.None, "timeout", CommandStatus.Unknown));
 
         var report = _sut.GetReport(exception);
 
@@ -184,12 +186,13 @@ public class RedisStreamsExceptionArbiterServiceTests
     [Fact]
     public void GetReport_WorkerJobSourceException_AlreadyHandled()
     {
-        var wrapped = new WorkerJobSourceException(new RedisTimeoutException(CommandFlags.None, "t", CommandStatus.Unknown))
-        {
-            IsHandled = true,
-            CouldBeTransient = true,
-            CouldBeExternallySolvable = true
-        };
+        var wrapped =
+            new WorkerJobSourceException(new RedisTimeoutException(CommandFlags.None, "t", CommandStatus.Unknown))
+            {
+                IsHandled = true,
+                CouldBeTransient = true,
+                CouldBeExternallySolvable = true
+            };
 
         var report = _sut.GetReport(wrapped);
 
