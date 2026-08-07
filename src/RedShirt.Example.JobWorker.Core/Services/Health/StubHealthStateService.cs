@@ -23,8 +23,34 @@ internal class StubHealthStateService : ICoreHealthStateReaderService, ICoreHeal
 
     public StatisticsModel GetStatistics()
     {
-        // Pass
-        return null!;
+        return new StatisticsModel
+        {
+            Uptime = TimeSpan.Zero,
+            RecentWindow = TimeSpan.Zero,
+            Lifetime = EmptyJobStatistics(),
+            Recent = EmptyJobStatistics()
+        };
+    }
+
+    private static JobStatisticsModel EmptyJobStatistics()
+    {
+        return new JobStatisticsModel
+        {
+            SuccessfulTimings = new SuccessfulTimingsModel
+            {
+                Average = TimeSpan.Zero,
+                Min = TimeSpan.Zero,
+                Max = TimeSpan.Zero
+            },
+            Totals = new LifetimeTotalsModel
+            {
+                Received = 0,
+                Successful = 0,
+                Cancelled = 0,
+                Failed = 0,
+                InvalidData = 0
+            }
+        };
     }
 
     public void RecordReceived()

@@ -48,7 +48,25 @@ public class HealthPagesHttpListenerServiceTests
         statistics.Setup(s => s.GetStatistics()).Returns(new StatisticsModel
         {
             Uptime = TimeSpan.Zero,
+            RecentWindow = TimeSpan.FromMinutes(5),
             Lifetime = new JobStatisticsModel
+            {
+                SuccessfulTimings = new SuccessfulTimingsModel
+                {
+                    Average = TimeSpan.Zero,
+                    Min = TimeSpan.Zero,
+                    Max = TimeSpan.Zero
+                },
+                Totals = new LifetimeTotalsModel
+                {
+                    Received = 0,
+                    Successful = 0,
+                    Cancelled = 0,
+                    Failed = 0,
+                    InvalidData = 0
+                }
+            },
+            Recent = new JobStatisticsModel
             {
                 SuccessfulTimings = new SuccessfulTimingsModel
                 {

@@ -77,6 +77,8 @@ public static class ServiceCollectionExtensions
             // Health
             services
                 .AddSingleton<ICoreStatisticsService, CoreStatisticsService>()
+                .Configure<CoreStatisticsService.ConfigurationModel>(
+                    configuration.GetSection(CommonHealthConfigurationModel.SectionName))
                 .AddSingleton<CoreHealthStateService>()
                 .AddSingleton<ICoreHealthStateReaderService>(provider =>
                     provider.GetRequiredService<CoreHealthStateService>())

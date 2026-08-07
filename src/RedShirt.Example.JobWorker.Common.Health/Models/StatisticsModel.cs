@@ -7,6 +7,16 @@ public sealed class StatisticsModel
 {
     public required JobStatisticsModel Lifetime { get; init; }
 
+    /// <summary>
+    ///     Job statistics aggregated over <see cref="RecentWindow" /> (sliding, bucketed).
+    /// </summary>
+    public required JobStatisticsModel Recent { get; init; }
+
+    /// <summary>
+    ///     Wall-clock window used when computing <see cref="Recent" />.
+    /// </summary>
+    public required TimeSpan RecentWindow { get; init; }
+
     public required TimeSpan Uptime { get; init; }
 }
 
@@ -33,7 +43,7 @@ public sealed class SuccessfulTimingsModel
 }
 
 /// <summary>
-///     Lifetime counts of jobs by outcome.
+///     Counts of jobs by outcome for a reporting scope (lifetime or recent window).
 /// </summary>
 public sealed class LifetimeTotalsModel
 {
