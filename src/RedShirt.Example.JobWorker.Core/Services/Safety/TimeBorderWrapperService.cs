@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Common.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Safety;
 

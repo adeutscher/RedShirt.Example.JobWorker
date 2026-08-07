@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Retry;
-using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Common.Services.Utility;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;

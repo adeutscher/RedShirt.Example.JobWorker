@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Common.Enums;
 using RedShirt.Example.JobWorker.Common.Models;
-using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Common.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Logic.UnitTests.Tests;
 
