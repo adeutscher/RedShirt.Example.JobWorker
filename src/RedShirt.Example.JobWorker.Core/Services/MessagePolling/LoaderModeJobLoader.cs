@@ -24,44 +24,26 @@ internal sealed class LoaderModeJobLoader(
     IOptions<JobSourceConfigurationModel> jobSourceOptions) : IJobLoader
 #pragma warning restore S107
 {
-    public async Task RunAsync(CancellationToken cancellationToken = default)
+    private async Task WaitForDemandAsync(CancellationToken cancellationToken)
     {
-        var backlogMaxCount = jobRepository.GetBacklogMaxCount();
-        int sizeToGet;
-
-        if (backlogMaxCount == 0)
+        // No configured backlog, so wait until the next worker needs something to do.
+        var totalWatchedJobs = await jobRepository.GetWatchedJobsCountAsync(cancellationToken);
+        if (totalWatchedJobs > 0)
         {
-            // No configured backlog, so wait until the next worker needs something to do.
-            var totalWatchedJobs = await jobRepository.GetWatchedJobsCountAsync(cancellationToken);
-            if (totalWatchedJobs > 0)
+            // Need to periodically check to make sure that the overall worker is still running.
+            while (!await jobRepository.WaitForJobDemandAsync(TimeSpan.FromSeconds(5),
+                       cancellationToken))
             {
-                while (!await jobRepository.WaitForJobDemandAsync(TimeSpan.FromSeconds(5),
-                           cancellationToken))
+                if (!executionEndArbiter.ShouldKeepRunning())
                 {
-                    if (!executionEndArbiter.ShouldKeepRunning())
-                    {
-                        throw new AbortJobLoaderLoopException();
-                    }
+                    throw new AbortJobLoaderLoopException();
                 }
             }
-
-            /*
-             * Using EffectiveBatchSize rather than the number of free workers is considered working
-             * as intended for now. It is equivalent to the current logic of the default Batch mode.
-             */
-            sizeToGet = jobSourceOptions.Value.EffectiveBatchSize;
         }
-        else
-        {
-            var inactiveJobCount = await jobRepository.GetInactiveJobCountAsync(cancellationToken);
-            sizeToGet = backlogMaxCount - inactiveJobCount;
-            if (sizeToGet <= 0)
-            {
-                // Throwing an exception in order to leverage Polly's handling for incremental backoff.
-                throw new BacklogFullException();
-            }
-        }
+    }
 
+    private async Task<IJobSourceResponse> GetJobsAsync(int sizeToGet, CancellationToken cancellationToken)
+    {
         IJobSourceResponse jobResponse;
         var stopwatch = Stopwatch.StartNew();
 
@@ -98,6 +80,37 @@ internal sealed class LoaderModeJobLoader(
         logger.LogTrace("Fetched {JobResponseItemsCount} jobs in {Elapsed}",
             jobResponse.Items.Count,
             stopwatch);
+        return jobResponse;
+    }
+
+    public async Task RunAsync(CancellationToken cancellationToken = default)
+    {
+        var backlogMaxCount = jobRepository.GetBacklogMaxCount();
+        int sizeToGet;
+
+        if (backlogMaxCount == 0)
+        {
+            await WaitForDemandAsync(cancellationToken);
+
+            /*
+             * Using EffectiveBatchSize rather than the number of free workers is considered working
+             * as intended for now. It is equivalent to the current logic of the default Batch mode.
+             */
+            sizeToGet = jobSourceOptions.Value.EffectiveBatchSize;
+        }
+        else
+        {
+            var inactiveJobCount = await jobRepository.GetInactiveJobCountAsync(cancellationToken);
+            sizeToGet = backlogMaxCount - inactiveJobCount;
+            if (sizeToGet <= 0)
+            {
+                // Throwing an exception in order to leverage Polly's handling for incremental backoff.
+                throw new BacklogFullException();
+            }
+        }
+
+        var jobResponse = await GetJobsAsync(sizeToGet, cancellationToken);
+
         if (jobResponse.Items.Count == 0)
         {
             // Throwing an exception in order to leverage Polly's handling for incremental backoff.

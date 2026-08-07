@@ -87,6 +87,69 @@ internal sealed class JobRepository(
     /// </summary>
     private List<IJobRepositoryEntry> _inactiveJobsList = [];
 
+    private async Task<TryGetJobResponse> TryGetUnblockedJobAsync(CancellationToken cancellationToken)
+    {
+        if (!_unblockedJobsQueue.TryDequeue(out var result))
+        {
+            return new TryGetJobResponse
+            {
+                Success = false,
+                Result = null
+            };
+        }
+
+        await _inactiveJobsListSemaphore.WaitAsync(cancellationToken);
+        try
+        {
+            if (_inactiveJobsList.Count == 0 && _unblockedJobsQueue.IsEmpty)
+            {
+                // Jobs are no longer available
+                _jobsAvailableEvent.Reset();
+            }
+        }
+        finally
+        {
+            _inactiveJobsListSemaphore.Release();
+        }
+
+        return new TryGetJobResponse
+        {
+            Success = true,
+            Result = result
+        };
+    }
+
+    private async Task<TryGetJobResponse> TryGetInactiveJobAsync(CancellationToken cancellationToken)
+    {
+        IJobRepositoryEntry? result;
+        await _inactiveJobsListSemaphore.WaitAsync(cancellationToken);
+        try
+        {
+            result = _inactiveJobsList.FirstOrDefault();
+
+            if (result is not null)
+            {
+                _inactiveJobsList.RemoveAt(0);
+
+                if (_inactiveJobsList.Count == 0 && _unblockedJobsQueue.IsEmpty)
+                {
+                    // Jobs are no longer available
+                    _jobsAvailableEvent.Reset();
+                }
+            }
+        }
+        finally
+        {
+            _inactiveJobsListSemaphore.Release();
+        }
+
+        return new TryGetJobResponse
+        {
+            Success = result is not null,
+            Result = result
+        };
+    }
+
     internal List<IJobRepositoryEntry> WatchedJobs { get; } = [];
 
     public async Task<List<IJobRepositoryEntry>> GetAllInFlightJobsAsync(CancellationToken cancellationToken = default)
@@ -139,52 +202,24 @@ internal sealed class JobRepository(
 
     public async Task<IJobRepositoryEntry?> GetNextJobAsync(CancellationToken cancellationToken = default)
     {
-        IJobRepositoryEntry? result;
+        IJobRepositoryEntry? result = null;
         do
         {
             // Try shortlist of unblocked jobs
-            if (_unblockedJobsQueue.TryDequeue(out result))
+            if (await TryGetUnblockedJobAsync(cancellationToken) is {Success: true} unblockedAttemptResult)
             {
-                await _inactiveJobsListSemaphore.WaitAsync(cancellationToken);
-                try
-                {
-                    if (_inactiveJobsList.Count == 0 && _unblockedJobsQueue.IsEmpty)
-                    {
-                        // Jobs are no longer available
-                        _jobsAvailableEvent.Reset();
-                    }
-                }
-                finally
-                {
-                    _inactiveJobsListSemaphore.Release();
-                }
+                result = unblockedAttemptResult.Result!;
 
                 // Continue out of loop iteration to abort via do-while condition
                 continue;
             }
 
-            await _inactiveJobsListSemaphore.WaitAsync(cancellationToken);
-            try
+            if (await TryGetInactiveJobAsync(cancellationToken) is {Success: true} inactiveAttemptResult)
             {
-                result = _inactiveJobsList.FirstOrDefault();
+                result = inactiveAttemptResult.Result!;
 
-                if (result is not null)
-                {
-                    _inactiveJobsList.RemoveAt(0);
-
-                    if (_inactiveJobsList.Count == 0 && _unblockedJobsQueue.IsEmpty)
-                    {
-                        // Jobs are no longer available
-                        _jobsAvailableEvent.Reset();
-                    }
-
-                    // Continue out of loop iteration to abort via do-while condition
-                    continue;
-                }
-            }
-            finally
-            {
-                _inactiveJobsListSemaphore.Release();
+                // Continue out of loop iteration to abort via do-while condition
+                continue;
             }
 
             // If execution has reached here, then there are currently no available jobs to be handed out.
@@ -340,6 +375,12 @@ internal sealed class JobRepository(
         {
             _watchedJobsListSemaphore.Release();
         }
+    }
+
+    private sealed class TryGetJobResponse
+    {
+        public required bool Success { get; init; }
+        public required IJobRepositoryEntry? Result { get; init; }
     }
 
     internal sealed class ConfigurationModel

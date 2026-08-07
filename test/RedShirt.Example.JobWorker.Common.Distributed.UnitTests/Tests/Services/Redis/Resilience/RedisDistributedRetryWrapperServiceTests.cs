@@ -411,7 +411,7 @@ public class RedisDistributedRetryWrapperServiceTests
     {
         var attempts = 0;
         var delays = new List<TimeSpan>();
-        var inner = new RedisTimeoutException("still failing", CommandStatus.Unknown);
+        var inner = new RedisTimeoutException(CommandFlags.None, "still failing", CommandStatus.Unknown);
 
         var arbiter = new Mock<IRedisDistributedExceptionArbiterService>(MockBehavior.Strict);
         arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
@@ -461,7 +461,7 @@ public class RedisDistributedRetryWrapperServiceTests
                 if (attempts < 3)
                 {
                     throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                        $"transient failure #{attempts}");
+                        CommandFlags.None, $"transient failure #{attempts}");
                 }
 
                 return Task.FromResult("recovered");

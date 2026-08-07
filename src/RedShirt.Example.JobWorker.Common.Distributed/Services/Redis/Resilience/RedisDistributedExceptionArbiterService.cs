@@ -70,7 +70,7 @@ internal sealed class RedisDistributedExceptionArbiterService : IRedisDistribute
         // Unwrap
         while (exception is AggregateException {InnerExceptions.Count: 1, InnerException: not null} aggregate)
         {
-            exception = aggregate.InnerException;
+            exception = aggregate.InnerException!;
         }
 
         return exception switch

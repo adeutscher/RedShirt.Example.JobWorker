@@ -104,7 +104,7 @@ internal class PulsarExceptionArbiterService : IPulsarExceptionArbiterService
 
         while (exception is AggregateException {InnerExceptions.Count: 1, InnerException: not null} aggregate)
         {
-            exception = aggregate.InnerException;
+            exception = aggregate.InnerException!;
         }
 
         return exception switch

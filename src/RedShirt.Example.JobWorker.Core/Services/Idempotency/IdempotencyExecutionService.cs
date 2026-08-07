@@ -91,6 +91,96 @@ internal sealed class IdempotencyExecutionService(
         }
     }
 
+    /// <summary>
+    ///     Set a string value in the cache.
+    ///     Mostly carved off from SetResultInCacheAsync for the sake of Sonar's Cognitive Complexity metric.
+    /// </summary>
+    /// <param name="jobModel"></param>
+    /// <param name="value"></param>
+    /// <param name="timeSpan"></param>
+    /// <param name="cancellationToken"></param>
+    private async Task SetResultInCacheInnerAsync(IRawJobModel jobModel, string value, TimeSpan timeSpan,
+        CancellationToken cancellationToken)
+    {
+        if (options.Value.EnableTraceLogging)
+        {
+            logger.LogTrace(
+                "{Class}.{Method} setting value: {Key} -> {Value}",
+                nameof(IdempotencyExecutionService), nameof(SetResultInCacheInnerAsync),
+                GetResultKey(jobModel.IdempotencyId!), value);
+        }
+
+        try
+        {
+            await cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), value, timeSpan, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Unexpected error writing idempotency cache");
+            healthStateUpdateService.NoteIncident();
+            if (coreOptions.Value.HaltOnFailure)
+            {
+                throw;
+            }
+
+            return;
+        }
+
+        if (options.Value.EnableTraceLogging)
+        {
+            logger.LogTrace(
+                "{Class}.{Method} set value: {Key}",
+                nameof(IdempotencyExecutionService), nameof(SetResultInCacheInnerAsync),
+                GetResultKey(jobModel.IdempotencyId!));
+        }
+    }
+
+    /// <summary>
+    ///     Clear a job's result out of the cache.
+    ///     Mostly carved off from SetResultInCacheAsync for the sake of Sonar's Cognitive Complexity metric.
+    /// </summary>
+    /// <param name="jobModel"></param>
+    /// <param name="timeSpan"></param>
+    /// <param name="cancellationToken"></param>
+    private async Task ClearCacheResultAsync(IRawJobModel jobModel, TimeSpan timeSpan,
+        CancellationToken cancellationToken)
+    {
+        if (options.Value.EnableTraceLogging)
+        {
+            logger.LogTrace(
+                "{Class}.{Method} clearing value: {Key}",
+                nameof(IdempotencyExecutionService), nameof(ClearCacheResultAsync),
+                GetResultKey(jobModel.IdempotencyId!));
+        }
+
+        // If the idempotency IDs cannot repeat,
+        //   then it can be reasonably assumed that there's no point in caching the data
+        //   set to null to delete data in underlying cache in an effort to save resources.
+        try
+        {
+            await cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), null, timeSpan, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Unexpected error clearing idempotency cache");
+            healthStateUpdateService.NoteIncident();
+            if (coreOptions.Value.HaltOnFailure)
+            {
+                throw;
+            }
+
+            return;
+        }
+
+        if (options.Value.EnableTraceLogging)
+        {
+            logger.LogTrace(
+                "{Class}.{Method} cleared value: {Key}",
+                nameof(IdempotencyExecutionService), nameof(ClearCacheResultAsync),
+                GetResultKey(jobModel.IdempotencyId!));
+        }
+    }
+
     public async Task<IAbstractedLock> GetLockAsync(IJobModel jobModel, CancellationToken token)
     {
         if (IdempotencyCannotProceed(jobModel.IdempotencyId, out var reason))
@@ -229,40 +319,7 @@ internal sealed class IdempotencyExecutionService(
 
         if (acknowledgementResult.Success && !options.Value.IdempotencyIdsCanRepeat)
         {
-            if (options.Value.EnableTraceLogging)
-            {
-                logger.LogTrace(
-                    "{Class}.{Method} clearing value: {Key}",
-                    nameof(IdempotencyExecutionService), nameof(SetResultInCacheAsync),
-                    GetResultKey(jobModel.IdempotencyId!));
-            }
-
-            // If the idempotency IDs cannot repeat,
-            //   then it can be reasonably assumed that there's no point in caching the data
-            //   set to null to delete data in underlying cache in an effort to save resources.
-            try
-            {
-                await cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), null, timeSpan, cancellationToken);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogError(ex, "Unexpected error clearing idempotency cache");
-                healthStateUpdateService.NoteIncident();
-                if (coreOptions.Value.HaltOnFailure)
-                {
-                    throw;
-                }
-
-                return;
-            }
-
-            if (options.Value.EnableTraceLogging)
-            {
-                logger.LogTrace(
-                    "{Class}.{Method} cleared value: {Key}",
-                    nameof(IdempotencyExecutionService), nameof(SetResultInCacheAsync),
-                    GetResultKey(jobModel.IdempotencyId!));
-            }
+            await ClearCacheResultAsync(jobModel, timeSpan, cancellationToken);
 
             return;
         }
@@ -275,42 +332,11 @@ internal sealed class IdempotencyExecutionService(
                 AcknowledgedSuccessfully = acknowledgementResult.AcknowledgedSuccessfully
             }, JsonOptions);
 
-        if (options.Value.EnableTraceLogging)
-        {
-            logger.LogTrace(
-                "{Class}.{Method} setting value: {Key} -> {Value}",
-                nameof(IdempotencyExecutionService), nameof(SetResultInCacheAsync),
-                GetResultKey(jobModel.IdempotencyId!), value);
-        }
-
-        try
-        {
-            await cache.SetStringAsync(GetResultKey(jobModel.IdempotencyId!), value, timeSpan, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogError(ex, "Unexpected error writing idempotency cache");
-            healthStateUpdateService.NoteIncident();
-            if (coreOptions.Value.HaltOnFailure)
-            {
-                throw;
-            }
-
-            return;
-        }
-
-        if (options.Value.EnableTraceLogging)
-        {
-            logger.LogTrace(
-                "{Class}.{Method} set value: {Key}",
-                nameof(IdempotencyExecutionService), nameof(SetResultInCacheAsync),
-                GetResultKey(jobModel.IdempotencyId!));
-        }
+        await SetResultInCacheInnerAsync(jobModel, value, timeSpan, cancellationToken);
     }
 
     private enum IdempotencyCannotProceedReason
     {
-        Unknown,
         Disabled,
         EmptyIdempotencyKey
     }
