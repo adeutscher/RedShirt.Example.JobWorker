@@ -87,8 +87,8 @@ internal sealed class AwsExceptionArbiterService : IAwsExceptionArbiterService
                     CouldBeExternallySolvableAmazonServiceException(serviceException)),
             // Client-side AWS SDK failure before a useful service response (often connectivity).
             AmazonClientException => Fresh(true, true, true),
-            HttpRequestException => Fresh(true, true, true),
-            SocketException => Fresh(true, true, true),
+            HttpRequestException
+                or SocketException => Fresh(true, true, true),
             // HttpClient request timeouts commonly surface as TaskCanceledException; treat as retryable.
             // Must be matched before OperationCanceledException (TCE derives from OCE).
             TaskCanceledException => Fresh(true, true, true),
