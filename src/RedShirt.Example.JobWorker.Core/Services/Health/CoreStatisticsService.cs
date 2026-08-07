@@ -50,24 +50,17 @@ public sealed class CoreStatisticsService : ICoreStatisticsService
 
         lock (_timingsGate)
         {
+            // Either the ulong duration sum (~1.84e19 ticks ≈ 58,000 years of
+            // aggregated successful work) or the long success tally (~9.22e18) would need to overflow.
+            // At 1,000 one-second jobs/s the sum saturates on the order of decades-to-millennia
+            // of wall clock only if every sample is huge; the tally alone would need ~300 million
+            // years at 1,000 increments/s.
             ulong newSum;
             long newTally;
-            try
+            checked
             {
-                checked
-                {
-                    newSum = _successfulLifetimeDurationTicksSum + (ulong) ticks;
-                    newTally = _successfulLifetimeTally + 1;
-                }
-            }
-            catch (OverflowException)
-            {
-                // Precaution: either the ulong duration sum (~1.84e19 ticks ≈ 58,000 years of
-                // aggregated successful work) or the long success tally (~9.22e18) cannot grow.
-                // At 1,000 one-second jobs/s the sum saturates on the order of decades-to-millennia
-                // of wall clock only if every sample is huge; the tally alone would need ~300 million
-                // years at 1,000 increments/s. Skip this sample so sum and tally stay consistent.
-                return;
+                newSum = _successfulLifetimeDurationTicksSum + (ulong) ticks;
+                newTally = _successfulLifetimeTally + 1;
             }
 
             _successfulLifetimeDurationTicksSum = newSum;
@@ -89,6 +82,10 @@ public sealed class CoreStatisticsService : ICoreStatisticsService
     ///     Atomically increments <paramref name="tally" /> under <see langword="checked" /> arithmetic.
     ///     <see cref="Interlocked.Increment(ref long)" /> is not used because it wraps on overflow
     ///     instead of throwing <see cref="OverflowException" />.
+    ///     Overflow would require long.MaxValue (~9.22e18) increments; at a sustained 1,000 jobs/s,
+    ///     that would take on the order of 300 million years to reach.
+    ///     Suffice it to say, this is not considered to be on the table.
+    ///     This application is only supported for runtimes up to 30 million years.
     /// </summary>
     private static void TryIncrementTally(ref long tally)
     {
@@ -96,18 +93,9 @@ public sealed class CoreStatisticsService : ICoreStatisticsService
         {
             var current = Volatile.Read(ref tally);
             long next;
-            try
+            checked
             {
-                checked
-                {
-                    next = current + 1;
-                }
-            }
-            catch (OverflowException)
-            {
-                // Precaution: long.MaxValue (~9.22e18) increments.
-                // At a sustained 1,000 jobs/s, this would take on the order of 300 million years to reach.
-                return;
+                next = current + 1;
             }
 
             // CompareExchange publishes next only if no other thread changed tally since we read
