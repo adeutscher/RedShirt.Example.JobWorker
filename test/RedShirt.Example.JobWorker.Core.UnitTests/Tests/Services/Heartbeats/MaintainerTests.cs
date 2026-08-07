@@ -46,8 +46,8 @@ public class HeartbeatMaintainerTests
         var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>(),
-            CreateSleepService());
+            CreateSleepService(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -108,8 +108,9 @@ public class HeartbeatMaintainerTests
         var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, health.Object,
+            CreateSleepService(),
             Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
-            new NullLogger<HeartbeatMaintainer>(), CreateSleepService());
+            new NullLogger<HeartbeatMaintainer>());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -156,8 +157,9 @@ public class HeartbeatMaintainerTests
         var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, health.Object,
+            CreateSleepService(),
             Options.Create(new CoreConfigurationModel {HaltOnFailure = true}),
-            new NullLogger<HeartbeatMaintainer>(), CreateSleepService());
+            new NullLogger<HeartbeatMaintainer>());
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             maintainer.RunAsync(TestContext.Current.CancellationToken));
@@ -232,8 +234,8 @@ public class HeartbeatMaintainerTests
         var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>(),
-            CreateSleepService());
+            CreateSleepService(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -278,8 +280,8 @@ public class HeartbeatMaintainerTests
         var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>(),
-            CreateSleepService());
+            CreateSleepService(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -349,8 +351,8 @@ public class HeartbeatMaintainerTests
         var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>(),
-            CreateSleepService());
+            CreateSleepService(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -423,8 +425,8 @@ public class HeartbeatMaintainerTests
         var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>(),
-            CreateSleepService());
+            CreateSleepService(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -490,8 +492,8 @@ public class HeartbeatMaintainerTests
         var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>(),
-            CreateSleepService());
+            CreateSleepService(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -554,8 +556,8 @@ public class HeartbeatMaintainerTests
         var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>(),
-            sleepService.Object);
+            sleepService.Object,
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -622,8 +624,8 @@ public class HeartbeatMaintainerTests
         var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>(),
-            CreateSleepService());
+            CreateSleepService(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -693,8 +695,8 @@ public class HeartbeatMaintainerTests
         var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>(),
-            CreateSleepService());
+            CreateSleepService(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -768,8 +770,8 @@ public class HeartbeatMaintainerTests
         var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>(),
-            sleepService.Object);
+            sleepService.Object,
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 
@@ -866,8 +868,8 @@ public class HeartbeatMaintainerTests
         var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>(),
-            CreateSleepService());
+            CreateSleepService(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
 
         await maintainer.RunAsync(TestContext.Current.CancellationToken);
 

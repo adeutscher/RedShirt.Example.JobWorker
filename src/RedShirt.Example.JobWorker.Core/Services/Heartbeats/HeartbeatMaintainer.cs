@@ -19,15 +19,17 @@ namespace RedShirt.Example.JobWorker.Core.Services.Heartbeats;
 /// </summary>
 internal interface IHeartbeatMaintainer : IHandlerSubComponent;
 
+#pragma warning disable S107
 internal sealed class HeartbeatMaintainer(
     IHeartbeatCalculator heartbeatCalculator,
     IAppliedExecutionEndArbiter appliedExecutionEndArbiter,
     IJobRepository jobRepository,
     IJobSource jobSource,
     ICoreHealthStateUpdateService healthStateUpdateService,
+    ISleepService sleepService,
     IOptions<CoreConfigurationModel> coreOptions,
-    ILogger<HeartbeatMaintainer> logger,
-    ISleepService sleepService) : IHeartbeatMaintainer
+    ILogger<HeartbeatMaintainer> logger) : IHeartbeatMaintainer
+#pragma warning restore S107
 {
     /// <summary>
     ///     Set the minimum amount of time to sleep for between loops.
