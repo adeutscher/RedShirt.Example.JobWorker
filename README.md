@@ -35,7 +35,7 @@ For configuration examples, see the `worker` section of the `test/local/docker-c
 
 The JobWorker application has a configurable set of health pages.
 When health endpoints are enabled, health is currently determined by the amount of time since the most recent major
-exception caught in the Core project when it interacts with a service from the
+exception caught in the `RedShirt.Example.JobWorker.Core` project when it interacts with a service from the
 `RedShirt.Example.JobWorker.Common.Distributed` package or the `IJobSource` implementation in one of the `JobManagement`
 packages.
 
