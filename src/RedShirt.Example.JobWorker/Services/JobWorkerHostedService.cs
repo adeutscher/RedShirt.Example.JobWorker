@@ -5,8 +5,15 @@ namespace RedShirt.Example.JobWorker.Services;
 
 public sealed class JobWorkerHostedService(IHandler handler) : BackgroundService
 {
-    protected override Task ExecuteAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        return handler.HandleAsync(cancellationToken);
+        try
+        {
+            await handler.HandleAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Expected on host shutdown / Ctrl+C. Other cancellations still propagate.
+        }
     }
 }

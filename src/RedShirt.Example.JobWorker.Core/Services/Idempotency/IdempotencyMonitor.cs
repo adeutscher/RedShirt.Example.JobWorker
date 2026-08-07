@@ -18,6 +18,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.Idempotency;
 /// </summary>
 internal interface IIdempotencyMonitor : IHandlerSubComponent;
 
+#pragma warning disable S107
 internal sealed class IdempotencyMonitor(
     IExecutionEndArbiter executionEndArbiter,
     IJobRepository jobRepository,
@@ -27,6 +28,7 @@ internal sealed class IdempotencyMonitor(
     IOptions<IdempotencyConfigurationModel> options,
     ICoreStatisticsService coreStatisticsService,
     ILogger<IdempotencyMonitor> logger) : IIdempotencyMonitor
+#pragma warning restore S107
 {
     private async Task CheckBlockedJobsAsync(CancellationToken cancellationToken = default)
     {
