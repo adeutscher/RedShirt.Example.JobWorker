@@ -32,16 +32,17 @@ public sealed class CoreStatisticsService : ICoreStatisticsService
 {
     private readonly DateTime _startedAtUtc = DateTime.UtcNow;
     private readonly Lock _timingsGate = new();
-    private long _cancelledTally;
-    private long _failedTally;
-    private long _invalidDataTally;
 
-    private long _receivedTally;
+    private long _cancelledLifetimeTally;
+    private long _failedLifetimeTally;
+    private long _invalidDataLifetimeTally;
 
-    private ulong _successfulDurationTicksSum;
-    private long _successfulMaxTicks = long.MinValue;
-    private long _successfulMinTicks = long.MaxValue;
-    private long _successfulTally;
+    private long _receivedLifetimeTally;
+
+    private ulong _successfulLifetimeDurationTicksSum;
+    private long _successfulLifetimeMaxTicks = long.MinValue;
+    private long _successfulLifetimeMinTicks = long.MaxValue;
+    private long _successfulLifetimeTally;
 
     private void RecordSuccessful(TimeSpan duration)
     {
@@ -55,8 +56,8 @@ public sealed class CoreStatisticsService : ICoreStatisticsService
             {
                 checked
                 {
-                    newSum = _successfulDurationTicksSum + (ulong) ticks;
-                    newTally = _successfulTally + 1;
+                    newSum = _successfulLifetimeDurationTicksSum + (ulong) ticks;
+                    newTally = _successfulLifetimeTally + 1;
                 }
             }
             catch (OverflowException)
@@ -69,17 +70,17 @@ public sealed class CoreStatisticsService : ICoreStatisticsService
                 return;
             }
 
-            _successfulDurationTicksSum = newSum;
-            _successfulTally = newTally;
+            _successfulLifetimeDurationTicksSum = newSum;
+            _successfulLifetimeTally = newTally;
 
-            if (ticks < _successfulMinTicks)
+            if (ticks < _successfulLifetimeMinTicks)
             {
-                _successfulMinTicks = ticks;
+                _successfulLifetimeMinTicks = ticks;
             }
 
-            if (ticks > _successfulMaxTicks)
+            if (ticks > _successfulLifetimeMaxTicks)
             {
-                _successfulMaxTicks = ticks;
+                _successfulLifetimeMaxTicks = ticks;
             }
         }
     }
@@ -130,7 +131,7 @@ public sealed class CoreStatisticsService : ICoreStatisticsService
 
         lock (_timingsGate)
         {
-            successful = _successfulTally;
+            successful = _successfulLifetimeTally;
             if (successful == 0)
             {
                 average = TimeSpan.Zero;
@@ -139,9 +140,9 @@ public sealed class CoreStatisticsService : ICoreStatisticsService
             }
             else
             {
-                average = TimeSpan.FromTicks((long) (_successfulDurationTicksSum / (ulong) successful));
-                min = TimeSpan.FromTicks(_successfulMinTicks);
-                max = TimeSpan.FromTicks(_successfulMaxTicks);
+                average = TimeSpan.FromTicks((long) (_successfulLifetimeDurationTicksSum / (ulong) successful));
+                min = TimeSpan.FromTicks(_successfulLifetimeMinTicks);
+                max = TimeSpan.FromTicks(_successfulLifetimeMaxTicks);
             }
         }
 
@@ -158,11 +159,11 @@ public sealed class CoreStatisticsService : ICoreStatisticsService
                 },
                 Totals = new LifetimeTotalsModel
                 {
-                    Received = Interlocked.Read(ref _receivedTally),
+                    Received = Interlocked.Read(ref _receivedLifetimeTally),
                     Successful = successful,
-                    Cancelled = Interlocked.Read(ref _cancelledTally),
-                    Failed = Interlocked.Read(ref _failedTally),
-                    InvalidData = Interlocked.Read(ref _invalidDataTally)
+                    Cancelled = Interlocked.Read(ref _cancelledLifetimeTally),
+                    Failed = Interlocked.Read(ref _failedLifetimeTally),
+                    InvalidData = Interlocked.Read(ref _invalidDataLifetimeTally)
                 }
             }
         };
@@ -170,7 +171,7 @@ public sealed class CoreStatisticsService : ICoreStatisticsService
 
     public void RecordReceived()
     {
-        TryIncrementTally(ref _receivedTally);
+        TryIncrementTally(ref _receivedLifetimeTally);
     }
 
     public void RecordResult(CoreJobResult result, TimeSpan duration = default)
@@ -181,15 +182,15 @@ public sealed class CoreStatisticsService : ICoreStatisticsService
                 RecordSuccessful(duration);
                 break;
             case CoreJobResult.Failure:
-                TryIncrementTally(ref _failedTally);
+                TryIncrementTally(ref _failedLifetimeTally);
                 break;
             case CoreJobResult.Cancelled:
-                TryIncrementTally(ref _cancelledTally);
+                TryIncrementTally(ref _cancelledLifetimeTally);
                 break;
             case CoreJobResult.Empty:
             case CoreJobResult.Parsing:
             case CoreJobResult.InvalidData:
-                TryIncrementTally(ref _invalidDataTally);
+                TryIncrementTally(ref _invalidDataLifetimeTally);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(result), result, null);
