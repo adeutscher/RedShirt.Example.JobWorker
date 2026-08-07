@@ -668,7 +668,7 @@ public class IdempotencyExecutionServiceTests
             },
             TestContext.Current.CancellationToken);
 
-        VerifyTraceLogContains(logger, "IdempotencyExecutionService.SetResultInCacheAsync", Times.Exactly(2));
+        VerifyTraceLogContains(logger, "IdempotencyExecutionService.SetResultInCacheInnerAsync", Times.Exactly(2));
         VerifyTraceLogContains(logger, "setting value", Times.Once());
         VerifyTraceLogContains(logger, "set value", Times.Once());
         VerifyTraceLogContains(logger, expectedPayload, Times.Once());
@@ -733,7 +733,7 @@ public class IdempotencyExecutionServiceTests
             },
             TestContext.Current.CancellationToken);
 
-        VerifyTraceLogContains(logger, "IdempotencyExecutionService.SetResultInCacheAsync", Times.Exactly(2));
+        VerifyTraceLogContains(logger, "IdempotencyExecutionService.ClearCacheResultAsync", Times.Exactly(2));
         VerifyTraceLogContains(logger, "clearing value", Times.Once());
         VerifyTraceLogContains(logger, "cleared value", Times.Once());
         VerifyTraceLogContains(logger, "idempotency:idem-1:result", Times.Exactly(2));
