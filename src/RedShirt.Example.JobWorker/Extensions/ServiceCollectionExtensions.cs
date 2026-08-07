@@ -23,6 +23,34 @@ namespace RedShirt.Example.JobWorker.Extensions;
 
 public static class ServiceCollectionExtensions
 {
+    private static JobSourceKind ResolveJobSourceKind(IConfiguration configuration)
+    {
+        // Declare candidates that can be toggled on (first match wins, defaults to SQS if no match) 
+        (string Key, JobSourceKind Kind)[] candidates =
+        [
+            ("UseNats", JobSourceKind.Nats),
+            ("UseRedisStreams", JobSourceKind.RedisStreams),
+            ("UseAzureQueueStorage", JobSourceKind.AzureQueueStorage),
+            ("UseAzureServiceBus", JobSourceKind.AzureServiceBus),
+            ("UseGooglePubSub", JobSourceKind.GooglePubSub),
+            ("UseRabbitMq", JobSourceKind.RabbitMq),
+            ("UseActiveMq", JobSourceKind.ActiveMq),
+            ("UseKinesis", JobSourceKind.Kinesis),
+            ("UseKafka", JobSourceKind.Kafka),
+            ("UsePulsar", JobSourceKind.Pulsar)
+        ];
+
+        foreach (var (key, kind) in candidates)
+        {
+            if (int.TryParse(configuration.GetValue(key, "0"), out var value) && value == 1)
+            {
+                return kind;
+            }
+        }
+
+        return JobSourceKind.Sqs;
+    }
+
     public static IServiceCollection ConfigureWorker(this IServiceCollection services, IConfigurationRoot configuration)
     {
         services = services
@@ -41,81 +69,79 @@ public static class ServiceCollectionExtensions
 
         /*
          * Template note:
-         *      When adapting this template, you will want to pick one message source and prune away the rest.
+         *      When adapting this template, it is assumed that you will want to pick one message source and prune away the rest.
          */
-        var useKinesisRaw = configuration.GetValue("UseKinesis", "0");
-        var useKafkaRaw = configuration.GetValue("UseKafka", "0");
-        var usePulsarRaw = configuration.GetValue("UsePulsar", "0");
-        var useActiveMqRaw = configuration.GetValue("UseActiveMq", "0");
-        var useAzureQueueStorageRaw = configuration.GetValue("UseAzureQueueStorage", "0");
-        var useAzureServiceBusRaw = configuration.GetValue("UseAzureServiceBus", "0");
-        var useGooglePubSubRaw = configuration.GetValue("UseGooglePubSub", "0");
-        var useNatsRaw = configuration.GetValue("UseNats", "0");
-        var useRedisStreamsRaw = configuration.GetValue("UseRedisStreams", "0");
-        var useRabbitMqRaw = configuration.GetValue("UseRabbitMq", "0");
-
-        if (int.TryParse(useNatsRaw, out var useNats) && useNats == 1)
+        // ReSharper disable once ConvertSwitchStatementToSwitchExpression
+        // ReSharper disable once SwitchStatementHandlesSomeKnownEnumValuesWithDefault
+        switch (ResolveJobSourceKind(configuration))
         {
-            services = services
-                .AddNatsJobManagement(configuration);
-        }
-        else if (int.TryParse(useRedisStreamsRaw, out var useRedisStreams) && useRedisStreams == 1)
-        {
-            services = services
-                .AddRedisStreamsJobManagement(configuration);
-        }
-        else if (int.TryParse(useAzureQueueStorageRaw, out var useAzureQueueStorage) && useAzureQueueStorage == 1)
-        {
-            services = services
-                .AddSecretManagerAzureKeyVault(configuration)
-                .AddAzureQueueStorageJobManagement(configuration);
-        }
-        else if (int.TryParse(useAzureServiceBusRaw, out var useAzureServiceBus) && useAzureServiceBus == 1)
-        {
-            services = services
-                .AddSecretManagerAzureKeyVault(configuration)
-                .AddAzureServiceBusJobManagement(configuration);
-        }
-        else if (int.TryParse(useGooglePubSubRaw, out var useGooglePubSub) && useGooglePubSub == 1)
-        {
-            services = services
-                .AddGooglePubSubJobManagement(configuration);
-        }
-        else if (int.TryParse(useRabbitMqRaw, out var useRabbitMq) && useRabbitMq == 1)
-        {
-            services = services
-                .AddSecretManagerCore(configuration)
-                .AddRabbitMqJobManagement(configuration);
-        }
-        else if (int.TryParse(useActiveMqRaw, out var useActiveMq) && useActiveMq == 1)
-        {
-            services = services
-                .AddSecretManagerCore(configuration)
-                .AddActiveMqJobManagement(configuration);
-        }
-        else if (int.TryParse(useKinesisRaw, out var useKinesis) && useKinesis == 1)
-        {
-            services = services
-                .AddSecretManagerCore(configuration)
-                .AddKinesisJobManagement(configuration);
-        }
-        else if (int.TryParse(useKafkaRaw, out var useKafka) && useKafka == 1)
-        {
-            services = services
-                .AddKafkaJobManagement(configuration)
-                .AddKafkaSqsFailureHandling(configuration);
-        }
-        else if (int.TryParse(usePulsarRaw, out var usePulsar) && usePulsar == 1)
-        {
-            services = services
-                .AddPulsarJobManagement(configuration);
-        }
-        else
-        {
-            services = services
-                .AddSqsJobManagement(configuration);
+            case JobSourceKind.Nats:
+                services = services
+                    .AddNatsJobManagement(configuration);
+                break;
+            case JobSourceKind.RedisStreams:
+                services = services
+                    .AddRedisStreamsJobManagement(configuration);
+                break;
+            case JobSourceKind.AzureQueueStorage:
+                services = services
+                    .AddSecretManagerAzureKeyVault(configuration)
+                    .AddAzureQueueStorageJobManagement(configuration);
+                break;
+            case JobSourceKind.AzureServiceBus:
+                services = services
+                    .AddSecretManagerAzureKeyVault(configuration)
+                    .AddAzureServiceBusJobManagement(configuration);
+                break;
+            case JobSourceKind.GooglePubSub:
+                services = services
+                    .AddGooglePubSubJobManagement(configuration);
+                break;
+            case JobSourceKind.RabbitMq:
+                services = services
+                    .AddSecretManagerCore(configuration)
+                    .AddRabbitMqJobManagement(configuration);
+                break;
+            case JobSourceKind.ActiveMq:
+                services = services
+                    .AddSecretManagerCore(configuration)
+                    .AddActiveMqJobManagement(configuration);
+                break;
+            case JobSourceKind.Kinesis:
+                services = services
+                    .AddSecretManagerCore(configuration)
+                    .AddKinesisJobManagement(configuration);
+                break;
+            case JobSourceKind.Kafka:
+                services = services
+                    .AddKafkaJobManagement(configuration)
+                    .AddKafkaSqsFailureHandling(configuration);
+                break;
+            case JobSourceKind.Pulsar:
+                services = services
+                    .AddPulsarJobManagement(configuration);
+                break;
+            default:
+                services = services
+                    .AddSqsJobManagement(configuration);
+                break;
         }
 
         return services;
+    }
+
+    private enum JobSourceKind
+    {
+        Nats,
+        RedisStreams,
+        AzureQueueStorage,
+        AzureServiceBus,
+        GooglePubSub,
+        RabbitMq,
+        ActiveMq,
+        Kinesis,
+        Kafka,
+        Pulsar,
+        Sqs
     }
 }
