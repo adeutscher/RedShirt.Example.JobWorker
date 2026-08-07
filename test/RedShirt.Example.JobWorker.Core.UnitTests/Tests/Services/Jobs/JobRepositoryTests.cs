@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.Models;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;

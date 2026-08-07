@@ -1,15 +1,17 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using RedShirt.Example.JobWorker.Common.Extensions;
+using RedShirt.Example.JobWorker.Common.Health.Configuration;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Services;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Heartbeats;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Extensions;
 
@@ -21,6 +23,7 @@ public static class ServiceCollectionExtensions
         IConfigurationRoot configuration)
     {
         services = services
+            .AddCommon()
             // General
             .AddSingleton<IHandler, Handler>()
             .AddSingleton<IJobLoaderLoop, JobLoaderLoop>()
@@ -32,7 +35,6 @@ public static class ServiceCollectionExtensions
             .AddSingleton<ITimeBorderWrapperService, TimeBorderWrapperService>()
             .AddSingleton<ISafeJobAcknowledgementService, SafeJobAcknowledgementService>()
             .AddSingleton<IJobIntakeService, JobIntakeService>()
-            .AddSingleton<ISleepService, SleepService>()
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
             .AddSingleton<IJobRepository, JobRepository>()
             .Configure<JobRepository.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
@@ -44,6 +46,7 @@ public static class ServiceCollectionExtensions
             .Configure<JobSourceConfigurationModel>(configuration.GetSection("JobSource"))
             .Configure<LoopOptionsConfigurationModel>(configuration.GetSection(ConfigSectionName))
             .Configure<ThreadConfigurationModel>(configuration.GetSection(ConfigSectionName))
+            .Configure<CoreConfigurationModel>(configuration.GetSection(ConfigSectionName))
             // Idempotency
             .AddSingleton<IIdempotencyMonitor, IdempotencyMonitor>()
             .AddSingleton<IIdempotencyExecutionService, IdempotencyExecutionService>()
@@ -65,6 +68,33 @@ public static class ServiceCollectionExtensions
         {
             services = services
                 .AddSingleton<IJobLoader, BatchModeJobLoader>();
+        }
+
+        if (configuration
+                .GetSection(CommonHealthConfigurationModel.SectionName)
+                .Get<CommonHealthConfigurationModel>()?.Enabled ?? false)
+        {
+            // Health
+            services
+                .AddSingleton<ICoreStatisticsService, CoreStatisticsService>()
+                .AddSingleton<CoreHealthStateService>()
+                .AddSingleton<ICoreHealthStateReaderService>(provider =>
+                    provider.GetRequiredService<CoreHealthStateService>())
+                .AddSingleton<ICoreHealthStateUpdateService>(provider =>
+                    provider.GetRequiredService<CoreHealthStateService>())
+                .Configure<CoreHealthStateService.ConfigurationModel>(
+                    configuration.GetSection(CommonHealthConfigurationModel.SectionName));
+        }
+        else
+        {
+            services
+                .AddSingleton<ICoreStatisticsService>(provider =>
+                    provider.GetRequiredService<StubHealthStateService>())
+                .AddSingleton<StubHealthStateService>()
+                .AddSingleton<ICoreHealthStateReaderService>(provider =>
+                    provider.GetRequiredService<StubHealthStateService>())
+                .AddSingleton<ICoreHealthStateUpdateService>(provider =>
+                    provider.GetRequiredService<StubHealthStateService>());
         }
 
         return services;

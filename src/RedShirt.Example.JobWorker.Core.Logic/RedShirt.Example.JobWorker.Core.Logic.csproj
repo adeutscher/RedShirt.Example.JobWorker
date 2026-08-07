@@ -7,7 +7,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\RedShirt.Example.JobWorker.Core\RedShirt.Example.JobWorker.Core.csproj"/>
+        <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.10"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Common\RedShirt.Example.JobWorker.Common.csproj"/>
     </ItemGroup>
 
 </Project>

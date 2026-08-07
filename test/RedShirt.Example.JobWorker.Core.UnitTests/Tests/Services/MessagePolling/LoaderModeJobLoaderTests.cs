@@ -6,6 +6,7 @@ using RedShirt.Example.JobWorker.Core.Exceptions.MessagePolling;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 
@@ -13,6 +14,13 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.MessagePollin
 
 public class LoaderModeJobLoaderTests
 {
+    private static ICoreHealthStateUpdateService CreateHealthStateUpdateService()
+    {
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+        return health.Object;
+    }
+
     private static IJobSourceResponse CreateJobSourceResponse(List<IRawJobModel> items)
     {
         var response = new Mock<IJobSourceResponse>(MockBehavior.Strict);
@@ -47,7 +55,9 @@ public class LoaderModeJobLoaderTests
             new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
             jobRepository.Object,
             jobIntakeService.Object,
+            CreateHealthStateUpdateService(),
             new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             Options.Create(new JobSourceConfigurationModel {BatchSize = 3}));
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
@@ -73,7 +83,9 @@ public class LoaderModeJobLoaderTests
             new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
             jobRepository.Object,
             jobIntakeService.Object,
+            CreateHealthStateUpdateService(),
             new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             Options.Create(new JobSourceConfigurationModel {BatchSize = 5}));
 
         await Assert.ThrowsAsync<BacklogFullException>(() =>
@@ -108,7 +120,9 @@ public class LoaderModeJobLoaderTests
             executionEndArbiter.Object,
             jobRepository.Object,
             jobIntakeService.Object,
+            CreateHealthStateUpdateService(),
             new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
 
         await Assert.ThrowsAsync<AbortJobLoaderLoopException>(() =>
@@ -146,7 +160,9 @@ public class LoaderModeJobLoaderTests
             new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
             jobRepository.Object,
             jobIntakeService.Object,
+            CreateHealthStateUpdateService(),
             new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             Options.Create(new JobSourceConfigurationModel {BatchSize = 2}));
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
@@ -190,7 +206,9 @@ public class LoaderModeJobLoaderTests
             executionEndArbiter.Object,
             jobRepository.Object,
             jobIntakeService.Object,
+            CreateHealthStateUpdateService(),
             new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             Options.Create(new JobSourceConfigurationModel {BatchSize = 3}));
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
@@ -224,7 +242,9 @@ public class LoaderModeJobLoaderTests
             new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
             jobRepository.Object,
             jobIntakeService.Object,
+            CreateHealthStateUpdateService(),
             new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = true}),
             Options.Create(new JobSourceConfigurationModel {BatchSize = 2}));
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
@@ -257,7 +277,9 @@ public class LoaderModeJobLoaderTests
             new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
             jobRepository.Object,
             jobIntakeService.Object,
+            CreateHealthStateUpdateService(),
             new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
 
         await Assert.ThrowsAsync<NoJobException>(() => loader.RunAsync(TestContext.Current.CancellationToken));
@@ -284,12 +306,17 @@ public class LoaderModeJobLoaderTests
 
         var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
 
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+
         var loader = new LoaderModeJobLoader(
             jobSource.Object,
             new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
             jobRepository.Object,
             jobIntakeService.Object,
+            health.Object,
             new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
 
         await Assert.ThrowsAsync<NoJobException>(() => loader.RunAsync(TestContext.Current.CancellationToken));
@@ -297,6 +324,42 @@ public class LoaderModeJobLoaderTests
         jobIntakeService.Verify(
             s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
             Times.Never);
+        health.Verify(h => h.NoteIncident(), Times.Once);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenUnexpectedExceptionFromSource_AndHaltOnFailureFalse_ThrowsNoJobException()
+    {
+        var unexpected = new InvalidOperationException("auth failed");
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        jobRepository.Setup(r => r.GetBacklogMaxCount()).Returns(1);
+        jobRepository
+            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync(0);
+
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource
+            .Setup(s => s.GetJobsAsync(1, TestContext.Current.CancellationToken))
+            .ThrowsAsync(unexpected);
+
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+
+        var loader = new LoaderModeJobLoader(
+            jobSource.Object,
+            new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
+            jobRepository.Object,
+            new Mock<IJobIntakeService>(MockBehavior.Strict).Object,
+            health.Object,
+            new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
+            Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
+
+        await Assert.ThrowsAsync<NoJobException>(() =>
+            loader.RunAsync(TestContext.Current.CancellationToken));
+
+        health.Verify(h => h.NoteIncident(), Times.Once);
     }
 
     [Fact]
@@ -315,17 +378,23 @@ public class LoaderModeJobLoaderTests
             .Setup(s => s.GetJobsAsync(1, TestContext.Current.CancellationToken))
             .ThrowsAsync(unexpected);
 
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+
         var loader = new LoaderModeJobLoader(
             jobSource.Object,
             new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
             jobRepository.Object,
             new Mock<IJobIntakeService>(MockBehavior.Strict).Object,
+            health.Object,
             new NullLogger<LoaderModeJobLoader>(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = true}),
             Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             loader.RunAsync(TestContext.Current.CancellationToken));
 
         Assert.Same(unexpected, thrown);
+        health.Verify(h => h.NoteIncident(), Times.Once);
     }
 }

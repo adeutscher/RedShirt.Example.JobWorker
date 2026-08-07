@@ -2,11 +2,13 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Retry;
+using RedShirt.Example.JobWorker.Common.Enums;
+using RedShirt.Example.JobWorker.Common.Exceptions;
+using RedShirt.Example.JobWorker.Common.Models;
+using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Common.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Enums;
-using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Safety;
 
@@ -100,7 +102,7 @@ internal sealed class SafeJobRunner(
             // time border. Total wall-clock time may therefore approach roughly
             // InternalRetryCount × MaxJobTimeSeconds plus backoff delays, assuming
             // that the downstream job implementation actually leverages JobRetryException.
-            var jobResult = await GetRetryPipeline().ExecuteAsync(
+            var jobLogicResponse = await GetRetryPipeline().ExecuteAsync(
                 async token => await timeBorderWrapperService.RunAsync(
                     job,
                     maximumTime,
@@ -109,11 +111,11 @@ internal sealed class SafeJobRunner(
                 cancellationToken);
             return new SafeJobRunResults
             {
-                Result = jobResult switch
+                Result = jobLogicResponse.Result switch
                 {
                     JobResult.Success => CoreJobResult.Success,
                     JobResult.Failure => CoreJobResult.Failure,
-                    _ => CoreJobResult.Broken
+                    _ => CoreJobResult.InvalidData
                 },
                 Exception = null
             };

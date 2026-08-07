@@ -1,12 +1,6 @@
-namespace RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Common.Models;
 
-/// <summary>
-///     Contains job data.
-/// </summary>
-public interface IJobDataModel
-{
-    int SleepDurationSeconds { get; }
-}
+namespace RedShirt.Example.JobWorker.Core.Models;
 
 internal sealed class JobDataModel : IJobDataModel
 {

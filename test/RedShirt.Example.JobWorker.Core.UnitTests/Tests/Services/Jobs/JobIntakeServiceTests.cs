@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using RedShirt.Example.JobWorker.Common.Models;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
@@ -10,6 +12,14 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Jobs;
 
 public class JobIntakeServiceTests
 {
+    private static ICoreStatisticsService CreateStatisticsService()
+    {
+        var statistics = new Mock<ICoreStatisticsService>(MockBehavior.Strict);
+        statistics.Setup(s => s.RecordReceived());
+        statistics.Setup(s => s.RecordResult(It.IsAny<CoreJobResult>(), It.IsAny<TimeSpan>()));
+        return statistics.Object;
+    }
+
     private static IJobSourceResponse CreateJobSourceResponse(List<IRawJobModel> items)
     {
         var response = new Mock<IJobSourceResponse>(MockBehavior.Strict);
@@ -47,6 +57,7 @@ public class JobIntakeServiceTests
             converter.Object,
             acknowledgement.Object,
             idempotency.Object,
+            CreateStatisticsService(),
             new NullLogger<JobIntakeService>());
 
         await service.SubmitAsync(
@@ -89,13 +100,13 @@ public class JobIntakeServiceTests
 
         var acknowledgement = new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict);
         acknowledgement
-            .Setup(a => a.AcknowledgeSafelyAsync(rawJob.Object, CoreJobResult.Broken, bodyException, null,
+            .Setup(a => a.AcknowledgeSafelyAsync(rawJob.Object, CoreJobResult.InvalidData, bodyException, null,
                 TestContext.Current.CancellationToken))
             .ReturnsAsync(ackResult);
 
         var idempotency = new Mock<IIdempotencyExecutionService>(MockBehavior.Strict);
         idempotency
-            .Setup(i => i.SetResultInCacheAsync(rawJob.Object, CoreJobResult.Broken, ackResult,
+            .Setup(i => i.SetResultInCacheAsync(rawJob.Object, CoreJobResult.InvalidData, ackResult,
                 TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
@@ -106,6 +117,7 @@ public class JobIntakeServiceTests
             converter.Object,
             acknowledgement.Object,
             idempotency.Object,
+            CreateStatisticsService(),
             new NullLogger<JobIntakeService>());
 
         await service.SubmitAsync(
@@ -114,11 +126,11 @@ public class JobIntakeServiceTests
 
         converter.Verify(c => c.Convert(It.IsAny<string>()), Times.Never);
         acknowledgement.Verify(
-            a => a.AcknowledgeSafelyAsync(rawJob.Object, CoreJobResult.Broken, bodyException, null,
+            a => a.AcknowledgeSafelyAsync(rawJob.Object, CoreJobResult.InvalidData, bodyException, null,
                 TestContext.Current.CancellationToken),
             Times.Once);
         idempotency.Verify(
-            i => i.SetResultInCacheAsync(rawJob.Object, CoreJobResult.Broken, ackResult,
+            i => i.SetResultInCacheAsync(rawJob.Object, CoreJobResult.InvalidData, ackResult,
                 TestContext.Current.CancellationToken),
             Times.Once);
         jobRepository.Verify(
@@ -159,6 +171,7 @@ public class JobIntakeServiceTests
             converter.Object,
             acknowledgement.Object,
             idempotency.Object,
+            CreateStatisticsService(),
             new NullLogger<JobIntakeService>());
 
         await service.SubmitAsync(
@@ -213,6 +226,7 @@ public class JobIntakeServiceTests
             converter.Object,
             acknowledgement.Object,
             idempotency.Object,
+            CreateStatisticsService(),
             new NullLogger<JobIntakeService>());
 
         await service.SubmitAsync(
@@ -264,6 +278,7 @@ public class JobIntakeServiceTests
             converter.Object,
             acknowledgement.Object,
             idempotency.Object,
+            CreateStatisticsService(),
             new NullLogger<JobIntakeService>());
 
         await service.SubmitAsync(
@@ -332,6 +347,7 @@ public class JobIntakeServiceTests
             converter.Object,
             acknowledgement.Object,
             idempotency.Object,
+            CreateStatisticsService(),
             new NullLogger<JobIntakeService>());
 
         await service.SubmitAsync(
@@ -370,6 +386,7 @@ public class JobIntakeServiceTests
             converter.Object,
             acknowledgement.Object,
             idempotency.Object,
+            CreateStatisticsService(),
             new NullLogger<JobIntakeService>());
 
         await service.SubmitAsync(CreateJobSourceResponse([]), TestContext.Current.CancellationToken);

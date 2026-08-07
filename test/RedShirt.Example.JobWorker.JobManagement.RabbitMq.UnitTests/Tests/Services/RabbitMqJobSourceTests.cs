@@ -102,7 +102,7 @@ public class RabbitMqJobSourceTests
     [Theory]
     [InlineData(CoreJobResult.Empty)]
     [InlineData(CoreJobResult.Parsing)]
-    [InlineData(CoreJobResult.Broken)]
+    [InlineData(CoreJobResult.InvalidData)]
     public async Task Test_AcknowledgeAsync_NonRecoverable_NacksWithoutRequeue(CoreJobResult result)
     {
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);

@@ -1,12 +1,15 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Retry;
+using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Safety;
 
@@ -25,14 +28,15 @@ internal sealed class SafeJobAcknowledgementService(
     IJobSource jobSource,
     IJobFailureHandler jobFailureHandler,
     ISleepService sleepService,
+    ICoreHealthStateUpdateService healthStateUpdateService,
+    IOptions<CoreConfigurationModel> coreOptions,
     ILogger<SafeJobAcknowledgementService> logger) : ISafeJobAcknowledgementService
 {
     /// <summary>
     ///     Lazily built Polly v8 <see cref="ResiliencePipeline" /> shared across invocations.
-    ///     For the moment, deliberately choosing not to catch globally catch unplanned exceptions.
-    ///     Unplanned exceptions should absolutely bring down the house, as they indicate a fundamental error with the job
-    ///     source implementation or possibly an unaccounted-for permission issue in the profile/credentials used with the
-    ///     underlying message source.
+    ///     Anticipated <see cref="WorkerJobSourceException" /> failures are retried then soft-failed.
+    ///     Unexpected exceptions note a health incident and either halt or soft-fail per
+    ///     <see cref="CoreConfigurationModel.HaltOnFailure" />.
     /// </summary>
     private ResiliencePipeline? _retryPipeline;
 
@@ -94,6 +98,15 @@ internal sealed class SafeJobAcknowledgementService(
         catch (WorkerJobSourceException e)
         {
             logger.LogError(e, "Job acknowledge failed: {EMessage}", e.Message);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Unexpected error during job acknowledge: {EMessage}", ex.Message);
+            healthStateUpdateService.NoteIncident();
+            if (coreOptions.Value.HaltOnFailure)
+            {
+                throw;
+            }
         }
 
         return new SafeAcknowledgementResult

@@ -1,13 +1,14 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.Services;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Idempotency;
 
@@ -17,6 +18,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.Idempotency;
 /// </summary>
 internal interface IIdempotencyMonitor : IHandlerSubComponent;
 
+#pragma warning disable S107
 internal sealed class IdempotencyMonitor(
     IExecutionEndArbiter executionEndArbiter,
     IJobRepository jobRepository,
@@ -24,7 +26,9 @@ internal sealed class IdempotencyMonitor(
     ISafeJobAcknowledgementService safeJobAcknowledgementService,
     ISleepService sleepService,
     IOptions<IdempotencyConfigurationModel> options,
+    ICoreStatisticsService coreStatisticsService,
     ILogger<IdempotencyMonitor> logger) : IIdempotencyMonitor
+#pragma warning restore S107
 {
     private async Task CheckBlockedJobsAsync(CancellationToken cancellationToken = default)
     {
@@ -84,6 +88,7 @@ internal sealed class IdempotencyMonitor(
                             cachedResult.JobResult, cachedResult.AcknowledgementResult, cancellationToken);
                     }
 
+                    coreStatisticsService.RecordResult(cachedResult.JobResult);
                     await jobRepository.RemoveJobAsync(blockedJob, cancellationToken);
                 }
             }

@@ -160,6 +160,25 @@ services:
     # Note: Deliberately not setting any depends_on values
     #       Testing instructions assume that initialization needs to be done
     #       between bringing up infrastructure and bringing up the worker.
+    ports:
+      # Health pages
+      - "${HEALTH__PORT:-8081}:${HEALTH__PORT:-8081}"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "./RedShirt.Example.JobWorker.HealthCheck",
+          "--health-enabled",
+          "${HEALTH__ENABLED:-true}",
+          "--base-url",
+          "http://127.0.0.1",
+          "--port",
+          "${HEALTH__PORT:-8081}"
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
     environment:
       # General
       AWS_SERVICE_URL: http://ministack:4566
@@ -168,6 +187,11 @@ services:
       AWS_REGION: "us-east-1"
       # App-specific variables
       LOG_LEVEL: Trace
+      ## Health pages
+      HEALTH__ENABLED: "${HEALTH__ENABLED:-true}"
+      HEALTH__PORT: "${HEALTH__PORT:-8081}"
+      HEALTH__RECENT_INCIDENT_THRESHOLD_SECONDS: "${HEALTH__RECENT_INCIDENT_THRESHOLD_SECONDS:-30}"
+      JOBS__HALT_ON_FAILURE: "${JOBS__HALT_ON_FAILURE:-false}"
       JOBS__INTERNAL_RETRY_COUNT: "${JOBS__INTERNAL_RETRY_COUNT:-2}"
       JOBS__MAX_JOB_TIME_SECONDS: "${JOBS__MAX_JOB_TIME_SECONDS:-150}"
       JOBS__TASK_WAIT_BUFFER_SECONDS: "${JOBS__TASK_WAIT_BUFFER_SECONDS:-5}"

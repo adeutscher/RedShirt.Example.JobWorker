@@ -1,11 +1,12 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.Enums;
+using RedShirt.Example.JobWorker.Common.Exceptions;
+using RedShirt.Example.JobWorker.Common.Models;
+using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Common.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Enums;
-using RedShirt.Example.JobWorker.Core.Exceptions;
-using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Safety;
 
@@ -18,10 +19,11 @@ public class SafeJobRunnerTests
             .Setup(t => t.RunAsync(
                 It.IsAny<IJobModel>(),
                 It.IsAny<TimeSpan?>(),
-                It.IsAny<Func<IJobModel, CancellationToken, Task<JobResult>>>(),
+                It.IsAny<Func<IJobModel, CancellationToken, Task<IJobLogicRunnerResponse>>>(),
                 It.IsAny<CancellationToken>()))
             .Returns((IJobModel data, TimeSpan? _,
-                    Func<IJobModel, CancellationToken, Task<JobResult>> callback, CancellationToken token) =>
+                    Func<IJobModel, CancellationToken, Task<IJobLogicRunnerResponse>> callback,
+                    CancellationToken token) =>
                 callback(data, token));
         return timeBorder.Object;
     }
@@ -111,7 +113,10 @@ public class SafeJobRunnerTests
                     };
                 }
 
-                return Task.FromResult(JobResult.Success);
+                return Task.FromResult<IJobLogicRunnerResponse>(new JobLogicRunnerResponse
+                {
+                    Result = JobResult.Success
+                });
             });
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
@@ -158,7 +163,10 @@ public class SafeJobRunnerTests
                     throw new JobRetryException();
                 }
 
-                return Task.FromResult(JobResult.Success);
+                return Task.FromResult<IJobLogicRunnerResponse>(new JobLogicRunnerResponse
+                {
+                    Result = JobResult.Success
+                });
             });
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
@@ -186,42 +194,13 @@ public class SafeJobRunnerTests
     }
 
     [Fact]
-    public async Task RunSafelyAsync_WhenLogicReturnsBroken_MapsToBrokenWithoutException()
-    {
-        var job = new Mock<IJobModel>(MockBehavior.Strict);
-        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
-        logicRunner
-            .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(JobResult.Broken);
-
-        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
-
-        var runner = new SafeJobRunner(
-            logicRunner.Object,
-            sleepService.Object,
-            CreatePassthroughTimeBorder(),
-            new NullLogger<SafeJobRunner>(),
-            Options.Create(new SafeJobRunner.ConfigurationModel
-            {
-                InternalRetryCount = 0,
-                MaxJobTimeSeconds = null
-            }));
-
-        var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
-
-        Assert.Equal(CoreJobResult.Broken, result.Result);
-        Assert.Null(result.Exception);
-        logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
     public async Task RunSafelyAsync_WhenLogicReturnsFailure_MapsToFailureWithoutException()
     {
         var job = new Mock<IJobModel>(MockBehavior.Strict);
         var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
         logicRunner
             .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(JobResult.Failure);
+            .ReturnsAsync(new JobLogicRunnerResponse {Result = JobResult.Failure});
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
 
@@ -244,13 +223,42 @@ public class SafeJobRunnerTests
     }
 
     [Fact]
+    public async Task RunSafelyAsync_WhenLogicReturnsInvalidData_MapsToInvalidDataWithoutException()
+    {
+        var job = new Mock<IJobModel>(MockBehavior.Strict);
+        var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
+        logicRunner
+            .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new JobLogicRunnerResponse {Result = JobResult.InvalidData});
+
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+
+        var runner = new SafeJobRunner(
+            logicRunner.Object,
+            sleepService.Object,
+            CreatePassthroughTimeBorder(),
+            new NullLogger<SafeJobRunner>(),
+            Options.Create(new SafeJobRunner.ConfigurationModel
+            {
+                InternalRetryCount = 0,
+                MaxJobTimeSeconds = null
+            }));
+
+        var result = await runner.RunSafelyAsync(job.Object, TestContext.Current.CancellationToken);
+
+        Assert.Equal(CoreJobResult.InvalidData, result.Result);
+        Assert.Null(result.Exception);
+        logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task RunSafelyAsync_WhenLogicSucceeds_ReturnsSuccessWithNullExceptionAndDoesNotSleep()
     {
         var job = new Mock<IJobModel>(MockBehavior.Strict);
         var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
         logicRunner
             .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(JobResult.Success);
+            .ReturnsAsync(new JobLogicRunnerResponse {Result = JobResult.Success});
 
         // Strict + no DelayAsync setup: any sleep would fail the test.
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
@@ -290,7 +298,7 @@ public class SafeJobRunnerTests
         var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
         logicRunner
             .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(JobResult.Success);
+            .ReturnsAsync(new JobLogicRunnerResponse {Result = JobResult.Success});
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
 
@@ -300,10 +308,10 @@ public class SafeJobRunnerTests
             .Setup(t => t.RunAsync(
                 job.Object,
                 It.IsAny<TimeSpan?>(),
-                It.IsAny<Func<IJobModel, CancellationToken, Task<JobResult>>>(),
+                It.IsAny<Func<IJobModel, CancellationToken, Task<IJobLogicRunnerResponse>>>(),
                 It.IsAny<CancellationToken>()))
             .Returns((IJobModel data, TimeSpan? maximumTime,
-                Func<IJobModel, CancellationToken, Task<JobResult>> callback, CancellationToken token) =>
+                Func<IJobModel, CancellationToken, Task<IJobLogicRunnerResponse>> callback, CancellationToken token) =>
             {
                 observedMaximumTime = maximumTime;
                 return callback(data, token);
@@ -328,7 +336,7 @@ public class SafeJobRunnerTests
             t => t.RunAsync(
                 job.Object,
                 null,
-                It.IsAny<Func<IJobModel, CancellationToken, Task<JobResult>>>(),
+                It.IsAny<Func<IJobModel, CancellationToken, Task<IJobLogicRunnerResponse>>>(),
                 It.IsAny<CancellationToken>()),
             Times.Once);
         logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);

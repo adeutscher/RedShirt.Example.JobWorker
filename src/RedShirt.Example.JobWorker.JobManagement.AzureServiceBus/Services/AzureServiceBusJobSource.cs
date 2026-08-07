@@ -42,7 +42,7 @@ internal class AzureServiceBusJobSource(
         }
         else
         {
-            // Empty / Parsing / Broken: dead-letter immediately.
+            // Empty / Parsing / InvalidData: dead-letter immediately.
             // One could argue that there's no point in even bothering to dead-letter Empty problems,
             //  but on the other hand there could be useful properties for debugging on the message.
             // This application's priority is just getting unrecoverable messages out of the way ASAP.

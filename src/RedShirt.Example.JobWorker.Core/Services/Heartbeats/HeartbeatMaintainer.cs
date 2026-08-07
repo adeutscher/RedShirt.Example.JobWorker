@@ -1,13 +1,16 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Retry;
+using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Heartbeats;
 
@@ -16,13 +19,17 @@ namespace RedShirt.Example.JobWorker.Core.Services.Heartbeats;
 /// </summary>
 internal interface IHeartbeatMaintainer : IHandlerSubComponent;
 
+#pragma warning disable S107
 internal sealed class HeartbeatMaintainer(
     IHeartbeatCalculator heartbeatCalculator,
     IAppliedExecutionEndArbiter appliedExecutionEndArbiter,
     IJobRepository jobRepository,
     IJobSource jobSource,
-    ILogger<HeartbeatMaintainer> logger,
-    ISleepService sleepService) : IHeartbeatMaintainer
+    ICoreHealthStateUpdateService healthStateUpdateService,
+    ISleepService sleepService,
+    IOptions<CoreConfigurationModel> coreOptions,
+    ILogger<HeartbeatMaintainer> logger) : IHeartbeatMaintainer
+#pragma warning restore S107
 {
     /// <summary>
     ///     Set the minimum amount of time to sleep for between loops.
@@ -117,6 +124,18 @@ internal sealed class HeartbeatMaintainer(
             //  by the time the next loop iteration comes around.
             //
             // The documented recommendation for a heartbeat interval is ~75% of the time until message expiry
+            await jobRepositoryEntry.SetAsCannotHeartbeatAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Unexpected error sending heartbeat for message: {MessageId}",
+                jobRepositoryEntry.JobModel.MessageId);
+            healthStateUpdateService.NoteIncident();
+            if (coreOptions.Value.HaltOnFailure)
+            {
+                throw;
+            }
+
             await jobRepositoryEntry.SetAsCannotHeartbeatAsync(cancellationToken);
         }
 

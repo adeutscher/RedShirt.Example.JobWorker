@@ -49,7 +49,8 @@ internal sealed class Handler(
     private readonly AsyncManualResetEvent _workerDoneEvent = new();
     private Exception? _workerException;
 
-    private async Task RunWorkerAsync(Func<Task<HandlerComponentResponse>> callback)
+    private async Task RunWorkerAsync(Func<Task<HandlerComponentResponse>> callback,
+        CancellationToken cancellationToken)
     {
         var handlerResponse = HandlerComponentResponse.Finished;
 
@@ -59,15 +60,21 @@ internal sealed class Handler(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Unhandled exception: {EMessage}", e.Message);
-            await _exceptionLock.WaitAsync();
-            try
+            // Filter out exception tracking where OperationCanceledException is thrown with a cancelled cancellationToken
+            // These are assumed to be intentional ctrl-c's in a local environment
+            if (e is not OperationCanceledException
+                || !cancellationToken.IsCancellationRequested)
             {
-                _workerException = e;
-            }
-            finally
-            {
-                _exceptionLock.Release();
+                logger.LogError(e, "Unhandled exception: {EMessage}", e.Message);
+                await _exceptionLock.WaitAsync(cancellationToken);
+                try
+                {
+                    _workerException = e;
+                }
+                finally
+                {
+                    _exceptionLock.Release();
+                }
             }
         }
         finally
@@ -90,7 +97,7 @@ internal sealed class Handler(
             await tasksLock.WaitAsync(cancellationToken);
             try
             {
-                tasks.Add(Task.Run(() => RunWorkerAsync(callback), cancellationToken));
+                tasks.Add(Task.Run(() => RunWorkerAsync(callback, cancellationToken), cancellationToken));
             }
             finally
             {

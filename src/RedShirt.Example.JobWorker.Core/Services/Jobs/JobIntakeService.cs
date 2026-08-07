@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
+using RedShirt.Example.JobWorker.Common.Models;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
@@ -17,12 +19,13 @@ internal sealed class JobIntakeService(
     ISourceMessageConverter sourceMessageConverter,
     ISafeJobAcknowledgementService safeJobAcknowledgementService,
     IIdempotencyExecutionService idempotencyExecutionService,
+    ICoreStatisticsService coreStatisticsService,
     ILogger<JobIntakeService> logger) : IJobIntakeService
 {
     /// <summary>
     ///     Attempt to convert a raw message into job data.
     ///     Body retrieval is assumed to be reliably consistent; an exception from <see cref="IRawJobModel.Body" />
-    ///     is treated as <see cref="CoreJobResult.Broken" />.
+    ///     is treated as <see cref="CoreJobResult.InvalidData" />.
     /// </summary>
     private CoreJobResult TryConvert(IRawJobModel input, out IJobDataModel? convertedData, out Exception? exception)
     {
@@ -40,7 +43,7 @@ internal sealed class JobIntakeService(
         {
             exception = e;
             logger.LogError(e, "Error while retrieving job body");
-            return CoreJobResult.Broken;
+            return CoreJobResult.InvalidData;
         }
 
         if (string.IsNullOrWhiteSpace(body))
@@ -75,6 +78,8 @@ internal sealed class JobIntakeService(
 
         foreach (var rawMessage in jobSourceResponse.Items)
         {
+            coreStatisticsService.RecordReceived();
+
             var convertResult = TryConvert(rawMessage, out var convertedData, out var exception);
             if (convertResult == CoreJobResult.Success && convertedData is not null)
             {
@@ -103,6 +108,8 @@ internal sealed class JobIntakeService(
 
         foreach (var failedMessage in failedMessages)
         {
+            coreStatisticsService.RecordResult(failedMessage.Result);
+
             var acknowledgementResult = await safeJobAcknowledgementService.AcknowledgeSafelyAsync(
                 failedMessage.RawJobModel,
                 failedMessage.Result,

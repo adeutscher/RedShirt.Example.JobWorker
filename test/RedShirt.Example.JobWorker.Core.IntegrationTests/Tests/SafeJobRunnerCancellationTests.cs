@@ -1,11 +1,12 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
+using RedShirt.Example.JobWorker.Common.Enums;
+using RedShirt.Example.JobWorker.Common.Models;
+using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Common.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Enums;
-using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.IntegrationTests.Tests;
 
@@ -15,6 +16,22 @@ namespace RedShirt.Example.JobWorker.Core.IntegrationTests.Tests;
 /// </summary>
 public class SafeJobRunnerCancellationTests
 {
+    /// <summary>
+    ///     Sleep mock that awaits the job task without enforcing wall-clock timeouts.
+    ///     Per-job cancellation still comes from <see cref="TimeBorderWrapperService" />'s linked CTS.
+    /// </summary>
+    private static Mock<ISleepService> CreateSleepService()
+    {
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        sleepService
+            .Setup(s => s.WaitAsync(
+                It.IsAny<Task<IJobLogicRunnerResponse>>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((Task<IJobLogicRunnerResponse> task, TimeSpan _, CancellationToken _) => task);
+        return sleepService;
+    }
+
     /// <summary>
     ///     When job logic cancels a token linked to the job token and throws via
     ///     <see cref="CancellationToken.ThrowIfCancellationRequested" />,
@@ -40,13 +57,16 @@ public class SafeJobRunnerCancellationTests
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(token);
                 linkedCts.Cancel();
                 linkedCts.Token.ThrowIfCancellationRequested();
-                return Task.FromResult(JobResult.Success);
+                return Task.FromResult<IJobLogicRunnerResponse>(new JobLogicRunnerResponse
+                {
+                    Result = JobResult.Success
+                });
             });
 
         // System under test
-        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        var sleepService = CreateSleepService();
         var timeBorderWrapperService = new TimeBorderWrapperService(
-            new SleepService(),
+            sleepService.Object,
             Options.Create(new TimeBorderWrapperService.ConfigurationModel
             {
                 TaskWaitBufferSeconds = null,
@@ -99,13 +119,16 @@ public class SafeJobRunnerCancellationTests
             {
                 receivedJob = data;
                 await Task.Delay(TimeSpan.FromSeconds(maximumRunTimeSeconds + 2), token);
-                return JobResult.Success;
+                return new JobLogicRunnerResponse
+                {
+                    Result = JobResult.Success
+                };
             });
 
         // System under test
-        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        var sleepService = CreateSleepService();
         var timeBorderWrapperService = new TimeBorderWrapperService(
-            new SleepService(),
+            sleepService.Object,
             Options.Create(new TimeBorderWrapperService.ConfigurationModel
             {
                 TaskWaitBufferSeconds = null,

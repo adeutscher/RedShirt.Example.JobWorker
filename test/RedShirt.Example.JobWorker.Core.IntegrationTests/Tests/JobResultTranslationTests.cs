@@ -2,21 +2,26 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
+using RedShirt.Example.JobWorker.Common.Enums;
+using RedShirt.Example.JobWorker.Common.Models;
+using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Common.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.IntegrationTests.Tests;
 
 /// <summary>
 ///     Integration coverage for the path from <see cref="IJobLogicRunner" /> through
 ///     <see cref="JobExecutor" />, <see cref="SafeJobRunner" />, and <see cref="SafeJobAcknowledgementService" />
-///     into <see cref="IJobSource" /> / <see cref="IJobFailureHandler" />.
+///     into <see cref="IJobSource" /> / <see cref="IJobFailureHandler" /> / <see cref="ICoreStatisticsService" />.
 /// </summary>
 public class JobResultTranslationTests
 {
@@ -39,14 +44,14 @@ public class JobResultTranslationTests
 
     /// <summary>
     ///     Verifies that a <see cref="JobResult" /> returned by <see cref="IJobLogicRunner" /> is translated into the
-    ///     matching <see cref="CoreJobResult" /> passed to <see cref="IJobSource" />, and—when unsuccessful—the
-    ///     matching <see cref="FailureType" /> passed to <see cref="IJobFailureHandler" />, when execution is
-    ///     driven by <see cref="JobExecutor.RunAsync" />.
+    ///     matching <see cref="CoreJobResult" /> passed to <see cref="IJobSource" />, recorded on
+    ///     <see cref="ICoreStatisticsService" />, and—when unsuccessful—the matching <see cref="FailureType" />
+    ///     passed to <see cref="IJobFailureHandler" />, when execution is driven by <see cref="JobExecutor.RunAsync" />.
     /// </summary>
     [Theory(Timeout = 2000)]
     [InlineData(JobResult.Success, CoreJobResult.Success, null)]
     [InlineData(JobResult.Failure, CoreJobResult.Failure, FailureType.Execution)]
-    [InlineData(JobResult.Broken, CoreJobResult.Broken, FailureType.Broken)]
+    [InlineData(JobResult.InvalidData, CoreJobResult.InvalidData, FailureType.Broken)]
     public async Task JobResult_FromLogicRunner_IsTranslated_ToJobSource_AndFailureHandler(
         JobResult jobResult,
         CoreJobResult expectedCoreJobResult,
@@ -67,7 +72,7 @@ public class JobResultTranslationTests
         var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
         logicRunner
             .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(jobResult);
+            .ReturnsAsync(new JobLogicRunnerResponse {Result = jobResult});
 
         // Job source acknowledgement
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
@@ -85,6 +90,10 @@ public class JobResultTranslationTests
                     TestContext.Current.CancellationToken))
                 .Returns(Task.CompletedTask);
         }
+
+        // Statistics: expect the translated CoreJobResult
+        var statisticsService = new Mock<ICoreStatisticsService>(MockBehavior.Strict);
+        statisticsService.Setup(s => s.RecordResult(expectedCoreJobResult, It.IsAny<TimeSpan>()));
 
         // Executor loop control: process one job, then stop
         var doQuit = false;
@@ -131,7 +140,7 @@ public class JobResultTranslationTests
             logicRunner.Object,
             sleepService,
             new TimeBorderWrapperService(
-                new SleepService(),
+                sleepService,
                 Options.Create(new TimeBorderWrapperService.ConfigurationModel
                 {
                     TaskWaitBufferSeconds = null,
@@ -148,6 +157,8 @@ public class JobResultTranslationTests
             jobSource.Object,
             failureHandler.Object,
             sleepService,
+            Mock.Of<ICoreHealthStateUpdateService>(),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             new NullLogger<SafeJobAcknowledgementService>());
         var executor = new JobExecutor(
             executionEndArbiter.Object,
@@ -155,6 +166,7 @@ public class JobResultTranslationTests
             idempotencyExecutionService.Object,
             safeJobRunner,
             acknowledgementService,
+            statisticsService.Object,
             new NullLogger<JobExecutor>());
 
         // Run
@@ -163,6 +175,9 @@ public class JobResultTranslationTests
         // Verify
         jobSource.Verify(
             s => s.AcknowledgeAsync(rawJob.Object, expectedCoreJobResult, TestContext.Current.CancellationToken),
+            Times.Once);
+        statisticsService.Verify(
+            s => s.RecordResult(expectedCoreJobResult, It.IsAny<TimeSpan>()),
             Times.Once);
 
         if (expectedFailureType is { } expected)

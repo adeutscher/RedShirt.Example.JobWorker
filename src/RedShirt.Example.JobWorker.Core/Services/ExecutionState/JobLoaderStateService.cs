@@ -5,6 +5,8 @@ namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 /// </summary>
 internal interface IJobLoaderStateReaderService
 {
+    bool HasLoaderStarted();
+
     bool IsLoaderFinished();
 }
 
@@ -44,6 +46,14 @@ internal sealed class JobLoaderStateService : IJobLoaderStateService
         lock (_lock)
         {
             _isFinished = true;
+        }
+    }
+
+    public bool HasLoaderStarted()
+    {
+        lock (_lock)
+        {
+            return _isStarted;
         }
     }
 

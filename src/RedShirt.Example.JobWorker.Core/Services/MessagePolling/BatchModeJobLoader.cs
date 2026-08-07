@@ -4,6 +4,7 @@ using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using System.Diagnostics;
 
@@ -17,7 +18,9 @@ internal sealed class BatchModeJobLoader(
     IJobSource jobSource,
     IJobRepository jobRepository,
     IJobIntakeService jobIntakeService,
+    ICoreHealthStateUpdateService healthStateUpdateService,
     ILogger<BatchModeJobLoader> logger,
+    IOptions<CoreConfigurationModel> coreOptions,
     IOptions<JobSourceConfigurationModel> jobSourceOptions) : IJobLoader
 {
     public async Task RunAsync(CancellationToken cancellationToken = default)
@@ -29,11 +32,27 @@ internal sealed class BatchModeJobLoader(
         {
             jobResponse = await jobSource.GetJobsAsync(jobSourceOptions.Value.EffectiveBatchSize, cancellationToken);
         }
-        catch (WorkerJobSourceException e) when (e is {CouldBeTransient: true})
+#pragma warning disable S2139
+        catch (Exception e) when (e is not OperationCanceledException)
+#pragma warning restore S2139
         {
-            logger.LogWarning(e, "Error getting jobs from source");
-            // Treat an anticipated transient error as a delay reason
-            throw new NoJobException();
+            logger.LogError(e, "Unexpected error getting jobs from source");
+            healthStateUpdateService.NoteIncident();
+
+            if (e is WorkerJobSourceException {CouldBeTransient: true})
+            {
+                // Treat an anticipated transient error as a delay reason
+                throw new NoJobException();
+            }
+
+            if (!coreOptions.Value.HaltOnFailure)
+            {
+                // Soft-fail: treat like an empty poll so the loader loop can back off and retry.
+                throw new NoJobException();
+            }
+
+            // Throw upwards to trigger halt
+            throw;
         }
 
         stopwatch.Stop();

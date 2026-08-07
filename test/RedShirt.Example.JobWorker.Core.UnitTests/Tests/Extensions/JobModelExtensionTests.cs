@@ -1,5 +1,5 @@
+using RedShirt.Example.JobWorker.Common.Models;
 using RedShirt.Example.JobWorker.Core.Extensions;
-using RedShirt.Example.JobWorker.Core.Models;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Extensions;
 

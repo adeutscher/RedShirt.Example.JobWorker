@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
+using RedShirt.Example.JobWorker.Common.Models;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
@@ -11,6 +13,14 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Jobs;
 
 public class JobExecutorTests
 {
+    private static ICoreStatisticsService CreateStatisticsService()
+    {
+        var statistics = new Mock<ICoreStatisticsService>(MockBehavior.Strict);
+        statistics.Setup(s => s.RecordReceived());
+        statistics.Setup(s => s.RecordResult(It.IsAny<CoreJobResult>(), It.IsAny<TimeSpan>()));
+        return statistics.Object;
+    }
+
     private static Mock<IAbstractedLock> CreateAcquiredIdempotencyLock()
     {
         var idempotencyLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
@@ -102,6 +112,7 @@ public class JobExecutorTests
 
         var executor = new JobExecutor(executionEndArbiter.Object, jobRepository.Object,
             idempotencyExecutionService.Object, safeJobRunner.Object, safeAcknowledgementService.Object,
+            CreateStatisticsService(),
             new NullLogger<JobExecutor>());
 
         await executor.RunAsync(0, TestContext.Current.CancellationToken);
@@ -145,6 +156,7 @@ public class JobExecutorTests
             new Mock<IIdempotencyExecutionService>(MockBehavior.Strict).Object,
             new Mock<ISafeJobRunner>(MockBehavior.Strict).Object,
             new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object,
+            CreateStatisticsService(),
             new NullLogger<JobExecutor>());
 
         await executor.RunAsync(0, TestContext.Current.CancellationToken);
@@ -207,7 +219,7 @@ public class JobExecutorTests
 
         var executor = new JobExecutor(executionEndArbiter.Object, jobRepository.Object,
             idempotencyExecutionService.Object, new Mock<ISafeJobRunner>(MockBehavior.Strict).Object,
-            safeAcknowledgementService.Object, new NullLogger<JobExecutor>());
+            safeAcknowledgementService.Object, CreateStatisticsService(), new NullLogger<JobExecutor>());
 
         await executor.RunAsync(0, TestContext.Current.CancellationToken);
 
@@ -281,6 +293,7 @@ public class JobExecutorTests
 
         var executor = new JobExecutor(executionEndArbiter.Object, jobRepository.Object,
             idempotencyExecutionService.Object, safeJobRunner.Object, safeAcknowledgementService.Object,
+            CreateStatisticsService(),
             new NullLogger<JobExecutor>());
 
         await executor.RunAsync(0, TestContext.Current.CancellationToken);
@@ -366,6 +379,7 @@ public class JobExecutorTests
 
         var executor = new JobExecutor(executionEndArbiter.Object, jobRepository.Object,
             idempotencyExecutionService.Object, safeJobRunner.Object, safeAcknowledgementService.Object,
+            CreateStatisticsService(),
             new NullLogger<JobExecutor>());
 
         await executor.RunAsync(0, TestContext.Current.CancellationToken);
@@ -406,7 +420,8 @@ public class JobExecutorTests
 
         var executor = new JobExecutor(executionEndArbiter.Object, jobRepository.Object,
             idempotencyExecutionService.Object, new Mock<ISafeJobRunner>(MockBehavior.Strict).Object,
-            new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object, new NullLogger<JobExecutor>());
+            new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object, CreateStatisticsService(),
+            new NullLogger<JobExecutor>());
 
         await executor.RunAsync(0, TestContext.Current.CancellationToken);
 

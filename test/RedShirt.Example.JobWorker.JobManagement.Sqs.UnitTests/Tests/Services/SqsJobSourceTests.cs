@@ -146,7 +146,7 @@ public class SqsJobSourceTests
     [Theory]
     [InlineData(CoreJobResult.Empty)]
     [InlineData(CoreJobResult.Parsing)]
-    [InlineData(CoreJobResult.Broken)]
+    [InlineData(CoreJobResult.InvalidData)]
     public async Task Test_AcknowledgeAsync_NonRecoverable_DeletesWhenNotAlreadyEnforced(
         CoreJobResult result)
     {
@@ -190,7 +190,7 @@ public class SqsJobSourceTests
     [Theory]
     [InlineData(CoreJobResult.Empty)]
     [InlineData(CoreJobResult.Parsing)]
-    [InlineData(CoreJobResult.Broken)]
+    [InlineData(CoreJobResult.InvalidData)]
     public async Task Test_AcknowledgeAsync_NonRecoverable_SkipsDeleteWhenAlreadyEnforced(CoreJobResult result)
     {
         var sqs = new Mock<IAmazonSQS>(MockBehavior.Strict);

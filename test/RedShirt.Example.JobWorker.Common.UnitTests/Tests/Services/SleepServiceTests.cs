@@ -1,7 +1,7 @@
-using RedShirt.Example.JobWorker.Core.Services.Utility;
+using RedShirt.Example.JobWorker.Common.Services;
 using System.Diagnostics;
 
-namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Utility;
+namespace RedShirt.Example.JobWorker.Common.UnitTests.Tests.Services;
 
 public class SleepServiceTests
 {

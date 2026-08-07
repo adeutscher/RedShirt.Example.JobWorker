@@ -12,7 +12,7 @@ public static class CoreJobResultExtensions
     ///     (<see cref="CoreJobResult.Failure" /> / <see cref="FailureType.Execution" />, or
     ///     <see cref="CoreJobResult.Cancelled" /> / <see cref="FailureType.Cancelled" />).
     ///     <see cref="CoreJobResult.Empty" />, <see cref="CoreJobResult.Parsing" />, and
-    ///     <see cref="CoreJobResult.Broken" /> are not recoverable.
+    ///     <see cref="CoreJobResult.InvalidData" /> are not recoverable.
     /// </summary>
     public static bool IsRecoverableFailure(this CoreJobResult result)
     {
@@ -42,7 +42,7 @@ public static class CoreJobResultExtensions
             CoreJobResult.Parsing => FailureType.Parsing,
             CoreJobResult.Failure => FailureType.Execution,
             CoreJobResult.Cancelled => FailureType.Cancelled,
-            CoreJobResult.Broken => FailureType.Broken,
+            CoreJobResult.InvalidData => FailureType.Broken,
             _ => throw new ArgumentOutOfRangeException(nameof(result), result,
                 "Success has no corresponding failure type.")
         };

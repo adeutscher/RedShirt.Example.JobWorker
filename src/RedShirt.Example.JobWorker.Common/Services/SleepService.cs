@@ -1,4 +1,4 @@
-namespace RedShirt.Example.JobWorker.Core.Services.Utility;
+namespace RedShirt.Example.JobWorker.Common.Services;
 
 /// <summary>
 ///     Abstraction of sleeping and timed waits.

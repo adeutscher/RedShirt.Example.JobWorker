@@ -4,9 +4,11 @@ using RedShirt.Example.JobWorker.Common.Distributed.Enums;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Distributed.Models.Safety;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
+using RedShirt.Example.JobWorker.Common.Models;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -15,6 +17,13 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Idempotency;
 
 public class IdempotencyExecutionServiceTests
 {
+    private static ICoreHealthStateUpdateService CreateHealthStateUpdateService()
+    {
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+        return health.Object;
+    }
+
     private static IdempotencyConfigurationModel CreateOptions(
         bool enabled = true,
         int resultCacheDurationSeconds = 30,
@@ -123,6 +132,34 @@ public class IdempotencyExecutionServiceTests
         };
     }
 
+    [Fact]
+    public async Task GetCachedResultAsync_WhenCacheThrows_AndHaltOnFailure_Propagates()
+    {
+        var unexpected = new InvalidOperationException("cache backend unavailable");
+
+        var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
+        cache
+            .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
+            .ThrowsAsync(unexpected);
+
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+
+        var service = new IdempotencyExecutionService(
+            new Mock<ISafeAbstractedLockService>(MockBehavior.Strict).Object,
+            cache.Object,
+            health.Object,
+            Options.Create(CreateOptions()),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = true}),
+            CreateLogger().Object);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.GetCachedResultAsync(CreateJob().Object, TestContext.Current.CancellationToken));
+
+        Assert.Same(unexpected, thrown);
+        health.Verify(h => h.NoteIncident(), Times.Once);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -137,7 +174,8 @@ public class IdempotencyExecutionServiceTests
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions()), logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions()),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         var result = await service.GetCachedResultAsync(CreateJob().Object, TestContext.Current.CancellationToken);
 
@@ -160,7 +198,8 @@ public class IdempotencyExecutionServiceTests
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(enableTraceLogging: true)), logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions(enableTraceLogging: true)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         var result = await service.GetCachedResultAsync(CreateJob().Object, TestContext.Current.CancellationToken);
 
@@ -185,7 +224,8 @@ public class IdempotencyExecutionServiceTests
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions()), logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions()),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         var result = await service.GetCachedResultAsync(CreateJob().Object, TestContext.Current.CancellationToken);
 
@@ -210,7 +250,8 @@ public class IdempotencyExecutionServiceTests
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(enableTraceLogging: true)), logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions(enableTraceLogging: true)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         var result = await service.GetCachedResultAsync(CreateJob().Object, TestContext.Current.CancellationToken);
 
@@ -234,7 +275,8 @@ public class IdempotencyExecutionServiceTests
         var logger = CreateLogger();
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(enabled)), logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions(enabled)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         var result = await service.GetCachedResultAsync(job.Object, TestContext.Current.CancellationToken);
 
@@ -256,7 +298,8 @@ public class IdempotencyExecutionServiceTests
         var logger = CreateLogger();
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(enabled, enableTraceLogging: true)), logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions(enabled, enableTraceLogging: true)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         var result = await service.GetCachedResultAsync(CreateJob(idempotencyId).Object,
             TestContext.Current.CancellationToken);
@@ -284,7 +327,8 @@ public class IdempotencyExecutionServiceTests
         var logger = CreateLogger();
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions()), logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions()),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         var result = await service.GetLockAsync(job.Object, TestContext.Current.CancellationToken);
 
@@ -308,7 +352,8 @@ public class IdempotencyExecutionServiceTests
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object,
             new Mock<ISafeRemoteCacheService>(MockBehavior.Strict).Object,
-            Options.Create(CreateOptions(enableTraceLogging: true)), logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions(enableTraceLogging: true)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         await service.GetLockAsync(CreateJob().Object, TestContext.Current.CancellationToken);
 
@@ -332,7 +377,8 @@ public class IdempotencyExecutionServiceTests
         var logger = CreateLogger();
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(enabled)), logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions(enabled)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         var result = await service.GetLockAsync(job.Object, TestContext.Current.CancellationToken);
 
@@ -355,7 +401,8 @@ public class IdempotencyExecutionServiceTests
         var service = new IdempotencyExecutionService(
             new Mock<ISafeAbstractedLockService>(MockBehavior.Strict).Object,
             new Mock<ISafeRemoteCacheService>(MockBehavior.Strict).Object,
-            Options.Create(CreateOptions(enabled, enableTraceLogging: true)), logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions(enabled, enableTraceLogging: true)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         var result = await service.GetLockAsync(CreateJob(idempotencyId).Object,
             TestContext.Current.CancellationToken);
@@ -384,7 +431,8 @@ public class IdempotencyExecutionServiceTests
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object,
             new Mock<ISafeRemoteCacheService>(MockBehavior.Strict).Object,
-            Options.Create(CreateOptions()), logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions()),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         await service.GetLockAsync(CreateJob().Object, TestContext.Current.CancellationToken);
 
@@ -417,7 +465,8 @@ public class IdempotencyExecutionServiceTests
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object,
             new Mock<ISafeRemoteCacheService>(MockBehavior.Strict).Object,
-            Options.Create(CreateOptions(enableTraceLogging: true)), logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions(enableTraceLogging: true)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         await service.GetLockAsync(CreateJob().Object, TestContext.Current.CancellationToken);
 
@@ -431,6 +480,34 @@ public class IdempotencyExecutionServiceTests
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             lockResult == SafeDistributedOperationResult.Success ? Times.Never() : Times.Once());
+    }
+
+    [Fact]
+    public async Task GetLockAsync_WhenLockServiceThrows_AndHaltOnFailure_Propagates()
+    {
+        var unexpected = new InvalidOperationException("lock backend unavailable");
+
+        var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
+        lockService
+            .Setup(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken))
+            .ThrowsAsync(unexpected);
+
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+
+        var service = new IdempotencyExecutionService(
+            lockService.Object,
+            new Mock<ISafeRemoteCacheService>(MockBehavior.Strict).Object,
+            health.Object,
+            Options.Create(CreateOptions()),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = true}),
+            CreateLogger().Object);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.GetLockAsync(CreateJob().Object, TestContext.Current.CancellationToken));
+
+        Assert.Same(unexpected, thrown);
+        health.Verify(h => h.NoteIncident(), Times.Once);
     }
 
     [Theory]
@@ -459,8 +536,9 @@ public class IdempotencyExecutionServiceTests
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
+            CreateHealthStateUpdateService(),
             Options.Create(CreateOptions(idempotencyIdsCanRepeat: idempotencyIdsCanRepeat)),
-            logger.Object);
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         await service.SetResultInCacheAsync(CreateRawJob().Object, jobResult,
             new SafeAcknowledgementResult
@@ -488,8 +566,8 @@ public class IdempotencyExecutionServiceTests
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(resultCacheDurationSeconds: 1)),
-            logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions(resultCacheDurationSeconds: 1)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         await service.SetResultInCacheAsync(CreateRawJob().Object, CoreJobResult.Success,
             new SafeAcknowledgementResult
@@ -518,8 +596,8 @@ public class IdempotencyExecutionServiceTests
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(idempotencyIdsCanRepeat: false)),
-            logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions(idempotencyIdsCanRepeat: false)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         await service.SetResultInCacheAsync(CreateRawJob().Object, CoreJobResult.Failure,
             new SafeAcknowledgementResult
@@ -548,8 +626,8 @@ public class IdempotencyExecutionServiceTests
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(idempotencyIdsCanRepeat: true)),
-            logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions(idempotencyIdsCanRepeat: true)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         await service.SetResultInCacheAsync(CreateRawJob().Object, CoreJobResult.Success,
             new SafeAcknowledgementResult
@@ -578,8 +656,9 @@ public class IdempotencyExecutionServiceTests
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(
             new Mock<ISafeAbstractedLockService>(MockBehavior.Strict).Object, cache.Object,
+            CreateHealthStateUpdateService(),
             Options.Create(CreateOptions(idempotencyIdsCanRepeat: true, enableTraceLogging: true)),
-            logger.Object);
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         await service.SetResultInCacheAsync(CreateRawJob().Object, CoreJobResult.Success,
             new SafeAcknowledgementResult
@@ -610,8 +689,8 @@ public class IdempotencyExecutionServiceTests
 
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(idempotencyIdsCanRepeat: false)),
-            logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions(idempotencyIdsCanRepeat: false)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         await service.SetResultInCacheAsync(CreateRawJob().Object, jobResult,
             new SafeAcknowledgementResult
@@ -642,8 +721,9 @@ public class IdempotencyExecutionServiceTests
         var logger = CreateLogger();
         var service = new IdempotencyExecutionService(
             new Mock<ISafeAbstractedLockService>(MockBehavior.Strict).Object, cache.Object,
+            CreateHealthStateUpdateService(),
             Options.Create(CreateOptions(idempotencyIdsCanRepeat: false, enableTraceLogging: true)),
-            logger.Object);
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         await service.SetResultInCacheAsync(CreateRawJob().Object, jobResult,
             new SafeAcknowledgementResult
@@ -659,6 +739,46 @@ public class IdempotencyExecutionServiceTests
         VerifyTraceLogContains(logger, "idempotency:idem-1:result", Times.Exactly(2));
     }
 
+    [Fact]
+    public async Task SetResultInCacheAsync_WhenClearThrows_AndHaltOnFailure_Propagates()
+    {
+        var unexpected = new InvalidOperationException("cache backend unavailable");
+
+        var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
+        cache
+            .Setup(c => c.SetStringAsync(
+                "idempotency:idem-1:result",
+                null,
+                TimeSpan.FromSeconds(30),
+                TestContext.Current.CancellationToken))
+            .ThrowsAsync(unexpected);
+
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+
+        var service = new IdempotencyExecutionService(
+            new Mock<ISafeAbstractedLockService>(MockBehavior.Strict).Object,
+            cache.Object,
+            health.Object,
+            Options.Create(CreateOptions(idempotencyIdsCanRepeat: false)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = true}),
+            CreateLogger().Object);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SetResultInCacheAsync(
+                CreateRawJob().Object,
+                CoreJobResult.Success,
+                new SafeAcknowledgementResult
+                {
+                    AcknowledgedSuccessfully = true,
+                    LoggedFailureSuccessfully = null
+                },
+                TestContext.Current.CancellationToken));
+
+        Assert.Same(unexpected, thrown);
+        health.Verify(h => h.NoteIncident(), Times.Once);
+    }
+
     [Theory]
     [InlineData(false, "idem-1")]
     [InlineData(true, null)]
@@ -672,7 +792,8 @@ public class IdempotencyExecutionServiceTests
         var logger = CreateLogger();
 
         var service = new IdempotencyExecutionService(lockService.Object, cache.Object,
-            Options.Create(CreateOptions(enabled)), logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions(enabled)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         await service.SetResultInCacheAsync(CreateRawJob(idempotencyId).Object, CoreJobResult.Success,
             new SafeAcknowledgementResult
@@ -698,7 +819,8 @@ public class IdempotencyExecutionServiceTests
         var service = new IdempotencyExecutionService(
             new Mock<ISafeAbstractedLockService>(MockBehavior.Strict).Object,
             new Mock<ISafeRemoteCacheService>(MockBehavior.Strict).Object,
-            Options.Create(CreateOptions(enabled, enableTraceLogging: true)), logger.Object);
+            CreateHealthStateUpdateService(), Options.Create(CreateOptions(enabled, enableTraceLogging: true)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), logger.Object);
 
         await service.SetResultInCacheAsync(CreateRawJob(idempotencyId).Object, CoreJobResult.Success,
             new SafeAcknowledgementResult
@@ -711,5 +833,45 @@ public class IdempotencyExecutionServiceTests
         VerifyTraceLogContains(logger, "IdempotencyExecutionService.SetResultInCacheAsync", Times.Once());
         VerifyTraceLogContains(logger, "cannot proceed", Times.Once());
         VerifyTraceLogContains(logger, expectedReason, Times.Once());
+    }
+
+    [Fact]
+    public async Task SetResultInCacheAsync_WhenSetThrows_AndHaltOnFailure_Propagates()
+    {
+        var unexpected = new InvalidOperationException("cache backend unavailable");
+
+        var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
+        cache
+            .Setup(c => c.SetStringAsync(
+                "idempotency:idem-1:result",
+                It.IsAny<string>(),
+                TimeSpan.FromSeconds(30),
+                TestContext.Current.CancellationToken))
+            .ThrowsAsync(unexpected);
+
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+
+        var service = new IdempotencyExecutionService(
+            new Mock<ISafeAbstractedLockService>(MockBehavior.Strict).Object,
+            cache.Object,
+            health.Object,
+            Options.Create(CreateOptions(idempotencyIdsCanRepeat: true)),
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = true}),
+            CreateLogger().Object);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SetResultInCacheAsync(
+                CreateRawJob().Object,
+                CoreJobResult.Success,
+                new SafeAcknowledgementResult
+                {
+                    AcknowledgedSuccessfully = true,
+                    LoggedFailureSuccessfully = null
+                },
+                TestContext.Current.CancellationToken));
+
+        Assert.Same(unexpected, thrown);
+        health.Verify(h => h.NoteIncident(), Times.Once);
     }
 }

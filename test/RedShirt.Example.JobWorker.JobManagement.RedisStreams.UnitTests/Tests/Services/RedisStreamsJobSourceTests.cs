@@ -44,7 +44,7 @@ public class RedisStreamsJobSourceTests
     [InlineData(CoreJobResult.Success)]
     [InlineData(CoreJobResult.Failure)]
     [InlineData(CoreJobResult.Cancelled)]
-    [InlineData(CoreJobResult.Broken)]
+    [InlineData(CoreJobResult.InvalidData)]
     [InlineData(CoreJobResult.Empty)]
     [InlineData(CoreJobResult.Parsing)]
     public async Task AcknowledgeAsync_AlwaysAcknowledges(CoreJobResult result)

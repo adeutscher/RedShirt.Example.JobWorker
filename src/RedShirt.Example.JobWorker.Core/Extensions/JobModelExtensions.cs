@@ -1,4 +1,4 @@
-using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Common.Models;
 
 namespace RedShirt.Example.JobWorker.Core.Extensions;
 

@@ -4,7 +4,7 @@ using Moq;
 using RedShirt.Example.JobWorker.Common.Aws.Sqs.Exceptions;
 using RedShirt.Example.JobWorker.Common.Aws.Sqs.Models;
 using RedShirt.Example.JobWorker.Common.Aws.Sqs.Services.Resilience;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
+using RedShirt.Example.JobWorker.Common.Services;
 
 namespace RedShirt.Example.JobWorker.Common.Aws.Sqs.UnitTests.Tests.Services.Resilience;
 

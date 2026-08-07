@@ -1,17 +1,20 @@
 using Microsoft.Extensions.Logging;
-using RedShirt.Example.JobWorker.Core.Enums;
-using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
+using RedShirt.Example.JobWorker.Common.Enums;
+using RedShirt.Example.JobWorker.Common.Models;
+using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Common.Services.Abstractions;
 
 namespace RedShirt.Example.JobWorker.Core.Logic;
 
 internal sealed class JobLogicRunner(ISleepService sleepService, ILogger<JobLogicRunner> logger) : IJobLogicRunner
 {
-    public async Task<JobResult> RunAsync(IJobModel job, CancellationToken cancellationToken = default)
+    public async Task<IJobLogicRunnerResponse> RunAsync(IJobModel job, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Sleeping for {DurationSeconds} seconds", job.Data.SleepDurationSeconds);
         await sleepService.DelayAsync(TimeSpan.FromSeconds(job.Data.SleepDurationSeconds), cancellationToken);
-        return JobResult.Success;
+        return new JobLogicRunnerResponse
+        {
+            Result = JobResult.Success
+        };
     }
 }
