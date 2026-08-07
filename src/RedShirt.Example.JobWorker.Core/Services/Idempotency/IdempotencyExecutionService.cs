@@ -174,7 +174,7 @@ internal sealed class IdempotencyExecutionService(
                 GetResultKey(jobModel.IdempotencyId!));
         }
 
-        SafeDistributedGetOperationResponse<string> cacheResponse;
+        SafeDistributedGetOperationResponse<string?> cacheResponse;
         try
         {
             cacheResponse = await cache.GetStringAsync(GetResultKey(jobModel.IdempotencyId!), cancellationToken);
