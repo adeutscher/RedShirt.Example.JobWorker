@@ -8,9 +8,11 @@ internal static class HealthCheckApp
     private static async Task WriteUsageAsync(TextWriter error)
     {
         await error.WriteLineAsync(
-            "Usage: RedShirt.Example.JobWorker.HealthCheck --base-url <url> --port <port>");
+            "Usage: RedShirt.Example.JobWorker.HealthCheck --health-enabled <true|false> --base-url <url> --port <port>");
         await error.WriteLineAsync(
-            $"Probes {{base-url}}:{{port}}{HealthPathConstants.HealthPath} and exits 0 on HTTP 200.");
+            $"When health is enabled, probes {{base-url}}:{{port}}{HealthPathConstants.HealthPath} and exits 0 on HTTP 200.");
+        await error.WriteLineAsync(
+            "When health is disabled, exits 0 without sending a request.");
     }
 
     internal static Uri BuildUri(string baseUrl, int port)
@@ -26,6 +28,7 @@ internal static class HealthCheckApp
     {
         string? baseUrl = null;
         int? port = null;
+        bool? healthEnabled = null;
         var showHelp = false;
 
         for (var i = 0; i < args.Length; i++)
@@ -38,13 +41,16 @@ internal static class HealthCheckApp
                 case "--port" when i + 1 < args.Length && int.TryParse(args[++i], out var parsedPort):
                     port = parsedPort;
                     break;
+                case "--health-enabled" when i + 1 < args.Length && bool.TryParse(args[++i], out var parsedEnabled):
+                    healthEnabled = parsedEnabled;
+                    break;
                 case "--help" or "-h":
                     showHelp = true;
                     break;
             }
         }
 
-        return new ParsedArgs(baseUrl, port, showHelp);
+        return new ParsedArgs(baseUrl, port, healthEnabled, showHelp);
     }
 
     internal static async Task<int> RunAsync(
@@ -62,13 +68,27 @@ internal static class HealthCheckApp
             return 0;
         }
 
-        if (parsed.BaseUrl is null || parsed.Port is null)
+        if (parsed.HealthEnabled is null)
         {
-            await error.WriteLineAsync("Both --base-url and --port are required.");
+            await error.WriteLineAsync("--health-enabled is required.");
             await WriteUsageAsync(error);
             return 1;
         }
 
+        if (!parsed.HealthEnabled.Value)
+        {
+            // Health pages are not serving; treat the worker as healthy for probe purposes.
+            return 0;
+        }
+
+        if (parsed.BaseUrl is null || parsed.Port is null)
+        {
+            await error.WriteLineAsync("Both --base-url and --port are required when health is enabled.");
+            await WriteUsageAsync(error);
+            return 1;
+        }
+
+        // Time to actually prepare to make our call.
         var uri = BuildUri(parsed.BaseUrl, parsed.Port.Value);
         using var client = handler is null
             ? new HttpClient {Timeout = TimeSpan.FromSeconds(2)}
@@ -89,5 +109,5 @@ internal static class HealthCheckApp
         }
     }
 
-    internal readonly record struct ParsedArgs(string? BaseUrl, int? Port, bool ShowHelp);
+    internal readonly record struct ParsedArgs(string? BaseUrl, int? Port, bool? HealthEnabled, bool ShowHelp);
 }

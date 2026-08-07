@@ -168,6 +168,8 @@ services:
         [
           "CMD",
           "./RedShirt.Example.JobWorker.HealthCheck",
+          "--health-enabled",
+          "${HEALTH__ENABLED:-true}",
           "--base-url",
           "http://127.0.0.1",
           "--port",
