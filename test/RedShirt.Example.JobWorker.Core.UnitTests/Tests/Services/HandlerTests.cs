@@ -86,6 +86,33 @@ public class HandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_RethrowsUnhandledWorkerException()
+    {
+        var expected = new InvalidOperationException("worker blew up");
+
+        // Only the failing worker may return Finished (via the catch path). Other workers
+        // return NotEnabled so they cannot race ahead and clear the wait before the exception
+        // is recorded.
+        var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
+        jobLoaderLoop
+            .Setup(l => l.RunAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(expected);
+
+        var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
+        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
+        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor);
+
+        var handler = CreateHandler(jobLoaderLoop.Object, executor.Object, maintainer.Object,
+            idempotencyMonitor.Object);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            handler.HandleAsync(TestContext.Current.CancellationToken));
+
+        Assert.Same(expected, thrown);
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenWorkerThrowsOperationCanceledWhileTokenCanceled_DoesNotRethrow()
     {
         using var cts = new CancellationTokenSource();
@@ -147,33 +174,6 @@ public class HandlerTests
 
         var thrown = await Assert.ThrowsAsync<OperationCanceledException>(() =>
             handler.HandleAsync(CancellationToken.None));
-
-        Assert.Same(expected, thrown);
-    }
-
-    [Fact]
-    public async Task HandleAsync_RethrowsUnhandledWorkerException()
-    {
-        var expected = new InvalidOperationException("worker blew up");
-
-        // Only the failing worker may return Finished (via the catch path). Other workers
-        // return NotEnabled so they cannot race ahead and clear the wait before the exception
-        // is recorded.
-        var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
-        jobLoaderLoop
-            .Setup(l => l.RunAsync(It.IsAny<CancellationToken>()))
-            .ThrowsAsync(expected);
-
-        var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
-        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
-        var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
-        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor);
-
-        var handler = CreateHandler(jobLoaderLoop.Object, executor.Object, maintainer.Object,
-            idempotencyMonitor.Object);
-
-        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            handler.HandleAsync(TestContext.Current.CancellationToken));
 
         Assert.Same(expected, thrown);
     }

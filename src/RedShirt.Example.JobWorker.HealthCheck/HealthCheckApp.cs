@@ -5,7 +5,22 @@ namespace RedShirt.Example.JobWorker.HealthCheck;
 
 internal static class HealthCheckApp
 {
-    internal readonly record struct ParsedArgs(string? BaseUrl, int? Port, bool ShowHelp);
+    private static async Task WriteUsageAsync(TextWriter error)
+    {
+        await error.WriteLineAsync(
+            "Usage: RedShirt.Example.JobWorker.HealthCheck --base-url <url> --port <port>");
+        await error.WriteLineAsync(
+            $"Probes {{base-url}}:{{port}}{HealthPathConstants.HealthPath} and exits 0 on HTTP 200.");
+    }
+
+    internal static Uri BuildUri(string baseUrl, int port)
+    {
+        return new UriBuilder(baseUrl.TrimEnd('/'))
+        {
+            Port = port,
+            Path = HealthPathConstants.HealthPath
+        }.Uri;
+    }
 
     internal static ParsedArgs ParseArgs(string[] args)
     {
@@ -30,15 +45,6 @@ internal static class HealthCheckApp
         }
 
         return new ParsedArgs(baseUrl, port, showHelp);
-    }
-
-    internal static Uri BuildUri(string baseUrl, int port)
-    {
-        return new UriBuilder(baseUrl.TrimEnd('/'))
-        {
-            Port = port,
-            Path = HealthPathConstants.HealthPath
-        }.Uri;
     }
 
     internal static async Task<int> RunAsync(
@@ -66,7 +72,7 @@ internal static class HealthCheckApp
         var uri = BuildUri(parsed.BaseUrl, parsed.Port.Value);
         using var client = handler is null
             ? new HttpClient {Timeout = TimeSpan.FromSeconds(2)}
-            : new HttpClient(handler, disposeHandler: true) {Timeout = TimeSpan.FromSeconds(2)};
+            : new HttpClient(handler, true) {Timeout = TimeSpan.FromSeconds(2)};
 
         try
         {
@@ -83,11 +89,5 @@ internal static class HealthCheckApp
         }
     }
 
-    private static async Task WriteUsageAsync(TextWriter error)
-    {
-        await error.WriteLineAsync(
-            "Usage: RedShirt.Example.JobWorker.HealthCheck --base-url <url> --port <port>");
-        await error.WriteLineAsync(
-            $"Probes {{base-url}}:{{port}}{HealthPathConstants.HealthPath} and exits 0 on HTTP 200.");
-    }
+    internal readonly record struct ParsedArgs(string? BaseUrl, int? Port, bool ShowHelp);
 }
