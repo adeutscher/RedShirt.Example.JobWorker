@@ -41,7 +41,7 @@ public static class Setup
             // Suppress ConsoleLifetime banner (Hosting environment / Content root path) even when
             // app-wide LogLevel is Trace/Debug (e.g. LOG_LEVEL in compose).
             // Hosting.Lifetime log messages were useless noise for this application.
-            // I'm also not 100% a fan of the 'Hosting starting/started/stopping/stopped' messages, but they're at least a bit useful.
+            // I'm also not 100% a fan of the 'Hosting starting/started/stopping/stopped' messages, but they're at least somewhat useful.
             .MinimumLevel.Override(HostingLifetimeLoggerCategory, LogEventLevel.Warning)
             .Enrich.FromLogContext()
             .WriteTo.Console(outputTemplate:
