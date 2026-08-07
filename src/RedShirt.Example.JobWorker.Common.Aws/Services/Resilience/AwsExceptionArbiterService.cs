@@ -38,16 +38,6 @@ internal sealed class AwsExceptionArbiterService : IAwsExceptionArbiterService
         "TimeoutError"
     };
 
-    private static Exception Unwrap(Exception exception)
-    {
-        while (exception is AggregateException {InnerExceptions.Count: 1, InnerException: not null} aggregate)
-        {
-            exception = aggregate.InnerException;
-        }
-
-        return exception;
-    }
-
     private static AwsExceptionArbiterReport Fresh(bool isExpected, bool isTransient, bool couldBeExternallySolvable)
     {
         return new AwsExceptionArbiterReport
@@ -81,7 +71,11 @@ internal sealed class AwsExceptionArbiterService : IAwsExceptionArbiterService
     {
         ArgumentNullException.ThrowIfNull(exception);
 
-        exception = Unwrap(exception);
+        // Unwrap
+        while (exception is AggregateException {InnerExceptions.Count: 1, InnerException: not null} aggregate)
+        {
+            exception = aggregate.InnerException!;
+        }
 
         return exception switch
         {
