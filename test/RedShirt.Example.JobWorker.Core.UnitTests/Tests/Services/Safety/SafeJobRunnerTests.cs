@@ -19,10 +19,11 @@ public class SafeJobRunnerTests
             .Setup(t => t.RunAsync(
                 It.IsAny<IJobModel>(),
                 It.IsAny<TimeSpan?>(),
-                It.IsAny<Func<IJobModel, CancellationToken, Task<JobResult>>>(),
+                It.IsAny<Func<IJobModel, CancellationToken, Task<IJobLogicRunnerResponse>>>(),
                 It.IsAny<CancellationToken>()))
             .Returns((IJobModel data, TimeSpan? _,
-                    Func<IJobModel, CancellationToken, Task<JobResult>> callback, CancellationToken token) =>
+                    Func<IJobModel, CancellationToken, Task<IJobLogicRunnerResponse>> callback,
+                    CancellationToken token) =>
                 callback(data, token));
         return timeBorder.Object;
     }
@@ -112,7 +113,10 @@ public class SafeJobRunnerTests
                     };
                 }
 
-                return Task.FromResult(JobResult.Success);
+                return Task.FromResult<IJobLogicRunnerResponse>(new JobLogicRunnerResponse
+                {
+                    Result = JobResult.Success
+                });
             });
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
@@ -159,7 +163,10 @@ public class SafeJobRunnerTests
                     throw new JobRetryException();
                 }
 
-                return Task.FromResult(JobResult.Success);
+                return Task.FromResult<IJobLogicRunnerResponse>(new JobLogicRunnerResponse
+                {
+                    Result = JobResult.Success
+                });
             });
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
@@ -193,7 +200,7 @@ public class SafeJobRunnerTests
         var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
         logicRunner
             .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(JobResult.Failure);
+            .ReturnsAsync(new JobLogicRunnerResponse {Result = JobResult.Failure});
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
 
@@ -222,7 +229,7 @@ public class SafeJobRunnerTests
         var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
         logicRunner
             .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(JobResult.InvalidData);
+            .ReturnsAsync(new JobLogicRunnerResponse {Result = JobResult.InvalidData});
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
 
@@ -251,7 +258,7 @@ public class SafeJobRunnerTests
         var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
         logicRunner
             .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(JobResult.Success);
+            .ReturnsAsync(new JobLogicRunnerResponse {Result = JobResult.Success});
 
         // Strict + no DelayAsync setup: any sleep would fail the test.
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
@@ -291,7 +298,7 @@ public class SafeJobRunnerTests
         var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
         logicRunner
             .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(JobResult.Success);
+            .ReturnsAsync(new JobLogicRunnerResponse {Result = JobResult.Success});
 
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
 
@@ -301,10 +308,10 @@ public class SafeJobRunnerTests
             .Setup(t => t.RunAsync(
                 job.Object,
                 It.IsAny<TimeSpan?>(),
-                It.IsAny<Func<IJobModel, CancellationToken, Task<JobResult>>>(),
+                It.IsAny<Func<IJobModel, CancellationToken, Task<IJobLogicRunnerResponse>>>(),
                 It.IsAny<CancellationToken>()))
             .Returns((IJobModel data, TimeSpan? maximumTime,
-                Func<IJobModel, CancellationToken, Task<JobResult>> callback, CancellationToken token) =>
+                Func<IJobModel, CancellationToken, Task<IJobLogicRunnerResponse>> callback, CancellationToken token) =>
             {
                 observedMaximumTime = maximumTime;
                 return callback(data, token);
@@ -329,7 +336,7 @@ public class SafeJobRunnerTests
             t => t.RunAsync(
                 job.Object,
                 null,
-                It.IsAny<Func<IJobModel, CancellationToken, Task<JobResult>>>(),
+                It.IsAny<Func<IJobModel, CancellationToken, Task<IJobLogicRunnerResponse>>>(),
                 It.IsAny<CancellationToken>()),
             Times.Once);
         logicRunner.Verify(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()), Times.Once);

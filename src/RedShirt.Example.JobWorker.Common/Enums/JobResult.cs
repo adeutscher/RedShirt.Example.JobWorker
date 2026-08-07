@@ -1,9 +1,9 @@
-using RedShirt.Example.JobWorker.Common.Services.Abstractions;
+using RedShirt.Example.JobWorker.Common.Models;
 
 namespace RedShirt.Example.JobWorker.Common.Enums;
 
 /// <summary>
-///     Outcome returned by a job's application logic (<see cref="IJobLogicRunner" />).
+///     Outcome of job application logic, exposed via <see cref="IJobLogicRunnerResponse.Result" />.
 /// </summary>
 public enum JobResult
 {

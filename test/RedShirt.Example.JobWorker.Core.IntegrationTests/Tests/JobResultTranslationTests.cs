@@ -72,7 +72,7 @@ public class JobResultTranslationTests
         var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);
         logicRunner
             .Setup(l => l.RunAsync(job.Object, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(jobResult);
+            .ReturnsAsync(new JobLogicRunnerResponse {Result = jobResult});
 
         // Job source acknowledgement
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);

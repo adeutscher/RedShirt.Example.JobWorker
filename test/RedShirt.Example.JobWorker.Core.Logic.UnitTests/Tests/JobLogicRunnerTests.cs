@@ -25,7 +25,7 @@ public class JobLogicRunnerTests
 
         var result = await jobLogicRunner.RunAsync(job.Object, TestContext.Current.CancellationToken);
 
-        Assert.Equal(JobResult.Success, result);
+        Assert.Equal(JobResult.Success, result.Result);
         sleepService.Verify(s => s.DelayAsync(TimeSpan.Zero, TestContext.Current.CancellationToken), Times.Once);
     }
 }

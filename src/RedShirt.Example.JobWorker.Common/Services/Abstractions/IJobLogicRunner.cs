@@ -11,7 +11,8 @@ public interface IJobLogicRunner
 {
     /// <summary>
     ///     Execute application work for a parsed job.
-    ///     Return <see cref="JobResult.Success" /> on completion,
+    ///     Return a response whose <see cref="IJobLogicRunnerResponse.Result" /> is
+    ///     <see cref="JobResult.Success" /> on completion,
     ///     <see cref="JobResult.Failure" /> for a recoverable failure without throwing
     ///     (equivalent to an uncaught exception in application logic),
     ///     or <see cref="JobResult.InvalidData" /> when the job is identified as unrecoverable without throwing.
@@ -22,8 +23,9 @@ public interface IJobLogicRunner
     /// <param name="job">Parsed job model ready for business logic.</param>
     /// <param name="cancellationToken">Token used to cancel in-flight work.</param>
     /// <returns>
+    ///     An <see cref="IJobLogicRunnerResponse" /> whose <see cref="IJobLogicRunnerResponse.Result" /> is
     ///     <see cref="JobResult.Success" />, <see cref="JobResult.Failure" />, or <see cref="JobResult.InvalidData" />
     ///     describing the logical outcome.
     /// </returns>
-    Task<JobResult> RunAsync(IJobModel job, CancellationToken cancellationToken = default);
+    Task<IJobLogicRunnerResponse> RunAsync(IJobModel job, CancellationToken cancellationToken = default);
 }

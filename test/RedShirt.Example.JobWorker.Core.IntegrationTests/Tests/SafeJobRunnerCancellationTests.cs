@@ -25,10 +25,10 @@ public class SafeJobRunnerCancellationTests
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
         sleepService
             .Setup(s => s.WaitAsync(
-                It.IsAny<Task<JobResult>>(),
+                It.IsAny<Task<IJobLogicRunnerResponse>>(),
                 It.IsAny<TimeSpan>(),
                 It.IsAny<CancellationToken>()))
-            .Returns((Task<JobResult> task, TimeSpan _, CancellationToken _) => task);
+            .Returns((Task<IJobLogicRunnerResponse> task, TimeSpan _, CancellationToken _) => task);
         return sleepService;
     }
 
@@ -57,7 +57,10 @@ public class SafeJobRunnerCancellationTests
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(token);
                 linkedCts.Cancel();
                 linkedCts.Token.ThrowIfCancellationRequested();
-                return Task.FromResult(JobResult.Success);
+                return Task.FromResult<IJobLogicRunnerResponse>(new JobLogicRunnerResponse
+                {
+                    Result = JobResult.Success
+                });
             });
 
         // System under test
@@ -116,7 +119,10 @@ public class SafeJobRunnerCancellationTests
             {
                 receivedJob = data;
                 await Task.Delay(TimeSpan.FromSeconds(maximumRunTimeSeconds + 2), token);
-                return JobResult.Success;
+                return new JobLogicRunnerResponse
+                {
+                    Result = JobResult.Success
+                };
             });
 
         // System under test

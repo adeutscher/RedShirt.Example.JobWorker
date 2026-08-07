@@ -102,7 +102,7 @@ internal sealed class SafeJobRunner(
             // time border. Total wall-clock time may therefore approach roughly
             // InternalRetryCount × MaxJobTimeSeconds plus backoff delays, assuming
             // that the downstream job implementation actually leverages JobRetryException.
-            var jobResult = await GetRetryPipeline().ExecuteAsync(
+            var jobLogicResponse = await GetRetryPipeline().ExecuteAsync(
                 async token => await timeBorderWrapperService.RunAsync(
                     job,
                     maximumTime,
@@ -111,7 +111,7 @@ internal sealed class SafeJobRunner(
                 cancellationToken);
             return new SafeJobRunResults
             {
-                Result = jobResult switch
+                Result = jobLogicResponse.Result switch
                 {
                     JobResult.Success => CoreJobResult.Success,
                     JobResult.Failure => CoreJobResult.Failure,
