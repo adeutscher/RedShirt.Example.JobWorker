@@ -306,12 +306,15 @@ public class LoaderModeJobLoaderTests
 
         var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
 
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+
         var loader = new LoaderModeJobLoader(
             jobSource.Object,
             new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
             jobRepository.Object,
             jobIntakeService.Object,
-            CreateHealthStateUpdateService(),
+            health.Object,
             new NullLogger<LoaderModeJobLoader>(),
             Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
@@ -321,6 +324,7 @@ public class LoaderModeJobLoaderTests
         jobIntakeService.Verify(
             s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
             Times.Never);
+        health.Verify(h => h.NoteIncident(), Times.Once);
     }
 
     [Fact]

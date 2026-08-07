@@ -175,11 +175,14 @@ public class BatchModeJobLoaderTests
         var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
 
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+
         var loader = new BatchModeJobLoader(
             jobSource.Object,
             jobRepository.Object,
             jobIntakeService.Object,
-            CreateHealthStateUpdateService(),
+            health.Object,
             new NullLogger<BatchModeJobLoader>(),
             Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             Options.Create(new JobSourceConfigurationModel {BatchSize = 10}));
@@ -189,6 +192,7 @@ public class BatchModeJobLoaderTests
         jobIntakeService.Verify(
             s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
             Times.Never);
+        health.Verify(h => h.NoteIncident(), Times.Once);
     }
 
     [Fact]

@@ -123,6 +123,7 @@ internal sealed class IdempotencyExecutionService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            logger.LogError(ex, "Unexpected error acquiring idempotency lock");
             healthStateUpdateService.NoteIncident();
             if (coreOptions.Value.HaltOnFailure)
             {
@@ -180,6 +181,7 @@ internal sealed class IdempotencyExecutionService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            logger.LogError(ex, "Unexpected error reading idempotency cache");
             healthStateUpdateService.NoteIncident();
             if (coreOptions.Value.HaltOnFailure)
             {
@@ -244,6 +246,7 @@ internal sealed class IdempotencyExecutionService(
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                logger.LogError(ex, "Unexpected error clearing idempotency cache");
                 healthStateUpdateService.NoteIncident();
                 if (coreOptions.Value.HaltOnFailure)
                 {
@@ -286,6 +289,7 @@ internal sealed class IdempotencyExecutionService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            logger.LogError(ex, "Unexpected error writing idempotency cache");
             healthStateUpdateService.NoteIncident();
             if (coreOptions.Value.HaltOnFailure)
             {

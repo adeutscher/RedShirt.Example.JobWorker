@@ -101,13 +101,12 @@ internal sealed class SafeJobAcknowledgementService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            logger.LogError(ex, "Unexpected error during job acknowledge: {EMessage}", ex.Message);
             healthStateUpdateService.NoteIncident();
             if (coreOptions.Value.HaltOnFailure)
             {
                 throw;
             }
-
-            logger.LogError(ex, "Job acknowledge failed: {EMessage}", ex.Message);
         }
 
         return new SafeAcknowledgementResult

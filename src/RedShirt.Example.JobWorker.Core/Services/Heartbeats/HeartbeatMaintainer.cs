@@ -126,14 +126,14 @@ internal sealed class HeartbeatMaintainer(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            logger.LogError(ex, "Unexpected error sending heartbeat for message: {MessageId}",
+                jobRepositoryEntry.JobModel.MessageId);
             healthStateUpdateService.NoteIncident();
             if (coreOptions.Value.HaltOnFailure)
             {
                 throw;
             }
 
-            logger.LogWarning(ex, "Heartbeat could not be completed for message: {MessageId}",
-                jobRepositoryEntry.JobModel.MessageId);
             await jobRepositoryEntry.SetAsCannotHeartbeatAsync(cancellationToken);
         }
 
