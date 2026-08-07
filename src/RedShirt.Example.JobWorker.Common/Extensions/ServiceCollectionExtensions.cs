@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using RedShirt.Example.JobWorker.Common.Services;
+using RedShirt.Example.JobWorker.Common.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Common.Extensions;
 

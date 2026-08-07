@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 using RedShirt.Example.JobWorker.Common.Enums;
 using RedShirt.Example.JobWorker.Common.Models;
-using RedShirt.Example.JobWorker.Common.Services;
 using RedShirt.Example.JobWorker.Common.Services.Abstractions;
+using RedShirt.Example.JobWorker.Common.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Logic;
 
