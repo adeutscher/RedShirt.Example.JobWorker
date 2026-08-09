@@ -34,9 +34,9 @@ For configuration examples, see the `worker` section of the `test/local/docker-c
 
 ## Health probes
 
-The JobWorker application has a configurable set of health pages.
-When health endpoints are enabled, health is currently determined by the amount of time since the most recent major
-exception caught in the `RedShirt.Example.JobWorker.Core` project when it interacts with a service from the
+The JobWorker application has a configurable set of health pages. When health endpoints are enabled, health is currently
+determined by the amount of time since the most recent major exception caught in the `RedShirt.Example.JobWorker.Core`
+project when it interacts with a service from the
 `RedShirt.Example.JobWorker.Common.Distributed` package or the `IJobSource` implementation in one of the `JobManagement`
 packages.
 
@@ -144,15 +144,15 @@ Many message sources can automatically provide Idempotency IDs that are reliably
 them to be specified by the publisher submitting the message.
 
 The Idempotency IDs are considered to be reliably unique based on of the configuration variable
-`JOBS__IDEMPOTENCY__IDEMPOTENCY_IDS_CAN_REPEAT=false`.
-If the IDs are said to not repeat, then a successful acknowledgement of a message shall mean that the cached result for
-that message will be cleared or not entered into the cache at all. This is done in hope of saving cache resources.
+`JOBS__IDEMPOTENCY__IDEMPOTENCY_IDS_CAN_REPEAT=false`. If the IDs are said to not repeat, then a successful
+acknowledgement of a message shall mean that the cached result for that message will be cleared or not entered into the
+cache at all. This is done in hope of saving cache resources.
 
 #### RabbitMQ Message IDs
 
-Of the current roster of job sources, RabbitMQ has no option to automatically generate a message ID for
-the application to take as an idempotency key. If you are using RabbitMQ and wish to make use of idempotency, then you
-will need to make sure that your message publishers are providing a message ID.
+Of the current roster of job sources, RabbitMQ has no option to automatically generate a message ID for the application
+to take as an idempotency key. If you are using RabbitMQ and wish to make use of idempotency, then you will need to make
+sure that your message publishers are providing a message ID.
 
 In the RabbitMQ browser view, this can be done by manually specifying the `message_id` property.
 
@@ -179,8 +179,8 @@ In practice, Redis Streams seems to also require manual setting of a message ID.
 
 Important distinction for this template: the Redis stream entry ID is exposed as the job's `MessageId`, but the
 idempotency key is taken from a `message_id` **field** on the stream entry. If you are using Redis Streams and wish to
-make use of this template's idempotency features, then your publishers should set that field.
-Auto-generating or manually specifying the Redis stream entry ID alone is not enough for the idempotency system.
+make use of this template's idempotency features, then your publishers should set that field. Auto-generating or
+manually specifying the Redis stream entry ID alone is not enough for the idempotency system.
 
 Example in C# (StackExchange.Redis):
 
@@ -216,8 +216,8 @@ values = {
 specific_entry_id = client.xadd("jobs", values)
 ```
 
-Documentation purports that one can provide an asterisk to request that Redis auto-generate an ID for a message,
-but this has not been my experience in practice.
+Documentation purports that one can provide an asterisk to request that Redis auto-generate an ID for a message, but
+this has not been my experience in practice.
 
 ### Redis Connection Instability Tolerance
 
@@ -337,9 +337,9 @@ I go into more detail on each of these points below, but the cliff notes for imp
 
 ### Kafka Authentication
 
-This general template was tested against a local Kafka container with no authentication set up.
-In addition to that, there are currently 5 different SASL mechanisms to choose from when implementing authentication.
-Implementing authentication for Kafka when adapting this template is currently left as an exercise for the reader.
+This general template was tested against a local Kafka container with no authentication set up. In addition to that,
+there are currently 5 different SASL mechanisms to choose from when implementing authentication. Implementing
+authentication for Kafka when adapting this template is currently left as an exercise for the reader.
 
 Kafka clients are constructed in the `RedShirt.Example.JobWorker.JobManagement.Kafka` project, in
 `Factories/KafkaConsumerFactory.cs`.
@@ -350,8 +350,8 @@ A Kafka topic is very similar to a Kinesis stream. I am going to be comparing Ka
 section because Kinesis is a much more established job source implementation that I have more experience with.
 
 The Kinesis comparison carries down to a basic implementation level of the technology. A Kafka topic is divided into
-partitions, just as a Kinesis stream is divided into shards. Processing jobs from either of these sources involves
-some layer of the process managing shard/partition ownership
+partitions, just as a Kinesis stream is divided into shards. Processing jobs from either of these sources involves some
+layer of the process managing shard/partition ownership
 
 However, a major difference between the available interfaces for Kafka and Kinesis and their implementations in this
 template is how ownership of a partition/shard works:
