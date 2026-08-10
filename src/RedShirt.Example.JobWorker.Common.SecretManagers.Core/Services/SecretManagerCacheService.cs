@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Models;
 using System.Collections.Concurrent;
 
 namespace RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
@@ -26,9 +27,9 @@ public interface ISecretManagerCacheService
     ///     Token used to cancel the operation before the underlying secret manager is called.
     /// </param>
     /// <returns>
-    ///     The secret value for <paramref name="key" />.
+    ///     The secret value for <paramref name="key" /> and whether the underlying secret manager was queried.
     /// </returns>
-    Task<string> GetSecretAsync(string key,
+    Task<SecretManagerCacheSecretResponse> GetSecretAsync(string key,
         TimeSpan? expiration = null,
         bool force = false,
         CancellationToken cancellationToken = default);
@@ -52,9 +53,9 @@ public interface ISecretManagerCacheService
     ///     Token used to cancel the operation before the underlying secret manager is called.
     /// </param>
     /// <returns>
-    ///     A dictionary of secret key to value for the requested keys that were resolved.
+    ///     Secret values for the requested keys and whether the underlying secret manager was queried.
     /// </returns>
-    Task<Dictionary<string, string>> GetSecretsAsync(List<string> keys,
+    Task<SecretManagerCacheSecretsResponse> GetSecretsAsync(List<string> keys,
         TimeSpan? expiration = null,
         bool force = false,
         CancellationToken cancellationToken = default);
@@ -105,7 +106,7 @@ internal sealed class SecretManagerCacheService(
         _cache[key] = new CacheEntry(value, absoluteExpiration, DateTimeOffset.UtcNow);
     }
 
-    public async Task<string> GetSecretAsync(string key,
+    public async Task<SecretManagerCacheSecretResponse> GetSecretAsync(string key,
         TimeSpan? expiration = null,
         bool force = false,
         CancellationToken cancellationToken = default)
@@ -114,15 +115,23 @@ internal sealed class SecretManagerCacheService(
 
         if (TryGetUsableCache(key, force, out var cached))
         {
-            return cached;
+            return new SecretManagerCacheSecretResponse
+            {
+                Value = cached,
+                QueriedSecretManager = false
+            };
         }
 
         var value = await secretManagerService.GetSecretAsync(key, cancellationToken);
         SetCache(key, value, expiration);
-        return value;
+        return new SecretManagerCacheSecretResponse
+        {
+            Value = value,
+            QueriedSecretManager = true
+        };
     }
 
-    public async Task<Dictionary<string, string>> GetSecretsAsync(List<string> keys,
+    public async Task<SecretManagerCacheSecretsResponse> GetSecretsAsync(List<string> keys,
         TimeSpan? expiration = null,
         bool force = false,
         CancellationToken cancellationToken = default)
@@ -147,7 +156,11 @@ internal sealed class SecretManagerCacheService(
         if (keysToFetch.Count == 0)
         {
             // Skip requesting secrets if there are no remaining secrets to cache
-            return result;
+            return new SecretManagerCacheSecretsResponse
+            {
+                Values = result,
+                QueriedSecretManager = false
+            };
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -159,7 +172,11 @@ internal sealed class SecretManagerCacheService(
             result[key] = value;
         }
 
-        return result;
+        return new SecretManagerCacheSecretsResponse
+        {
+            Values = result,
+            QueriedSecretManager = true
+        };
     }
 
     internal sealed class CacheEntry(string value, DateTimeOffset? absoluteExpiration, DateTimeOffset fetchedAt)

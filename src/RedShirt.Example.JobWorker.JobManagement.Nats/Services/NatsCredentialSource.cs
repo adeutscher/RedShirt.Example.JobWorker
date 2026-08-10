@@ -21,8 +21,8 @@ internal class NatsCredentialSource(
 
         return new NatsCredentialModel
         {
-            User = secrets[options.Value.UserPath],
-            Password = secrets[options.Value.PasswordPath]
+            User = secrets.Values[options.Value.UserPath],
+            Password = secrets.Values[options.Value.PasswordPath]
         };
     }
 

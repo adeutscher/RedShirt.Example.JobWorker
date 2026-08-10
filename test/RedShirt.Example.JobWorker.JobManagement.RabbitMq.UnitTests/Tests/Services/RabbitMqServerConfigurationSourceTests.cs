@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Models;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 
@@ -26,10 +27,14 @@ public class RabbitMqServerConfigurationSourceTests
                 null,
                 false,
                 TestContext.Current.CancellationToken))
-            .ReturnsAsync(new Dictionary<string, string>
+            .ReturnsAsync(new SecretManagerCacheSecretsResponse
             {
-                [userPath] = user,
-                [passwordPath] = password
+                Values = new Dictionary<string, string>
+                {
+                    [userPath] = user,
+                    [passwordPath] = password
+                },
+                QueriedSecretManager = true
             });
 
         var source = new RabbitMqServerConfigurationSource(

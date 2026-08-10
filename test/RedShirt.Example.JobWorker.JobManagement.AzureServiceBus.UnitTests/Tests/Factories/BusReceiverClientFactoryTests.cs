@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Models;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
@@ -23,8 +24,12 @@ public class BusReceiverClientFactoryTests
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
         secrets
             .Setup(c => c.GetSecretAsync(secretPath, null, false, cts.Token))
-            .ReturnsAsync(
-                "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;");
+            .ReturnsAsync(new SecretManagerCacheSecretResponse
+            {
+                Value =
+                    "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
+                QueriedSecretManager = true
+            });
 
         var factory = new BusReceiverClientFactory(secrets.Object, Options.Create(config));
 
@@ -48,8 +53,12 @@ public class BusReceiverClientFactoryTests
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
         secrets
             .Setup(c => c.GetSecretAsync(secretPath, null, false, TestContext.Current.CancellationToken))
-            .ReturnsAsync(
-                "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;");
+            .ReturnsAsync(new SecretManagerCacheSecretResponse
+            {
+                Value =
+                    "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
+                QueriedSecretManager = true
+            });
 
         var factory = new BusReceiverClientFactory(secrets.Object, Options.Create(config));
 
@@ -146,8 +155,12 @@ public class BusReceiverClientFactoryTests
         secrets
             .Setup(c => c.GetSecretAsync("foo", null, false, TestContext.Current.CancellationToken))
             // Using connection string suggestion from local testing's service bus emulator
-            .ReturnsAsync(
-                "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;");
+            .ReturnsAsync(new SecretManagerCacheSecretResponse
+            {
+                Value =
+                    "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
+                QueriedSecretManager = true
+            });
 
         var factory = new BusReceiverClientFactory(secrets.Object, Options.Create(config));
 

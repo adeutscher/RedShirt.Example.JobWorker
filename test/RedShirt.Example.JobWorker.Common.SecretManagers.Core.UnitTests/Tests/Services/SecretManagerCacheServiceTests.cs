@@ -23,14 +23,16 @@ public class SecretManagerCacheServiceTests
                     ForceCooldownSeconds = 30
                 }));
 
-            Assert.Equal("stale",
-                await cache.GetSecretAsync(key, TimeSpan.FromMilliseconds(40),
-                    cancellationToken: TestContext.Current.CancellationToken));
+            var first = await cache.GetSecretAsync(key, TimeSpan.FromMilliseconds(40),
+                cancellationToken: TestContext.Current.CancellationToken);
+            Assert.Equal("stale", first.Value);
+            Assert.True(first.QueriedSecretManager);
 
             await Task.Delay(TimeSpan.FromMilliseconds(60), TestContext.Current.CancellationToken);
 
-            Assert.Equal("fresh",
-                await cache.GetSecretAsync(key, cancellationToken: TestContext.Current.CancellationToken));
+            var second = await cache.GetSecretAsync(key, cancellationToken: TestContext.Current.CancellationToken);
+            Assert.Equal("fresh", second.Value);
+            Assert.True(second.QueriedSecretManager);
 
             secrets.Verify(s => s.GetSecretAsync(key, TestContext.Current.CancellationToken), Times.Exactly(2));
         }
@@ -52,14 +54,16 @@ public class SecretManagerCacheServiceTests
                     ForceCooldownSeconds = 1
                 }));
 
-            Assert.Equal("v1",
-                await cache.GetSecretAsync(key, cancellationToken: TestContext.Current.CancellationToken));
+            var first = await cache.GetSecretAsync(key, cancellationToken: TestContext.Current.CancellationToken);
+            Assert.Equal("v1", first.Value);
+            Assert.True(first.QueriedSecretManager);
 
             await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken);
 
-            Assert.Equal("v2",
-                await cache.GetSecretAsync(key, force: true,
-                    cancellationToken: TestContext.Current.CancellationToken));
+            var second = await cache.GetSecretAsync(key, force: true,
+                cancellationToken: TestContext.Current.CancellationToken);
+            Assert.Equal("v2", second.Value);
+            Assert.True(second.QueriedSecretManager);
 
             secrets.Verify(s => s.GetSecretAsync(key, TestContext.Current.CancellationToken), Times.Exactly(2));
         }
@@ -81,11 +85,14 @@ public class SecretManagerCacheServiceTests
 
             // Call the first time
             var first = await cache.GetSecretAsync(key, cancellationToken: TestContext.Current.CancellationToken);
-            Assert.Equal(secret, first);
+            Assert.Equal(secret, first.Value);
+            Assert.True(first.QueriedSecretManager);
+
             var again = await cache.GetSecretAsync(key, force: true,
                 cancellationToken: TestContext.Current.CancellationToken);
 
-            Assert.Equal(secret, again);
+            Assert.Equal(secret, again.Value);
+            Assert.False(again.QueriedSecretManager);
             secrets.Verify(s => s.GetSecretAsync(key, TestContext.Current.CancellationToken), Times.Once);
             secrets.VerifyNoOtherCalls();
         }
@@ -108,8 +115,11 @@ public class SecretManagerCacheServiceTests
             var first = await cache.GetSecretAsync(key, cancellationToken: TestContext.Current.CancellationToken);
             var second = await cache.GetSecretAsync(key, cancellationToken: TestContext.Current.CancellationToken);
 
-            Assert.Equal(secret, first);
-            Assert.Same(first, second);
+            Assert.Equal(secret, first.Value);
+            Assert.True(first.QueriedSecretManager);
+            Assert.Equal(secret, second.Value);
+            Assert.False(second.QueriedSecretManager);
+            Assert.Same(first.Value, second.Value);
             secrets.Verify(s => s.GetSecretAsync(key, TestContext.Current.CancellationToken), Times.Once);
             secrets.VerifyNoOtherCalls();
         }
@@ -131,11 +141,13 @@ public class SecretManagerCacheServiceTests
 
             var first = await cache.GetSecretAsync(key,
                 cancellationToken: TestContext.Current.CancellationToken);
-            Assert.Equal(secret, first);
+            Assert.Equal(secret, first.Value);
+            Assert.True(first.QueriedSecretManager);
             await Task.Delay(TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken);
             var cached = await cache.GetSecretAsync(key, cancellationToken: TestContext.Current.CancellationToken);
 
-            Assert.Equal(secret, cached);
+            Assert.Equal(secret, cached.Value);
+            Assert.False(cached.QueriedSecretManager);
             secrets.Verify(s => s.GetSecretAsync(key, TestContext.Current.CancellationToken), Times.Once);
         }
 
@@ -178,7 +190,8 @@ public class SecretManagerCacheServiceTests
 
             var result = await cache.GetSecretsAsync([key], cancellationToken: TestContext.Current.CancellationToken);
 
-            Assert.Equal(value, result[key]);
+            Assert.Equal(value, result.Values[key]);
+            Assert.False(result.QueriedSecretManager);
             secrets.Verify(s => s.GetSecretAsync(key, TestContext.Current.CancellationToken), Times.Once);
             secrets.Verify(
                 s => s.GetSecretsAsync(It.IsAny<List<string>>(), It.IsAny<CancellationToken>()),
@@ -195,7 +208,7 @@ public class SecretManagerCacheServiceTests
             var secrets = new Mock<ISecretManagerService>(MockBehavior.Strict);
             secrets
                 .Setup(s => s.GetSecretsAsync(It.Is<List<string>>(keys =>
-                        keys.Count() == 1 && keys.Single() == key),
+                        keys.Count == 1 && keys.Single() == key),
                     TestContext.Current.CancellationToken))
                 .ReturnsAsync(new Dictionary<string, string> {[key] = value});
 
@@ -208,7 +221,8 @@ public class SecretManagerCacheServiceTests
             var result = await cache.GetSecretsAsync([key, key, key],
                 cancellationToken: TestContext.Current.CancellationToken);
 
-            Assert.Equal(new Dictionary<string, string> {[key] = value}, result);
+            Assert.Equal(new Dictionary<string, string> {[key] = value}, result.Values);
+            Assert.True(result.QueriedSecretManager);
             secrets.Verify(
                 s => s.GetSecretsAsync(It.IsAny<List<string>>(), TestContext.Current.CancellationToken),
                 Times.Once);
@@ -228,7 +242,8 @@ public class SecretManagerCacheServiceTests
 
             var result = await cache.GetSecretsAsync([], cancellationToken: TestContext.Current.CancellationToken);
 
-            Assert.Empty(result);
+            Assert.Empty(result.Values);
+            Assert.False(result.QueriedSecretManager);
             secrets.VerifyNoOtherCalls();
         }
 
@@ -249,14 +264,16 @@ public class SecretManagerCacheServiceTests
                     ForceCooldownSeconds = 1
                 }));
 
-            Assert.Equal("alpha",
-                (await cache.GetSecretsAsync([key], cancellationToken: TestContext.Current.CancellationToken))[key]);
+            var first = await cache.GetSecretsAsync([key], cancellationToken: TestContext.Current.CancellationToken);
+            Assert.Equal("alpha", first.Values[key]);
+            Assert.True(first.QueriedSecretManager);
 
             await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken);
 
-            Assert.Equal("beta",
-                (await cache.GetSecretsAsync([key], force: true,
-                    cancellationToken: TestContext.Current.CancellationToken))[key]);
+            var second = await cache.GetSecretsAsync([key], force: true,
+                cancellationToken: TestContext.Current.CancellationToken);
+            Assert.Equal("beta", second.Values[key]);
+            Assert.True(second.QueriedSecretManager);
 
             secrets.Verify(
                 s => s.GetSecretsAsync(It.IsAny<List<string>>(), TestContext.Current.CancellationToken),
@@ -284,7 +301,8 @@ public class SecretManagerCacheServiceTests
             var forced = await cache.GetSecretsAsync([key], force: true,
                 cancellationToken: TestContext.Current.CancellationToken);
 
-            Assert.Equal(value, forced[key]);
+            Assert.Equal(value, forced.Values[key]);
+            Assert.False(forced.QueriedSecretManager);
             secrets.Verify(
                 s => s.GetSecretsAsync(It.IsAny<List<string>>(), TestContext.Current.CancellationToken),
                 Times.Once);
@@ -319,10 +337,12 @@ public class SecretManagerCacheServiceTests
             var first = await cache.GetSecretsAsync(request, cancellationToken: TestContext.Current.CancellationToken);
             var second = await cache.GetSecretsAsync(request, cancellationToken: TestContext.Current.CancellationToken);
 
-            Assert.Equal(payload[keyA], first[keyA]);
-            Assert.Equal(payload[keyB], first[keyB]);
-            Assert.Equal(first[keyA], second[keyA]);
-            Assert.Equal(first[keyB], second[keyB]);
+            Assert.Equal(payload[keyA], first.Values[keyA]);
+            Assert.Equal(payload[keyB], first.Values[keyB]);
+            Assert.True(first.QueriedSecretManager);
+            Assert.Equal(first.Values[keyA], second.Values[keyA]);
+            Assert.Equal(first.Values[keyB], second.Values[keyB]);
+            Assert.False(second.QueriedSecretManager);
             secrets.Verify(
                 s => s.GetSecretsAsync(It.IsAny<List<string>>(), TestContext.Current.CancellationToken),
                 Times.Once);
@@ -356,8 +376,9 @@ public class SecretManagerCacheServiceTests
             var result = await cache.GetSecretsAsync([cachedKey, missingKey],
                 cancellationToken: TestContext.Current.CancellationToken);
 
-            Assert.Equal(cachedValue, result[cachedKey]);
-            Assert.Equal(missingValue, result[missingKey]);
+            Assert.Equal(cachedValue, result.Values[cachedKey]);
+            Assert.Equal(missingValue, result.Values[missingKey]);
+            Assert.True(result.QueriedSecretManager);
             secrets.Verify(s => s.GetSecretAsync(cachedKey, TestContext.Current.CancellationToken), Times.Once);
             secrets.Verify(
                 s => s.GetSecretsAsync(It.IsAny<List<string>>(), TestContext.Current.CancellationToken),
