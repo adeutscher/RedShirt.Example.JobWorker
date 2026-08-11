@@ -20,8 +20,8 @@ internal sealed class RedisConnectionFactory(
         try
         {
             return await ConnectionMultiplexer.ConnectAsync(
-                await secretManager.GetSecretAsync(options.Value.ConnectionStringPath,
-                    cancellationToken: cancellationToken), opts =>
+                (await secretManager.GetSecretAsync(options.Value.ConnectionStringPath,
+                    cancellationToken: cancellationToken)).Value, opts =>
                 {
                     opts.ConnectTimeout = 2000;
                     opts.ConnectRetry = 0;

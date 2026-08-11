@@ -24,8 +24,8 @@ internal sealed class RabbitMqServerConfigurationSource(
         {
             Hostname = options.Value.Hostname,
             VirtualHost = options.Value.VHost,
-            User = secrets[options.Value.UserPath],
-            Password = secrets[options.Value.PasswordPath]
+            User = secrets.Values[options.Value.UserPath],
+            Password = secrets.Values[options.Value.PasswordPath]
         };
     }
 

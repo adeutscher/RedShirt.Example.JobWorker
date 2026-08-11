@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Models;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
 
@@ -23,7 +24,11 @@ public class QueueConsumerClientFactoryTests
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
         secrets
             .Setup(c => c.GetSecretAsync("foo", null, false, TestContext.Current.CancellationToken))
-            .ReturnsAsync(connectionString);
+            .ReturnsAsync(new SecretManagerCacheSecretResponse
+            {
+                Value = connectionString,
+                QueriedSecretManager = true
+            });
 
         var factory = new QueueConsumerClientFactory(secrets.Object, Options.Create(config));
 

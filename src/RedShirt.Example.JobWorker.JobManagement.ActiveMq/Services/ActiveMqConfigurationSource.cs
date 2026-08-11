@@ -23,8 +23,8 @@ internal class ActiveMqServerConfigurationSource(
         return new ActiveMqServerConfigurationModel
         {
             BrokerUri = options.Value.BrokerUri,
-            User = secrets[options.Value.UserPath],
-            Password = secrets[options.Value.PasswordPath]
+            User = secrets.Values[options.Value.UserPath],
+            Password = secrets.Values[options.Value.PasswordPath]
         };
     }
 

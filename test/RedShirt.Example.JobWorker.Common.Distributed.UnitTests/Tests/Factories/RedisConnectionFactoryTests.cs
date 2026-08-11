@@ -3,6 +3,7 @@ using Moq;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Common.Distributed.Factories;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Exceptions;
+using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Models;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 using StackExchange.Redis;
 
@@ -18,7 +19,11 @@ public class RedisConnectionFactoryTests
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
         secrets
             .Setup(s => s.GetSecretAsync(connectionStringPath, null, false, TestContext.Current.CancellationToken))
-            .ReturnsAsync("localhost:1");
+            .ReturnsAsync(new SecretManagerCacheSecretResponse
+            {
+                Value = "localhost:1",
+                QueriedSecretManager = true
+            });
 
         var factory = new RedisConnectionFactory(
             secrets.Object,
