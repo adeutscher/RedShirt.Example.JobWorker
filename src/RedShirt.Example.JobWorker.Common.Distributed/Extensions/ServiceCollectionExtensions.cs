@@ -38,7 +38,6 @@ public static class ServiceCollectionExtensions
             .Configure<RedisConnectionFactory.ConfigurationModel>(configuration.GetSection($"{CommonPrefix}:Redis"))
             .AddSingleton<IRedisConnectionFactory, RedisConnectionFactory>()
             .AddSingleton<IRedisConnectionCacheService, RedisConnectionCacheService>()
-            .AddSingleton<IDistributedSleepService, DistributedSleepService>()
             .AddSingleton<IRedisDistributedExceptionArbiterService, RedisDistributedExceptionArbiterService>()
             .AddSingleton<IDistributedRetryWrapperService, RedisDistributedRetryWrapperService>()
             .AddSingleton<IAbstractedLockService, RedisLockService>()

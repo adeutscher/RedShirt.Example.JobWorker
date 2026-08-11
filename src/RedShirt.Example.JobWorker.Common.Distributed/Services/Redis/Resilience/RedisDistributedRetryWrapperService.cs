@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
+using RedShirt.Example.JobWorker.Common.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.Services.Redis.Resilience;
 
@@ -53,7 +54,7 @@ internal interface IDistributedRetryWrapperService
 /// <summary>
 ///     Polly v8-based retry wrapper for Redis / distributed-cache calls.
 ///     Retries when <see cref="IRedisDistributedExceptionArbiterService" /> reports an expected transient failure,
-///     using exponential backoff via <see cref="IDistributedSleepService" />.
+///     using exponential backoff via <see cref="ISleepService" />.
 /// </summary>
 /// <param name="exceptionArbiterService">Classifies Redis-related exceptions as expected/transient.</param>
 /// <param name="logger">Logs each retry attempt.</param>
@@ -61,7 +62,7 @@ internal interface IDistributedRetryWrapperService
 internal sealed class RedisDistributedRetryWrapperService(
     IRedisDistributedExceptionArbiterService exceptionArbiterService,
     ILogger<RedisDistributedRetryWrapperService> logger,
-    IDistributedSleepService sleepService)
+    ISleepService sleepService)
     : IDistributedRetryWrapperService
 {
     private const int RedisRetryCount = 3;
@@ -73,7 +74,7 @@ internal sealed class RedisDistributedRetryWrapperService(
 
     /// <summary>
     ///     Creates (once) the retry pipeline: arbiter-driven <c>ShouldHandle</c>, zero Polly delay,
-    ///     and exponential backoff performed in <c>OnRetry</c> through <see cref="IDistributedSleepService" />.
+    ///     and exponential backoff performed in <c>OnRetry</c> through <see cref="ISleepService" />.
     /// </summary>
     private ResiliencePipeline GetRetryPipeline()
     {
@@ -106,7 +107,7 @@ internal sealed class RedisDistributedRetryWrapperService(
                     logger.LogWarning(args.Outcome.Exception,
                         "Retrying Redis distributed operation after attempt {AttemptNumber}",
                         args.AttemptNumber);
-                    // Delay is performed via IDistributedSleepService in OnRetry so tests can mock sleeps.
+                    // Delay is performed via ISleepService in OnRetry so tests can mock sleeps.
                     await sleepService.DelayAsync(TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber)),
                         args.Context.CancellationToken);
                 }

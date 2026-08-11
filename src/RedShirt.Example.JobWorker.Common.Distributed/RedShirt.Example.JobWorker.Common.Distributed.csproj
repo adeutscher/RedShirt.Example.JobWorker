@@ -16,6 +16,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Common\RedShirt.Example.JobWorker.Common.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.SecretManagers.Core\RedShirt.Example.JobWorker.Common.SecretManagers.Core.csproj"/>
     </ItemGroup>
 
