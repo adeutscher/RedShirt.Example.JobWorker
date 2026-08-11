@@ -2,8 +2,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
-using RedShirt.Example.JobWorker.Common.Distributed.Services;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis.Resilience;
+using RedShirt.Example.JobWorker.Common.Services.Utility;
 using StackExchange.Redis;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services.Redis.Resilience;
@@ -65,11 +65,11 @@ public class RedisDistributedRetryWrapperServiceTests
         };
     }
 
-    private static Mock<IDistributedSleepService> CreateSleepService(
+    private static Mock<ISleepService> CreateSleepService(
         IList<TimeSpan>? capturedDelays = null,
         IList<CancellationToken>? capturedTokens = null)
     {
-        var sleepService = new Mock<IDistributedSleepService>(MockBehavior.Strict);
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
         sleepService
             .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .Returns<TimeSpan, CancellationToken>((delay, cancellationToken) =>
