@@ -1,7 +1,6 @@
 # RedShirt.Example.JobWorker
 
-This template provided abstractions and implementations for polling/processing messages out of a variety of message
-brokers. It is intended to be run out of a containerized environment.
+A .NET template for a containerized worker that polls jobs from whatever message broker you already run.
 
 Repo features:
 
@@ -27,6 +26,41 @@ Repo features:
     * Caches results to prevent re-running of a job if received non-concurrently
 * Container health probes
 * Documentation for local testing (see `test/local/`)
+
+# Core Architecture
+
+The general architecture of the core application goes along these lines:
+
+* Dependency injection is set up with an `IJobSource` implementation. The job source abstraction handles:
+    * Pulling messages from a source
+    * Acknowledging completed messages
+    * Sending heartbeat signals back to the source to keep message ownership with the JobWorker instance.
+* A job loader (`IJobLoader`) worker thread pulls messages from a job source and feeds it through an intake handler into
+  an in-memory repository. The job loader has two configurable strategy options (described in more detail
+  in [Batch Mode vs. Loader Mode](#batch-mode-vs-loader-mode)):
+    * Batch Mode (default): Messages are processed in batches, with the next batch being pulled only after the previous
+      one has completed.
+    * Loader Mode: Messages are continually pulled to maintain an in-memory buffer of messages.
+* Messages in the in-memory repository can be prioritized by the implementation of the message sorter
+  `ISourceMessageSorter`).
+* Executor (`IJobExecutor`) worker threads pulls a message at a time from the in-memory repository. When it receives a
+  message, it passes it through safety layers where it is invokes the job logic runner (`IJobLogicRunner`). The job
+  logic runner shall run the message handling for this message type.
+    * For this general template, the job logic runner implementation is currently a stub that shall sleep for the
+      requested number of seconds.
+* In the event that the job source implementation requires application-level heartbeats for long-running messages, a
+  heartbeat maintainer (`IHeartbeatMaintainer`) worker thread shall periodically heartbeat messages according to the job
+  source's recommendation.
+    * Generally, job sources that require heartbeats are told to recommend a heartbeat interval of 75% of the maximum
+      in-flight time for a message without heartbeats. For example, an SQS consumer configured with a visibility timeout
+      of 60 seconds would recommend 45 seconds between heartbeats.
+* In the event that the cache-based idempotency system is enabled, a monitor (`IIdempotencyMonitor`) worker thread shall
+  periodically try to follow up on received messages that the idempotency system recognized as already in flight from
+  another worker thread.
+    * The other worker thread in question is not necessarily on the worker instance that received the redelivered
+      message.
+    * The reason for this alternative worker thread is to avoid holding up executor worker threads on account of waiting
+      for another message, possibly on another worker instance, to finish.
 
 # Configuration
 
@@ -95,7 +129,9 @@ Batch mode is the default mode for this template. To enable loader mode:
 * Set the `JOBS__USE_LOADER_MODE` environment variable to `true`.
 * If you wish to change the default or to have your application use only one polling strategy, then you can adjust the
   logic in the `RedShirt.Example.JobWorker.Core` project's `Extensions/ServiceCollectionExtensions.cs` (as part of
-  initializing this template)
+  initializing this template).
+
+Some job sources work better with Loader Mode than others, as the below subsections will explain.
 
 ### Important Note: Loader Mode + Kinesis
 
@@ -124,6 +160,37 @@ must be the same as processing the message once.
 This template has support for idempotent operations by way of Redis caches.
 
 For configuration examples, see the `worker` section of the `test/local/docker-compose.yaml` file.
+
+### Feature History
+
+Prior to its implementation in this template, the idea for idempotency came from working on an unrelated RabbitMQ
+message consumer application. The connection to RabbitMQ would become unstable when the server was under load. Because
+of how RabbitMQ functions, this meant that ownership of the messages would be lost by the consumer. Even in an
+environment with only one message consumer instance, the retrieval of a message is tied to the specific connection that
+it came from. Even if the connection to RabbitMQ is reestablished, it cannot be used to acknowledge the message from the
+previous connection.
+
+Thus, the idempotency system in this template and the other worker had two main objectives:
+
+* The same message from a source should not be processed twice.
+* The same message from a source should *especially* not be processed twice simultaneously.
+* If a message is received twice, then that suggests that the previous retrieval of the message lost custody and is
+  unable to acknowledge. The retrieval with custody should use the response status of the retrieval that lost custody
+  once it becomes available rather than re-process the message.
+
+### Feature Architecture
+
+* Idempotency operations are centralized in the Idempotency Execution Service (`IIdempotencyExecutionService`).
+* The Idempotency Execution Service is used extensively by the executor worker threads. However, the idempotency service
+  is also written to return permissive stand-ins in the event that idempotency is not enabled in configuration.
+* If idempotency support is enabled, then a monitor worker thread shall occasionally check the status of messages that
+  were detected as being re-received in parallel to an original receive.
+    * This parallel running could happen on this instance of the job worker process or another instance, as judgment is
+      made by a distributed lock based in a Redis instance.
+    * The monitor thread shall periodically try to re-acquire an exclusive lock on the message ID and to use the cached
+      result to immediately acknowledge the message based on past processing.
+    * If the monitor thread is able to acquire a lock but fails to retrieve a cached result, then the message is
+      re-flagged in the job repository as being a candidate for execution.
 
 ### Idempotency IDs
 
