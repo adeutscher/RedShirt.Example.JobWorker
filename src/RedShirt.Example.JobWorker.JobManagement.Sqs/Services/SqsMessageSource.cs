@@ -18,7 +18,7 @@ internal class SqsMessageSource(
 {
     private const int MaxMessagesPerRequest = 10;
 
-    private Task<List<Message>> GetAsync(int batchSize, CancellationToken cancellationToken = default)
+    private Task<List<Message>> GetAsync(int batchSize, bool useWaitTime, CancellationToken cancellationToken)
     {
         /*
          * Deliberately short-polling for messages.
@@ -36,7 +36,10 @@ internal class SqsMessageSource(
                 [
                     SqsConstants.AttributeApproximateFirstReceiveTimestamp,
                     SqsConstants.AttributeApproximateReceiveCount
-                ]
+                ],
+                WaitTimeSeconds = useWaitTime && options.Value.EffectiveWaitTimeSeconds > 0
+                    ? options.Value.EffectiveWaitTimeSeconds
+                    : null
             }, ct);
 
             return response?.Messages ?? [];
@@ -46,10 +49,12 @@ internal class SqsMessageSource(
     public async Task<List<Message>> GetMessagesAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         var messages = new List<Message>();
+        var firstRequest = true;
 
         while (batchSize > MaxMessagesPerRequest)
         {
-            var loopResult = await GetAsync(MaxMessagesPerRequest, cancellationToken);
+            var loopResult = await GetAsync(MaxMessagesPerRequest, firstRequest, cancellationToken);
+            firstRequest = false;
 
             messages.AddRange(loopResult);
 
@@ -64,7 +69,7 @@ internal class SqsMessageSource(
 
         if (batchSize is > 0 and <= MaxMessagesPerRequest)
         {
-            messages.AddRange(await GetAsync(batchSize, cancellationToken));
+            messages.AddRange(await GetAsync(batchSize, firstRequest, cancellationToken));
         }
 
         return messages;
