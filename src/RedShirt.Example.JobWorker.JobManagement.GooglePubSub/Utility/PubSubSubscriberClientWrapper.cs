@@ -10,7 +10,7 @@ internal interface IPubSubSubscriberClientWrapper
 {
     Task AcknowledgeAsync(IPubSubMessageContainer messageModel, CancellationToken cancellationToken = default);
 
-    Task<IEnumerable<IPubSubMessageContainer>> GetMessagesAsync(int maxMessages,
+    Task<IEnumerable<IPubSubMessageContainer>> GetMessagesAsync(int maxMessages, int waitTimeSeconds,
         CancellationToken cancellationToken = default);
 
     Task ModifyAckDeadlineAsync(IPubSubMessageContainer messageModel, int ackDeadlineSeconds,
@@ -31,12 +31,24 @@ internal class PubSubSubscriberClientWrapper(
         return Client.AcknowledgeAsync(subscriptionName, [messageModel.Message!.AckId], cancellationToken);
     }
 
-    public async Task<IEnumerable<IPubSubMessageContainer>> GetMessagesAsync(int maxMessages,
+    public async Task<IEnumerable<IPubSubMessageContainer>> GetMessagesAsync(int maxMessages, int waitTimeSeconds,
         CancellationToken cancellationToken = default)
     {
-        // Bound the pull so an idle subscription does not block the worker poll loop indefinitely.
+        /*
+         * Poll for up to the requested wait time.
+         *
+         * This addition to callSettings adds a hard-coded padding of 1s.
+         * In local testing, it was observed that setting a wait time of N seconds translated in practice to an expiration of N-1 seconds.
+         * Correcting for that in an effort to keep Google Pub/Sub consistent with other message sources in template.
+         *
+         * Confirming that this padding is desired for both short-polling and long-polling.
+         * For long-polling, it makes things consistent with the expected time.
+         * For short-polling, I just don't want to poke the bear on something that was working by experimenting further with <1s expiry times.
+         */
+
         var callSettings = CallSettings.FromCancellationToken(cancellationToken)
-            .WithExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(1)));
+            // Note: If we do not specify a wait time, then Google's library defaults to long-polling for ~60s
+            .WithExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(waitTimeSeconds + 1)));
 
         try
         {
