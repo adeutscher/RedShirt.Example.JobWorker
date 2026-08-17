@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services;
-using RedShirt.Example.JobWorker.JobManagement.Nats.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.Extensions;
 
@@ -20,7 +19,7 @@ public static class ServiceCollectionExtensions
                 // Supporting
                 .Configure<NatsCredentialSource.ConfigurationModel>(configuration.GetSection("JobSource:NATS"))
                 .AddSingleton<INatsCredentialSource, NatsCredentialSource>()
-                .AddSingleton<IFetchNoWaitGetter, FetchNoWaitGetter>()
+                .AddSingleton<INatsMessageSource, NatsMessageSource>()
                 .AddSingleton<INatsJetStreamContextFactory, NatsJetStreamContextFactory>()
                 .Configure<NatsJetStreamContextFactory.ConfigurationModel>(configuration.GetSection("JobSource:NATS"))
             ;

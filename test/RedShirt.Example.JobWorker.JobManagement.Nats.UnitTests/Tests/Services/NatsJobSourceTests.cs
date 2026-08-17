@@ -8,7 +8,6 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services;
-using RedShirt.Example.JobWorker.JobManagement.Nats.Utility;
 using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Services;
@@ -70,16 +69,16 @@ public class NatsJobSourceTests
         };
 
         var contextFactory = new Mock<INatsJetStreamContextFactory>(MockBehavior.Strict);
-        var fetchNoWaitGetter = new Mock<IFetchNoWaitGetter>(MockBehavior.Strict);
+        var messageSource = new Mock<INatsMessageSource>(MockBehavior.Strict);
 
-        var natsJobSource = new NatsJobSource(contextFactory.Object, fetchNoWaitGetter.Object,
+        var natsJobSource = new NatsJobSource(contextFactory.Object, messageSource.Object,
             new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
         await natsJobSource.AcknowledgeAsync(job.Object, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
 
         Assert.Empty(contextFactory.Invocations);
-        Assert.Empty(fetchNoWaitGetter.Invocations);
+        Assert.Empty(messageSource.Invocations);
     }
 
     [Fact]
@@ -93,13 +92,12 @@ public class NatsJobSourceTests
             WaitTimeSeconds = 0
         };
 
-        var mockGetter = new Mock<IFetchNoWaitGetter>();
-
+        var mockMessageSource = new Mock<INatsMessageSource>(MockBehavior.Strict);
         var mockConsumer = new Mock<INatsJSConsumer>(MockBehavior.Strict);
 
         var mockContext = new Mock<INatsJSContext>(MockBehavior.Strict);
         mockContext
-            .Setup(c => c.CreateOrUpdateConsumerAsync(It.IsAny<string>(), It.IsAny<ConsumerConfig>(),
+            .Setup(c => c.CreateOrUpdateConsumerAsync(queueName, It.IsAny<ConsumerConfig>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(mockConsumer.Object);
 
@@ -108,12 +106,11 @@ public class NatsJobSourceTests
             .Setup(f => f.CreateNatsJetStreamContextAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(mockContext.Object);
 
-        mockGetter
-            .Setup(c => c.FetchNoWaitAsync(mockConsumer.Object, It.IsAny<NatsJSFetchOpts>(),
-                TestContext.Current.CancellationToken))
-            .Returns(() => new INatsJSMsg<NatsMemoryOwner<byte>>[] { }.ToAsyncEnumerable());
+        mockMessageSource
+            .Setup(m => m.FetchMessagesAsync(1, 0, mockConsumer.Object, TestContext.Current.CancellationToken))
+            .ReturnsAsync(new NatsMessageSourceResponse {Messages = []});
 
-        var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object,
+        var jobSource = new NatsJobSource(mockContextFactory.Object, mockMessageSource.Object,
             new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
@@ -124,10 +121,13 @@ public class NatsJobSourceTests
         Assert.Single(mockContextFactory.Invocations);
         Assert.Single(mockContext.Invocations);
         mockContext.Verify(
-            c => c.CreateOrUpdateConsumerAsync(It.IsAny<string>(), It.IsAny<ConsumerConfig>(),
+            c => c.CreateOrUpdateConsumerAsync(queueName,
+                It.Is<ConsumerConfig>(cfg => cfg.Name == "c1" && cfg.DurableName == "c1"),
                 It.IsAny<CancellationToken>()), Times.Once);
         Assert.Empty(mockConsumer.Invocations);
-        Assert.Single(mockGetter.Invocations);
+        mockMessageSource.Verify(
+            m => m.FetchMessagesAsync(1, 0, mockConsumer.Object, TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Fact]
@@ -141,8 +141,7 @@ public class NatsJobSourceTests
             WaitTimeSeconds = 0
         };
 
-        var mockGetter = new Mock<IFetchNoWaitGetter>();
-
+        var mockMessageSource = new Mock<INatsMessageSource>(MockBehavior.Strict);
         var mockConsumer = new Mock<INatsJSConsumer>(MockBehavior.Strict);
 
         var mockContext = new Mock<INatsJSContext>(MockBehavior.Strict);
@@ -161,14 +160,11 @@ public class NatsJobSourceTests
         mockMessage.Setup(m => m.Metadata).Returns((NatsJSMsgMetadata?) null);
         SetupMessageBody(mockMessage, body);
 
-        var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>> {mockMessage.Object};
+        mockMessageSource
+            .Setup(m => m.FetchMessagesAsync(1, 0, mockConsumer.Object, TestContext.Current.CancellationToken))
+            .ReturnsAsync(new NatsMessageSourceResponse {Messages = [mockMessage.Object]});
 
-        mockGetter
-            .Setup(c => c.FetchNoWaitAsync(mockConsumer.Object, It.IsAny<NatsJSFetchOpts>(),
-                TestContext.Current.CancellationToken))
-            .Returns(() => mockData.ToAsyncEnumerable());
-
-        var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object,
+        var jobSource = new NatsJobSource(mockContextFactory.Object, mockMessageSource.Object,
             new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
@@ -191,8 +187,7 @@ public class NatsJobSourceTests
             WaitTimeSeconds = 0
         };
 
-        var mockGetter = new Mock<IFetchNoWaitGetter>();
-
+        var mockMessageSource = new Mock<INatsMessageSource>(MockBehavior.Strict);
         var mockConsumer = new Mock<INatsJSConsumer>(MockBehavior.Strict);
 
         var mockContext = new Mock<INatsJSContext>(MockBehavior.Strict);
@@ -220,14 +215,12 @@ public class NatsJobSourceTests
             string.Empty));
         SetupMessageBody(mockMessage, body);
 
-        var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>> {mockMessage.Object};
-
-        mockGetter
-            .Setup(c => c.FetchNoWaitAsync(mockConsumer.Object, It.IsAny<NatsJSFetchOpts>(),
+        mockMessageSource
+            .Setup(m => m.FetchMessagesAsync(expectedBatchSize, 0, mockConsumer.Object,
                 TestContext.Current.CancellationToken))
-            .Returns(mockData.ToAsyncEnumerable);
+            .ReturnsAsync(new NatsMessageSourceResponse {Messages = [mockMessage.Object]});
 
-        var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object,
+        var jobSource = new NatsJobSource(mockContextFactory.Object, mockMessageSource.Object,
             new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
         var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
@@ -237,19 +230,10 @@ public class NatsJobSourceTests
         Assert.Equal(messageId, returnedJobItem.MessageId);
         Assert.Equal(body, returnedJobItem.Body);
 
-        Assert.Single(mockContextFactory.Invocations);
-        Assert.Single(mockContext.Invocations);
-        mockContext.Verify(
-            c => c.CreateOrUpdateConsumerAsync(It.IsAny<string>(), It.IsAny<ConsumerConfig>(),
-                It.IsAny<CancellationToken>()), Times.Once);
-
-        Assert.Empty(mockConsumer.Invocations);
-        Assert.Single(mockGetter.Invocations);
-        mockGetter
-            .Verify(
-                g => g.FetchNoWaitAsync(mockConsumer.Object,
-                    It.Is<NatsJSFetchOpts>(o => o.MaxMsgs == expectedBatchSize && o.Expires == null),
-                    It.IsAny<CancellationToken>()), Times.Once);
+        mockMessageSource.Verify(
+            m => m.FetchMessagesAsync(expectedBatchSize, 0, mockConsumer.Object,
+                TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Theory]
@@ -266,8 +250,7 @@ public class NatsJobSourceTests
             WaitTimeSeconds = waitTimeSeconds
         };
 
-        var mockGetter = new Mock<IFetchNoWaitGetter>();
-
+        var mockMessageSource = new Mock<INatsMessageSource>(MockBehavior.Strict);
         var mockConsumer = new Mock<INatsJSConsumer>(MockBehavior.Strict);
 
         var mockContext = new Mock<INatsJSContext>(MockBehavior.Strict);
@@ -295,14 +278,12 @@ public class NatsJobSourceTests
             string.Empty));
         SetupMessageBody(mockMessage, body);
 
-        var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>> {mockMessage.Object};
-
-        mockConsumer
-            .Setup(c => c.FetchAsync(It.IsAny<NatsJSFetchOpts>(), It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
+        mockMessageSource
+            .Setup(m => m.FetchMessagesAsync(expectedBatchSize, waitTimeSeconds, mockConsumer.Object,
                 TestContext.Current.CancellationToken))
-            .Returns(mockData.ToAsyncEnumerable);
+            .ReturnsAsync(new NatsMessageSourceResponse {Messages = [mockMessage.Object]});
 
-        var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object,
+        var jobSource = new NatsJobSource(mockContextFactory.Object, mockMessageSource.Object,
             new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
         var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
@@ -312,21 +293,10 @@ public class NatsJobSourceTests
         Assert.Equal(messageId, returnedJobItem.MessageId);
         Assert.Equal(body, returnedJobItem.Body);
 
-        Assert.Single(mockContextFactory.Invocations);
-        Assert.Single(mockContext.Invocations);
-        mockContext.Verify(
-            c => c.CreateOrUpdateConsumerAsync(It.IsAny<string>(), It.IsAny<ConsumerConfig>(),
-                It.IsAny<CancellationToken>()), Times.Once);
-
-        Assert.Single(mockConsumer.Invocations);
-        mockConsumer
-            .Verify(
-                g => g.FetchAsync<NatsMemoryOwner<byte>>(
-                    It.Is<NatsJSFetchOpts>(o =>
-                        o.MaxMsgs == expectedBatchSize && o.Expires == TimeSpan.FromSeconds(waitTimeSeconds)),
-                    null,
-                    It.IsAny<CancellationToken>()), Times.Once);
-        Assert.Empty(mockGetter.Invocations);
+        mockMessageSource.Verify(
+            m => m.FetchMessagesAsync(expectedBatchSize, waitTimeSeconds, mockConsumer.Object,
+                TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Theory]
@@ -342,8 +312,7 @@ public class NatsJobSourceTests
             WaitTimeSeconds = 0
         };
 
-        var mockGetter = new Mock<IFetchNoWaitGetter>();
-
+        var mockMessageSource = new Mock<INatsMessageSource>(MockBehavior.Strict);
         var mockConsumer = new Mock<INatsJSConsumer>(MockBehavior.Strict);
 
         var mockContext = new Mock<INatsJSContext>(MockBehavior.Strict);
@@ -379,12 +348,12 @@ public class NatsJobSourceTests
             mockData.Add(mockMessage.Object);
         }
 
-        mockGetter
-            .Setup(c => c.FetchNoWaitAsync(mockConsumer.Object, It.IsAny<NatsJSFetchOpts>(),
+        mockMessageSource
+            .Setup(m => m.FetchMessagesAsync(expectedBatchSize, 0, mockConsumer.Object,
                 TestContext.Current.CancellationToken))
-            .Returns(() => mockData.ToAsyncEnumerable());
+            .ReturnsAsync(new NatsMessageSourceResponse {Messages = mockData});
 
-        var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object,
+        var jobSource = new NatsJobSource(mockContextFactory.Object, mockMessageSource.Object,
             new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
         var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
@@ -399,19 +368,10 @@ public class NatsJobSourceTests
 
         Assert.All(jobResponse.Items, item => Assert.Equal(body, item.Body));
 
-        Assert.Single(mockContextFactory.Invocations);
-        Assert.Single(mockContext.Invocations);
-        mockContext.Verify(
-            c => c.CreateOrUpdateConsumerAsync(It.IsAny<string>(), It.IsAny<ConsumerConfig>(),
-                It.IsAny<CancellationToken>()), Times.Once);
-
-        Assert.Empty(mockConsumer.Invocations);
-        Assert.Single(mockGetter.Invocations);
-        mockGetter
-            .Verify(
-                g => g.FetchNoWaitAsync(mockConsumer.Object,
-                    It.Is<NatsJSFetchOpts>(o => o.MaxMsgs == expectedBatchSize),
-                    It.IsAny<CancellationToken>()), Times.Once);
+        mockMessageSource.Verify(
+            m => m.FetchMessagesAsync(expectedBatchSize, 0, mockConsumer.Object,
+                TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Fact]

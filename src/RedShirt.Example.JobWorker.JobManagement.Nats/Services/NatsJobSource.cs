@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using RedShirt.Example.JobWorker.Core.Enums;
@@ -8,16 +7,17 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
-using RedShirt.Example.JobWorker.JobManagement.Nats.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.Services;
 
 internal class NatsJobSource(
     INatsJetStreamContextFactory natsJetStreamContextFactory,
-    IFetchNoWaitGetter fetchNoWaitGetter,
+    INatsMessageSource messageSource,
     ILogger<NatsJobSource> logger,
     IOptions<NatsJobSource.ConfigurationModel> options) : IJobSource
 {
+    private readonly string _consumerName = Guid.NewGuid().ToString();
+
     private readonly Lazy<Task<INatsJSContext>> _lazyContext =
         new(() => natsJetStreamContextFactory.CreateNatsJetStreamContextAsync());
 
@@ -51,31 +51,15 @@ internal class NatsJobSource(
         var js = await _lazyContext.Value;
 
         var consumer = await js.CreateOrUpdateConsumerAsync(options.Value.StreamName,
-            new ConsumerConfig {Name = "c1", DurableName = "c1"}, cancellationToken);
-        var fetchOpts = new NatsJSFetchOpts
-        {
-            MaxMsgs = batchSize,
-            Expires = options.Value.EffectiveWaitTimeSeconds > 0
-                ? TimeSpan.FromSeconds(options.Value.EffectiveWaitTimeSeconds)
-                : null,
-            IdleHeartbeat = TimeSpan.FromSeconds(5)
-        };
+            new ConsumerConfig {Name = _consumerName}, cancellationToken);
 
         var getJobsResponseItems = new List<IRawJobModel>();
 
-        IAsyncEnumerable<INatsJSMsg<NatsMemoryOwner<byte>>> result;
+        var messageResult = await messageSource.FetchMessagesAsync(batchSize, options.Value.EffectiveWaitTimeSeconds,
+            consumer, cancellationToken);
 
-        // ReSharper disable once ConvertIfStatementToConditionalTernaryExpression
-        if (fetchOpts.Expires.HasValue)
-        {
-            result = consumer.FetchAsync<NatsMemoryOwner<byte>>(fetchOpts, cancellationToken: cancellationToken);
-        }
-        else
-        {
-            result = fetchNoWaitGetter.FetchNoWaitAsync(consumer, fetchOpts, cancellationToken);
-        }
-
-        await foreach (var msg in result.WithCancellation(cancellationToken))
+        // ReSharper disable once ForeachCanBeConvertedToQueryUsingAnotherGetEnumerator
+        foreach (var msg in messageResult.Messages)
         {
             // Got a message, add it to return set.
             getJobsResponseItems.Add(new NatsRawJobModel
