@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
@@ -6,11 +7,12 @@ namespace RedShirt.Example.JobWorker.JobManagement.Nats.Services;
 
 internal interface INatsMessageSource
 {
-    Task<NatsMessageSourceResponse> FetchMessagesAsync(int batchSize, int delayTimeSeconds, INatsJSConsumer consumer,
-        CancellationToken cancellationToken = default);
+    Task<NatsMessageSourceResponse> FetchMessagesAsync(int batchSize, CancellationToken cancellationToken = default);
 }
 
-internal class NatsMessageSource : INatsMessageSource
+internal class NatsMessageSource(
+    INatsConsumerSource consumerSource,
+    IOptions<NatsMessageSource.ConfigurationModel> options) : INatsMessageSource
 {
     private static readonly TimeSpan HeartbeatTime = TimeSpan.FromSeconds(5);
 
@@ -34,10 +36,12 @@ internal class NatsMessageSource : INatsMessageSource
         return items;
     }
 
-    public async Task<NatsMessageSourceResponse> FetchMessagesAsync(int batchSize, int delayTimeSeconds,
-        INatsJSConsumer consumer, CancellationToken cancellationToken = default)
+    public async Task<NatsMessageSourceResponse> FetchMessagesAsync(int batchSize,
+        CancellationToken cancellationToken = default)
     {
-        if (delayTimeSeconds <= 0)
+        var consumer = await consumerSource.GetConsumerAsync(cancellationToken);
+
+        if (options.Value.EffectiveWaitTimeSeconds <= 0)
         {
             return new NatsMessageSourceResponse
             {
@@ -49,7 +53,7 @@ internal class NatsMessageSource : INatsMessageSource
         var firstResult = await consumer.NextAsync<NatsMemoryOwner<byte>>(opts: new NatsJSNextOpts
         {
             IdleHeartbeat = HeartbeatTime,
-            Expires = TimeSpan.FromSeconds(delayTimeSeconds)
+            Expires = TimeSpan.FromSeconds(options.Value.EffectiveWaitTimeSeconds)
         }, cancellationToken: cancellationToken);
 
         if (firstResult is null)
@@ -73,5 +77,11 @@ internal class NatsMessageSource : INatsMessageSource
         {
             Messages = items
         };
+    }
+
+    public sealed class ConfigurationModel
+    {
+        public required int WaitTimeSeconds { get; init; }
+        public int EffectiveWaitTimeSeconds => Math.Max(WaitTimeSeconds, 0);
     }
 }

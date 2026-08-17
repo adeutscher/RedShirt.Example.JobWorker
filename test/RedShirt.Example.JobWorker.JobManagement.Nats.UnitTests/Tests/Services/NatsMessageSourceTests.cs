@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services;
@@ -36,10 +37,42 @@ public class NatsMessageSourceTests
         return message.Object;
     }
 
+    private static (NatsMessageSource MessageSource, Mock<INatsJSConsumer> Consumer, Mock<INatsConsumerSource>
+        ConsumerSource) CreateSut(int waitTimeSeconds)
+    {
+        var consumer = CreateConsumerMock();
+        var consumerSource = new Mock<INatsConsumerSource>(MockBehavior.Strict);
+        consumerSource
+            .Setup(s => s.GetConsumerAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(consumer.Object);
+
+        var messageSource = new NatsMessageSource(consumerSource.Object,
+            Options.Create(new NatsMessageSource.ConfigurationModel
+            {
+                WaitTimeSeconds = waitTimeSeconds
+            }));
+
+        return (messageSource, consumer, consumerSource);
+    }
+
+    [Theory]
+    [InlineData(-5, 0)]
+    [InlineData(0, 0)]
+    [InlineData(3, 3)]
+    public void ConfigurationModel_EffectiveWaitTimeSeconds_FloorsAtZero(int waitTimeSeconds, int expected)
+    {
+        var configuration = new NatsMessageSource.ConfigurationModel
+        {
+            WaitTimeSeconds = waitTimeSeconds
+        };
+
+        Assert.Equal(expected, configuration.EffectiveWaitTimeSeconds);
+    }
+
     [Fact]
     public async Task FetchMessagesAsync_NoWait_ReturnsEmptyWhenFetchReturnsNothing()
     {
-        var consumer = CreateConsumerMock();
+        var (messageSource, consumer, consumerSource) = CreateSut(0);
         consumer
             .Setup(c => c.FetchNoWaitAsync(
                 It.IsAny<NatsJSFetchOpts>(),
@@ -47,11 +80,10 @@ public class NatsMessageSourceTests
                 It.IsAny<CancellationToken>()))
             .Returns(AsAsyncEnumerable(Array.Empty<INatsJSMsg<NatsMemoryOwner<byte>>>()));
 
-        var messageSource = new NatsMessageSource();
-        var response = await messageSource.FetchMessagesAsync(3, 0, consumer.Object,
-            TestContext.Current.CancellationToken);
+        var response = await messageSource.FetchMessagesAsync(3, TestContext.Current.CancellationToken);
 
         Assert.Empty(response.Messages);
+        consumerSource.Verify(s => s.GetConsumerAsync(TestContext.Current.CancellationToken), Times.Once);
         consumer.Verify(
             c => c.FetchNoWaitAsync<NatsMemoryOwner<byte>>(
                 It.Is<NatsJSFetchOpts>(o => o.MaxMsgs == 3 && o.IdleHeartbeat == ExpectedIdleHeartbeat),
@@ -73,7 +105,7 @@ public class NatsMessageSourceTests
     public async Task FetchMessagesAsync_NoWait_ReturnsMessagesUpToBatchSize(int availableMessages, int batchSize)
     {
         var messages = Enumerable.Range(0, availableMessages).Select(CreateMessage).ToList();
-        var consumer = CreateConsumerMock();
+        var (messageSource, consumer, consumerSource) = CreateSut(0);
         consumer
             .Setup(c => c.FetchNoWaitAsync(
                 It.IsAny<NatsJSFetchOpts>(),
@@ -82,9 +114,7 @@ public class NatsMessageSourceTests
             .Returns((NatsJSFetchOpts opts, INatsDeserialize<NatsMemoryOwner<byte>> _, CancellationToken _) =>
                 AsAsyncEnumerable(messages.Take(opts.MaxMsgs ?? 0)));
 
-        var messageSource = new NatsMessageSource();
-        var response = await messageSource.FetchMessagesAsync(batchSize, 0, consumer.Object,
-            TestContext.Current.CancellationToken);
+        var response = await messageSource.FetchMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 
         var expectedCount = Math.Min(availableMessages, batchSize);
         Assert.Equal(expectedCount, response.Messages.Count);
@@ -93,6 +123,7 @@ public class NatsMessageSourceTests
             Assert.Same(messages[i], response.Messages[i]);
         }
 
+        consumerSource.Verify(s => s.GetConsumerAsync(TestContext.Current.CancellationToken), Times.Once);
         consumer.Verify(
             c => c.FetchNoWaitAsync<NatsMemoryOwner<byte>>(
                 It.Is<NatsJSFetchOpts>(o => o.MaxMsgs == batchSize && o.IdleHeartbeat == ExpectedIdleHeartbeat),
@@ -107,7 +138,7 @@ public class NatsMessageSourceTests
     public async Task FetchMessagesAsync_NonPositiveDelayUsesFetchNoWait(int delayTimeSeconds)
     {
         var message = CreateMessage(0);
-        var consumer = CreateConsumerMock();
+        var (messageSource, consumer, consumerSource) = CreateSut(delayTimeSeconds);
         consumer
             .Setup(c => c.FetchNoWaitAsync(
                 It.IsAny<NatsJSFetchOpts>(),
@@ -115,18 +146,23 @@ public class NatsMessageSourceTests
                 It.IsAny<CancellationToken>()))
             .Returns(AsAsyncEnumerable(new[] {message}));
 
-        var messageSource = new NatsMessageSource();
-        var response = await messageSource.FetchMessagesAsync(1, delayTimeSeconds, consumer.Object,
-            TestContext.Current.CancellationToken);
+        var response = await messageSource.FetchMessagesAsync(1, TestContext.Current.CancellationToken);
 
         Assert.Single(response.Messages);
         Assert.Same(message, response.Messages[0]);
+        consumerSource.Verify(s => s.GetConsumerAsync(TestContext.Current.CancellationToken), Times.Once);
         consumer.Verify(
             c => c.FetchNoWaitAsync(
                 It.IsAny<NatsJSFetchOpts>(),
                 It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+        consumer.Verify(
+            c => c.NextAsync(
+                It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
+                It.IsAny<NatsJSNextOpts>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Theory]
@@ -137,7 +173,7 @@ public class NatsMessageSourceTests
     {
         var firstMessage = CreateMessage(0);
         var remaining = Enumerable.Range(1, remainingMessages).Select(CreateMessage).ToList();
-        var consumer = CreateConsumerMock();
+        var (messageSource, consumer, consumerSource) = CreateSut(delayTimeSeconds);
         consumer
             .Setup(c => c.NextAsync(
                 It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
@@ -152,9 +188,7 @@ public class NatsMessageSourceTests
             .Returns((NatsJSFetchOpts opts, INatsDeserialize<NatsMemoryOwner<byte>> _, CancellationToken _) =>
                 AsAsyncEnumerable(remaining.Take(opts.MaxMsgs ?? 0)));
 
-        var messageSource = new NatsMessageSource();
-        var response = await messageSource.FetchMessagesAsync(batchSize, delayTimeSeconds, consumer.Object,
-            TestContext.Current.CancellationToken);
+        var response = await messageSource.FetchMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 
         var expectedCount = Math.Min(batchSize, 1 + remainingMessages);
         Assert.Equal(expectedCount, response.Messages.Count);
@@ -164,6 +198,7 @@ public class NatsMessageSourceTests
             Assert.Same(remaining[i - 1], response.Messages[i]);
         }
 
+        consumerSource.Verify(s => s.GetConsumerAsync(TestContext.Current.CancellationToken), Times.Once);
         consumer.Verify(
             c => c.NextAsync<NatsMemoryOwner<byte>>(
                 null,
@@ -186,7 +221,7 @@ public class NatsMessageSourceTests
     [InlineData(10)]
     public async Task FetchMessagesAsync_WithDelay_ReturnsEmptyWhenNextReturnsNull(int delayTimeSeconds)
     {
-        var consumer = CreateConsumerMock();
+        var (messageSource, consumer, consumerSource) = CreateSut(delayTimeSeconds);
         consumer
             .Setup(c => c.NextAsync(
                 It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
@@ -194,11 +229,10 @@ public class NatsMessageSourceTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync((INatsJSMsg<NatsMemoryOwner<byte>>?) null);
 
-        var messageSource = new NatsMessageSource();
-        var response = await messageSource.FetchMessagesAsync(3, delayTimeSeconds, consumer.Object,
-            TestContext.Current.CancellationToken);
+        var response = await messageSource.FetchMessagesAsync(3, TestContext.Current.CancellationToken);
 
         Assert.Empty(response.Messages);
+        consumerSource.Verify(s => s.GetConsumerAsync(TestContext.Current.CancellationToken), Times.Once);
         consumer.Verify(
             c => c.NextAsync<NatsMemoryOwner<byte>>(
                 null,
@@ -221,7 +255,7 @@ public class NatsMessageSourceTests
     public async Task FetchMessagesAsync_WithDelay_ReturnsSingleMessageFromNext(int delayTimeSeconds, int batchSize)
     {
         var message = CreateMessage(0);
-        var consumer = CreateConsumerMock();
+        var (messageSource, consumer, consumerSource) = CreateSut(delayTimeSeconds);
         consumer
             .Setup(c => c.NextAsync(
                 It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
@@ -235,12 +269,11 @@ public class NatsMessageSourceTests
                 It.IsAny<CancellationToken>()))
             .Returns(AsAsyncEnumerable(Array.Empty<INatsJSMsg<NatsMemoryOwner<byte>>>()));
 
-        var messageSource = new NatsMessageSource();
-        var response = await messageSource.FetchMessagesAsync(batchSize, delayTimeSeconds, consumer.Object,
-            TestContext.Current.CancellationToken);
+        var response = await messageSource.FetchMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 
         Assert.Single(response.Messages);
         Assert.Same(message, response.Messages[0]);
+        consumerSource.Verify(s => s.GetConsumerAsync(TestContext.Current.CancellationToken), Times.Once);
         consumer.Verify(
             c => c.FetchNoWaitAsync<NatsMemoryOwner<byte>>(
                 It.Is<NatsJSFetchOpts>(o => o.MaxMsgs == 0 && o.IdleHeartbeat == ExpectedIdleHeartbeat),

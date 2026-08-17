@@ -1,26 +1,19 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NATS.Client.JetStream;
-using NATS.Client.JetStream.Models;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.JobManagement.Nats.Factories;
+using RedShirt.Example.JobWorker.JobManagement.Nats.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.Services;
 
 internal class NatsJobSource(
-    INatsJetStreamContextFactory natsJetStreamContextFactory,
+    INatsConsumerSource consumerSource,
     INatsMessageSource messageSource,
     ILogger<NatsJobSource> logger,
-    IOptions<NatsJobSource.ConfigurationModel> options) : IJobSource
+    IOptions<NatsStreamConfigurationModel> options) : IJobSource
 {
-    private readonly string _consumerName = Guid.NewGuid().ToString();
-
-    private readonly Lazy<Task<INatsJSContext>> _lazyContext =
-        new(() => natsJetStreamContextFactory.CreateNatsJetStreamContextAsync());
-
 #pragma warning disable S2325
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
 #pragma warning restore S2325
@@ -48,15 +41,9 @@ internal class NatsJobSource(
         logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from NATS Stream: {StreamName}",
             batchSize, options.Value.StreamName);
 
-        var js = await _lazyContext.Value;
-
-        var consumer = await js.CreateOrUpdateConsumerAsync(options.Value.StreamName,
-            new ConsumerConfig {Name = _consumerName}, cancellationToken);
-
         var getJobsResponseItems = new List<IRawJobModel>();
 
-        var messageResult = await messageSource.FetchMessagesAsync(batchSize, options.Value.EffectiveWaitTimeSeconds,
-            consumer, cancellationToken);
+        var messageResult = await messageSource.FetchMessagesAsync(batchSize, cancellationToken);
 
         // ReSharper disable once ForeachCanBeConvertedToQueryUsingAnotherGetEnumerator
         foreach (var msg in messageResult.Messages)
@@ -79,12 +66,5 @@ internal class NatsJobSource(
     public Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
-    }
-
-    public sealed class ConfigurationModel
-    {
-        public required string StreamName { get; init; }
-        public required int WaitTimeSeconds { get; init; }
-        public int EffectiveWaitTimeSeconds => Math.Max(WaitTimeSeconds, 0);
     }
 }
