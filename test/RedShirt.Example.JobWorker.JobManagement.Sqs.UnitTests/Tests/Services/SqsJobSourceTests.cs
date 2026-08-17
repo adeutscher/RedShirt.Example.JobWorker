@@ -21,14 +21,17 @@ public class SqsJobSourceTests
     }
 
     private static SqsConfigurationModel CreateConfig(string? queueUrl = null, int visibilityTimeoutSeconds = 0,
-        bool dlqNotEnabled = false, int maximumReceives = 1)
+        bool dlqNotEnabled = false, int maximumReceives = 1, int waitTimeSeconds = 0)
     {
         return new SqsConfigurationModel
         {
-            QueueUrl = queueUrl ?? Guid.NewGuid().ToString(),
+            QueueUrl = queueUrl ??
+                       Guid.NewGuid()
+                           .ToString(),
             VisibilityTimeoutSeconds = visibilityTimeoutSeconds,
             DlqNotEnabled = dlqNotEnabled,
-            MaximumReceives = maximumReceives
+            MaximumReceives = maximumReceives,
+            WaitTimeSeconds = waitTimeSeconds
         };
     }
 
