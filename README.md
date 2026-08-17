@@ -2,6 +2,21 @@
 
 A .NET template for a containerized worker that polls jobs from whatever message broker you already run.
 
+# Template
+
+## Template Philosophy
+
+The central philosophy of this template is flexibility and preparedness. A template maintained with lessons from past
+projects can provide a stable foundation from which to launch future projects. The use of a template is more sustainable
+and resource-efficient than adapting directly from past projects.
+
+This template on its own will almost certainly be more feature-rich than any one project needs. I can't imagine a world
+in which a single applied program needs to be prepared to receive messages from 11 different messaging technologies.
+Because of this, this template is designed to make it convenient to prune away unused components. It is much easier to
+delete an unneeded component than it is to generate a new component.
+
+## Features
+
 Repo features:
 
 * Initialisation script for quick namespace adjustment.
