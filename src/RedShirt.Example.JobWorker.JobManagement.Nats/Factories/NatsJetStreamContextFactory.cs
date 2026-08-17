@@ -25,9 +25,7 @@ internal class NatsJetStreamContextFactory(
                 Username = credentials.User,
                 Password = credentials.Password
             },
-            Url = options.Value.Url,
-            RetryOnInitialConnect = true,
-            MaxReconnectRetry = -1
+            Url = options.Value.Url
         };
 
         var connection = new NatsConnection(natsOpts);
