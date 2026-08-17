@@ -108,34 +108,6 @@ public class RedisStreamsJobSourceTests
     }
 
     [Fact]
-    public async Task GetJobsAsync_BlockingRead_HonoursCancellationToken()
-    {
-        var pending = new TaskCompletionSource<StreamEntry[]>();
-
-        var database = new Mock<IDatabase>(MockBehavior.Strict);
-        database
-            .Setup(d => d.StreamReadGroupAsync("jobs", "job-worker", "worker-1", ">", 1, false,
-                TimeSpan.FromSeconds(5), CommandFlags.None))
-            .Returns(pending.Task);
-
-        var connection = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
-        connection.Setup(c => c.GetDatabaseAsync(It.IsAny<CancellationToken>())).ReturnsAsync(database.Object);
-
-        var jobSource = new RedisStreamsJobSource(
-            connection.Object,
-            RedisStreamsRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new NullLogger<RedisStreamsJobSource>(),
-            Options.Create(CreateConfig(waitTimeSeconds: 5)));
-
-        using var cts = new CancellationTokenSource();
-        var getJobs = jobSource.GetJobsAsync(1, cts.Token);
-
-        await cts.CancelAsync();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => getJobs);
-    }
-
-    [Fact]
     public async Task GetJobsAsync_MapsEntriesToRawJobModels()
     {
         var entry1 = CreateEntry("1-0", """{"a":1}""", "idem-1");

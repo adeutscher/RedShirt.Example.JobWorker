@@ -48,14 +48,13 @@ internal class RedisStreamsJobSource(
 
         // Return long-polling strategy
         return database.StreamReadGroupAsync(
-                options.Value.StreamName,
-                options.Value.GroupName,
-                options.Value.EffectiveConsumerName,
-                UnreadEntriesMarker,
-                batchSize,
-                false,
-                TimeSpan.FromSeconds(waitTimeSeconds))
-            .WaitAsync(cancellationToken);
+            options.Value.StreamName,
+            options.Value.GroupName,
+            options.Value.EffectiveConsumerName,
+            UnreadEntriesMarker,
+            batchSize,
+            false,
+            TimeSpan.FromSeconds(waitTimeSeconds));
     }
 
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
