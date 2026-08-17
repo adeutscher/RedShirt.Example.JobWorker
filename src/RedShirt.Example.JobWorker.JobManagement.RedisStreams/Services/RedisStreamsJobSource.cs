@@ -18,6 +18,46 @@ internal class RedisStreamsJobSource(
 {
     private const string UnreadEntriesMarker = ">";
 
+    /// <summary>
+    ///     Issues <c>XREADGROUP</c> for new entries (<c>&gt;</c>).
+    ///     When <see cref="ConfigurationModel.EffectiveWaitTimeSeconds" /> is 0 this is a non-blocking read
+    ///     (current behaviour). When greater than 0, StackExchange.Redis sends <c>BLOCK</c> with <c>COUNT</c>
+    ///     equal to <paramref name="batchSize" />.
+    ///     <c>BLOCK 0</c> (wait forever) is never used: the wait is capped, and the job-source
+    ///     <see cref="CancellationToken" /> is linked via <see cref="Task.WaitAsync(System.Threading.CancellationToken)" />
+    ///     so SIGTERM can abandon the wait. The multiplexer is shared with distributed locks/cache;
+    ///     a long <c>BLOCK</c> can delay those commands on the same connection — prefer a short block,
+    ///     or a dedicated connection for the stream consumer if a short cap is not enough.
+    /// </summary>
+    private Task<StreamEntry[]> ReadGroupAsync(IDatabase database, int batchSize,
+        CancellationToken cancellationToken)
+    {
+        var waitTimeSeconds = options.Value.EffectiveWaitTimeSeconds;
+        if (waitTimeSeconds <= 0)
+        {
+            // Return short-polling strategy
+            return database.StreamReadGroupAsync(
+                options.Value.StreamName,
+                options.Value.GroupName,
+                options.Value.EffectiveConsumerName,
+                UnreadEntriesMarker,
+                batchSize,
+                false,
+                CommandFlags.None);
+        }
+
+        // Return long-polling strategy
+        return database.StreamReadGroupAsync(
+                options.Value.StreamName,
+                options.Value.GroupName,
+                options.Value.EffectiveConsumerName,
+                UnreadEntriesMarker,
+                batchSize,
+                false,
+                TimeSpan.FromSeconds(waitTimeSeconds))
+            .WaitAsync(cancellationToken);
+    }
+
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
@@ -51,19 +91,12 @@ internal class RedisStreamsJobSource(
         var entries = await retryWrapperService.RunAsync(async ct =>
         {
             var database = await redisConnectionCacheService.GetDatabaseAsync(ct);
-            return await database.StreamReadGroupAsync(
-                options.Value.StreamName,
-                options.Value.GroupName,
-                options.Value.EffectiveConsumerName,
-                UnreadEntriesMarker,
-                batchSize,
-                false,
-                CommandFlags.None);
+            return await ReadGroupAsync(database, batchSize, ct);
         }, cancellationToken);
 
         return new JobSourceResponse
         {
-            Items = entries
+            Items = (entries ?? [])
                 // ReSharper disable once CanReplaceCastWithLambdaReturnType
                 .Select(entry => (IRawJobModel) new RedisStreamRawJobModel
                 {
@@ -81,12 +114,27 @@ internal class RedisStreamsJobSource(
 
     public sealed class ConfigurationModel
     {
+        /// <summary>
+        ///     Upper bound for <c>XREADGROUP BLOCK</c>. Never send <c>BLOCK 0</c> (wait forever):
+        ///     shutdown would then depend entirely on cancellation, and the connection would stay
+        ///     checked out of the shared multiplexer.
+        /// </summary>
+        private const int MaximumWaitTimeSeconds = 30;
+
         public required string StreamName { get; init; }
         public required string GroupName { get; init; }
         public string? ConsumerName { get; init; }
 
+        /// <summary>
+        ///     <c>XREADGROUP BLOCK</c> timeout in seconds. 0 (default) is a non-blocking read.
+        /// </summary>
+        public required int WaitTimeSeconds { get; init; }
+
         public string EffectiveConsumerName => !string.IsNullOrWhiteSpace(ConsumerName)
             ? ConsumerName
             : Environment.MachineName;
+
+        public int EffectiveWaitTimeSeconds =>
+            Math.Min(Math.Max(0, WaitTimeSeconds), MaximumWaitTimeSeconds);
     }
 }

@@ -275,6 +275,7 @@ services:
       JOB_SOURCE__REDIS_STREAMS__STREAM_NAME: jobs
       JOB_SOURCE__REDIS_STREAMS__GROUP_NAME: job-worker
       JOB_SOURCE__REDIS_STREAMS__CONSUMER_NAME: worker-1
+      JOB_SOURCE__REDIS_STREAMS__WAIT_TIME_SECONDS: ${JOB_SOURCE__REDIS_STREAMS__WAIT_TIME_SECONDS:-0}
       ## Job Management (Azure Key Vault, used by both Azure Queue Storage and Azure Service Bus)
       ## Job Management (Azure Queue Storage)
       USE_AZURE_QUEUE_STORAGE: "${USE_AZURE_QUEUE_STORAGE-0}"

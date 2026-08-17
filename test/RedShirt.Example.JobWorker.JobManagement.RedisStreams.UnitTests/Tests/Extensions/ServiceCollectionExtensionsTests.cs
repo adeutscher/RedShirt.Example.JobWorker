@@ -17,7 +17,8 @@ public class ServiceCollectionExtensionsTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["JobSource:RedisStreams:StreamName"] = "jobs",
-                ["JobSource:RedisStreams:GroupName"] = "job-worker"
+                ["JobSource:RedisStreams:GroupName"] = "job-worker",
+                ["JobSource:RedisStreams:WaitTimeSeconds"] = "0"
             })
             .Build();
 
