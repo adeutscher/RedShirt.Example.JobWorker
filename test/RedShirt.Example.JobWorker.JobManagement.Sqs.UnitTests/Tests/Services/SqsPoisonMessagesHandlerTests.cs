@@ -39,7 +39,8 @@ public class SqsPoisonMessagesHandlerTests
             QueueUrl = queueUrl,
             VisibilityTimeoutSeconds = 30,
             DlqNotEnabled = false,
-            MaximumReceives = 1
+            MaximumReceives = 1,
+            WaitTimeSeconds = 0
         });
 
         var message = CreateMessage(100);
@@ -72,7 +73,8 @@ public class SqsPoisonMessagesHandlerTests
             QueueUrl = queueUrl,
             VisibilityTimeoutSeconds = 30,
             DlqNotEnabled = true,
-            MaximumReceives = maximumReceives
+            MaximumReceives = maximumReceives,
+            WaitTimeSeconds = 0
         });
 
         var receiptHandle = Guid.NewGuid().ToString();
@@ -103,7 +105,8 @@ public class SqsPoisonMessagesHandlerTests
             QueueUrl = Guid.NewGuid().ToString(),
             VisibilityTimeoutSeconds = 30,
             DlqNotEnabled = true,
-            MaximumReceives = 1
+            MaximumReceives = 1,
+            WaitTimeSeconds = 0
         });
 
         var message = new Message
@@ -129,7 +132,8 @@ public class SqsPoisonMessagesHandlerTests
             QueueUrl = Guid.NewGuid().ToString(),
             VisibilityTimeoutSeconds = 30,
             DlqNotEnabled = true,
-            MaximumReceives = 1
+            MaximumReceives = 1,
+            WaitTimeSeconds = 0
         });
 
         var message = new Message
@@ -161,7 +165,8 @@ public class SqsPoisonMessagesHandlerTests
             QueueUrl = Guid.NewGuid().ToString(),
             VisibilityTimeoutSeconds = 30,
             DlqNotEnabled = true,
-            MaximumReceives = maximumReceives
+            MaximumReceives = maximumReceives,
+            WaitTimeSeconds = 0
         });
 
         var message = CreateMessage(receiveCount);

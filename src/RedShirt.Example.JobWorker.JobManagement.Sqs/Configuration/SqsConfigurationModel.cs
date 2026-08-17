@@ -10,6 +10,12 @@ internal sealed class SqsConfigurationModel
     /// </summary>
     public const int MaximumVisibilityTimeoutAmountSeconds = 43200;
 
+    /// <summary>
+    ///     SQS-defined maximum wait time for long-polling.
+    ///     Source: https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-short-and-long-polling.html
+    /// </summary>
+    private const int MaximumWaitTimeSeconds = 20;
+
     public required string QueueUrl { get; init; }
     public required int VisibilityTimeoutSeconds { get; init; }
 
@@ -30,8 +36,12 @@ internal sealed class SqsConfigurationModel
     /// </summary>
     public required int MaximumReceives { get; init; }
 
+    public required int WaitTimeSeconds { get; init; }
+
     public int EffectiveMaximumReceives => Math.Max(1, MaximumReceives);
 
     public int EffectiveVisibilityTimeoutSeconds =>
         Math.Min(Math.Max(20, VisibilityTimeoutSeconds), MaximumVisibilityTimeoutAmountSeconds);
+
+    public int EffectiveWaitTimeSeconds => Math.Min(Math.Max(0, WaitTimeSeconds), MaximumWaitTimeSeconds);
 }
