@@ -289,6 +289,7 @@ services:
       JOB_SOURCE__AZURE_SERVICE_BUS__CONNECTION_STRING_PATH: "azure-service-bus-connection-string"
       JOB_SOURCE__AZURE_SERVICE_BUS__FULLY_QUALIFIED_NAMESPACE: "not.used.for.local.testing"
       JOB_SOURCE__AZURE_SERVICE_BUS__QUEUE_NAME: "test-queue"
+      JOB_SOURCE__AZURE_SERVICE_BUS__WAIT_TIME_SECONDS: ${JOB_SOURCE__AZURE_SERVICE_BUS__WAIT_TIME_SECONDS:-0}
       ## Job Management (Google Pub/Sub)
       USE_GOOGLE_PUB_SUB: "${USE_GOOGLE_PUB_SUB-0}"
       ### Official client-library hook for the emulator (host:port, no scheme)

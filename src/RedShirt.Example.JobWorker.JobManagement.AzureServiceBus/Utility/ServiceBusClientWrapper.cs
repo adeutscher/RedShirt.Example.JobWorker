@@ -12,7 +12,7 @@ internal interface IServiceBusClientWrapper
         string? deadLetterDescription = null,
         CancellationToken cancellationToken = default);
 
-    Task<IEnumerable<IServiceBusMessageContainer>> GetMessagesAsync(int maxMessages,
+    Task<IEnumerable<IServiceBusMessageContainer>> GetMessagesAsync(int maxMessages, int? waitTimeSeconds = null,
         CancellationToken cancellationToken = default);
 
     Task RenewMessageLockAsync(IServiceBusMessageContainer messageModel, CancellationToken cancellationToken = default);
@@ -37,9 +37,11 @@ internal class ServiceBusClientWrapper(ServiceBusReceiver receiver) : IServiceBu
     }
 
     public async Task<IEnumerable<IServiceBusMessageContainer>> GetMessagesAsync(int maxMessages,
+        int? waitTimeSeconds = null,
         CancellationToken cancellationToken = default)
     {
-        var rawResults = await Client.ReceiveMessagesAsync(maxMessages, TimeSpan.FromSeconds(1), cancellationToken);
+        var rawResults = await Client.ReceiveMessagesAsync(maxMessages,
+            TimeSpan.FromSeconds(waitTimeSeconds is > 0 ? waitTimeSeconds.Value : 1), cancellationToken);
         return rawResults.Select<ServiceBusReceivedMessage, IServiceBusMessageContainer>(m =>
             new ServiceBusMessageContainer
             {

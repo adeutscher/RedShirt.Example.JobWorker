@@ -16,10 +16,12 @@ internal class AzureServiceBusMessageSource(
     IOptions<AzureServiceBusConfigurationModel> options) : IAzureServiceBusMessageSource
 {
     private async Task<List<IServiceBusMessageContainer>> GetAsync(int batchSize,
-        CancellationToken cancellationToken = default)
+        bool useWaitTimeSeconds,
+        CancellationToken cancellationToken)
     {
         var client = await clientSource.GetQueueClientAsync(cancellationToken);
-        var rawMessages = await client.GetMessagesAsync(batchSize, cancellationToken);
+        var rawMessages = await client.GetMessagesAsync(batchSize,
+            useWaitTimeSeconds ? options.Value.EffectiveWaitTimeSeconds : null, cancellationToken);
         return rawMessages.ToList();
     }
 
@@ -27,11 +29,14 @@ internal class AzureServiceBusMessageSource(
         CancellationToken cancellationToken = default)
     {
         var messages = new List<IServiceBusMessageContainer>();
+        var firstRequest = true;
 
         while (batchSize > options.Value.MaxMessagesPerRequest)
         {
             var loopResult =
-                await GetAsync(Math.Min(batchSize, options.Value.MaxMessagesPerRequest), cancellationToken);
+                await GetAsync(Math.Min(batchSize, options.Value.MaxMessagesPerRequest), firstRequest,
+                    cancellationToken);
+            firstRequest = false;
 
             messages.AddRange(loopResult);
 
@@ -47,7 +52,7 @@ internal class AzureServiceBusMessageSource(
         if (batchSize > 0 && batchSize <= options.Value.MaxMessagesPerRequest)
         {
             // Finish off requested size
-            messages.AddRange(await GetAsync(batchSize, cancellationToken));
+            messages.AddRange(await GetAsync(batchSize, firstRequest, cancellationToken));
         }
 
         return messages;
