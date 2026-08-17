@@ -22,7 +22,10 @@ public class NatsJobSourceTests
             new NullLogger<NatsJobSource>(),
             Options.Create(new NatsStreamConfigurationModel
             {
-                StreamName = streamName ?? Guid.NewGuid().ToString()
+                StreamName = streamName ??
+                             Guid.NewGuid()
+                                 .ToString(),
+                ConsumerName = "foo"
             }));
     }
 

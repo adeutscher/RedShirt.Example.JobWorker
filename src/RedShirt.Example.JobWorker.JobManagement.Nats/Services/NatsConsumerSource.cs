@@ -15,7 +15,6 @@ internal class NatsConsumerSource(
     INatsJetStreamContextFactory contextFactory,
     IOptions<NatsStreamConfigurationModel> options) : INatsConsumerSource
 {
-    private readonly string _consumerName = Guid.NewGuid().ToString();
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private INatsJSConsumer? _consumer;
     private INatsJSContext? _context;
@@ -32,7 +31,8 @@ internal class NatsConsumerSource(
         {
             _context ??= await contextFactory.CreateNatsJetStreamContextAsync(cancellationToken);
             _consumer ??= await _context.CreateOrUpdateConsumerAsync(options.Value.StreamName,
-                new ConsumerConfig {Name = _consumerName}, cancellationToken);
+                new ConsumerConfig {Name = options.Value.ConsumerName, DurableName = options.Value.ConsumerName},
+                cancellationToken);
             return _consumer;
         }
         finally

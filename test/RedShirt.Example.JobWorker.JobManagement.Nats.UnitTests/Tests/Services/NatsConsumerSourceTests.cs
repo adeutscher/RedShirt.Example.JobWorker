@@ -9,8 +9,10 @@ namespace RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Services
 
 public class NatsConsumerSourceTests
 {
-    [Fact]
-    public async Task Test_Get()
+    [Theory]
+    [InlineData("foo")]
+    [InlineData("bar")]
+    public async Task Test_Get(string consumerName)
     {
         var streamName = Guid.NewGuid().ToString();
         var mockConsumer = new Mock<INatsJSConsumer>(MockBehavior.Strict);
@@ -27,7 +29,11 @@ public class NatsConsumerSourceTests
             .ReturnsAsync(mockContext.Object);
 
         var source = new NatsConsumerSource(factory.Object,
-            Options.Create(new NatsStreamConfigurationModel {StreamName = streamName}));
+            Options.Create(new NatsStreamConfigurationModel
+            {
+                StreamName = streamName,
+                ConsumerName = consumerName
+            }));
 
         factory.Verify(f => f.CreateNatsJetStreamContextAsync(It.IsAny<CancellationToken>()), Times.Never);
 
@@ -37,7 +43,7 @@ public class NatsConsumerSourceTests
         factory.Verify(f => f.CreateNatsJetStreamContextAsync(TestContext.Current.CancellationToken), Times.Once);
         mockContext.Verify(
             c => c.CreateOrUpdateConsumerAsync(streamName,
-                It.Is<ConsumerConfig>(cfg => !string.IsNullOrWhiteSpace(cfg.Name)),
+                It.Is<ConsumerConfig>(cfg => cfg.Name == consumerName && cfg.DurableName == consumerName),
                 TestContext.Current.CancellationToken), Times.Once);
 
         var consumer2 = await source.GetConsumerAsync(TestContext.Current.CancellationToken);
