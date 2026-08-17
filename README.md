@@ -157,12 +157,17 @@ If you choose to apply this template by combining Loader mode and Kinesis, pleas
 Several job sources can wait on the broker for the first messages of a poll instead of returning immediately when the
 queue is idle. This increases the responsiveness of the JobWorker to new messages.
 
-If you choose to configure your job worker for long-polling, please consider the following: Long-polling is
-fundamentally based around increased responsiveness by maintaining an open line for messages to be received. If one is
-using long-polling, I would strongly advise configuring a low value to the Core job loader loop's incremental back-off
-limit (set by the `JOBS__MAX_IDLE_WAIT_SECONDS` variable). Leaving this at a high value as is encouraged for
-short-polling would leave your application flickering between periods of low responsiveness during back-off and periods
-of high responsiveness during long-polling.
+If you choose to configure your job worker for long-polling, please consider the following points:
+
+* Long-polling is fundamentally based around increased responsiveness by maintaining an open line for messages to be
+  received. If one is using long-polling, I would strongly advise configuring a low value to the Core job loader loop's
+  incremental back-off limit (set by the `JOBS__MAX_IDLE_WAIT_SECONDS` variable). Leaving this at a high value as is
+  encouraged for short-polling would leave your application flickering between periods of low responsiveness during
+  back-off and periods of high responsiveness during long-polling.
+* Long-polling implementations lean towards grabbing the first available messages and running with them, even if the
+  batch is not fully fulfilled. If you wish to use multiple worker threads (as configured with the
+  `JOBS__WORKER_THREAD_COUNT` environment variable), then this could leave some threads under-utilized in batch mode. I
+  would suggest pairing long-polling with Loader mode (setting `JOBS__USE_LOADER_MODE` to `true).
 
 Long-polling is configured on job sources that support it with a `WAIT_TIME_SECONDS` environment variable. A value of
 `0` (the local compose default) is short-polling. A positive value is the number of seconds to wait on the **first**
