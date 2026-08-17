@@ -34,20 +34,21 @@ internal class PubSubSubscriberClientWrapper(
     public async Task<IEnumerable<IPubSubMessageContainer>> GetMessagesAsync(int maxMessages, int waitTimeSeconds,
         CancellationToken cancellationToken = default)
     {
-        var callSettings = CallSettings.FromCancellationToken(cancellationToken);
-        if (waitTimeSeconds > 0)
-        {
-            /*
-             * Long-poll for up to the requested wait time.
-             *
-             * This addition to callSettings adds a hard-coded padding of 1s.
-             * In local testing, it was observed that setting a wait time of N seconds translated in practice to an expiration of N-1 seconds.
-             * Correcting for that in an effort to keep Google Pub/Sub consistent with other message sources in template.
-             */
+        /*
+         * Poll for up to the requested wait time.
+         *
+         * This addition to callSettings adds a hard-coded padding of 1s.
+         * In local testing, it was observed that setting a wait time of N seconds translated in practice to an expiration of N-1 seconds.
+         * Correcting for that in an effort to keep Google Pub/Sub consistent with other message sources in template.
+         *
+         * Confirming that this padding is desired for both short-polling and long-polling.
+         * For long-polling, it makes things consistent with the expected time.
+         * For short-polling, I just don't want to poke the bear on something that was working by experimenting further with <1s expiry times.
+         */
 
-            callSettings = callSettings
-                .WithExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(waitTimeSeconds + 1)));
-        }
+        var callSettings = CallSettings.FromCancellationToken(cancellationToken)
+            // Note: If we do not specify a wait time, then Google's library defaults to long-polling for ~60s
+            .WithExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(waitTimeSeconds + 1)));
 
         try
         {

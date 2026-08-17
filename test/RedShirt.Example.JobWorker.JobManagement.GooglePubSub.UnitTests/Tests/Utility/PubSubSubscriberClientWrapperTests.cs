@@ -38,15 +38,11 @@ public class PubSubSubscriberClientWrapperTests
     private static bool MatchesCallSettings(CallSettings settings, int waitTimeSeconds,
         CancellationToken cancellationToken)
     {
-        TimeSpan? expectedWaitTimeSpan = waitTimeSeconds > 0
-            ? TimeSpan.FromSeconds(waitTimeSeconds + 1) // Account for padding hardcoded in client
-            : null;
+        var expectedWaitTimeSpan = TimeSpan.FromSeconds(waitTimeSeconds + 1); // Account for padding hardcoded in client
 
         return settings.CancellationToken == cancellationToken
-               && (
-                   (expectedWaitTimeSpan is null && settings.Expiration is null)
-                   || (settings.Expiration is not null && settings.Expiration.Timeout == expectedWaitTimeSpan)
-               );
+               && settings.Expiration is not null
+               && settings.Expiration.Timeout == expectedWaitTimeSpan;
     }
 
     [Fact]
