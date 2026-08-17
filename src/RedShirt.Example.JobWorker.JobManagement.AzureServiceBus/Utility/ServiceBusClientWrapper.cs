@@ -41,7 +41,7 @@ internal class ServiceBusClientWrapper(ServiceBusReceiver receiver) : IServiceBu
         CancellationToken cancellationToken = default)
     {
         var rawResults = await Client.ReceiveMessagesAsync(maxMessages,
-            TimeSpan.FromSeconds(waitTimeSeconds is > 0 ? waitTimeSeconds.Value : 1), cancellationToken);
+            TimeSpan.FromSeconds(waitTimeSeconds is > 0 ? waitTimeSeconds.Value : 0), cancellationToken);
         return rawResults.Select<ServiceBusReceivedMessage, IServiceBusMessageContainer>(m =>
             new ServiceBusMessageContainer
             {
