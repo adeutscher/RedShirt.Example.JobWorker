@@ -31,7 +31,8 @@ public class AzureServiceBusJobSourceTests
             Options.Create(config ?? new AzureServiceBusConfigurationModel
             {
                 VisibilityTimeoutSeconds = 0,
-                MaxMessagesPerRequest = 0
+                MaxMessagesPerRequest = 0,
+                WaitTimeSeconds = 0
             }));
     }
 
@@ -74,7 +75,8 @@ public class AzureServiceBusJobSourceTests
         var options = new AzureServiceBusConfigurationModel
         {
             VisibilityTimeoutSeconds = 20,
-            MaxMessagesPerRequest = 0
+            MaxMessagesPerRequest = 0,
+            WaitTimeSeconds = 0
         };
 
         var jobSource = CreateJobSource(null!, null!, options);
@@ -131,7 +133,8 @@ public class AzureServiceBusJobSourceTests
         var jobSource = CreateJobSource(source.Object, null!, new AzureServiceBusConfigurationModel
         {
             VisibilityTimeoutSeconds = 0,
-            MaxMessagesPerRequest = 10
+            MaxMessagesPerRequest = 10,
+            WaitTimeSeconds = 0
         });
 
         var job = new Mock<IRawJobModel>();
@@ -223,7 +226,8 @@ public class AzureServiceBusJobSourceTests
         var jobSource = CreateJobSource(source.Object, null!, new AzureServiceBusConfigurationModel
         {
             VisibilityTimeoutSeconds = timeoutSeconds,
-            MaxMessagesPerRequest = 0
+            MaxMessagesPerRequest = 0,
+            WaitTimeSeconds = 0
         });
 
         var innerMessage = new Mock<IServiceBusMessageContainer>(MockBehavior.Strict);

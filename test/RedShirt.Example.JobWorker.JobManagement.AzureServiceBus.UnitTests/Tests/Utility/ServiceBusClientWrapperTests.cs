@@ -115,7 +115,8 @@ public class ServiceBusClientWrapperTests
 
         var wrapper = new ServiceBusClientWrapper(receiver.Object);
 
-        var results = (await wrapper.GetMessagesAsync(maxMessages, TestContext.Current.CancellationToken)).ToList();
+        var results =
+            (await wrapper.GetMessagesAsync(maxMessages, null, TestContext.Current.CancellationToken)).ToList();
 
         Assert.Equal(2, results.Count);
         Assert.Same(message1, results[0].Message);
@@ -124,6 +125,45 @@ public class ServiceBusClientWrapperTests
 
         receiver.Verify(
             r => r.ReceiveMessagesAsync(maxMessages, TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken),
+            Times.Once);
+    }
+
+    /// <summary>
+    ///     Spun off from GetMessagesAsync_ReceivesMessagesAndWrapsThem, plus checking interpretation of wait times.
+    /// </summary>
+    [Theory]
+    [InlineData(null, 1)]
+    [InlineData(-1, 1)]
+    [InlineData(0, 1)]
+    [InlineData(1, 1)]
+    [InlineData(2, 2)]
+    [InlineData(10, 10)]
+    public async Task GetMessagesAsync_ReceivesMessagesAndWrapsThem_AndWaitTimes(int? requestedWaitTimeSeconds,
+        int expectedWaitTimeSeconds)
+    {
+        const int maxMessages = 3;
+        var message1 = ServiceBusModelFactory.ServiceBusReceivedMessage(BinaryData.FromString("one"));
+        var message2 = ServiceBusModelFactory.ServiceBusReceivedMessage(BinaryData.FromString("two"));
+        var receiver = new Mock<ServiceBusReceiver>();
+        receiver
+            .Setup(r => r.ReceiveMessagesAsync(maxMessages, TimeSpan.FromSeconds(expectedWaitTimeSeconds),
+                TestContext.Current.CancellationToken))
+            .ReturnsAsync([message1, message2]);
+
+        var wrapper = new ServiceBusClientWrapper(receiver.Object);
+
+        var results =
+            (await wrapper.GetMessagesAsync(maxMessages, requestedWaitTimeSeconds,
+                TestContext.Current.CancellationToken)).ToList();
+
+        Assert.Equal(2, results.Count);
+        Assert.Same(message1, results[0].Message);
+        Assert.Same(message2, results[1].Message);
+        Assert.All(results, r => Assert.IsType<ServiceBusClientWrapper.ServiceBusMessageContainer>(r));
+
+        receiver.Verify(
+            r => r.ReceiveMessagesAsync(maxMessages, TimeSpan.FromSeconds(expectedWaitTimeSeconds),
+                TestContext.Current.CancellationToken),
             Times.Once);
     }
 
@@ -138,7 +178,7 @@ public class ServiceBusClientWrapperTests
 
         var wrapper = new ServiceBusClientWrapper(receiver.Object);
 
-        var results = await wrapper.GetMessagesAsync(5, TestContext.Current.CancellationToken);
+        var results = await wrapper.GetMessagesAsync(5, null, TestContext.Current.CancellationToken);
 
         Assert.Empty(results);
         receiver.Verify(
