@@ -201,6 +201,8 @@ To initialize Apache Pulsar and queue sample messages:
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
     export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
+    export USE_GOOGLE_PUB_SUB=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 

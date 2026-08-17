@@ -3,6 +3,7 @@
 """Create the local Pulsar topic used by the job worker.
 
 Uses the Pulsar admin HTTP API (no extra Python packages required).
+Registers a STRING schema so it matches Schema.STRING on the .NET consumer.
 """
 
 import json
@@ -51,9 +52,35 @@ def create_topic() -> None:
         raise
 
 
+def upload_string_schema() -> None:
+    # Matches PulsarConsumerFactory: client.NewConsumer(Schema.STRING(Encoding.UTF8))
+    url = f"{ADMIN_URL}/admin/v2/schemas/{TENANT}/{NAMESPACE}/{TOPIC}/schema"
+    payload = json.dumps({"type": "STRING", "schema": "", "properties": {}}).encode(
+        "utf-8"
+    )
+    request = urllib.request.Request(url, method="POST", data=payload)
+    request.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            print(f"Uploaded STRING schema for {FULL_TOPIC} (HTTP {response.status})")
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        if exc.code in (409, 412) and "incompatible" not in body.lower():
+            print(f"STRING schema for {FULL_TOPIC} already present")
+            return
+        if "incompatible" in body.lower() or "BYTES" in body:
+            raise RuntimeError(
+                f"Topic {FULL_TOPIC} already has a BYTES/empty schema. "
+                "Delete the topic (or recreate the Pulsar container) and rerun this "
+                "script before send-pulsar-job.py. The worker uses STRING schema."
+            ) from exc
+        raise
+
+
 def main() -> int:
     wait_for_admin()
     create_topic()
+    upload_string_schema()
     print(json.dumps({"topic": FULL_TOPIC, "admin_url": ADMIN_URL}))
     return 0
 

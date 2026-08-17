@@ -12,14 +12,16 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddPulsarJobManagement(this IServiceCollection services,
         IConfigurationRoot configuration)
     {
+        var section = configuration.GetSection("JobSource:Pulsar");
         return services
             .AddSingleton<IJobSource, PulsarJobSource>()
             .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>()
-            .Configure<PulsarConsumerFactory.ConfigurationModel>(configuration.GetSection("JobSource:Pulsar"))
+            .Configure<PulsarConsumerFactory.ConfigurationModel>(section)
             .AddSingleton<IPulsarConsumerFactory, PulsarConsumerFactory>()
             .AddSingleton<IPulsarConsumerSource, PulsarConsumerSource>()
             .AddSingleton<IPulsarExceptionArbiterService, PulsarExceptionArbiterService>()
             .AddSingleton<IPulsarRetryWrapperService, PulsarRetryWrapperService>()
-            .AddSingleton<IPulsarMessageSource, PulsarMessageSource>();
+            .AddSingleton<IPulsarMessageSource, PulsarMessageSource>()
+            .Configure<PulsarMessageSource.ConfigurationModel>(section);
     }
 }
