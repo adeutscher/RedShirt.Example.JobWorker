@@ -8,7 +8,8 @@ namespace RedShirt.Example.JobWorker.JobManagement.Pulsar.UnitTests.Tests.Servic
 
 public class PulsarMessageSourceTests
 {
-    private static readonly TimeSpan FollowUpConsumeTimeout = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan FollowUpConsumeTimeout =
+        TimeSpan.FromMilliseconds(PulsarMessageSource.FollowUpConsumeTimeoutMilliseconds);
 
     private static IOptions<PulsarMessageSource.ConfigurationModel> CreateOptions(int waitTimeSeconds = 1)
     {
@@ -20,7 +21,10 @@ public class PulsarMessageSourceTests
 
     private static TimeSpan ExpectedFirstConsumeTimeout(int waitTimeSeconds = 1)
     {
-        return TimeSpan.FromSeconds(Math.Max(1, waitTimeSeconds));
+        var effectiveWaitTimeSeconds = Math.Max(0, waitTimeSeconds);
+        return effectiveWaitTimeSeconds > 0
+            ? TimeSpan.FromSeconds(effectiveWaitTimeSeconds)
+            : TimeSpan.FromMilliseconds(PulsarMessageSource.ZeroWaitInitialConsumeTimeoutMilliseconds);
     }
 
     private static (PulsarMessageSource MessageSource, Mock<IPulsarConsumerWrapper> Consumer,
@@ -77,12 +81,12 @@ public class PulsarMessageSourceTests
     }
 
     [Theory]
-    [InlineData(-5, 1)]
-    [InlineData(0, 1)]
+    [InlineData(-5, 0)]
+    [InlineData(0, 0)]
     [InlineData(1, 1)]
     [InlineData(5, 5)]
     [InlineData(30, 30)]
-    public void ConfigurationModel_EffectiveWaitTimeSeconds_FloorsAtOne(int configured, int expected)
+    public void ConfigurationModel_EffectiveWaitTimeSeconds_FloorsAtZero(int configured, int expected)
     {
         var model = new PulsarMessageSource.ConfigurationModel
         {
@@ -101,7 +105,7 @@ public class PulsarMessageSourceTests
             .ReturnsAsync((TimeSpan timeout, CancellationToken _) =>
             {
                 consumeTimeouts.Add(timeout);
-                return (IPulsarMessageContainer?) null;
+                return null;
             });
 
         var consumerSource = new Mock<IPulsarConsumerSource>(MockBehavior.Strict);
@@ -119,22 +123,21 @@ public class PulsarMessageSourceTests
     }
 
     [Theory]
-    [InlineData(-5, 1)]
-    [InlineData(0, 1)]
-    [InlineData(1, 1)]
-    [InlineData(5, 5)]
-    [InlineData(30, 30)]
-    public async Task GetMessagesAsync_PassesEffectiveWaitTimeSecondsToFirstConsume(int waitTimeSeconds,
-        int expectedWaitTimeSeconds)
+    [InlineData(-5)]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(30)]
+    public async Task GetMessagesAsync_PassesEffectiveWaitTimeSecondsToFirstConsume(int waitTimeSeconds)
     {
-        var expectedTimeout = TimeSpan.FromSeconds(expectedWaitTimeSeconds);
+        var expectedTimeout = ExpectedFirstConsumeTimeout(waitTimeSeconds);
         var consumeTimeouts = new List<TimeSpan>();
         var consumer = new Mock<IPulsarConsumerWrapper>(MockBehavior.Strict);
         consumer.Setup(c => c.ConsumeAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((TimeSpan timeout, CancellationToken _) =>
             {
                 consumeTimeouts.Add(timeout);
-                return (IPulsarMessageContainer?) null;
+                return null;
             });
 
         var consumerSource = new Mock<IPulsarConsumerSource>(MockBehavior.Strict);
@@ -218,6 +221,26 @@ public class PulsarMessageSourceTests
     }
 
     [Fact]
+    public async Task GetMessagesAsync_ThrowsWhenCancelledBeforeConsume()
+    {
+        var consumer = new Mock<IPulsarConsumerWrapper>(MockBehavior.Strict);
+        var consumerSource = new Mock<IPulsarConsumerSource>(MockBehavior.Strict);
+        consumerSource.Setup(s => s.GetConsumerAsync(It.IsAny<CancellationToken>())).ReturnsAsync(consumer.Object);
+
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var messageSource = new PulsarMessageSource(consumerSource.Object,
+            PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            CreateOptions());
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            messageSource.GetMessagesAsync(1, cts.Token));
+
+        consumer.Verify(c => c.ConsumeAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task GetMessagesAsync_UsesShortTimeoutForFollowUpConsumes()
     {
         const int waitTimeSeconds = 5;
@@ -250,22 +273,36 @@ public class PulsarMessageSourceTests
     }
 
     [Fact]
-    public async Task GetMessagesAsync_ThrowsWhenCancelledBeforeConsume()
+    public async Task GetMessagesAsync_ZeroWait_UsesInitialMillisecondTimeoutThenFollowUp()
     {
+        var message1 = CreateMessage("msg-0");
+        var message2 = CreateMessage("msg-1");
+        var consumeResults = new Queue<IPulsarMessageContainer?>([message1, message2, null]);
+        var consumeTimeouts = new List<TimeSpan>();
+
         var consumer = new Mock<IPulsarConsumerWrapper>(MockBehavior.Strict);
+        consumer.Setup(c => c.ConsumeAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TimeSpan timeout, CancellationToken _) =>
+            {
+                consumeTimeouts.Add(timeout);
+                return consumeResults.Dequeue();
+            });
+
         var consumerSource = new Mock<IPulsarConsumerSource>(MockBehavior.Strict);
         consumerSource.Setup(s => s.GetConsumerAsync(It.IsAny<CancellationToken>())).ReturnsAsync(consumer.Object);
 
-        using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
-
         var messageSource = new PulsarMessageSource(consumerSource.Object,
             PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            CreateOptions());
+            CreateOptions(0));
+        var response = await messageSource.GetMessagesAsync(10, TestContext.Current.CancellationToken);
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            messageSource.GetMessagesAsync(1, cts.Token));
-
-        consumer.Verify(c => c.ConsumeAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Equal(2, response.Messages.Count);
+        AssertConsumeTimeouts(consumeTimeouts, 3, 0);
+        consumer.Verify(
+            c => c.ConsumeAsync(
+                TimeSpan.FromMilliseconds(PulsarMessageSource.ZeroWaitInitialConsumeTimeoutMilliseconds),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        consumer.Verify(c => c.ConsumeAsync(FollowUpConsumeTimeout, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 }

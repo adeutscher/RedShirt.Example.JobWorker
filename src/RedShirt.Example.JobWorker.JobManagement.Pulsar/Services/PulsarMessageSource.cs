@@ -16,6 +16,9 @@ internal class PulsarMessageSource(
     IPulsarRetryWrapperService retryWrapperService,
     IOptions<PulsarMessageSource.ConfigurationModel> options) : IPulsarMessageSource
 {
+    internal const int ZeroWaitInitialConsumeTimeoutMilliseconds = 750;
+    internal const int FollowUpConsumeTimeoutMilliseconds = 500;
+
     public async Task<IPulsarMessageSourceResponse> GetMessagesAsync(int batchSize,
         CancellationToken cancellationToken = default)
     {
@@ -23,7 +26,9 @@ internal class PulsarMessageSource(
             consumerSource.GetConsumerAsync,
             cancellationToken);
         var messages = new List<IPulsarMessageContainer>();
-        var consumeTimeout = TimeSpan.FromSeconds(options.Value.EffectiveWaitTimeSeconds);
+        var consumeTimeout = options.Value.EffectiveWaitTimeSeconds > 0
+            ? TimeSpan.FromSeconds(options.Value.EffectiveWaitTimeSeconds)
+            : TimeSpan.FromMilliseconds(ZeroWaitInitialConsumeTimeoutMilliseconds);
 
         while (messages.Count < batchSize)
         {
@@ -38,8 +43,8 @@ internal class PulsarMessageSource(
                 break;
             }
 
-            // Follow-up attempts should only have a short timeout to avoid stacking waits 
-            consumeTimeout = TimeSpan.FromMilliseconds(500);
+            // Follow-up attempts should only have a short timeout to avoid stacking waits
+            consumeTimeout = TimeSpan.FromMilliseconds(FollowUpConsumeTimeoutMilliseconds);
 
             messages.Add(message);
         }
@@ -54,10 +59,12 @@ internal class PulsarMessageSource(
     {
         /// <summary>
         ///     Seconds to wait for the next message on <c>ConsumeAsync</c>. Defaults to 1.
-        ///     Clamped via <see cref="EffectiveWaitTimeSeconds" />.
+        ///     Clamped via <see cref="EffectiveWaitTimeSeconds" />. Zero uses
+        ///     <see cref="PulsarMessageSource.ZeroWaitInitialConsumeTimeoutMilliseconds" />
+        ///     for the first consume.
         /// </summary>
         public required int WaitTimeSeconds { get; init; } = 1;
 
-        public int EffectiveWaitTimeSeconds => Math.Max(1, WaitTimeSeconds);
+        public int EffectiveWaitTimeSeconds => Math.Max(0, WaitTimeSeconds);
     }
 }
