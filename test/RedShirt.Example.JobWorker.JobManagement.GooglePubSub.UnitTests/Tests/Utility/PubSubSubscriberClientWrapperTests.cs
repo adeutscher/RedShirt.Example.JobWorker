@@ -9,7 +9,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.Tests.
 
 public class PubSubSubscriberClientWrapperTests
 {
-    private const int DefaultWaitTimeSeconds = 1;
+    private const int DefaultWaitTimeSeconds = 0;
 
     private static readonly SubscriptionName Subscription =
         SubscriptionName.FromProjectSubscription("local-pubsub", "jobs-subscription");
@@ -38,9 +38,15 @@ public class PubSubSubscriberClientWrapperTests
     private static bool MatchesCallSettings(CallSettings settings, int waitTimeSeconds,
         CancellationToken cancellationToken)
     {
+        TimeSpan? expectedWaitTimeSpan = waitTimeSeconds > 0
+            ? TimeSpan.FromSeconds(waitTimeSeconds + 1) // Account for padding hardcoded in client
+            : null;
+
         return settings.CancellationToken == cancellationToken
-               && settings.Expiration is not null
-               && settings.Expiration.Timeout == TimeSpan.FromSeconds(waitTimeSeconds);
+               && (
+                   (expectedWaitTimeSpan is null && settings.Expiration is null)
+                   || (settings.Expiration is not null && settings.Expiration.Timeout == expectedWaitTimeSpan)
+               );
     }
 
     [Fact]

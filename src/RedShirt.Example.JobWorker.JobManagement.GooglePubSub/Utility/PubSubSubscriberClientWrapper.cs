@@ -37,9 +37,16 @@ internal class PubSubSubscriberClientWrapper(
         var callSettings = CallSettings.FromCancellationToken(cancellationToken);
         if (waitTimeSeconds > 0)
         {
-            // Long-poll for up to the requested wait time.
+            /*
+             * Long-poll for up to the requested wait time.
+             *
+             * This addition to callSettings adds a hard-coded padding of 1s.
+             * In local testing, it was observed that setting a wait time of N seconds translated in practice to an expiration of N-1 seconds.
+             * Correcting for that in an effort to keep Google Pub/Sub consistent with other message sources in template.
+             */
+
             callSettings = callSettings
-                .WithExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(waitTimeSeconds)));
+                .WithExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(waitTimeSeconds + 1)));
         }
 
         try
