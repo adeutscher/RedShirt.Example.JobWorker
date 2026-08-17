@@ -52,7 +52,7 @@ internal class NatsJobSource(
 
         var consumer = await js.CreateOrUpdateConsumerAsync(options.Value.StreamName,
             new ConsumerConfig {Name = "c1", DurableName = "c1"}, cancellationToken);
-        var fetchNoWaitOpts = new NatsJSFetchOpts
+        var fetchOpts = new NatsJSFetchOpts
         {
             MaxMsgs = batchSize,
             Expires = options.Value.EffectiveWaitTimeSeconds > 0
@@ -66,13 +66,13 @@ internal class NatsJobSource(
         IAsyncEnumerable<INatsJSMsg<NatsMemoryOwner<byte>>> result;
 
         // ReSharper disable once ConvertIfStatementToConditionalTernaryExpression
-        if (fetchNoWaitOpts.Expires.HasValue)
+        if (fetchOpts.Expires.HasValue)
         {
-            result = consumer.FetchAsync<NatsMemoryOwner<byte>>(fetchNoWaitOpts, cancellationToken: cancellationToken);
+            result = consumer.FetchAsync<NatsMemoryOwner<byte>>(fetchOpts, cancellationToken: cancellationToken);
         }
         else
         {
-            result = fetchNoWaitGetter.FetchNoWaitAsync(consumer, fetchNoWaitOpts, cancellationToken);
+            result = fetchNoWaitGetter.FetchNoWaitAsync(consumer, fetchOpts, cancellationToken);
         }
 
         await foreach (var msg in result.WithCancellation(cancellationToken))
