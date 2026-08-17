@@ -18,6 +18,7 @@ public class PubSubSubscriberClientFactoryTests
             ProjectId = projectId!,
             SubscriptionId = "jobs-subscription",
             VisibilityTimeoutSeconds = 60,
+            WaitTimeSeconds = 1,
             DlqNotEnabled = true,
             MaximumReceives = 3
         }));
@@ -37,6 +38,7 @@ public class PubSubSubscriberClientFactoryTests
             ProjectId = "local-pubsub",
             SubscriptionId = subscriptionId!,
             VisibilityTimeoutSeconds = 60,
+            WaitTimeSeconds = 1,
             DlqNotEnabled = true,
             MaximumReceives = 3
         }));

@@ -10,7 +10,7 @@ internal interface IPubSubSubscriberClientWrapper
 {
     Task AcknowledgeAsync(IPubSubMessageContainer messageModel, CancellationToken cancellationToken = default);
 
-    Task<IEnumerable<IPubSubMessageContainer>> GetMessagesAsync(int maxMessages,
+    Task<IEnumerable<IPubSubMessageContainer>> GetMessagesAsync(int maxMessages, int waitTimeSeconds,
         CancellationToken cancellationToken = default);
 
     Task ModifyAckDeadlineAsync(IPubSubMessageContainer messageModel, int ackDeadlineSeconds,
@@ -31,12 +31,16 @@ internal class PubSubSubscriberClientWrapper(
         return Client.AcknowledgeAsync(subscriptionName, [messageModel.Message!.AckId], cancellationToken);
     }
 
-    public async Task<IEnumerable<IPubSubMessageContainer>> GetMessagesAsync(int maxMessages,
+    public async Task<IEnumerable<IPubSubMessageContainer>> GetMessagesAsync(int maxMessages, int waitTimeSeconds,
         CancellationToken cancellationToken = default)
     {
-        // Bound the pull so an idle subscription does not block the worker poll loop indefinitely.
-        var callSettings = CallSettings.FromCancellationToken(cancellationToken)
-            .WithExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(1)));
+        var callSettings = CallSettings.FromCancellationToken(cancellationToken);
+        if (waitTimeSeconds > 0)
+        {
+            // Long-poll for up to the requested wait time.
+            callSettings = callSettings
+                .WithExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(waitTimeSeconds)));
+        }
 
         try
         {
