@@ -27,8 +27,7 @@ public static class ServiceCollectionExtensions
                 .AddSingleton<INatsMessageSource, NatsMessageSource>()
                 .Configure<NatsMessageSource.ConfigurationModel>(section)
                 .AddSingleton<INatsJetStreamContextFactory, NatsJetStreamContextFactory>()
-                .AddSingleton<INatsConsumerSource, NatsConsumerSource>()
                 .Configure<NatsJetStreamContextFactory.ConfigurationModel>(section)
-            ;
+                .AddSingleton<INatsConsumerSource, NatsConsumerSource>();
     }
 }
