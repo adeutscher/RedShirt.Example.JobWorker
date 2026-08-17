@@ -268,6 +268,8 @@ services:
       JOB_SOURCE__NATS__USER_PATH: /nats/user
       JOB_SOURCE__NATS__PASSWORD_PATH: /nats/password
       JOB_SOURCE__NATS__STREAM_NAME: TestStream
+      JOB_SOURCE__NATS__CONSUMER_NAME: jobworker-consumer
+      JOB_SOURCE__NATS__WAIT_TIME_SECONDS: ${JOB_SOURCE__NATS__WAIT_TIME_SECONDS:-0}
       ## Job Management (Redis Streams)
       USE_REDIS_STREAMS: "${USE_REDIS_STREAMS-0}"
       JOB_SOURCE__REDIS_STREAMS__STREAM_NAME: jobs
