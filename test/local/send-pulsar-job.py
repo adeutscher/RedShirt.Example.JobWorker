@@ -13,6 +13,7 @@ import json
 import sys
 
 import pulsar
+from pulsar.schema import StringSchema
 
 SERVICE_URL = "pulsar://localhost:6650"
 # Matches PULSAR_PREFIX_advertisedListeners "external" in docker-compose.yaml
@@ -24,9 +25,9 @@ def send_message(duration: int) -> None:
     body = {"SleepDurationSeconds": duration}
     client = pulsar.Client(SERVICE_URL, listener_name=LISTENER_NAME)
     try:
-        producer = client.create_producer(TOPIC)
+        producer = client.create_producer(TOPIC, schema=StringSchema())
         try:
-            message_id = producer.send(json.dumps(body).encode("utf-8"))
+            message_id = producer.send(json.dumps(body))
             print(f"Published message {message_id} to {TOPIC}")
         finally:
             producer.close()
