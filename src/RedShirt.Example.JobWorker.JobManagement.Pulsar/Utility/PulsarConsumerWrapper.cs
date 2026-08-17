@@ -42,6 +42,7 @@ internal sealed class PulsarConsumerWrapper(
 
         try
         {
+            // Confirming that at present we have no avenue other than a CancellationToken timeout to constrain the time that ReceiveAsync takes.
             var message = await consumer.ReceiveAsync(timeoutCts.Token);
             return MapMessage(message, topic);
         }

@@ -24,7 +24,7 @@ public class PulsarMessageSourceTests
         var effectiveWaitTimeSeconds = Math.Max(0, waitTimeSeconds);
         return effectiveWaitTimeSeconds > 0
             ? TimeSpan.FromSeconds(effectiveWaitTimeSeconds)
-            : TimeSpan.FromMilliseconds(PulsarMessageSource.ZeroWaitInitialShortPollConsumeTimeoutMilliseconds);
+            : TimeSpan.FromMilliseconds(PulsarMessageSource.InitialShortPollConsumeTimeoutMilliseconds);
     }
 
     private static (PulsarMessageSource MessageSource, Mock<IPulsarConsumerWrapper> Consumer,
@@ -300,7 +300,7 @@ public class PulsarMessageSourceTests
         AssertConsumeTimeouts(consumeTimeouts, 3, 0);
         consumer.Verify(
             c => c.ConsumeAsync(
-                TimeSpan.FromMilliseconds(PulsarMessageSource.ZeroWaitInitialShortPollConsumeTimeoutMilliseconds),
+                TimeSpan.FromMilliseconds(PulsarMessageSource.InitialShortPollConsumeTimeoutMilliseconds),
                 It.IsAny<CancellationToken>()),
             Times.Once);
         consumer.Verify(c => c.ConsumeAsync(FollowUpConsumeTimeout, It.IsAny<CancellationToken>()), Times.Exactly(2));

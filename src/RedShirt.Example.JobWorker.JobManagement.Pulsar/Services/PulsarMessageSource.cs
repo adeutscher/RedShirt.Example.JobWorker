@@ -17,16 +17,16 @@ internal class PulsarMessageSource(
     IOptions<PulsarMessageSource.ConfigurationModel> options) : IPulsarMessageSource
 {
     /// <summary>
-    ///     Timeout for initial consume under short-polling. Our current implementation of short-polling is long-polling with a
-    ///     tight constraint.
+    ///     Timeout for initial consume under short-polling. Because of the limited options exposed for the Pulsar client's
+    ///     IConsumer, our implementation of short-polling is long-polling with a tight constraint.
     ///     Pulsar connection has been observed to take a bit longer on the first consume.
     ///     For the moment, choosing not to single out the first-ever zero-wait consume for the entire JobWorker process.
     /// </summary>
-    internal const int ZeroWaitInitialShortPollConsumeTimeoutMilliseconds = 750;
+    internal const int InitialShortPollConsumeTimeoutMilliseconds = 750;
 
     /// <summary>
-    ///     Timeout for follow-up consumes under short-polling. Our current implementation of short-polling is long-polling
-    ///     with a tight constraint.
+    ///     Timeout for follow-up consumes under short-polling. . Because of the limited options exposed for the Pulsar
+    ///     client's IConsumer, our implementation of short-polling is long-polling with a tight constraint.
     /// </summary>
     internal const int FollowUpShortPollConsumeTimeoutMilliseconds = 500;
 
@@ -39,7 +39,7 @@ internal class PulsarMessageSource(
         var messages = new List<IPulsarMessageContainer>();
         var consumeTimeout = options.Value.EffectiveWaitTimeSeconds > 0
             ? TimeSpan.FromSeconds(options.Value.EffectiveWaitTimeSeconds)
-            : TimeSpan.FromMilliseconds(ZeroWaitInitialShortPollConsumeTimeoutMilliseconds);
+            : TimeSpan.FromMilliseconds(InitialShortPollConsumeTimeoutMilliseconds);
 
         while (messages.Count < batchSize)
         {
@@ -71,7 +71,7 @@ internal class PulsarMessageSource(
         /// <summary>
         ///     Seconds to wait for the next message on <c>ConsumeAsync</c>. Defaults to 1.
         ///     Clamped via <see cref="EffectiveWaitTimeSeconds" />. Zero uses
-        ///     <see cref="PulsarMessageSource.ZeroWaitInitialShortPollConsumeTimeoutMilliseconds" />
+        ///     <see cref="PulsarMessageSource.InitialShortPollConsumeTimeoutMilliseconds" />
         ///     for the first consume.
         /// </summary>
         public required int WaitTimeSeconds { get; init; } = 1;
