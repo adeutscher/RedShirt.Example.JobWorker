@@ -109,7 +109,7 @@ public class ServiceBusClientWrapperTests
         var message2 = ServiceBusModelFactory.ServiceBusReceivedMessage(BinaryData.FromString("two"));
         var receiver = new Mock<ServiceBusReceiver>();
         receiver
-            .Setup(r => r.ReceiveMessagesAsync(maxMessages, TimeSpan.FromSeconds(0),
+            .Setup(r => r.ReceiveMessagesAsync(maxMessages, TimeSpan.FromSeconds(1),
                 TestContext.Current.CancellationToken))
             .ReturnsAsync([message1, message2]);
 
@@ -124,7 +124,7 @@ public class ServiceBusClientWrapperTests
         Assert.All(results, r => Assert.IsType<ServiceBusClientWrapper.ServiceBusMessageContainer>(r));
 
         receiver.Verify(
-            r => r.ReceiveMessagesAsync(maxMessages, TimeSpan.FromSeconds(0), TestContext.Current.CancellationToken),
+            r => r.ReceiveMessagesAsync(maxMessages, TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken),
             Times.Once);
     }
 
@@ -132,9 +132,9 @@ public class ServiceBusClientWrapperTests
     ///     Spun off from GetMessagesAsync_ReceivesMessagesAndWrapsThem, plus checking interpretation of wait times.
     /// </summary>
     [Theory]
-    [InlineData(null, 0)]
-    [InlineData(-1, 0)]
-    [InlineData(0, 0)]
+    [InlineData(null, 1)]
+    [InlineData(-1, 1)]
+    [InlineData(0, 1)]
     [InlineData(1, 1)]
     [InlineData(2, 2)]
     [InlineData(10, 10)]
@@ -172,7 +172,7 @@ public class ServiceBusClientWrapperTests
     {
         var receiver = new Mock<ServiceBusReceiver>();
         receiver
-            .Setup(r => r.ReceiveMessagesAsync(It.IsAny<int>(), TimeSpan.FromSeconds(0),
+            .Setup(r => r.ReceiveMessagesAsync(It.IsAny<int>(), TimeSpan.FromSeconds(1),
                 TestContext.Current.CancellationToken))
             .ReturnsAsync([]);
 
@@ -182,7 +182,7 @@ public class ServiceBusClientWrapperTests
 
         Assert.Empty(results);
         receiver.Verify(
-            r => r.ReceiveMessagesAsync(5, TimeSpan.FromSeconds(0), TestContext.Current.CancellationToken),
+            r => r.ReceiveMessagesAsync(5, TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken),
             Times.Once);
     }
 
