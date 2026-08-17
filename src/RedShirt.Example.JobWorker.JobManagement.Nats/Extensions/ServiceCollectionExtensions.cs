@@ -17,17 +17,17 @@ public static class ServiceCollectionExtensions
         var section = configuration.GetSection(ConfigPrefix);
 
         return services
-                // Required
-                .AddSingleton<IJobSource, NatsJobSource>()
-                .Configure<NatsStreamConfigurationModel>(section)
-                .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>()
-                // Supporting (also required)
-                .Configure<NatsCredentialSource.ConfigurationModel>(section)
-                .AddSingleton<INatsCredentialSource, NatsCredentialSource>()
-                .AddSingleton<INatsMessageSource, NatsMessageSource>()
-                .Configure<NatsMessageSource.ConfigurationModel>(section)
-                .AddSingleton<INatsJetStreamContextFactory, NatsJetStreamContextFactory>()
-                .Configure<NatsJetStreamContextFactory.ConfigurationModel>(section)
-                .AddSingleton<INatsConsumerSource, NatsConsumerSource>();
+            // Required
+            .AddSingleton<IJobSource, NatsJobSource>()
+            .Configure<NatsStreamConfigurationModel>(section)
+            .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>()
+            // Supporting (also required)
+            .Configure<NatsCredentialSource.ConfigurationModel>(section)
+            .AddSingleton<INatsCredentialSource, NatsCredentialSource>()
+            .AddSingleton<INatsMessageSource, NatsMessageSource>()
+            .Configure<NatsMessageSource.ConfigurationModel>(section)
+            .AddSingleton<INatsJetStreamContextFactory, NatsJetStreamContextFactory>()
+            .Configure<NatsJetStreamContextFactory.ConfigurationModel>(section)
+            .AddSingleton<INatsConsumerSource, NatsConsumerSource>();
     }
 }
