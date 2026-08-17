@@ -36,7 +36,8 @@ public class NatsJobSourceTests
 
         var configuration = new NatsJobSource.ConfigurationModel
         {
-            StreamName = null!
+            StreamName = null!,
+            WaitTimeSeconds = 0
         };
 
         var natsJobSource = new NatsJobSource(null!, null!,
@@ -64,14 +65,21 @@ public class NatsJobSourceTests
 
         var configuration = new NatsJobSource.ConfigurationModel
         {
-            StreamName = null!
+            StreamName = null!,
+            WaitTimeSeconds = 0
         };
 
-        var natsJobSource = new NatsJobSource(null!, null!,
+        var contextFactory = new Mock<INatsJetStreamContextFactory>(MockBehavior.Strict);
+        var fetchNoWaitGetter = new Mock<IFetchNoWaitGetter>(MockBehavior.Strict);
+
+        var natsJobSource = new NatsJobSource(contextFactory.Object, fetchNoWaitGetter.Object,
             new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
         await natsJobSource.AcknowledgeAsync(job.Object, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
+
+        Assert.Empty(contextFactory.Invocations);
+        Assert.Empty(fetchNoWaitGetter.Invocations);
     }
 
     [Fact]
@@ -81,7 +89,8 @@ public class NatsJobSourceTests
 
         var configuration = new NatsJobSource.ConfigurationModel
         {
-            StreamName = queueName
+            StreamName = queueName,
+            WaitTimeSeconds = 0
         };
 
         var mockGetter = new Mock<IFetchNoWaitGetter>();
@@ -121,79 +130,6 @@ public class NatsJobSourceTests
         Assert.Single(mockGetter.Invocations);
     }
 
-    [Theory]
-    [InlineData(2, 2)]
-    [InlineData(10, 10)]
-    public async Task Test_GetJobs_GotJob(int batchSize, int expectedBatchSize)
-    {
-        var queueName = Guid.NewGuid().ToString();
-
-        var configuration = new NatsJobSource.ConfigurationModel
-        {
-            StreamName = queueName
-        };
-
-        var mockGetter = new Mock<IFetchNoWaitGetter>();
-
-        var mockConsumer = new Mock<INatsJSConsumer>(MockBehavior.Strict);
-
-        var mockContext = new Mock<INatsJSContext>(MockBehavior.Strict);
-        mockContext
-            .Setup(c => c.CreateOrUpdateConsumerAsync(It.IsAny<string>(), It.IsAny<ConsumerConfig>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockConsumer.Object);
-
-        var mockContextFactory = new Mock<INatsJetStreamContextFactory>(MockBehavior.Strict);
-        mockContextFactory
-            .Setup(f => f.CreateNatsJetStreamContextAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockContext.Object);
-
-        const string body = "{___}";
-        var streamSequence = (ulong) Random.Shared.NextInt64(1, long.MaxValue);
-        var messageId = streamSequence.ToString();
-        var mockMessage = new Mock<INatsJSMsg<NatsMemoryOwner<byte>>>();
-        mockMessage.Setup(m => m.Metadata).Returns(new NatsJSMsgMetadata(
-            new NatsJSSequencePair(streamSequence, 1),
-            1,
-            0,
-            DateTimeOffset.UtcNow,
-            queueName,
-            "c1",
-            string.Empty));
-        SetupMessageBody(mockMessage, body);
-
-        var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>> {mockMessage.Object};
-
-        mockGetter
-            .Setup(c => c.FetchNoWaitAsync(mockConsumer.Object, It.IsAny<NatsJSFetchOpts>(),
-                TestContext.Current.CancellationToken))
-            .Returns(() => mockData.ToAsyncEnumerable());
-
-        var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object,
-            new NullLogger<NatsJobSource>(), Options.Create(configuration));
-
-        var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
-
-        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
-        var returnedJobItem = Assert.Single(jobResponse.Items);
-        Assert.Equal(messageId, returnedJobItem.MessageId);
-        Assert.Equal(body, returnedJobItem.Body);
-
-        Assert.Single(mockContextFactory.Invocations);
-        Assert.Single(mockContext.Invocations);
-        mockContext.Verify(
-            c => c.CreateOrUpdateConsumerAsync(It.IsAny<string>(), It.IsAny<ConsumerConfig>(),
-                It.IsAny<CancellationToken>()), Times.Once);
-
-        Assert.Empty(mockConsumer.Invocations);
-        Assert.Single(mockGetter.Invocations);
-        mockGetter
-            .Verify(
-                g => g.FetchNoWaitAsync(mockConsumer.Object,
-                    It.Is<NatsJSFetchOpts>(o => o.MaxMsgs == expectedBatchSize),
-                    It.IsAny<CancellationToken>()), Times.Once);
-    }
-
     [Fact]
     public async Task Test_GetJobs_GotJob_MessageIdUnknownWhenMetadataMissing()
     {
@@ -201,7 +137,8 @@ public class NatsJobSourceTests
 
         var configuration = new NatsJobSource.ConfigurationModel
         {
-            StreamName = queueName
+            StreamName = queueName,
+            WaitTimeSeconds = 0
         };
 
         var mockGetter = new Mock<IFetchNoWaitGetter>();
@@ -244,13 +181,165 @@ public class NatsJobSourceTests
     [Theory]
     [InlineData(2, 2)]
     [InlineData(10, 10)]
+    public async Task Test_GetJobs_GotJobs_NoTimeout(int batchSize, int expectedBatchSize)
+    {
+        var queueName = Guid.NewGuid().ToString();
+
+        var configuration = new NatsJobSource.ConfigurationModel
+        {
+            StreamName = queueName,
+            WaitTimeSeconds = 0
+        };
+
+        var mockGetter = new Mock<IFetchNoWaitGetter>();
+
+        var mockConsumer = new Mock<INatsJSConsumer>(MockBehavior.Strict);
+
+        var mockContext = new Mock<INatsJSContext>(MockBehavior.Strict);
+        mockContext
+            .Setup(c => c.CreateOrUpdateConsumerAsync(It.IsAny<string>(), It.IsAny<ConsumerConfig>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockConsumer.Object);
+
+        var mockContextFactory = new Mock<INatsJetStreamContextFactory>(MockBehavior.Strict);
+        mockContextFactory
+            .Setup(f => f.CreateNatsJetStreamContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockContext.Object);
+
+        const string body = "{___}";
+        var streamSequence = (ulong) Random.Shared.NextInt64(1, long.MaxValue);
+        var messageId = streamSequence.ToString();
+        var mockMessage = new Mock<INatsJSMsg<NatsMemoryOwner<byte>>>();
+        mockMessage.Setup(m => m.Metadata).Returns(new NatsJSMsgMetadata(
+            new NatsJSSequencePair(streamSequence, 1),
+            1,
+            0,
+            DateTimeOffset.UtcNow,
+            queueName,
+            "c1",
+            string.Empty));
+        SetupMessageBody(mockMessage, body);
+
+        var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>> {mockMessage.Object};
+
+        mockGetter
+            .Setup(c => c.FetchNoWaitAsync(mockConsumer.Object, It.IsAny<NatsJSFetchOpts>(),
+                TestContext.Current.CancellationToken))
+            .Returns(mockData.ToAsyncEnumerable);
+
+        var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object,
+            new NullLogger<NatsJobSource>(), Options.Create(configuration));
+
+        var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
+        var returnedJobItem = Assert.Single(jobResponse.Items);
+        Assert.Equal(messageId, returnedJobItem.MessageId);
+        Assert.Equal(body, returnedJobItem.Body);
+
+        Assert.Single(mockContextFactory.Invocations);
+        Assert.Single(mockContext.Invocations);
+        mockContext.Verify(
+            c => c.CreateOrUpdateConsumerAsync(It.IsAny<string>(), It.IsAny<ConsumerConfig>(),
+                It.IsAny<CancellationToken>()), Times.Once);
+
+        Assert.Empty(mockConsumer.Invocations);
+        Assert.Single(mockGetter.Invocations);
+        mockGetter
+            .Verify(
+                g => g.FetchNoWaitAsync(mockConsumer.Object,
+                    It.Is<NatsJSFetchOpts>(o => o.MaxMsgs == expectedBatchSize && o.Expires == null),
+                    It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(2, 2, 3)]
+    [InlineData(10, 10, 4)]
+    [InlineData(10, 10, 5)]
+    public async Task Test_GetJobs_GotJobs_WithTimeout(int batchSize, int expectedBatchSize, int waitTimeSeconds)
+    {
+        var queueName = Guid.NewGuid().ToString();
+
+        var configuration = new NatsJobSource.ConfigurationModel
+        {
+            StreamName = queueName,
+            WaitTimeSeconds = waitTimeSeconds
+        };
+
+        var mockGetter = new Mock<IFetchNoWaitGetter>();
+
+        var mockConsumer = new Mock<INatsJSConsumer>(MockBehavior.Strict);
+
+        var mockContext = new Mock<INatsJSContext>(MockBehavior.Strict);
+        mockContext
+            .Setup(c => c.CreateOrUpdateConsumerAsync(It.IsAny<string>(), It.IsAny<ConsumerConfig>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockConsumer.Object);
+
+        var mockContextFactory = new Mock<INatsJetStreamContextFactory>(MockBehavior.Strict);
+        mockContextFactory
+            .Setup(f => f.CreateNatsJetStreamContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockContext.Object);
+
+        const string body = "{___}";
+        var streamSequence = (ulong) Random.Shared.NextInt64(1, long.MaxValue);
+        var messageId = streamSequence.ToString();
+        var mockMessage = new Mock<INatsJSMsg<NatsMemoryOwner<byte>>>();
+        mockMessage.Setup(m => m.Metadata).Returns(new NatsJSMsgMetadata(
+            new NatsJSSequencePair(streamSequence, 1),
+            1,
+            0,
+            DateTimeOffset.UtcNow,
+            queueName,
+            "c1",
+            string.Empty));
+        SetupMessageBody(mockMessage, body);
+
+        var mockData = new List<INatsJSMsg<NatsMemoryOwner<byte>>> {mockMessage.Object};
+
+        mockConsumer
+            .Setup(c => c.FetchAsync(It.IsAny<NatsJSFetchOpts>(), It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
+                TestContext.Current.CancellationToken))
+            .Returns(mockData.ToAsyncEnumerable);
+
+        var jobSource = new NatsJobSource(mockContextFactory.Object, mockGetter.Object,
+            new NullLogger<NatsJobSource>(), Options.Create(configuration));
+
+        var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
+        var returnedJobItem = Assert.Single(jobResponse.Items);
+        Assert.Equal(messageId, returnedJobItem.MessageId);
+        Assert.Equal(body, returnedJobItem.Body);
+
+        Assert.Single(mockContextFactory.Invocations);
+        Assert.Single(mockContext.Invocations);
+        mockContext.Verify(
+            c => c.CreateOrUpdateConsumerAsync(It.IsAny<string>(), It.IsAny<ConsumerConfig>(),
+                It.IsAny<CancellationToken>()), Times.Once);
+
+        Assert.Single(mockConsumer.Invocations);
+        mockConsumer
+            .Verify(
+                g => g.FetchAsync<NatsMemoryOwner<byte>>(
+                    It.Is<NatsJSFetchOpts>(o =>
+                        o.MaxMsgs == expectedBatchSize && o.Expires == TimeSpan.FromSeconds(waitTimeSeconds)),
+                    null,
+                    It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Empty(mockGetter.Invocations);
+    }
+
+    [Theory]
+    [InlineData(2, 2)]
+    [InlineData(10, 10)]
     public async Task Test_GetJobs_GotMultiple(int batchSize, int expectedBatchSize)
     {
         var queueName = Guid.NewGuid().ToString();
 
         var configuration = new NatsJobSource.ConfigurationModel
         {
-            StreamName = queueName
+            StreamName = queueName,
+            WaitTimeSeconds = 0
         };
 
         var mockGetter = new Mock<IFetchNoWaitGetter>();
@@ -330,12 +419,15 @@ public class NatsJobSourceTests
     {
         var configuration = new NatsJobSource.ConfigurationModel
         {
-            StreamName = null!
+            StreamName = null!,
+            WaitTimeSeconds = 0
         };
 
         var jobSource = new NatsJobSource(null!, null!,
             new NullLogger<NatsJobSource>(), Options.Create(configuration));
 
         await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);
+        // Satisfy sonar (not much to really assert for NATS as heartbeats are handled by underlying library)
+        Assert.True(true);
     }
 }

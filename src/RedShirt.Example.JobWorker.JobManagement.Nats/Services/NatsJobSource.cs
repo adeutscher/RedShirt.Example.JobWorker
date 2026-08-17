@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using RedShirt.Example.JobWorker.Core.Enums;
@@ -54,14 +55,27 @@ internal class NatsJobSource(
         var fetchNoWaitOpts = new NatsJSFetchOpts
         {
             MaxMsgs = batchSize,
+            Expires = options.Value.EffectiveWaitTimeSeconds > 0
+                ? TimeSpan.FromSeconds(options.Value.EffectiveWaitTimeSeconds)
+                : null,
             IdleHeartbeat = TimeSpan.FromSeconds(5)
         };
 
         var getJobsResponseItems = new List<IRawJobModel>();
 
-        var result = fetchNoWaitGetter.FetchNoWaitAsync(consumer, fetchNoWaitOpts, cancellationToken);
+        IAsyncEnumerable<INatsJSMsg<NatsMemoryOwner<byte>>> result;
 
-        await foreach (var msg in result)
+        // ReSharper disable once ConvertIfStatementToConditionalTernaryExpression
+        if (fetchNoWaitOpts.Expires.HasValue)
+        {
+            result = consumer.FetchAsync<NatsMemoryOwner<byte>>(fetchNoWaitOpts, cancellationToken: cancellationToken);
+        }
+        else
+        {
+            result = fetchNoWaitGetter.FetchNoWaitAsync(consumer, fetchNoWaitOpts, cancellationToken);
+        }
+
+        await foreach (var msg in result.WithCancellation(cancellationToken))
         {
             // Got a message, add it to return set.
             getJobsResponseItems.Add(new NatsRawJobModel
@@ -86,5 +100,7 @@ internal class NatsJobSource(
     public sealed class ConfigurationModel
     {
         public required string StreamName { get; init; }
+        public required int WaitTimeSeconds { get; init; }
+        public int EffectiveWaitTimeSeconds => Math.Max(WaitTimeSeconds, 0);
     }
 }
