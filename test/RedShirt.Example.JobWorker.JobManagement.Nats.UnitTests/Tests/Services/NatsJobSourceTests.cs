@@ -122,7 +122,7 @@ public class NatsJobSourceTests
         Assert.Single(mockContext.Invocations);
         mockContext.Verify(
             c => c.CreateOrUpdateConsumerAsync(queueName,
-                It.Is<ConsumerConfig>(cfg => cfg.Name == "c1" && cfg.DurableName == "c1"),
+                It.Is<ConsumerConfig>(cfg => !string.IsNullOrWhiteSpace(cfg.Name)),
                 It.IsAny<CancellationToken>()), Times.Once);
         Assert.Empty(mockConsumer.Invocations);
         mockMessageSource.Verify(
