@@ -9,6 +9,8 @@ namespace RedShirt.Example.JobWorker.JobManagement.GooglePubSub.UnitTests.Tests.
 
 public class PubSubSubscriberClientWrapperTests
 {
+    private const int DefaultWaitTimeSeconds = 0;
+
     private static readonly SubscriptionName Subscription =
         SubscriptionName.FromProjectSubscription("local-pubsub", "jobs-subscription");
 
@@ -33,6 +35,16 @@ public class PubSubSubscriberClientWrapperTests
         };
     }
 
+    private static bool MatchesCallSettings(CallSettings settings, int waitTimeSeconds,
+        CancellationToken cancellationToken)
+    {
+        var expectedWaitTimeSpan = TimeSpan.FromSeconds(waitTimeSeconds + 1); // Account for padding hardcoded in client
+
+        return settings.CancellationToken == cancellationToken
+               && settings.Expiration is not null
+               && settings.Expiration.Timeout == expectedWaitTimeSpan;
+    }
+
     [Fact]
     public async Task AcknowledgeAsync_ForwardsAckIdToClient()
     {
@@ -52,18 +64,26 @@ public class PubSubSubscriberClientWrapperTests
         client.Verify();
     }
 
-    [Fact]
-    public async Task GetMessagesAsync_DeadlineExceeded_ReturnsEmpty()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(30)]
+    [InlineData(60)]
+    public async Task GetMessagesAsync_DeadlineExceeded_ReturnsEmpty(int waitTimeSeconds)
     {
         var client = new Mock<SubscriberServiceApiClient>(MockBehavior.Strict);
         client
-            .Setup(c => c.PullAsync(Subscription, 5, It.IsAny<CallSettings>()))
+            .Setup(c => c.PullAsync(
+                Subscription,
+                5,
+                It.Is<CallSettings>(cs =>
+                    MatchesCallSettings(cs, waitTimeSeconds, TestContext.Current.CancellationToken))))
             .ThrowsAsync(new RpcException(new Status(StatusCode.DeadlineExceeded, "idle pull")))
             .Verifiable();
 
         var wrapper = new PubSubSubscriberClientWrapper(client.Object, Subscription);
 
-        var messages = await wrapper.GetMessagesAsync(5, TestContext.Current.CancellationToken);
+        var messages = await wrapper.GetMessagesAsync(5, waitTimeSeconds, TestContext.Current.CancellationToken);
 
         Assert.Empty(messages);
         client.Verify();
@@ -78,13 +98,18 @@ public class PubSubSubscriberClientWrapperTests
 
         var client = new Mock<SubscriberServiceApiClient>(MockBehavior.Strict);
         client
-            .Setup(c => c.PullAsync(Subscription, 10, It.IsAny<CallSettings>()))
+            .Setup(c => c.PullAsync(
+                Subscription,
+                10,
+                It.Is<CallSettings>(cs =>
+                    MatchesCallSettings(cs, DefaultWaitTimeSeconds, TestContext.Current.CancellationToken))))
             .ReturnsAsync(pullResponse)
             .Verifiable();
 
         var wrapper = new PubSubSubscriberClientWrapper(client.Object, Subscription);
 
-        var messages = (await wrapper.GetMessagesAsync(10, TestContext.Current.CancellationToken)).ToList();
+        var messages = (await wrapper.GetMessagesAsync(10, DefaultWaitTimeSeconds,
+            TestContext.Current.CancellationToken)).ToList();
 
         Assert.Equal(2, messages.Count);
         Assert.Equal("ack-a", messages[0].Message!.AckId);
@@ -104,9 +129,39 @@ public class PubSubSubscriberClientWrapperTests
         var wrapper = new PubSubSubscriberClientWrapper(client.Object, Subscription);
 
         var exception = await Assert.ThrowsAsync<RpcException>(() =>
-            wrapper.GetMessagesAsync(5, TestContext.Current.CancellationToken));
+            wrapper.GetMessagesAsync(5, DefaultWaitTimeSeconds, TestContext.Current.CancellationToken));
 
         Assert.Equal(StatusCode.Unavailable, exception.StatusCode);
+        client.Verify();
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(30)]
+    [InlineData(60)]
+    public async Task GetMessagesAsync_UsesConfiguredExpirationAndCancellationToken(int waitTimeSeconds)
+    {
+        var pullResponse = new PullResponse();
+        pullResponse.ReceivedMessages.Add(CreateReceivedMessage("ack-a"));
+
+        var client = new Mock<SubscriberServiceApiClient>(MockBehavior.Strict);
+        client
+            .Setup(c => c.PullAsync(
+                Subscription,
+                10,
+                It.Is<CallSettings>(cs =>
+                    MatchesCallSettings(cs, waitTimeSeconds, TestContext.Current.CancellationToken))))
+            .ReturnsAsync(pullResponse)
+            .Verifiable();
+
+        var wrapper = new PubSubSubscriberClientWrapper(client.Object, Subscription);
+
+        var messages = (await wrapper.GetMessagesAsync(10, waitTimeSeconds,
+            TestContext.Current.CancellationToken)).ToList();
+
+        Assert.Single(messages);
+        Assert.Equal("ack-a", messages[0].Message!.AckId);
         client.Verify();
     }
 

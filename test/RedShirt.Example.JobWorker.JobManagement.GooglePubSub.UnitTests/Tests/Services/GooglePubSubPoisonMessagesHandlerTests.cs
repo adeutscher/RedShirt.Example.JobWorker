@@ -58,6 +58,7 @@ public class GooglePubSubPoisonMessagesHandlerTests
             ProjectId = "local-pubsub",
             SubscriptionId = "jobs-subscription",
             VisibilityTimeoutSeconds = 60,
+            WaitTimeSeconds = 1,
             DlqNotEnabled = true,
             MaximumReceives = maximumReceives
         });
@@ -82,6 +83,7 @@ public class GooglePubSubPoisonMessagesHandlerTests
             ProjectId = "local-pubsub",
             SubscriptionId = "jobs-subscription",
             VisibilityTimeoutSeconds = 60,
+            WaitTimeSeconds = 1,
             DlqNotEnabled = true,
             MaximumReceives = maximumReceives
         });
@@ -102,6 +104,7 @@ public class GooglePubSubPoisonMessagesHandlerTests
             ProjectId = "local-pubsub",
             SubscriptionId = "jobs-subscription",
             VisibilityTimeoutSeconds = 60,
+            WaitTimeSeconds = 1,
             DlqNotEnabled = true,
             MaximumReceives = 1
         });
@@ -122,6 +125,7 @@ public class GooglePubSubPoisonMessagesHandlerTests
             ProjectId = "local-pubsub",
             SubscriptionId = "jobs-subscription",
             VisibilityTimeoutSeconds = 60,
+            WaitTimeSeconds = 1,
             DlqNotEnabled = false,
             MaximumReceives = 1
         });

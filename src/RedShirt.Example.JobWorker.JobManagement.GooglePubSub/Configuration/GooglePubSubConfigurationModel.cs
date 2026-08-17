@@ -17,9 +17,26 @@ internal sealed class GooglePubSubConfigurationModel
     /// </summary>
     private const int MinimumHeartbeatAmountSeconds = 10;
 
+    /// <summary>
+    ///     Minimum value, implies short-polling
+    /// </summary>
+    private const int MinimumWaitTimeSeconds = 0;
+
+    /// <summary>
+    ///     Upper bound for the unary Pull RPC deadline. Long enough for useful long-polling
+    ///     without holding a gRPC call open indefinitely.
+    /// </summary>
+    private const int MaximumWaitTimeSeconds = 60;
+
     public required string ProjectId { get; init; }
     public required string SubscriptionId { get; init; }
     public required int VisibilityTimeoutSeconds { get; init; }
+
+    /// <summary>
+    ///     Unary Pull RPC deadline in seconds, used to long-poll an idle subscription.
+    ///     Clamped via <see cref="EffectiveWaitTimeSeconds" />.
+    /// </summary>
+    public required int WaitTimeSeconds { get; init; }
 
     /// <summary>
     ///     Configuration indication that the Pub/Sub subscription is not configured with a dead-letter topic.
@@ -44,4 +61,7 @@ internal sealed class GooglePubSubConfigurationModel
 
     public int EffectiveVisibilityTimeoutSeconds =>
         Math.Min(Math.Max(MinimumHeartbeatAmountSeconds, VisibilityTimeoutSeconds), MaximumHeartbeatAmountSeconds);
+
+    public int EffectiveWaitTimeSeconds =>
+        Math.Min(Math.Max(MinimumWaitTimeSeconds, WaitTimeSeconds), MaximumWaitTimeSeconds);
 }
