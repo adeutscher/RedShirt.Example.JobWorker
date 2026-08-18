@@ -83,18 +83,6 @@ services:
     command: >
       bash -c "bin/apply-config-from-env.py conf/standalone.conf && bin/pulsar standalone"
 
-  azure-key-vault-emulator1:
-    image: basistheory/azure-keyvault-emulator:latest
-    ports:
-      - 5001:5001
-      - 5000:5000
-    volumes:
-      - ./config/azure-key-vault:/https:ro
-    environment:
-      - ASPNETCORE_URLS=https://+:5001;http://+:5000
-      - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/emulator.local.pfx
-      - ASPNETCORE_Kestrel__Certificates__Default__Password=YourSecurePassword
-
   azure-key-vault-emulator:
     image: jamesgoulddev/azure-keyvault-emulator:latest
     container_name: azure-key-vault-emulator.vault.azure.net
