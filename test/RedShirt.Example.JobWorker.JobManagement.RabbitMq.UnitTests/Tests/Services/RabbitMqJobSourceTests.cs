@@ -4,8 +4,8 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Services.Resilience;
@@ -18,35 +18,35 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Serv
 /// </summary>
 public class RabbitMqJobSourceTests
 {
+    private static (RabbitMqJobSource JobSource, Mock<IRabbitMqChannelCacheSource> ChannelSource)
+        CreateJobSource(IChannel channel, string? queueName = null)
+    {
+        var channelSource = new Mock<IRabbitMqChannelCacheSource>(MockBehavior.Strict);
+        channelSource
+            .Setup(s => s.GetChannelAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(channel);
+
+        var jobSource = new RabbitMqJobSource(
+            channelSource.Object,
+            Options.Create(new RabbitMqJobSource.ConfigurationModel
+            {
+                QueueName = queueName!
+            }),
+            NullLogger<RabbitMqJobSource>.Instance,
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
+
+        return (jobSource, channelSource);
+    }
+
     [Fact]
     public async Task Test_AcknowledgeAsync()
     {
-        // Set up Mocks
-
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-
-        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.CreateChannelAsync())
-            .ReturnsAsync(mockChannel.Object);
-
-        var rabbitConnectionFactory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
-        rabbitConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockConnection.Object);
-
         mockChannel
             .Setup(c => c.BasicAckAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .Returns(() => new ValueTask());
 
-        // Declare objects
-
-        var configuration = new RabbitMqJobSource.ConfigurationModel
-        {
-            QueueName = null! // moot
-        };
-
-        var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>(),
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
+        var (jobSource, channelSource) = CreateJobSource(mockChannel.Object);
 
         var job = new RabbitMqRawJobModel
         {
@@ -59,11 +59,8 @@ public class RabbitMqJobSourceTests
         await jobSource.AcknowledgeAsync(job, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
 
-        // Assert
-        Assert.Single(rabbitConnectionFactory.Invocations);
-        Assert.Single(mockConnection.Invocations);
+        channelSource.Verify(s => s.GetChannelAsync(TestContext.Current.CancellationToken), Times.Once);
         Assert.Single(mockChannel.Invocations);
-
         mockChannel.Verify(c => c.BasicAckAsync(4321, false, TestContext.Current.CancellationToken), Times.Once);
     }
 
@@ -71,22 +68,15 @@ public class RabbitMqJobSourceTests
     public async Task Test_AcknowledgeAsync_Incompatible()
     {
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
+        var channelSource = new Mock<IRabbitMqChannelCacheSource>(MockBehavior.Strict);
 
-        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.CreateChannelAsync())
-            .ReturnsAsync(mockChannel.Object);
-
-        var rabbitConnectionFactory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
-        rabbitConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockConnection.Object);
-
-        var configuration = new RabbitMqJobSource.ConfigurationModel
-        {
-            QueueName = null! // moot
-        };
-
-        var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>(),
+        var jobSource = new RabbitMqJobSource(
+            channelSource.Object,
+            Options.Create(new RabbitMqJobSource.ConfigurationModel
+            {
+                QueueName = null!
+            }),
+            NullLogger<RabbitMqJobSource>.Instance,
             RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
         var job = new Mock<IRawJobModel>();
@@ -94,8 +84,7 @@ public class RabbitMqJobSourceTests
         await jobSource.AcknowledgeAsync(job.Object, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
 
-        Assert.Empty(rabbitConnectionFactory.Invocations);
-        Assert.Empty(mockConnection.Invocations);
+        channelSource.Verify(s => s.GetChannelAsync(It.IsAny<CancellationToken>()), Times.Never);
         Assert.Empty(mockChannel.Invocations);
         mockChannel.Verify(
             c => c.BasicAckAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
@@ -109,28 +98,12 @@ public class RabbitMqJobSourceTests
     public async Task Test_AcknowledgeAsync_NonRecoverable_NacksWithoutRequeue(CoreJobResult result)
     {
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-
-        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.CreateChannelAsync())
-            .ReturnsAsync(mockChannel.Object);
-
-        var rabbitConnectionFactory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
-        rabbitConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockConnection.Object);
-
         mockChannel
             .Setup(c => c.BasicNackAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()))
             .Returns(() => new ValueTask());
 
-        var configuration = new RabbitMqJobSource.ConfigurationModel
-        {
-            QueueName = null! // moot
-        };
-
-        var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>(),
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
+        var (jobSource, _) = CreateJobSource(mockChannel.Object);
 
         var job = new RabbitMqRawJobModel
         {
@@ -150,34 +123,14 @@ public class RabbitMqJobSourceTests
     }
 
     [Fact]
-    public async Task Test_AcknowledgeAsync_ObjectDisposedException_Propagates()
+    public async Task Test_AcknowledgeAsync_ObjectDisposedException_WrapsAsWorkerJobSourceException()
     {
-        // Set up Mocks
-
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-
-        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.CreateChannelAsync())
-            .ReturnsAsync(mockChannel.Object);
-
-        var rabbitConnectionFactory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
-        rabbitConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockConnection.Object);
-
         mockChannel
             .Setup(c => c.BasicAckAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .Returns(() => throw new ObjectDisposedException("test"));
 
-        // Declare objects
-
-        var configuration = new RabbitMqJobSource.ConfigurationModel
-        {
-            QueueName = null! // moot
-        };
-
-        var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>(),
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
+        var (jobSource, _) = CreateJobSource(mockChannel.Object);
 
         var job = new RabbitMqRawJobModel
         {
@@ -187,9 +140,13 @@ public class RabbitMqJobSourceTests
             Body = "body"
         };
 
-        await Assert.ThrowsAsync<ObjectDisposedException>(() =>
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             jobSource.AcknowledgeAsync(job, CoreJobResult.Success, TestContext.Current.CancellationToken));
 
+        Assert.IsType<ObjectDisposedException>(thrown.InnerException);
+        Assert.True(thrown.IsHandled);
+        Assert.False(thrown.CouldBeTransient);
+        Assert.False(thrown.CouldBeExternallySolvable);
         mockChannel.Verify(c => c.BasicAckAsync(4321, false, TestContext.Current.CancellationToken), Times.Once);
     }
 
@@ -199,28 +156,12 @@ public class RabbitMqJobSourceTests
     public async Task Test_AcknowledgeAsync_Recoverable_NacksWithRequeue(CoreJobResult result)
     {
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-
-        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.CreateChannelAsync())
-            .ReturnsAsync(mockChannel.Object);
-
-        var rabbitConnectionFactory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
-        rabbitConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockConnection.Object);
-
         mockChannel
             .Setup(c => c.BasicNackAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()))
             .Returns(() => new ValueTask());
 
-        var configuration = new RabbitMqJobSource.ConfigurationModel
-        {
-            QueueName = null! // moot
-        };
-
-        var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>(),
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
+        var (jobSource, _) = CreateJobSource(mockChannel.Object);
 
         var job = new RabbitMqRawJobModel
         {
@@ -242,32 +183,12 @@ public class RabbitMqJobSourceTests
     [Fact]
     public async Task Test_AcknowledgeAsync_RegularExceptionNotIgnored()
     {
-        // Set up Mocks
-
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-
-        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.CreateChannelAsync())
-            .ReturnsAsync(mockChannel.Object);
-
-        var rabbitConnectionFactory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
-        rabbitConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockConnection.Object);
-
         mockChannel
             .Setup(c => c.BasicAckAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .Returns(() => throw new Exception("test"));
 
-        // Declare objects
-
-        var configuration = new RabbitMqJobSource.ConfigurationModel
-        {
-            QueueName = null! // moot
-        };
-
-        var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>(),
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
+        var (jobSource, channelSource) = CreateJobSource(mockChannel.Object);
 
         var job = new RabbitMqRawJobModel
         {
@@ -280,11 +201,8 @@ public class RabbitMqJobSourceTests
         await Assert.ThrowsAsync<Exception>(async () =>
             await jobSource.AcknowledgeAsync(job, CoreJobResult.Success, TestContext.Current.CancellationToken));
 
-        // Assert
-        Assert.Single(rabbitConnectionFactory.Invocations);
-        Assert.Single(mockConnection.Invocations);
+        channelSource.Verify(s => s.GetChannelAsync(TestContext.Current.CancellationToken), Times.Once);
         Assert.Single(mockChannel.Invocations);
-
         mockChannel.Verify(c => c.BasicAckAsync(1234, false, TestContext.Current.CancellationToken), Times.Once);
     }
 
@@ -292,21 +210,7 @@ public class RabbitMqJobSourceTests
     public async Task Test_GetJobs_AlreadyClosedException_AfterPartialBatch_Propagates()
     {
         var queueName = Guid.NewGuid().ToString();
-
-        var configuration = new RabbitMqJobSource.ConfigurationModel
-        {
-            QueueName = queueName
-        };
-
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-
-        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.CreateChannelAsync())
-            .ReturnsAsync(mockChannel.Object);
-
-        var rabbitConnectionFactory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
-        rabbitConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockConnection.Object);
 
         ulong deliveryTag = 77;
         var messageId = Guid.NewGuid().ToString();
@@ -332,9 +236,7 @@ public class RabbitMqJobSourceTests
                     new ShutdownEventArgs(ShutdownInitiator.Peer, 320, "CONNECTION_FORCED"));
             });
 
-        var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>(),
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
+        var (jobSource, _) = CreateJobSource(mockChannel.Object, queueName);
 
         await Assert.ThrowsAsync<AlreadyClosedException>(() =>
             jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken));
@@ -346,34 +248,18 @@ public class RabbitMqJobSourceTests
     public async Task Test_GetJobs_AlreadyClosedException_Propagates()
     {
         var queueName = Guid.NewGuid().ToString();
-
-        var configuration = new RabbitMqJobSource.ConfigurationModel
-        {
-            QueueName = queueName
-        };
-
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-
-        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.CreateChannelAsync())
-            .ReturnsAsync(mockChannel.Object);
-
-        var rabbitConnectionFactory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
-        rabbitConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockConnection.Object);
-
         mockChannel
             .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
             .ThrowsAsync(new AlreadyClosedException(
                 new ShutdownEventArgs(ShutdownInitiator.Application, 0, "closed")));
 
-        var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>(),
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
+        var (jobSource, channelSource) = CreateJobSource(mockChannel.Object, queueName);
 
         await Assert.ThrowsAsync<AlreadyClosedException>(() =>
             jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken));
 
+        channelSource.Verify(s => s.GetChannelAsync(TestContext.Current.CancellationToken), Times.Once);
         mockChannel.Verify(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken), Times.Once);
     }
 
@@ -381,42 +267,18 @@ public class RabbitMqJobSourceTests
     public async Task Test_GetJobs_GetNoJobs()
     {
         var queueName = Guid.NewGuid().ToString();
-
-        var configuration = new RabbitMqJobSource.ConfigurationModel
-        {
-            QueueName = queueName
-        };
-
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-
-        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.CreateChannelAsync())
-            .ReturnsAsync(mockChannel.Object);
-
-        var rabbitConnectionFactory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
-        rabbitConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockConnection.Object);
-
-        // Setup Job Returns
-
         mockChannel
             .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
             .ReturnsAsync((BasicGetResult?) null);
 
-        // Declare objects
-
-        var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>(),
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
+        var (jobSource, channelSource) = CreateJobSource(mockChannel.Object, queueName);
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(jobResponse.Items);
-
-        Assert.Single(rabbitConnectionFactory.Invocations);
-        Assert.Single(mockConnection.Invocations);
+        channelSource.Verify(s => s.GetChannelAsync(TestContext.Current.CancellationToken), Times.Once);
         Assert.Single(mockChannel.Invocations);
     }
 
@@ -427,23 +289,7 @@ public class RabbitMqJobSourceTests
     public async Task Test_GetJobs_GotJob()
     {
         var queueName = Guid.NewGuid().ToString();
-
-        var configuration = new RabbitMqJobSource.ConfigurationModel
-        {
-            QueueName = queueName
-        };
-
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-
-        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.CreateChannelAsync())
-            .ReturnsAsync(mockChannel.Object);
-
-        var rabbitConnectionFactory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
-        rabbitConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockConnection.Object);
-
-        // Setup Job Returns
 
         ulong deliveryTag = 1234;
         var messageId = Guid.NewGuid().ToString();
@@ -461,13 +307,10 @@ public class RabbitMqJobSourceTests
             .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
             .ReturnsAsync(() => mockChannelQueue.TryDequeue(out var job) ? job : null);
 
-        var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>(),
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
+        var (jobSource, channelSource) = CreateJobSource(mockChannel.Object, queueName);
 
         var jobResponse = await jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         var returnedJobItem = Assert.Single(jobResponse.Items);
         Assert.Equal(messageId, returnedJobItem.MessageId);
@@ -475,8 +318,7 @@ public class RabbitMqJobSourceTests
         Assert.Equal(bodyString, returnedJobItem.Body);
         Assert.Equal(deliveryTag, Assert.IsType<RabbitMqRawJobModel>(returnedJobItem).DeliveryTag);
 
-        Assert.Single(rabbitConnectionFactory.Invocations);
-        Assert.Single(mockConnection.Invocations);
+        channelSource.Verify(s => s.GetChannelAsync(TestContext.Current.CancellationToken), Times.Once);
         Assert.Equal(2, mockChannel.Invocations.Count);
     }
 
@@ -490,23 +332,7 @@ public class RabbitMqJobSourceTests
     public async Task Test_GetJobs_GotMultipleJobs(int batchSize)
     {
         var queueName = Guid.NewGuid().ToString();
-
-        var configuration = new RabbitMqJobSource.ConfigurationModel
-        {
-            QueueName = queueName
-        };
-
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-
-        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.CreateChannelAsync())
-            .ReturnsAsync(mockChannel.Object);
-
-        var rabbitConnectionFactory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
-        rabbitConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockConnection.Object);
-
-        // Setup Job Returns
 
         var mockChannelQueue = new Queue<BasicGetResult>();
         var deliveryTags = new List<ulong>();
@@ -534,15 +360,10 @@ public class RabbitMqJobSourceTests
             .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
             .ReturnsAsync(() => mockChannelQueue.TryDequeue(out var job) ? job : null);
 
-        // Declare objects
-
-        var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>(),
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
+        var (jobSource, channelSource) = CreateJobSource(mockChannel.Object, queueName);
 
         var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Equal(batchSize, jobResponse.Items.Count);
 
@@ -560,10 +381,8 @@ public class RabbitMqJobSourceTests
             Assert.Equal(deliveryTag, Assert.IsType<RabbitMqRawJobModel>(returnedJobItem).DeliveryTag);
         }
 
-        Assert.Single(rabbitConnectionFactory.Invocations);
-        Assert.Single(mockConnection.Invocations);
+        channelSource.Verify(s => s.GetChannelAsync(TestContext.Current.CancellationToken), Times.Once);
         Assert.Equal(batchSize, mockChannel.Invocations.Count);
-
         Assert.Empty(mockChannelQueue);
     }
 
@@ -571,21 +390,7 @@ public class RabbitMqJobSourceTests
     public async Task Test_GetJobs_MissingMessageId_UsesUnknownAndNullIdempotencyId()
     {
         var queueName = Guid.NewGuid().ToString();
-
-        var configuration = new RabbitMqJobSource.ConfigurationModel
-        {
-            QueueName = queueName
-        };
-
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-
-        var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.CreateChannelAsync())
-            .ReturnsAsync(mockChannel.Object);
-
-        var rabbitConnectionFactory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
-        rabbitConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mockConnection.Object);
 
         ulong deliveryTag = 55;
         var bodyString = "{}";
@@ -602,9 +407,7 @@ public class RabbitMqJobSourceTests
             .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
             .ReturnsAsync(() => mockChannelQueue.TryDequeue(out var job) ? job : null);
 
-        var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>(),
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
+        var (jobSource, _) = CreateJobSource(mockChannel.Object, queueName);
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
@@ -618,18 +421,15 @@ public class RabbitMqJobSourceTests
     [Fact]
     public async Task Test_HeartbeatAsync()
     {
-        // Declare objects
-
-        var configuration = new RabbitMqJobSource.ConfigurationModel
-        {
-            QueueName = null! // moot
-        };
-
-        var jobSource = new RabbitMqJobSource(null!, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>(),
+        var jobSource = new RabbitMqJobSource(
+            null!,
+            Options.Create(new RabbitMqJobSource.ConfigurationModel
+            {
+                QueueName = null!
+            }),
+            NullLogger<RabbitMqJobSource>.Instance,
             RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
-        // Run. Source should be executing an empty block with no complains about all the nulls that it's been given.
         await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);
     }
 }
