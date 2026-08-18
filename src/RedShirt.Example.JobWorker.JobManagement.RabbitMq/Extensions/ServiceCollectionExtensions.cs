@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IInnerRabbitMqConnectionFactory, InnerRabbitMqConnectionFactory>()
             .AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>()
             .AddSingleton<IRabbitMqExceptionArbiterService, RabbitMqExceptionArbiterService>()
+            .AddSingleton<IRabbitMqChannelCacheSource, RabbitMqChannelCacheSource>()
             .AddSingleton<IRabbitMqRetryWrapperService, RabbitMqRetryWrapperService>();
     }
 }
