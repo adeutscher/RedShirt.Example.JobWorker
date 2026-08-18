@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services;
+using RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Services;
 
@@ -47,6 +48,7 @@ public class NatsMessageSourceTests
             .ReturnsAsync(consumer.Object);
 
         var messageSource = new NatsMessageSource(consumerSource.Object,
+            NatsRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             Options.Create(new NatsMessageSource.ConfigurationModel
             {
                 WaitTimeSeconds = waitTimeSeconds

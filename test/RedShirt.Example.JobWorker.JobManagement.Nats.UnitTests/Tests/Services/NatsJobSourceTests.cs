@@ -7,6 +7,7 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services;
+using RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Services.Resilience;
 using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Services;
@@ -19,6 +20,7 @@ public class NatsJobSourceTests
         return new NatsJobSource(
             consumerSource ?? new Mock<INatsConsumerSource>(MockBehavior.Strict).Object,
             messageSource,
+            NatsRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             new NullLogger<NatsJobSource>(),
             Options.Create(new NatsStreamConfigurationModel
             {

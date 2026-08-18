@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
+using RedShirt.Example.JobWorker.JobManagement.Nats.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.Services;
 
@@ -12,6 +13,7 @@ internal interface INatsMessageSource
 
 internal class NatsMessageSource(
     INatsConsumerSource consumerSource,
+    INatsRetryWrapperService retryWrapperService,
     IOptions<NatsMessageSource.ConfigurationModel> options) : INatsMessageSource
 {
     private static readonly TimeSpan HeartbeatTime = TimeSpan.FromSeconds(5);
@@ -36,47 +38,50 @@ internal class NatsMessageSource(
         return items;
     }
 
-    public async Task<NatsMessageSourceResponse> FetchMessagesAsync(int batchSize,
+    public Task<NatsMessageSourceResponse> FetchMessagesAsync(int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var consumer = await consumerSource.GetConsumerAsync(cancellationToken);
-
-        if (options.Value.EffectiveWaitTimeSeconds <= 0)
+        return retryWrapperService.RunAsync(async ct =>
         {
-            return new NatsMessageSourceResponse
+            var consumer = await consumerSource.GetConsumerAsync(ct);
+
+            if (options.Value.EffectiveWaitTimeSeconds <= 0)
             {
-                Messages = await FetchBatchWithNoWaitAsync(batchSize, consumer, cancellationToken)
-            };
-        }
+                return new NatsMessageSourceResponse
+                {
+                    Messages = await FetchBatchWithNoWaitAsync(batchSize, consumer, ct)
+                };
+            }
 
-        var items = new List<INatsJSMsg<NatsMemoryOwner<byte>>>();
-        var firstResult = await consumer.NextAsync<NatsMemoryOwner<byte>>(opts: new NatsJSNextOpts
-        {
-            IdleHeartbeat = HeartbeatTime,
-            Expires = TimeSpan.FromSeconds(options.Value.EffectiveWaitTimeSeconds)
-        }, cancellationToken: cancellationToken);
+            var items = new List<INatsJSMsg<NatsMemoryOwner<byte>>>();
+            var firstResult = await consumer.NextAsync<NatsMemoryOwner<byte>>(opts: new NatsJSNextOpts
+            {
+                IdleHeartbeat = HeartbeatTime,
+                Expires = TimeSpan.FromSeconds(options.Value.EffectiveWaitTimeSeconds)
+            }, cancellationToken: ct);
 
-        if (firstResult is null)
-        {
+            if (firstResult is null)
+            {
+                return new NatsMessageSourceResponse
+                {
+                    Messages = items
+                };
+            }
+
+            // Result is not null
+
+            items.Add(firstResult);
+            if (batchSize >= 1)
+            {
+                // Remaining items to follow up on after getting next
+                items.AddRange(await FetchBatchWithNoWaitAsync(batchSize - 1, consumer, ct));
+            }
+
             return new NatsMessageSourceResponse
             {
                 Messages = items
             };
-        }
-
-        // Result is not null
-
-        items.Add(firstResult);
-        if (batchSize >= 1)
-        {
-            // Remaining items to follow up on after getting next
-            items.AddRange(await FetchBatchWithNoWaitAsync(batchSize - 1, consumer, cancellationToken));
-        }
-
-        return new NatsMessageSourceResponse
-        {
-            Messages = items
-        };
+        }, cancellationToken);
     }
 
     public sealed class ConfigurationModel
