@@ -144,6 +144,18 @@ public class ServiceCollectionExtensionTests
         Assert.Equal(workerThreadCount, options.WorkerThreadCount);
     }
 
+    [Fact]
+    public void AddCoreJobManagement_RegistersMessageSubscribeSourceStarter()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection().Build();
+
+        var services = new ServiceCollection()
+            .AddCoreJobManagement(configuration);
+
+        var descriptor = Assert.Single(services, d => d.ServiceType == typeof(IMessageSubscribeSourceStarter));
+        Assert.Equal(typeof(MessageSubscribeSourceStarter), descriptor.ImplementationType);
+    }
+
     [Theory]
     [InlineData(null, false)]
     [InlineData("", false)]

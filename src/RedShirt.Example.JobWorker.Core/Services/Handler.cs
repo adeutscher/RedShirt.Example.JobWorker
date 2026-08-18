@@ -41,6 +41,7 @@ internal sealed class Handler(
     IHeartbeatMaintainer heartbeatMaintainer,
     IJobExecutor jobExecutor,
     IIdempotencyMonitor idempotencyMonitor,
+    IMessageSubscribeSourceStarter messageSubscribeSourceStarter,
     IOptions<ThreadConfigurationModel> threadOptions,
     ILogger<Handler> logger)
     : IHandler
@@ -105,7 +106,10 @@ internal sealed class Handler(
             }
         });
 
+        // Loader loop
         await addToTaskFunc(() => jobLoaderLoop.RunAsync(cancellationToken));
+        // Subscription
+        await addToTaskFunc(() => messageSubscribeSourceStarter.RunAsync(cancellationToken));
 
         // Executor threads
         for (var i = 0; i < threadOptions.Value.EffectiveWorkerThreadCount; i++)

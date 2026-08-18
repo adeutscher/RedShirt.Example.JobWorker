@@ -27,6 +27,7 @@ public static class ServiceCollectionExtensions
             // General
             .AddSingleton<IHandler, Handler>()
             .AddSingleton<IJobLoaderLoop, JobLoaderLoop>()
+            .AddSingleton<IMessageSubscribeSourceStarter, MessageSubscribeSourceStarter>()
             .AddSingleton<IJobExecutor, JobExecutor>()
             .AddSingleton<IAppliedExecutionEndArbiter, AppliedExecutionEndArbiter>()
             .AddSingleton<IHeartbeatMaintainer, HeartbeatMaintainer>()

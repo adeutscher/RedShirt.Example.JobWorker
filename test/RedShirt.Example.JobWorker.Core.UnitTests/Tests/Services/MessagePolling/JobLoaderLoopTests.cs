@@ -5,6 +5,7 @@ using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions.MessagePolling;
+using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
 
@@ -12,6 +13,27 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.MessagePollin
 
 public class JobLoaderLoopTests
 {
+    private static JobLoaderLoop CreateLoop(
+        Mock<IJobLoaderStateService> jobLoaderStateService,
+        Mock<IExecutionEndArbiter> executionEndArbiter,
+        Mock<ISleepService> sleepService,
+        Mock<IJobLoader> jobLoader,
+        int maxIdleWaitSeconds = 5,
+        bool isSubscriptionSource = false)
+    {
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource.SetupGet(s => s.IsSubscriptionSource).Returns(isSubscriptionSource);
+
+        return new JobLoaderLoop(
+            jobLoaderStateService.Object,
+            executionEndArbiter.Object,
+            sleepService.Object,
+            jobLoader.Object,
+            jobSource.Object,
+            Options.Create(new LoopOptionsConfigurationModel {MaxIdleWaitSeconds = maxIdleWaitSeconds}),
+            new NullLogger<JobLoaderLoop>());
+    }
+
     [Fact]
     public async Task RunAsync_WhenAbortJobLoaderLoopException_ReturnsFinishedAndStillReportsStop()
     {
@@ -29,13 +51,7 @@ public class JobLoaderLoopTests
             .Setup(l => l.RunAsync(TestContext.Current.CancellationToken))
             .ThrowsAsync(new AbortJobLoaderLoopException());
 
-        var loop = new JobLoaderLoop(
-            jobLoaderStateService.Object,
-            executionEndArbiter.Object,
-            sleepService.Object,
-            jobLoader.Object,
-            Options.Create(new LoopOptionsConfigurationModel {MaxIdleWaitSeconds = 5}),
-            new NullLogger<JobLoaderLoop>());
+        var loop = CreateLoop(jobLoaderStateService, executionEndArbiter, sleepService, jobLoader);
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
@@ -57,13 +73,7 @@ public class JobLoaderLoopTests
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
         var jobLoader = new Mock<IJobLoader>(MockBehavior.Strict);
 
-        var loop = new JobLoaderLoop(
-            jobLoaderStateService.Object,
-            executionEndArbiter.Object,
-            sleepService.Object,
-            jobLoader.Object,
-            Options.Create(new LoopOptionsConfigurationModel {MaxIdleWaitSeconds = 5}),
-            new NullLogger<JobLoaderLoop>());
+        var loop = CreateLoop(jobLoaderStateService, executionEndArbiter, sleepService, jobLoader);
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
@@ -110,13 +120,8 @@ public class JobLoaderLoopTests
                 return Task.CompletedTask;
             });
 
-        var loop = new JobLoaderLoop(
-            jobLoaderStateService.Object,
-            executionEndArbiter.Object,
-            sleepService.Object,
-            jobLoader.Object,
-            Options.Create(new LoopOptionsConfigurationModel {MaxIdleWaitSeconds = 3}),
-            new NullLogger<JobLoaderLoop>());
+        var loop = CreateLoop(jobLoaderStateService, executionEndArbiter, sleepService, jobLoader,
+            3);
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
@@ -163,13 +168,7 @@ public class JobLoaderLoopTests
                 return Task.CompletedTask;
             });
 
-        var loop = new JobLoaderLoop(
-            jobLoaderStateService.Object,
-            executionEndArbiter.Object,
-            sleepService.Object,
-            jobLoader.Object,
-            Options.Create(new LoopOptionsConfigurationModel {MaxIdleWaitSeconds = 5}),
-            new NullLogger<JobLoaderLoop>());
+        var loop = CreateLoop(jobLoaderStateService, executionEndArbiter, sleepService, jobLoader);
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
@@ -211,13 +210,8 @@ public class JobLoaderLoopTests
                 return Task.CompletedTask;
             });
 
-        var loop = new JobLoaderLoop(
-            jobLoaderStateService.Object,
-            executionEndArbiter.Object,
-            sleepService.Object,
-            jobLoader.Object,
-            Options.Create(new LoopOptionsConfigurationModel {MaxIdleWaitSeconds = 0}),
-            new NullLogger<JobLoaderLoop>());
+        var loop = CreateLoop(jobLoaderStateService, executionEndArbiter, sleepService, jobLoader,
+            0);
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
@@ -260,13 +254,7 @@ public class JobLoaderLoopTests
                 return Task.CompletedTask;
             });
 
-        var loop = new JobLoaderLoop(
-            jobLoaderStateService.Object,
-            executionEndArbiter.Object,
-            sleepService.Object,
-            jobLoader.Object,
-            Options.Create(new LoopOptionsConfigurationModel {MaxIdleWaitSeconds = 5}),
-            new NullLogger<JobLoaderLoop>());
+        var loop = CreateLoop(jobLoaderStateService, executionEndArbiter, sleepService, jobLoader);
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
@@ -300,13 +288,7 @@ public class JobLoaderLoopTests
                 throw new NoJobException();
             });
 
-        var loop = new JobLoaderLoop(
-            jobLoaderStateService.Object,
-            executionEndArbiter.Object,
-            sleepService.Object,
-            jobLoader.Object,
-            Options.Create(new LoopOptionsConfigurationModel {MaxIdleWaitSeconds = 5}),
-            new NullLogger<JobLoaderLoop>());
+        var loop = CreateLoop(jobLoaderStateService, executionEndArbiter, sleepService, jobLoader);
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
@@ -351,13 +333,8 @@ public class JobLoaderLoopTests
                 return Task.CompletedTask;
             });
 
-        var loop = new JobLoaderLoop(
-            jobLoaderStateService.Object,
-            executionEndArbiter.Object,
-            sleepService.Object,
-            jobLoader.Object,
-            Options.Create(new LoopOptionsConfigurationModel {MaxIdleWaitSeconds = 30}),
-            new NullLogger<JobLoaderLoop>());
+        var loop = CreateLoop(jobLoaderStateService, executionEndArbiter, sleepService, jobLoader,
+            30);
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
@@ -371,6 +348,29 @@ public class JobLoaderLoopTests
         sleepService.Verify(
             s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
             Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenSubscriptionSource_ReportsStartAndReturnsFinishedWithoutLoading()
+    {
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
+
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        var jobLoader = new Mock<IJobLoader>(MockBehavior.Strict);
+
+        var loop = CreateLoop(jobLoaderStateService, executionEndArbiter, sleepService, jobLoader,
+            isSubscriptionSource: true);
+
+        var result = await loop.RunAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HandlerComponentResponse.Finished, result);
+        jobLoaderStateService.Verify(s => s.ReportLoaderStart(), Times.Once);
+        jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Never);
+        Assert.Empty(jobLoader.Invocations);
+        Assert.Empty(executionEndArbiter.Invocations);
+        Assert.Empty(sleepService.Invocations);
     }
 
     [Fact]
@@ -390,13 +390,7 @@ public class JobLoaderLoopTests
             .Setup(l => l.RunAsync(TestContext.Current.CancellationToken))
             .ThrowsAsync(new InvalidOperationException("boom"));
 
-        var loop = new JobLoaderLoop(
-            jobLoaderStateService.Object,
-            executionEndArbiter.Object,
-            sleepService.Object,
-            jobLoader.Object,
-            Options.Create(new LoopOptionsConfigurationModel {MaxIdleWaitSeconds = 5}),
-            new NullLogger<JobLoaderLoop>());
+        var loop = CreateLoop(jobLoaderStateService, executionEndArbiter, sleepService, jobLoader);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             loop.RunAsync(TestContext.Current.CancellationToken));
