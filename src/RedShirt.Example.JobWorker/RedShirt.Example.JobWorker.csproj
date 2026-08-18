@@ -17,6 +17,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.Docker.SecretManager\RedShirt.Example.JobWorker.Common.Docker.SecretManager.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Core.Logic\RedShirt.Example.JobWorker.Core.Logic.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Core\RedShirt.Example.JobWorker.Core.csproj"/>
         <ProjectReference Include="..\RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager\RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.csproj"/>

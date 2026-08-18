@@ -18,6 +18,8 @@
         <Project Path="src/RedShirt.Example.JobWorker.Common.Azure/RedShirt.Example.JobWorker.Common.Azure.csproj"/>
         <Project
                 Path="src/RedShirt.Example.JobWorker.Common.Distributed/RedShirt.Example.JobWorker.Common.Distributed.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.Common.Docker.SecretManager/RedShirt.Example.JobWorker.Common.Docker.SecretManager.csproj"/>
         <Project Path="src/RedShirt.Example.JobWorker.Common.Health/RedShirt.Example.JobWorker.Common.Health.csproj"/>
         <Project Path="src/RedShirt.Example.JobWorker.HealthCheck/RedShirt.Example.JobWorker.HealthCheck.csproj"/>
         <Project
@@ -64,6 +66,8 @@
                 Path="test/RedShirt.Example.JobWorker.Common.Azure.UnitTests/RedShirt.Example.JobWorker.Common.Azure.UnitTests.csproj"/>
         <Project
                 Path="test/RedShirt.Example.JobWorker.Common.Distributed.UnitTests/RedShirt.Example.JobWorker.Common.Distributed.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Common.Docker.SecretManager.UnitTests/RedShirt.Example.JobWorker.Common.Docker.SecretManager.UnitTests.csproj"/>
         <Project
                 Path="test/RedShirt.Example.JobWorker.Common.SecretManagers.Core.UnitTests/RedShirt.Example.JobWorker.Common.SecretManagers.Core.UnitTests.csproj"/>
         <Project
