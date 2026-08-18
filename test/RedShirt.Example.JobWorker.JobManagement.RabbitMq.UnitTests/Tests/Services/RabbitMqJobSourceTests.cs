@@ -4,7 +4,6 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 using RedShirt.Example.JobWorker.Core.Enums;
-using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
@@ -28,12 +27,12 @@ public class RabbitMqJobSourceTests
 
         var jobSource = new RabbitMqJobSource(
             channelSource.Object,
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             Options.Create(new RabbitMqJobSource.ConfigurationModel
             {
                 QueueName = queueName!
             }),
-            NullLogger<RabbitMqJobSource>.Instance,
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
+            NullLogger<RabbitMqJobSource>.Instance);
 
         return (jobSource, channelSource);
     }
@@ -72,12 +71,12 @@ public class RabbitMqJobSourceTests
 
         var jobSource = new RabbitMqJobSource(
             channelSource.Object,
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             Options.Create(new RabbitMqJobSource.ConfigurationModel
             {
                 QueueName = null!
             }),
-            NullLogger<RabbitMqJobSource>.Instance,
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
+            NullLogger<RabbitMqJobSource>.Instance);
 
         var job = new Mock<IRawJobModel>();
 
@@ -123,7 +122,7 @@ public class RabbitMqJobSourceTests
     }
 
     [Fact]
-    public async Task Test_AcknowledgeAsync_ObjectDisposedException_WrapsAsWorkerJobSourceException()
+    public async Task Test_AcknowledgeAsync_ObjectDisposedException_Propagates()
     {
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
         mockChannel
@@ -140,13 +139,9 @@ public class RabbitMqJobSourceTests
             Body = "body"
         };
 
-        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
+        await Assert.ThrowsAsync<ObjectDisposedException>(() =>
             jobSource.AcknowledgeAsync(job, CoreJobResult.Success, TestContext.Current.CancellationToken));
 
-        Assert.IsType<ObjectDisposedException>(thrown.InnerException);
-        Assert.True(thrown.IsHandled);
-        Assert.False(thrown.CouldBeTransient);
-        Assert.False(thrown.CouldBeExternallySolvable);
         mockChannel.Verify(c => c.BasicAckAsync(4321, false, TestContext.Current.CancellationToken), Times.Once);
     }
 
@@ -423,12 +418,12 @@ public class RabbitMqJobSourceTests
     {
         var jobSource = new RabbitMqJobSource(
             null!,
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             Options.Create(new RabbitMqJobSource.ConfigurationModel
             {
                 QueueName = null!
             }),
-            NullLogger<RabbitMqJobSource>.Instance,
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
+            NullLogger<RabbitMqJobSource>.Instance);
 
         await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);
     }

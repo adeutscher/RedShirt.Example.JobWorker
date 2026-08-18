@@ -213,6 +213,7 @@ To initialize Apache Pulsar and queue sample messages:
     ```
 
 Pulsar dead-letter handling uses the client `DeadLetterPolicy` (`JOB_SOURCE__PULSAR__MAX_REDELIVER_COUNT`, default `3`). Failed jobs are negatively acknowledged so they redeliver into that policy; unacknowledged messages also become eligible for redelivery after `JOB_SOURCE__PULSAR__ACK_TIMEOUT_SECONDS` (default `300`). Undeliverable messages that exceed the redelivery count are moved to Pulsar's dead letter topic (default name `{topic}-{subscription}-DLQ`).
+
 ### RabbitMQ
 
 RabbitMQ takes a few more steps to set up than the other input sources.
@@ -254,15 +255,15 @@ To initialize RabbitMQ and queue messages:
    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
     ```
-    export USE_RABBITMQ=0
+    export USE_RABBITMQ=1
     export USE_KINESIS=0
     export USE_KAFKA=0
     export USE_PULSAR=0
+    export USE_ACTIVEMQ=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
     export USE_REDIS_STREAMS=0
-    export USE_RABBITMQ=1
     export USE_GOOGLE_PUB_SUB=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```

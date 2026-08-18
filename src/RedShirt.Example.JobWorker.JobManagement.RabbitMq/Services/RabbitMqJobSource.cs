@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Enums;
-using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -13,9 +12,9 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 
 internal class RabbitMqJobSource(
     IRabbitMqChannelCacheSource channelSource,
+    IRabbitMqRetryWrapperService retryWrapperService,
     IOptions<RabbitMqJobSource.ConfigurationModel> configuration,
-    ILogger<RabbitMqJobSource> logger,
-    IRabbitMqRetryWrapperService retryWrapperService)
+    ILogger<RabbitMqJobSource> logger)
     : IJobSource
 {
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
@@ -28,34 +27,21 @@ internal class RabbitMqJobSource(
         }
 
         var channel = await channelSource.GetChannelAsync(cancellationToken);
-        try
+
+        await retryWrapperService.RunAsync(async ct =>
         {
-            await retryWrapperService.RunAsync(async ct =>
+            if (result.IsSuccessful())
             {
-                if (result.IsSuccessful())
-                {
-                    await channel.BasicAckAsync(rabbitMqJobModel.DeliveryTag, false, ct);
-                }
-                else
-                {
-                    // If recoverable, then NAck with requeue so the message can be delivered again.
-                    // Empty / Parsing / InvalidData: NAck without requeue (dead-letter if the queue is configured for it).
-                    await channel.BasicNackAsync(rabbitMqJobModel.DeliveryTag, false, result.IsRecoverableFailure(),
-                        ct);
-                }
-            }, cancellationToken);
-        }
-        catch (ObjectDisposedException e)
-        {
-            // An ObjectDisposedException suggests that the underlying connection behind this message was lost,
-            //  meaning that this JobWorker process lost custody of the message under this delivery tag.  
-            throw new WorkerJobSourceException(e)
+                await channel.BasicAckAsync(rabbitMqJobModel.DeliveryTag, false, ct);
+            }
+            else
             {
-                IsHandled = true,
-                CouldBeTransient = false,
-                CouldBeExternallySolvable = false
-            };
-        }
+                // If recoverable, then NAck with requeue so the message can be delivered again.
+                // Empty / Parsing / InvalidData: NAck without requeue (dead-letter if the queue is configured for it).
+                await channel.BasicNackAsync(rabbitMqJobModel.DeliveryTag, false, result.IsRecoverableFailure(),
+                    ct);
+            }
+        }, cancellationToken);
     }
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -70,8 +56,16 @@ internal class RabbitMqJobSource(
         while (getJobsResponseItems.Count < batchSize)
         {
             var result =
-                await retryWrapperService.RunAsync(ct =>
-                    channel.BasicGetAsync(configuration.Value.QueueName, false, ct), cancellationToken);
+                await retryWrapperService.RunAsync(
+                    ct => channel.BasicGetAsync(configuration.Value.QueueName, false, ct), cancellationToken);
+
+            /*
+             * Historical note: Prior to adding Polly support to RabbitMQ, we used to capture AlreadyClosedException instances
+             * thrown when the connection had closed and not been auto-recovered.
+             *
+             * Modern version wraps this in a WorkerJobSourceException that could be transient.
+             * As such, letting the exception bubble up.
+             */
 
             if (result is null)
                 // Nothing more to grab at the moment.
