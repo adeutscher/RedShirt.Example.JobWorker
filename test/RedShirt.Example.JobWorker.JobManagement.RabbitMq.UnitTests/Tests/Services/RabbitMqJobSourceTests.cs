@@ -48,7 +48,7 @@ public class RabbitMqJobSourceTests
             new NullLogger<RabbitMqJobSource>(),
             RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
-        var job = new RabbitMqJobModel
+        var job = new RabbitMqRawJobModel
         {
             MessageId = "1234",
             DeliveryTag = 4321,
@@ -132,7 +132,7 @@ public class RabbitMqJobSourceTests
             new NullLogger<RabbitMqJobSource>(),
             RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
-        var job = new RabbitMqJobModel
+        var job = new RabbitMqRawJobModel
         {
             MessageId = "1234",
             DeliveryTag = 8888,
@@ -179,7 +179,7 @@ public class RabbitMqJobSourceTests
             new NullLogger<RabbitMqJobSource>(),
             RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
-        var job = new RabbitMqJobModel
+        var job = new RabbitMqRawJobModel
         {
             MessageId = "1234",
             DeliveryTag = 4321,
@@ -222,7 +222,7 @@ public class RabbitMqJobSourceTests
             new NullLogger<RabbitMqJobSource>(),
             RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
-        var job = new RabbitMqJobModel
+        var job = new RabbitMqRawJobModel
         {
             MessageId = "1234",
             DeliveryTag = 9999,
@@ -269,7 +269,7 @@ public class RabbitMqJobSourceTests
             new NullLogger<RabbitMqJobSource>(),
             RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
-        var job = new RabbitMqJobModel
+        var job = new RabbitMqRawJobModel
         {
             MessageId = "1234",
             DeliveryTag = 1234,
@@ -473,7 +473,7 @@ public class RabbitMqJobSourceTests
         Assert.Equal(messageId, returnedJobItem.MessageId);
         Assert.Equal(messageId, returnedJobItem.IdempotencyId);
         Assert.Equal(bodyString, returnedJobItem.Body);
-        Assert.Equal(deliveryTag, Assert.IsType<RabbitMqJobModel>(returnedJobItem).DeliveryTag);
+        Assert.Equal(deliveryTag, Assert.IsType<RabbitMqRawJobModel>(returnedJobItem).DeliveryTag);
 
         Assert.Single(rabbitConnectionFactory.Invocations);
         Assert.Single(mockConnection.Invocations);
@@ -557,7 +557,7 @@ public class RabbitMqJobSourceTests
             Assert.Equal(messageId, returnedJobItem.MessageId);
             Assert.Equal(messageId, returnedJobItem.IdempotencyId);
             Assert.Equal(bodyString, returnedJobItem.Body);
-            Assert.Equal(deliveryTag, Assert.IsType<RabbitMqJobModel>(returnedJobItem).DeliveryTag);
+            Assert.Equal(deliveryTag, Assert.IsType<RabbitMqRawJobModel>(returnedJobItem).DeliveryTag);
         }
 
         Assert.Single(rabbitConnectionFactory.Invocations);
@@ -612,7 +612,7 @@ public class RabbitMqJobSourceTests
         Assert.Equal("UNKNOWN", returnedJobItem.MessageId);
         Assert.Null(returnedJobItem.IdempotencyId);
         Assert.Equal(bodyString, returnedJobItem.Body);
-        Assert.Equal(deliveryTag, Assert.IsType<RabbitMqJobModel>(returnedJobItem).DeliveryTag);
+        Assert.Equal(deliveryTag, Assert.IsType<RabbitMqRawJobModel>(returnedJobItem).DeliveryTag);
     }
 
     [Fact]
