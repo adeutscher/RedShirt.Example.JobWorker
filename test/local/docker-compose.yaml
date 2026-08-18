@@ -219,6 +219,9 @@ services:
       # The below option generates a token for Key Vault auth with obviously bogus values
       # Using an obviously-bogus token that would only work on a local testing server is the only way that I can justify the blanket SSL trust that goes with it
       COMMON__SECRETS__AZURE_KEY_VAULT__GENERATE_LOCAL_TESTING_TOKEN: true
+      # Docker Secrets
+      # Set alternate secret path (default on null: /run/secrets)
+      COMMON__SECRETS__DOCKER__DIRECTORY: null
       ## Job Management (General)
       JOB_SOURCE__BATCH_SIZE: 10
       ## Job Management (SQS)
