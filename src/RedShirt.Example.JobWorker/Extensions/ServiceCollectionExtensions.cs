@@ -58,7 +58,10 @@ public static class ServiceCollectionExtensions
             .AddSecretManagerCore(configuration)
             // This general template assumes SSM by default as it's easier to local test with.
             // Azure Service Bus and Azure Queue Storage implementations below will override this with Key Vault
-            // If you wish to switch default handling to a different secret manager, then you should change the below line. 
+            // If you wish to switch default handling to a different secret manager,
+            //   then you should change out SSM for one of the below line.
+            //.AddSecretManagerDocker(configuration)
+            //.AddSecretManagerAzureKeyVault(configuration)
             .AddSecretManagerSsm(configuration)
             // Distributed Services
             .AddDistributedServices(configuration)
