@@ -144,6 +144,17 @@ public class RabbitMqExceptionArbiterServiceTests
     }
 
     [Fact]
+    public void GetReport_PacketNotRecognizedException_IsExpectedAndNotTransient()
+    {
+        var report = _sut.GetReport(new PacketNotRecognizedException(1, 2, 3, 4));
+
+        Assert.False(report.AlreadyHandled);
+        Assert.True(report.IsExpected);
+        Assert.False(report.CouldBeTransient);
+        Assert.False(report.CouldBeExternallySolvable);
+    }
+
+    [Fact]
     public void GetReport_PossibleAuthenticationFailureException_IsExpectedAndNotTransient()
     {
         var report = _sut.GetReport(new PossibleAuthenticationFailureException("likely ACCESS_REFUSED"));
@@ -158,17 +169,6 @@ public class RabbitMqExceptionArbiterServiceTests
     public void GetReport_ProtocolVersionMismatchException_IsExpectedAndNotTransient()
     {
         var report = _sut.GetReport(new ProtocolVersionMismatchException(0, 9, 1, 0));
-
-        Assert.False(report.AlreadyHandled);
-        Assert.True(report.IsExpected);
-        Assert.False(report.CouldBeTransient);
-        Assert.False(report.CouldBeExternallySolvable);
-    }
-
-    [Fact]
-    public void GetReport_PacketNotRecognizedException_IsExpectedAndNotTransient()
-    {
-        var report = _sut.GetReport(new PacketNotRecognizedException(1, 2, 3, 4));
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
