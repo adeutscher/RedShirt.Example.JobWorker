@@ -123,9 +123,9 @@ internal class RedisStreamsRetryWrapperService(
     /// </summary>
     /// <param name="exception">Exception to be judged.</param>
     /// <param name="wrappedException">
-    ///     If wrapping was appropriate, then will be <see cref="WorkerJobSourceException" />
-    ///     wrapped around
-    ///     <param name="exception"></param>
+    ///     If wrapping was appropriate, then will be <see cref="WorkerJobSourceException" /> wrapped around the
+    ///     <paramref name="exception" />.
+    ///     If wrapping was not appropriate, then will be <c>null</c>.
     /// </param>
     /// <returns><c>true</c> if the exception was wrapped, else <c>false</c></returns>
     private bool TryGetWrappedException(Exception exception, out Exception? wrappedException)
