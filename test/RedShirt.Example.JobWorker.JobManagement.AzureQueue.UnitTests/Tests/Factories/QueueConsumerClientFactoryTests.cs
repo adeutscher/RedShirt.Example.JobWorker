@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Models;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
+using RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.Tests.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.Tests.Factories;
 
@@ -30,7 +31,9 @@ public class QueueConsumerClientFactoryTests
                 QueriedSecretManager = true
             });
 
-        var factory = new QueueConsumerClientFactory(secrets.Object, Options.Create(config));
+        var factory = new QueueConsumerClientFactory(secrets.Object,
+            AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            Options.Create(config));
 
         var client = await factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client);
@@ -50,7 +53,9 @@ public class QueueConsumerClientFactoryTests
         };
 
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
-        var factory = new QueueConsumerClientFactory(secrets.Object, Options.Create(config));
+        var factory = new QueueConsumerClientFactory(secrets.Object,
+            AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            Options.Create(config));
 
         var client = await factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client);

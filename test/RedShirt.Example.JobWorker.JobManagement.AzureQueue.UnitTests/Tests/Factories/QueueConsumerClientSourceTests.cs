@@ -6,25 +6,26 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.Tests.Fa
 public class QueueConsumerClientSourceTests
 {
     [Fact]
-    public void Test_Get()
+    public async Task Test_Get()
     {
+        var wrapper = new Mock<IQueueConsumerClientWrapper>().Object;
         var factory = new Mock<IQueueConsumerClientFactory>();
-        factory.Setup(f => f.GetQueueClientAsync())
-            .ReturnsAsync(new Mock<IQueueConsumerClientWrapper>().Object);
+        factory.Setup(f => f.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(wrapper);
 
         var source = new QueueConsumerClientSource(factory.Object);
         // Not called off the bat
-        factory.Verify(f => f.GetQueueClientAsync(), Times.Never);
+        factory.Verify(f => f.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Never);
 
-        var client = source.GetQueueClientAsync(TestContext.Current.CancellationToken);
+        var client = await source.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client);
-        factory.Verify(f => f.GetQueueClientAsync(), Times.Once);
+        factory.Verify(f => f.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Once);
 
-        var client2 = source.GetQueueClientAsync(TestContext.Current.CancellationToken);
+        var client2 = await source.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client2);
         Assert.Same(client, client2);
 
         // Still only once
-        factory.Verify(f => f.GetQueueClientAsync(), Times.Once);
+        factory.Verify(f => f.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

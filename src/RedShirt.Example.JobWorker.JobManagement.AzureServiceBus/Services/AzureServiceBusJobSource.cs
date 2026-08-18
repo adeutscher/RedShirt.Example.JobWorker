@@ -6,12 +6,14 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Models;
+using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services;
 
 internal class AzureServiceBusJobSource(
     IBusReceiverClientSource clientSource,
     IAzureServiceBusMessageSource azureServiceBusServiceSource,
+    IAzureServiceBusRetryWrapperService retryWrapperService,
     IOptions<AzureServiceBusConfigurationModel> options) : IJobSource
 {
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
@@ -25,30 +27,34 @@ internal class AzureServiceBusJobSource(
 
         var client = await clientSource.GetQueueClientAsync(cancellationToken);
 
-        if (result.IsSuccessful())
+        await retryWrapperService.RunAsync(async ct =>
         {
-            await client.CompleteMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
-        }
-        else if (result.IsRecoverableFailure())
-        {
-            /*
-             * Recoverable execution failures: explicitly abandon so the message becomes available again /
-             * counts toward the service bus queue's configured maximum delivery count.
-             *
-             * On a case-by-case basis, there could be a benefit to instead letting the message sit in flight for a moment
-             * and fall back into the queue naturally. Marked as a future improvement in issue tracking.
-             */
-            await client.AbandonMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
-        }
-        else
-        {
-            // Empty / Parsing / InvalidData: dead-letter immediately.
-            // One could argue that there's no point in even bothering to dead-letter Empty problems,
-            //  but on the other hand there could be useful properties for debugging on the message.
-            // This application's priority is just getting unrecoverable messages out of the way ASAP.
-            await client.DeadLetterMessageAsync(messageAsAzureJobModel.Message, result.ToString(),
-                cancellationToken: cancellationToken);
-        }
+            if (result.IsSuccessful())
+            {
+                await client.CompleteMessageAsync(messageAsAzureJobModel.Message, ct);
+            }
+            else if (result.IsRecoverableFailure())
+            {
+                if (options.Value.AbandonRecoveredFailuresOnAcknowledge)
+                {
+                    /*
+                     * Recoverable execution failures: explicitly abandon (if configured) so the message becomes available again.
+                     * If not abandoned, then the message should fall back into the queue within a minute.
+                     * Either option counts toward the service bus queue's configured maximum delivery count.
+                     */
+                    await client.AbandonMessageAsync(messageAsAzureJobModel.Message, ct);
+                }
+            }
+            else
+            {
+                // Empty / Parsing / InvalidData: dead-letter immediately.
+                // One could argue that there's no point in even bothering to dead-letter Empty problems,
+                //  but on the other hand there could be useful properties for debugging on the message.
+                // This application's priority is just getting unrecoverable messages out of the way ASAP.
+                await client.DeadLetterMessageAsync(messageAsAzureJobModel.Message, result.ToString(),
+                    cancellationToken: ct);
+            }
+        }, cancellationToken);
     }
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -81,6 +87,7 @@ internal class AzureServiceBusJobSource(
         }
 
         var client = await clientSource.GetQueueClientAsync(cancellationToken);
-        await client.RenewMessageLockAsync(messageAsAzureJobModel.Message, cancellationToken);
+        await retryWrapperService.RunAsync(
+            async ct => { await client.RenewMessageLockAsync(messageAsAzureJobModel.Message, ct); }, cancellationToken);
     }
 }

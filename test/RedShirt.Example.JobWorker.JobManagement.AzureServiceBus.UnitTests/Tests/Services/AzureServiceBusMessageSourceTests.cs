@@ -3,6 +3,7 @@ using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Models;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services;
+using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tests.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tests.Services;
@@ -65,9 +66,11 @@ public class AzureServiceBusMessageSourceTests
         {
             MaxMessagesPerRequest = MaxMessagesPerRequest,
             VisibilityTimeoutSeconds = 0, // Not used in these tests
-            WaitTimeSeconds = 0
+            WaitTimeSeconds = 0,
+            AbandonRecoveredFailuresOnAcknowledge = true
         };
-        var messageSource = new AzureServiceBusMessageSource(source.Object, Options.Create(options));
+        var messageSource = new AzureServiceBusMessageSource(source.Object,
+            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object, Options.Create(options));
 
         var messages = await messageSource.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 
@@ -155,9 +158,11 @@ public class AzureServiceBusMessageSourceTests
         {
             MaxMessagesPerRequest = MaxMessagesPerRequest,
             VisibilityTimeoutSeconds = 0, // Not used in these tests
-            WaitTimeSeconds = waitTimeSeconds
+            WaitTimeSeconds = waitTimeSeconds,
+            AbandonRecoveredFailuresOnAcknowledge = true
         };
-        var messageSource = new AzureServiceBusMessageSource(source.Object, Options.Create(options));
+        var messageSource = new AzureServiceBusMessageSource(source.Object,
+            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object, Options.Create(options));
 
         var messages = await messageSource.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 
@@ -256,9 +261,11 @@ public class AzureServiceBusMessageSourceTests
         {
             MaxMessagesPerRequest = MaxMessagesPerRequest,
             VisibilityTimeoutSeconds = 0, // Not used in these tests
-            WaitTimeSeconds = waitTimeSeconds
+            WaitTimeSeconds = waitTimeSeconds,
+            AbandonRecoveredFailuresOnAcknowledge = true
         };
-        var messageSource = new AzureServiceBusMessageSource(source.Object, Options.Create(options));
+        var messageSource = new AzureServiceBusMessageSource(source.Object,
+            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object, Options.Create(options));
 
         var messages = await messageSource.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 
