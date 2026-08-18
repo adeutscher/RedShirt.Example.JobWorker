@@ -3,6 +3,7 @@ using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Models;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services.Resilience;
+using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services;
 
@@ -19,11 +20,11 @@ internal class AzureServiceBusMessageSource(
 {
     private Task<List<IServiceBusMessageContainer>> GetAsync(int batchSize,
         bool useWaitTimeSeconds,
+        IServiceBusClientWrapper client,
         CancellationToken cancellationToken)
     {
         return retryWrapperService.RunAsync(async ct =>
         {
-            var client = await clientSource.GetQueueClientAsync(ct);
             var rawMessages = await client.GetMessagesAsync(batchSize,
                 useWaitTimeSeconds ? options.Value.EffectiveWaitTimeSeconds : null, ct);
             return rawMessages.ToList();
@@ -36,11 +37,13 @@ internal class AzureServiceBusMessageSource(
         var messages = new List<IServiceBusMessageContainer>();
         var firstRequest = true;
 
+        var client = await clientSource.GetQueueClientAsync(cancellationToken);
+        
         while (batchSize > options.Value.MaxMessagesPerRequest)
         {
             var loopResult =
                 await GetAsync(Math.Min(batchSize, options.Value.MaxMessagesPerRequest), firstRequest,
-                    cancellationToken);
+                    client, cancellationToken);
             firstRequest = false;
 
             messages.AddRange(loopResult);
@@ -57,7 +60,7 @@ internal class AzureServiceBusMessageSource(
         if (batchSize > 0 && batchSize <= options.Value.MaxMessagesPerRequest)
         {
             // Finish off requested size
-            messages.AddRange(await GetAsync(batchSize, firstRequest, cancellationToken));
+            messages.AddRange(await GetAsync(batchSize, firstRequest, client, cancellationToken));
         }
 
         return messages;

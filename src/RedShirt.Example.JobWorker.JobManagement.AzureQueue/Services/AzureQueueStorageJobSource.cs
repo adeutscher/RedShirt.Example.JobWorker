@@ -31,11 +31,12 @@ internal class AzureQueueStorageJobSource(
             return;
         }
 
+        var client = await clientSource.GetQueueClientAsync(cancellationToken);
+        
         // Success and unrecoverable (Empty / Parsing / InvalidData): delete. Azure Queue has no native DLQ.
         // Queueing failed messages in another DLQ would be an application-defined extension.
         await retryWrapperService.RunAsync(async ct =>
         {
-            var client = await clientSource.GetQueueClientAsync(ct);
             await client.DeleteMessageAsync(messageAsAzureJobModel.Message, ct);
         }, cancellationToken);
     }
@@ -68,9 +69,9 @@ internal class AzureQueueStorageJobSource(
             return;
         }
 
+        var client = await clientSource.GetQueueClientAsync(cancellationToken);
         await retryWrapperService.RunAsync(async ct =>
         {
-            var client = await clientSource.GetQueueClientAsync(ct);
             await client.SetMessageVisibilityTimeoutAsync(messageAsAzureJobModel.Message,
                 TimeSpan.FromSeconds(options.Value.EffectiveVisibilityTimeoutSeconds), ct);
         }, cancellationToken);

@@ -3,6 +3,7 @@ using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Models;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services.Resilience;
+using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services;
 
@@ -22,24 +23,22 @@ internal class AzureQueueStorageMessageSource(
     /// </summary>
     private const int MaxBatchSizePerRequest = 32;
 
-    private Task<List<IQueueMessageModel>> GetAsync(int batchSize, CancellationToken cancellationToken = default)
+    private Task<List<IQueueMessageModel>> GetAsync(int batchSize, IQueueConsumerClientWrapper client, CancellationToken cancellationToken = default)
     {
-        return retryWrapperService.RunAsync(async ct =>
-        {
-            var client = await clientSource.GetQueueClientAsync(ct);
-            return await client.GetMessagesAsync(batchSize,
-                TimeSpan.FromSeconds(options.Value.EffectiveVisibilityTimeoutSeconds), ct);
-        }, cancellationToken);
+        return retryWrapperService.RunAsync(async ct => await client.GetMessagesAsync(batchSize,
+            TimeSpan.FromSeconds(options.Value.EffectiveVisibilityTimeoutSeconds), ct), cancellationToken);
     }
 
     public async Task<List<IQueueMessageModel>> GetMessagesAsync(int batchSize,
         CancellationToken cancellationToken = default)
     {
         var messages = new List<IQueueMessageModel>();
+        
+        var client = await clientSource.GetQueueClientAsync(cancellationToken);
 
         while (batchSize > MaxBatchSizePerRequest)
         {
-            var loopResult = await GetAsync(Math.Min(batchSize, MaxBatchSizePerRequest), cancellationToken);
+            var loopResult = await GetAsync(Math.Min(batchSize, MaxBatchSizePerRequest), client, cancellationToken);
 
             messages.AddRange(loopResult);
 
@@ -54,7 +53,7 @@ internal class AzureQueueStorageMessageSource(
 
         if (batchSize is > 0 and <= MaxBatchSizePerRequest)
         {
-            messages.AddRange(await GetAsync(batchSize, cancellationToken));
+            messages.AddRange(await GetAsync(batchSize, client, cancellationToken));
         }
 
         return messages;
