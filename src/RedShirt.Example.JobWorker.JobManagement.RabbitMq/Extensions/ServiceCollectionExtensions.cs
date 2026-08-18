@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Extensions;
 
@@ -21,6 +22,9 @@ public static class ServiceCollectionExtensions
                 configuration.GetSection("JobSource:RabbitMq"))
             .AddSingleton<IRabbitMqServerConfigurationSource, RabbitMqServerConfigurationSource>()
             .AddSingleton<IInnerRabbitMqConnectionFactory, InnerRabbitMqConnectionFactory>()
-            .AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();
+            .AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>()
+            .AddSingleton<IRabbitMqChannelCacheSource, RabbitMqChannelCacheSource>()
+            .AddSingleton<IRabbitMqExceptionArbiterService, RabbitMqExceptionArbiterService>()
+            .AddSingleton<IRabbitMqRetryWrapperService, RabbitMqRetryWrapperService>();
     }
 }
