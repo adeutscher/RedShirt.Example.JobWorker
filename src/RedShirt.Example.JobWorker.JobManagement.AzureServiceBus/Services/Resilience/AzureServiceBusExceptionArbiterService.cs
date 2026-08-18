@@ -81,6 +81,7 @@ internal class AzureServiceBusExceptionArbiterService(IAzureExceptionArbiterServ
         // MessageLockLost, MessageNotFound, MessageSizeExceeded, SessionCannotBeLocked,
         // SessionLockLost, MessagingEntityAlreadyExists: expected, not retryable, not an ops fix.
         // GeneralError: honour the SDK's own transient flag.
+        // ReSharper disable once ConvertIfStatementToReturnStatement
         if (exception.Reason == ServiceBusFailureReason.GeneralError)
         {
             return Fresh(true, exception.IsTransient, exception.IsTransient);

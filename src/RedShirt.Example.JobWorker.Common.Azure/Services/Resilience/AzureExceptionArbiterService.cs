@@ -25,8 +25,7 @@ internal sealed class AzureExceptionArbiterService : IAzureExceptionArbiterServi
 
     private static Exception Unwrap(Exception exception)
     {
-        while (exception is AggregateException {InnerExceptions.Count: 1} aggregate
-               && aggregate.InnerException is not null)
+        while (exception is AggregateException {InnerExceptions.Count: 1, InnerException: not null} aggregate)
         {
             exception = aggregate.InnerException;
         }
