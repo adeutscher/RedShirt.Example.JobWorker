@@ -35,14 +35,15 @@ internal class AzureServiceBusJobSource(
             }
             else if (result.IsRecoverableFailure())
             {
-                /*
-                 * Recoverable execution failures: explicitly abandon so the message becomes available again /
-                 * counts toward the service bus queue's configured maximum delivery count.
-                 *
-                 * On a case-by-case basis, there could be a benefit to instead letting the message sit in flight for a moment
-                 * and fall back into the queue naturally. Marked as a future improvement in issue tracking.
-                 */
-                await client.AbandonMessageAsync(messageAsAzureJobModel.Message, ct);
+                if (options.Value.AbandonRecoveredFailuresOnAcknowledge)
+                {
+                    /*
+                     * Recoverable execution failures: explicitly abandon (if configured) so the message becomes available again.
+                     * If not abandoned, then the message should fall back into the queue within a minute.
+                     * Either option counts toward the service bus queue's configured maximum delivery count.
+                     */
+                    await client.AbandonMessageAsync(messageAsAzureJobModel.Message, ct);
+                }
             }
             else
             {

@@ -34,7 +34,8 @@ public class AzureServiceBusJobSourceTests
             {
                 VisibilityTimeoutSeconds = 0,
                 MaxMessagesPerRequest = 0,
-                WaitTimeSeconds = 0
+                WaitTimeSeconds = 0,
+                AbandonRecoveredFailuresOnAcknowledge = true
             }));
     }
 
@@ -78,7 +79,8 @@ public class AzureServiceBusJobSourceTests
         {
             VisibilityTimeoutSeconds = 20,
             MaxMessagesPerRequest = 0,
-            WaitTimeSeconds = 0
+            WaitTimeSeconds = 0,
+            AbandonRecoveredFailuresOnAcknowledge = true
         };
 
         var jobSource = CreateJobSource(null!, null!, options);
@@ -136,7 +138,8 @@ public class AzureServiceBusJobSourceTests
         {
             VisibilityTimeoutSeconds = 0,
             MaxMessagesPerRequest = 10,
-            WaitTimeSeconds = 0
+            WaitTimeSeconds = 0,
+            AbandonRecoveredFailuresOnAcknowledge = true
         });
 
         var job = new Mock<IRawJobModel>();
@@ -185,6 +188,47 @@ public class AzureServiceBusJobSourceTests
             Times.Never);
     }
 
+    [Theory]
+    [InlineData(CoreJobResult.Failure)]
+    [InlineData(CoreJobResult.Cancelled)]
+    public async Task Test_AcknowledgeAsync_Recoverable_DoesNotAbandonWhenConfiguredFalse(CoreJobResult result)
+    {
+        var client = new Mock<IServiceBusClientWrapper>(MockBehavior.Strict);
+        var source = new Mock<IBusReceiverClientSource>();
+        source
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var jobSource = CreateJobSource(source.Object, null!, new AzureServiceBusConfigurationModel
+        {
+            VisibilityTimeoutSeconds = 0,
+            MaxMessagesPerRequest = 0,
+            WaitTimeSeconds = 0,
+            AbandonRecoveredFailuresOnAcknowledge = false
+        });
+
+        var innerMessage = new Mock<IServiceBusMessageContainer>(MockBehavior.Strict);
+        var job = new AzureRawJobModel
+        {
+            Message = innerMessage.Object,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        await jobSource.AcknowledgeAsync(job, result, TestContext.Current.CancellationToken);
+
+        client.Verify(
+            s => s.CompleteMessageAsync(It.IsAny<IServiceBusMessageContainer>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        client.Verify(
+            s => s.AbandonMessageAsync(It.IsAny<IServiceBusMessageContainer>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        client.Verify(
+            s => s.DeadLetterMessageAsync(It.IsAny<IServiceBusMessageContainer>(), It.IsAny<string>(),
+                It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        Assert.Empty(client.Invocations);
+    }
+
     [Fact]
     public async Task Test_AcknowledgeAsync_Success()
     {
@@ -229,7 +273,8 @@ public class AzureServiceBusJobSourceTests
         {
             VisibilityTimeoutSeconds = timeoutSeconds,
             MaxMessagesPerRequest = 0,
-            WaitTimeSeconds = 0
+            WaitTimeSeconds = 0,
+            AbandonRecoveredFailuresOnAcknowledge = true
         });
 
         var innerMessage = new Mock<IServiceBusMessageContainer>(MockBehavior.Strict);

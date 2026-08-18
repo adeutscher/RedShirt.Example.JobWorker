@@ -66,7 +66,8 @@ public class AzureServiceBusMessageSourceTests
         {
             MaxMessagesPerRequest = MaxMessagesPerRequest,
             VisibilityTimeoutSeconds = 0, // Not used in these tests
-            WaitTimeSeconds = 0
+            WaitTimeSeconds = 0,
+            AbandonRecoveredFailuresOnAcknowledge = true
         };
         var messageSource = new AzureServiceBusMessageSource(source.Object,
             AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object, Options.Create(options));
@@ -157,7 +158,8 @@ public class AzureServiceBusMessageSourceTests
         {
             MaxMessagesPerRequest = MaxMessagesPerRequest,
             VisibilityTimeoutSeconds = 0, // Not used in these tests
-            WaitTimeSeconds = waitTimeSeconds
+            WaitTimeSeconds = waitTimeSeconds,
+            AbandonRecoveredFailuresOnAcknowledge = true
         };
         var messageSource = new AzureServiceBusMessageSource(source.Object,
             AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object, Options.Create(options));
@@ -259,7 +261,8 @@ public class AzureServiceBusMessageSourceTests
         {
             MaxMessagesPerRequest = MaxMessagesPerRequest,
             VisibilityTimeoutSeconds = 0, // Not used in these tests
-            WaitTimeSeconds = waitTimeSeconds
+            WaitTimeSeconds = waitTimeSeconds,
+            AbandonRecoveredFailuresOnAcknowledge = true
         };
         var messageSource = new AzureServiceBusMessageSource(source.Object,
             AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object, Options.Create(options));
