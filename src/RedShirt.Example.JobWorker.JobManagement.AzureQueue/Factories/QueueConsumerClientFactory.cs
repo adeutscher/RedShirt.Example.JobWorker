@@ -42,6 +42,7 @@ internal class QueueConsumerClientFactory(
 
         return new QueueClientWrapper(innerClient);
     }
+
     public Task<IQueueConsumerClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default)
     {
         return retryWrapperService.RunAsync(GetQueueClientInnerAsync, cancellationToken);

@@ -64,6 +64,22 @@ public class AzureServiceBusExceptionArbiterServiceTests
     }
 
     [Theory]
+    [InlineData(ServiceBusFailureReason.MessagingEntityNotFound)]
+    [InlineData(ServiceBusFailureReason.MessagingEntityDisabled)]
+    public void GetReport_ServiceBusException_PermanentExternallySolvableReasons(
+        ServiceBusFailureReason reason)
+    {
+        var exception = new ServiceBusException("missing entity", reason);
+
+        var report = _sut.GetReport(exception);
+
+        Assert.True(report.IsExpected);
+        Assert.False(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
+        _azureArbiter.VerifyNoOtherCalls();
+    }
+
+    [Theory]
     [InlineData(ServiceBusFailureReason.MessageLockLost)]
     [InlineData(ServiceBusFailureReason.MessageNotFound)]
     [InlineData(ServiceBusFailureReason.MessageSizeExceeded)]
@@ -81,22 +97,6 @@ public class AzureServiceBusExceptionArbiterServiceTests
         Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
         Assert.False(report.CouldBeExternallySolvable);
-        _azureArbiter.VerifyNoOtherCalls();
-    }
-
-    [Theory]
-    [InlineData(ServiceBusFailureReason.MessagingEntityNotFound)]
-    [InlineData(ServiceBusFailureReason.MessagingEntityDisabled)]
-    public void GetReport_ServiceBusException_PermanentExternallySolvableReasons(
-        ServiceBusFailureReason reason)
-    {
-        var exception = new ServiceBusException("missing entity", reason);
-
-        var report = _sut.GetReport(exception);
-
-        Assert.True(report.IsExpected);
-        Assert.False(report.CouldBeTransient);
-        Assert.True(report.CouldBeExternallySolvable);
         _azureArbiter.VerifyNoOtherCalls();
     }
 

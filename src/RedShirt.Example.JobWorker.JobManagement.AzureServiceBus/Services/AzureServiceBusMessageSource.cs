@@ -38,7 +38,7 @@ internal class AzureServiceBusMessageSource(
         var firstRequest = true;
 
         var client = await clientSource.GetQueueClientAsync(cancellationToken);
-        
+
         while (batchSize > options.Value.MaxMessagesPerRequest)
         {
             var loopResult =

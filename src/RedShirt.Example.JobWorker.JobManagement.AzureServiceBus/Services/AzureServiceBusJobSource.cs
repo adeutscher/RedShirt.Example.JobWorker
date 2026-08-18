@@ -26,7 +26,7 @@ internal class AzureServiceBusJobSource(
         }
 
         var client = await clientSource.GetQueueClientAsync(cancellationToken);
-        
+
         await retryWrapperService.RunAsync(async ct =>
         {
             if (result.IsSuccessful())
@@ -86,9 +86,7 @@ internal class AzureServiceBusJobSource(
         }
 
         var client = await clientSource.GetQueueClientAsync(cancellationToken);
-        await retryWrapperService.RunAsync(async ct =>
-        {
-            await client.RenewMessageLockAsync(messageAsAzureJobModel.Message, ct);
-        }, cancellationToken);
+        await retryWrapperService.RunAsync(
+            async ct => { await client.RenewMessageLockAsync(messageAsAzureJobModel.Message, ct); }, cancellationToken);
     }
 }

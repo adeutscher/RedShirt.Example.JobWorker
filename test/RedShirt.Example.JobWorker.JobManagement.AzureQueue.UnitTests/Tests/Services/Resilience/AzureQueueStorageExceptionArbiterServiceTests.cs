@@ -44,6 +44,19 @@ public class AzureQueueStorageExceptionArbiterServiceTests
         Assert.Throws<ArgumentNullException>(() => _sut.GetReport(null!));
     }
 
+    [Fact]
+    public void GetReport_RequestFailedException_InternalError_IsTransient()
+    {
+        var exception = new RequestFailedException(500, "internal", QueueErrorCode.InternalError.ToString(), null);
+
+        var report = _sut.GetReport(exception);
+
+        Assert.True(report.IsExpected);
+        Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
+        _azureArbiter.VerifyNoOtherCalls();
+    }
+
     [Theory]
     [MemberData(nameof(MessageLevelErrorCodes))]
     public void GetReport_RequestFailedException_MessageLevelErrors_AreExpectedAndNotExternallySolvable(
@@ -60,28 +73,6 @@ public class AzureQueueStorageExceptionArbiterServiceTests
         _azureArbiter.VerifyNoOtherCalls();
     }
 
-    public static TheoryData<string> MessageLevelErrorCodes()
-    {
-        return
-        [
-            QueueErrorCode.MessageNotFound.ToString(),
-            QueueErrorCode.PopReceiptMismatch.ToString(),
-            QueueErrorCode.MessageTooLarge.ToString()
-        ];
-    }
-
-    public static TheoryData<string> QueueLevelErrorCodes()
-    {
-        return
-        [
-            QueueErrorCode.QueueNotFound.ToString(),
-            QueueErrorCode.QueueBeingDeleted.ToString(),
-            QueueErrorCode.QueueDisabled.ToString(),
-            QueueErrorCode.AuthorizationFailure.ToString(),
-            QueueErrorCode.AuthenticationFailed.ToString()
-        ];
-    }
-
     [Theory]
     [MemberData(nameof(QueueLevelErrorCodes))]
     public void GetReport_RequestFailedException_QueueLevelErrors_AreExpectedAndExternallySolvable(string errorCode)
@@ -92,19 +83,6 @@ public class AzureQueueStorageExceptionArbiterServiceTests
 
         Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);
-        Assert.True(report.CouldBeExternallySolvable);
-        _azureArbiter.VerifyNoOtherCalls();
-    }
-
-    [Fact]
-    public void GetReport_RequestFailedException_InternalError_IsTransient()
-    {
-        var exception = new RequestFailedException(500, "internal", QueueErrorCode.InternalError.ToString(), null);
-
-        var report = _sut.GetReport(exception);
-
-        Assert.True(report.IsExpected);
-        Assert.True(report.CouldBeTransient);
         Assert.True(report.CouldBeExternallySolvable);
         _azureArbiter.VerifyNoOtherCalls();
     }
@@ -201,5 +179,27 @@ public class AzureQueueStorageExceptionArbiterServiceTests
         Assert.False(handledReport.CouldBeTransient);
         Assert.False(handledReport.CouldBeExternallySolvable);
         _azureArbiter.VerifyNoOtherCalls();
+    }
+
+    public static TheoryData<string> MessageLevelErrorCodes()
+    {
+        return
+        [
+            QueueErrorCode.MessageNotFound.ToString(),
+            QueueErrorCode.PopReceiptMismatch.ToString(),
+            QueueErrorCode.MessageTooLarge.ToString()
+        ];
+    }
+
+    public static TheoryData<string> QueueLevelErrorCodes()
+    {
+        return
+        [
+            QueueErrorCode.QueueNotFound.ToString(),
+            QueueErrorCode.QueueBeingDeleted.ToString(),
+            QueueErrorCode.QueueDisabled.ToString(),
+            QueueErrorCode.AuthorizationFailure.ToString(),
+            QueueErrorCode.AuthenticationFailed.ToString()
+        ];
     }
 }

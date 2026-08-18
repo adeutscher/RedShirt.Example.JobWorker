@@ -23,7 +23,8 @@ internal class AzureQueueStorageMessageSource(
     /// </summary>
     private const int MaxBatchSizePerRequest = 32;
 
-    private Task<List<IQueueMessageModel>> GetAsync(int batchSize, IQueueConsumerClientWrapper client, CancellationToken cancellationToken = default)
+    private Task<List<IQueueMessageModel>> GetAsync(int batchSize, IQueueConsumerClientWrapper client,
+        CancellationToken cancellationToken = default)
     {
         return retryWrapperService.RunAsync(async ct => await client.GetMessagesAsync(batchSize,
             TimeSpan.FromSeconds(options.Value.EffectiveVisibilityTimeoutSeconds), ct), cancellationToken);
@@ -33,7 +34,7 @@ internal class AzureQueueStorageMessageSource(
         CancellationToken cancellationToken = default)
     {
         var messages = new List<IQueueMessageModel>();
-        
+
         var client = await clientSource.GetQueueClientAsync(cancellationToken);
 
         while (batchSize > MaxBatchSizePerRequest)
