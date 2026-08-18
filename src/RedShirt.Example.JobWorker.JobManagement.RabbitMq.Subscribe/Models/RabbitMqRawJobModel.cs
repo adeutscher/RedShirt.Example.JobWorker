@@ -1,0 +1,12 @@
+using RedShirt.Example.JobWorker.Core.Models;
+
+namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.Models;
+
+internal class RabbitMqRawJobModel : IRawJobModel
+{
+    public required ulong DeliveryTag { get; init; }
+    public required string MessageId { get; init; }
+    public string? IdempotencyId { get; init; }
+    public required string? Body { get; init; }
+    public required DateTime CreatedAtUtc { get; init; }
+}

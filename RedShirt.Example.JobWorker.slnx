@@ -105,6 +105,8 @@
         <Project
                 Path="test/RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests/RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.csproj"/>
         <Project
+                Path="test/RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.UnitTests/RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.UnitTests.csproj"/>
+        <Project
                 Path="test/RedShirt.Example.JobWorker.JobManagement.RedisStreams.UnitTests/RedShirt.Example.JobWorker.JobManagement.RedisStreams.UnitTests.csproj"/>
         <Project
                 Path="test/RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests/RedShirt.Example.JobWorker.JobManagement.Sqs.UnitTests.csproj"/>

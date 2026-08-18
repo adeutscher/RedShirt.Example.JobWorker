@@ -16,6 +16,7 @@ using RedShirt.Example.JobWorker.JobManagement.Kinesis.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Pulsar.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Extensions;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RedisStreams.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Sqs.Extensions;
 
@@ -34,6 +35,7 @@ public static class ServiceCollectionExtensions
             ("UseAzureServiceBus", JobSourceKind.AzureServiceBus),
             ("UseGooglePubSub", JobSourceKind.GooglePubSub),
             ("UseRabbitMq", JobSourceKind.RabbitMq),
+            ("UseRabbitMqSubscribe", JobSourceKind.RabbitMqSubscribe),
             ("UseActiveMq", JobSourceKind.ActiveMq),
             ("UseKinesis", JobSourceKind.Kinesis),
             ("UseKafka", JobSourceKind.Kafka),
@@ -105,6 +107,11 @@ public static class ServiceCollectionExtensions
                     .AddSecretManagerCore(configuration)
                     .AddRabbitMqJobManagement(configuration);
                 break;
+            case JobSourceKind.RabbitMqSubscribe:
+                services = services
+                    .AddSecretManagerCore(configuration)
+                    .AddRabbitMqSubscribeJobManagement(configuration);
+                break;
             case JobSourceKind.ActiveMq:
                 services = services
                     .AddSecretManagerCore(configuration)
@@ -141,6 +148,7 @@ public static class ServiceCollectionExtensions
         AzureServiceBus,
         GooglePubSub,
         RabbitMq,
+        RabbitMqSubscribe,
         ActiveMq,
         Kinesis,
         Kafka,
