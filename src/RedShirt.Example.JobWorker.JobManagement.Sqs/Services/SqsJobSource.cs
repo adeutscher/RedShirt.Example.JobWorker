@@ -103,6 +103,8 @@ internal class SqsJobSource(
     public int RecommendedHeartbeatIntervalSeconds =>
         (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
+    public bool IsSubscriptionSource => false;
+
     public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         if (message is not SqsJobModel sqsJobModel)
@@ -148,5 +150,10 @@ internal class SqsJobSource(
         }
 
         await retryWrapperService.RunAsync(ct => sqs.ChangeMessageVisibilityAsync(request, ct), cancellationToken);
+    }
+
+    public Task StartSubscriberAsync(CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException();
     }
 }

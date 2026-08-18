@@ -73,6 +73,8 @@ internal class PulsarJobSource(
     /// </summary>
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
+    public bool IsSubscriptionSource => false;
+
     public Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         /*
@@ -80,5 +82,10 @@ internal class PulsarJobSource(
          * AckTimeout (see JobSource:Pulsar:AckTimeoutSeconds) covers lease expiry for unacked messages.
          */
         return Task.CompletedTask;
+    }
+
+    public Task StartSubscriberAsync(CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException();
     }
 }

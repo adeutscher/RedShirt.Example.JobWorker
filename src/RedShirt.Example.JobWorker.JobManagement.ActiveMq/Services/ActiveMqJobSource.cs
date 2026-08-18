@@ -63,6 +63,8 @@ internal class ActiveMqJobSource : IJobSource
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
+    public bool IsSubscriptionSource => false;
+
 #pragma warning disable S2325
     public Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
@@ -125,6 +127,11 @@ internal class ActiveMqJobSource : IJobSource
          * Not necessary. Heartbeats are managed by the persistence of the IMessage object.
          */
         return Task.CompletedTask;
+    }
+
+    public Task StartSubscriberAsync(CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException();
     }
 
     public sealed class ConfigurationModel

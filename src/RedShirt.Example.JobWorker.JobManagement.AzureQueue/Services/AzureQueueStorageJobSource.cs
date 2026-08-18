@@ -59,6 +59,8 @@ internal class AzureQueueStorageJobSource(
     public int RecommendedHeartbeatIntervalSeconds =>
         (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
+    public bool IsSubscriptionSource => false;
+
     public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         if (message is not AzureQueueStorageRawJobModel messageAsAzureJobModel)
@@ -73,5 +75,10 @@ internal class AzureQueueStorageJobSource(
             await client.SetMessageVisibilityTimeoutAsync(messageAsAzureJobModel.Message,
                 TimeSpan.FromSeconds(options.Value.EffectiveVisibilityTimeoutSeconds), ct);
         }, cancellationToken);
+    }
+
+    public Task StartSubscriberAsync(CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException();
     }
 }

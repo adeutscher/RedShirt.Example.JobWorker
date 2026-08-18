@@ -9,7 +9,7 @@ using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Jobs;
 
-internal interface IJobIntakeService
+public interface IJobIntakeService
 {
     Task SubmitAsync(IJobSourceResponse jobSourceResponse, CancellationToken cancellationToken);
 }

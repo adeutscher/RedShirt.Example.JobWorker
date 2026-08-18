@@ -94,6 +94,8 @@ internal class RabbitMqJobSource(
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
+    public bool IsSubscriptionSource => false;
+
     public Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         /*
@@ -103,6 +105,11 @@ internal class RabbitMqJobSource(
          * IRawJobDataModel is even a RabbitMqRawJobModel.
          */
         return Task.CompletedTask;
+    }
+
+    public Task StartSubscriberAsync(CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException();
     }
 
     public sealed class ConfigurationModel
