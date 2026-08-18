@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services;
+using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.ActiveMq.Extensions;
 
@@ -21,6 +22,8 @@ public static class ServiceCollectionExtensions
                 configuration.GetSection("JobSource:ActiveMq"))
             .AddSingleton<IActiveMqServerConfigurationSource, ActiveMqServerConfigurationSource>()
             .AddSingleton<IInnerActiveMqConnectionFactory, InnerActiveMqConnectionFactory>()
-            .AddSingleton<IActiveMqConnectionFactory, ActiveMqConnectionFactory>();
+            .AddSingleton<IActiveMqConnectionFactory, ActiveMqConnectionFactory>()
+            .AddSingleton<IActiveMqExceptionArbiterService, ActiveMqExceptionArbiterService>()
+            .AddSingleton<IActiveMqRetryWrapperService, ActiveMqRetryWrapperService>();
     }
 }
