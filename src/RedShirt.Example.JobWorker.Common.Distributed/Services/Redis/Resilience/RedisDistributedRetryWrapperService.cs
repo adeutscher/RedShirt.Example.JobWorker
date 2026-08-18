@@ -115,14 +115,25 @@ internal sealed class RedisDistributedRetryWrapperService(
             .Build();
     }
 
-    private Exception WrapIfNeeded(Exception exception)
+    /// <summary>
+    ///     Try to get the wrapped exception.
+    /// </summary>
+    /// <param name="exception">Exception to be judged.</param>
+    /// <param name="wrappedException">
+    ///     If wrapping was appropriate, then will be <see cref="WorkerDistributedException" />
+    ///     wrapped around
+    ///     <param name="exception"></param>
+    /// </param>
+    /// <returns><c>true</c> if the exception was wrapped, else <c>false</c></returns>
+    private bool TryGetWrappedException(Exception exception, out Exception? wrappedException)
     {
+        wrappedException = null;
         var report = exceptionArbiterService.GetReport(exception);
 
         // ReSharper disable once DuplicatedSequentialIfBodies
         if (report.AlreadyHandled && exception is WorkerDistributedException)
         {
-            return exception;
+            return false;
         }
 
         if (!report.IsExpected)
@@ -131,15 +142,16 @@ internal sealed class RedisDistributedRetryWrapperService(
              * Unexpected / unrecognized.
              * Unexpected failures stay raw so they raise attention and get classified.
              */
-            return exception;
+            return false;
         }
 
-        return new WorkerDistributedException(exception)
+        wrappedException = new WorkerDistributedException(exception)
         {
             CouldBeTransient = report.CouldBeTransient,
             IsHandled = true,
             CouldBeExternallySolvable = report.CouldBeExternallySolvable
         };
+        return true;
     }
 
     /// <inheritdoc />
@@ -158,7 +170,13 @@ internal sealed class RedisDistributedRetryWrapperService(
         }
         catch (Exception exception)
         {
-            throw WrapIfNeeded(exception);
+            if (TryGetWrappedException(exception, out var wrappedException) && wrappedException is not null)
+            {
+                throw wrappedException;
+            }
+
+            // Do a flat throw to preserve stack trace
+            throw;
         }
     }
 
@@ -177,7 +195,13 @@ internal sealed class RedisDistributedRetryWrapperService(
         }
         catch (Exception exception)
         {
-            throw WrapIfNeeded(exception);
+            if (TryGetWrappedException(exception, out var wrappedException) && wrappedException is not null)
+            {
+                throw wrappedException;
+            }
+
+            // Do a flat throw to preserve stack trace
+            throw;
         }
     }
 }

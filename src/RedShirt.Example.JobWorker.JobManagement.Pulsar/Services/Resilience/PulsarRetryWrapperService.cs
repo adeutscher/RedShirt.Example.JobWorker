@@ -76,14 +76,25 @@ internal class PulsarRetryWrapperService(
             .Build();
     }
 
-    private Exception WrapIfNeeded(Exception exception)
+    /// <summary>
+    ///     Try to get the wrapped exception.
+    /// </summary>
+    /// <param name="exception">Exception to be judged.</param>
+    /// <param name="wrappedException">
+    ///     If wrapping was appropriate, then will be <see cref="WorkerJobSourceException" />
+    ///     wrapped around
+    ///     <param name="exception"></param>
+    /// </param>
+    /// <returns><c>true</c> if the exception was wrapped, else <c>false</c></returns>
+    private bool TryGetWrappedException(Exception exception, out Exception? wrappedException)
     {
+        wrappedException = null;
         var report = exceptionArbiterService.GetReport(exception);
 
         // ReSharper disable once DuplicatedSequentialIfBodies
         if (report.AlreadyHandled && exception is WorkerJobSourceException)
         {
-            return exception;
+            return false;
         }
 
         if (!report.IsExpected)
@@ -92,15 +103,16 @@ internal class PulsarRetryWrapperService(
              * Unexpected / unrecognized.
              * Unexpected failures stay raw so they raise attention and get classified.
              */
-            return exception;
+            return false;
         }
 
-        return new WorkerJobSourceException(exception)
+        wrappedException = new WorkerJobSourceException(exception)
         {
             CouldBeTransient = report.CouldBeTransient,
             IsHandled = true,
             CouldBeExternallySolvable = report.CouldBeExternallySolvable
         };
+        return true;
     }
 
     public async Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func,
@@ -118,7 +130,13 @@ internal class PulsarRetryWrapperService(
         }
         catch (Exception exception)
         {
-            throw WrapIfNeeded(exception);
+            if (TryGetWrappedException(exception, out var wrappedException) && wrappedException is not null)
+            {
+                throw wrappedException;
+            }
+
+            // Do a flat throw to preserve stack trace
+            throw;
         }
     }
 
@@ -136,7 +154,13 @@ internal class PulsarRetryWrapperService(
         }
         catch (Exception exception)
         {
-            throw WrapIfNeeded(exception);
+            if (TryGetWrappedException(exception, out var wrappedException) && wrappedException is not null)
+            {
+                throw wrappedException;
+            }
+
+            // Do a flat throw to preserve stack trace
+            throw;
         }
     }
 }

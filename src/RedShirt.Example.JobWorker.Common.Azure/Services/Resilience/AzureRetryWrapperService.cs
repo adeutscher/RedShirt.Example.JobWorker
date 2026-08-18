@@ -97,25 +97,37 @@ internal sealed class AzureRetryWrapperService(
             .Build();
     }
 
-    private Exception WrapIfNeeded(Exception exception)
+    /// <summary>
+    ///     Try to get the wrapped exception.
+    /// </summary>
+    /// <param name="exception">Exception to be judged.</param>
+    /// <param name="wrappedException">
+    ///     If wrapping was appropriate, then will be <see cref="WorkerAzureException" />
+    ///     wrapped around
+    ///     <param name="exception"></param>
+    /// </param>
+    /// <returns><c>true</c> if the exception was wrapped, else <c>false</c></returns>
+    private bool TryGetWrappedException(Exception exception, out Exception? wrappedException)
     {
+        wrappedException = null;
         var report = exceptionArbiterService.GetReport(exception);
 
         if (!report.IsExpected)
         {
             /*
-             * Unexpected / unrecognized. Return the raw exception so it stays raw and raises attention,
-             * giving a developer a chance to either classify it or address the upstream cause.
+             * Unexpected / unrecognized.
+             * Unexpected failures stay raw so they raise attention and get classified.
              */
-            return exception;
+            return false;
         }
 
-        return new WorkerAzureException(exception)
+        wrappedException = new WorkerAzureException(exception)
         {
             CouldBeTransient = report.CouldBeTransient,
             IsHandled = true,
             CouldBeExternallySolvable = report.CouldBeExternallySolvable
         };
+        return true;
     }
 
     /// <inheritdoc />
@@ -134,7 +146,13 @@ internal sealed class AzureRetryWrapperService(
         }
         catch (Exception exception)
         {
-            throw WrapIfNeeded(exception);
+            if (TryGetWrappedException(exception, out var wrappedException) && wrappedException is not null)
+            {
+                throw wrappedException;
+            }
+
+            // Do a flat throw to preserve stack trace
+            throw;
         }
     }
 }
