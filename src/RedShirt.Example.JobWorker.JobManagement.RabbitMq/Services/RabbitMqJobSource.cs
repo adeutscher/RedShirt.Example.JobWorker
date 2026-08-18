@@ -1,13 +1,13 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
-using RabbitMQ.Client.Exceptions;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
 using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
@@ -20,13 +20,16 @@ internal class RabbitMqJobSource : IJobSource
     // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
     private readonly Lazy<Task<IConnection>> _connection;
     private readonly ILogger<RabbitMqJobSource> _logger;
+    private readonly IRabbitMqRetryWrapperService _retryWrapperService;
 
     public RabbitMqJobSource(IRabbitMqConnectionFactory connectionFactory,
         IOptions<ConfigurationModel> configuration,
-        ILogger<RabbitMqJobSource> logger)
+        ILogger<RabbitMqJobSource> logger,
+        IRabbitMqRetryWrapperService retryWrapperService)
     {
         _configuration = configuration;
         _logger = logger;
+        _retryWrapperService = retryWrapperService;
         _connection = new Lazy<Task<IConnection>>(() => connectionFactory.GetConnectionAsync());
         _channel = new Lazy<Task<IChannel>>(async () =>
         {
@@ -44,33 +47,21 @@ internal class RabbitMqJobSource : IJobSource
             return;
         }
 
-        var channel = await _channel.Value;
-        try
+        await _retryWrapperService.RunAsync(async ct =>
         {
+            var channel = await _channel.Value;
             if (result.IsSuccessful())
             {
-                await channel.BasicAckAsync(rabbitMqJobModel.DeliveryTag, false, cancellationToken);
+                await channel.BasicAckAsync(rabbitMqJobModel.DeliveryTag, false, ct);
             }
             else
             {
                 // If recoverable, then NAck with requeue so the message can be delivered again.
                 // Empty / Parsing / InvalidData: NAck without requeue (dead-letter if the queue is configured for it).
                 await channel.BasicNackAsync(rabbitMqJobModel.DeliveryTag, false, result.IsRecoverableFailure(),
-                    cancellationToken);
+                    ct);
             }
-        }
-        catch (ObjectDisposedException)
-        {
-            /*
-             * An ObjectDispostException suggest the closure of the connection underlying
-             * the channel that this message originated from.
-             *
-             * Not considered to be actionable, let the exception pass.
-             * The message represented by this message ID already fell back into the queue when the connection died.
-             *
-             * This catch will be changed in the near future when RabbitMQ is hardened with an exception-handling policy similar to the pattern used in places like the Kafka subproject.
-             */
-        }
+        }, cancellationToken);
     }
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -78,48 +69,40 @@ internal class RabbitMqJobSource : IJobSource
         _logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from RabbitMQ Queue: {QueueName}",
             batchSize, _configuration.Value.QueueName);
 
-        var getJobsResponseItems = new List<IRawJobModel>();
-
-        var channel = await _channel.Value;
-
-        while (getJobsResponseItems.Count < batchSize)
+        return await _retryWrapperService.RunAsync(async ct =>
         {
-            BasicGetResult? result;
+            var getJobsResponseItems = new List<IRawJobModel>();
 
-            try
+            var channel = await _channel.Value;
+
+            while (getJobsResponseItems.Count < batchSize)
             {
-                result = await channel.BasicGetAsync(_configuration.Value.QueueName, false, cancellationToken);
+                var result = await channel.BasicGetAsync(_configuration.Value.QueueName, false, ct);
+
+                if (result is null)
+                    // Nothing more to grab at the moment.
+                {
+                    break;
+                }
+
+                var body = Encoding.UTF8.GetString(result.Body.ToArray());
+
+                // Got a message, add it to return set.
+                getJobsResponseItems.Add(new RabbitMqJobModel
+                {
+                    MessageId = result.BasicProperties.MessageId ?? "UNKNOWN",
+                    IdempotencyId = result.BasicProperties.MessageId,
+                    DeliveryTag = result.DeliveryTag,
+                    CreatedAtUtc = DateTime.UtcNow,
+                    Body = body
+                });
             }
-            catch (AlreadyClosedException e)
+
+            return new JobSourceResponse
             {
-                // Came up during local testing, not sure how I triggered it at time of writing
-                _logger.LogWarning(e, "RabbitMQ connection closed (will reacquire): {EMessage}", e.Message);
-                break;
-            }
-
-            if (result is null)
-                // Nothing more to grab at the moment.
-            {
-                break;
-            }
-
-            var body = Encoding.UTF8.GetString(result.Body.ToArray());
-
-            // Got a message, add it to return set.
-            getJobsResponseItems.Add(new RabbitMqJobModel
-            {
-                MessageId = result.BasicProperties.MessageId ?? "UNKNOWN",
-                IdempotencyId = result.BasicProperties.MessageId,
-                DeliveryTag = result.DeliveryTag,
-                CreatedAtUtc = DateTime.UtcNow,
-                Body = body
-            });
-        }
-
-        return new JobSourceResponse
-        {
-            Items = getJobsResponseItems
-        };
+                Items = getJobsResponseItems
+            };
+        }, cancellationToken);
     }
 
     public int RecommendedHeartbeatIntervalSeconds => 0;

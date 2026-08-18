@@ -8,6 +8,7 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Services.Resilience;
 using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Services;
@@ -44,7 +45,8 @@ public class RabbitMqJobSourceTests
         };
 
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>());
+            new NullLogger<RabbitMqJobSource>(),
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
         var job = new RabbitMqJobModel
         {
@@ -84,7 +86,8 @@ public class RabbitMqJobSourceTests
         };
 
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>());
+            new NullLogger<RabbitMqJobSource>(),
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
         var job = new Mock<IRawJobModel>();
 
@@ -126,7 +129,8 @@ public class RabbitMqJobSourceTests
         };
 
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>());
+            new NullLogger<RabbitMqJobSource>(),
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
         var job = new RabbitMqJobModel
         {
@@ -146,7 +150,7 @@ public class RabbitMqJobSourceTests
     }
 
     [Fact]
-    public async Task Test_AcknowledgeAsync_ObjectDisposedExceptionIgnored()
+    public async Task Test_AcknowledgeAsync_ObjectDisposedException_Propagates()
     {
         // Set up Mocks
 
@@ -172,7 +176,8 @@ public class RabbitMqJobSourceTests
         };
 
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>());
+            new NullLogger<RabbitMqJobSource>(),
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
         var job = new RabbitMqJobModel
         {
@@ -182,13 +187,8 @@ public class RabbitMqJobSourceTests
             Body = "body"
         };
 
-        await jobSource.AcknowledgeAsync(job, CoreJobResult.Success,
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Single(rabbitConnectionFactory.Invocations);
-        Assert.Single(mockConnection.Invocations);
-        Assert.Single(mockChannel.Invocations);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() =>
+            jobSource.AcknowledgeAsync(job, CoreJobResult.Success, TestContext.Current.CancellationToken));
 
         mockChannel.Verify(c => c.BasicAckAsync(4321, false, TestContext.Current.CancellationToken), Times.Once);
     }
@@ -219,7 +219,8 @@ public class RabbitMqJobSourceTests
         };
 
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>());
+            new NullLogger<RabbitMqJobSource>(),
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
         var job = new RabbitMqJobModel
         {
@@ -265,7 +266,8 @@ public class RabbitMqJobSourceTests
         };
 
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>());
+            new NullLogger<RabbitMqJobSource>(),
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
         var job = new RabbitMqJobModel
         {
@@ -287,7 +289,7 @@ public class RabbitMqJobSourceTests
     }
 
     [Fact]
-    public async Task Test_GetJobs_AlreadyClosedException_AfterPartialBatch_ReturnsCollectedJobs()
+    public async Task Test_GetJobs_AlreadyClosedException_AfterPartialBatch_Propagates()
     {
         var queueName = Guid.NewGuid().ToString();
 
@@ -331,19 +333,17 @@ public class RabbitMqJobSourceTests
             });
 
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>());
+            new NullLogger<RabbitMqJobSource>(),
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
-        var jobResponse = await jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken);
+        await Assert.ThrowsAsync<AlreadyClosedException>(() =>
+            jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken));
 
-        var returnedJobItem = Assert.Single(jobResponse.Items);
-        Assert.Equal(messageId, returnedJobItem.MessageId);
-        Assert.Equal(messageId, returnedJobItem.IdempotencyId);
-        Assert.Equal(bodyString, returnedJobItem.Body);
         Assert.Equal(2, getCalls);
     }
 
     [Fact]
-    public async Task Test_GetJobs_AlreadyClosedException_ReturnsEmpty()
+    public async Task Test_GetJobs_AlreadyClosedException_Propagates()
     {
         var queueName = Guid.NewGuid().ToString();
 
@@ -368,11 +368,12 @@ public class RabbitMqJobSourceTests
                 new ShutdownEventArgs(ShutdownInitiator.Application, 0, "closed")));
 
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>());
+            new NullLogger<RabbitMqJobSource>(),
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
-        var jobResponse = await jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken);
+        await Assert.ThrowsAsync<AlreadyClosedException>(() =>
+            jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken));
 
-        Assert.Empty(jobResponse.Items);
         mockChannel.Verify(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken), Times.Once);
     }
 
@@ -405,7 +406,8 @@ public class RabbitMqJobSourceTests
         // Declare objects
 
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>());
+            new NullLogger<RabbitMqJobSource>(),
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
@@ -460,7 +462,8 @@ public class RabbitMqJobSourceTests
             .ReturnsAsync(() => mockChannelQueue.TryDequeue(out var job) ? job : null);
 
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>());
+            new NullLogger<RabbitMqJobSource>(),
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
         var jobResponse = await jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken);
 
@@ -534,7 +537,8 @@ public class RabbitMqJobSourceTests
         // Declare objects
 
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>());
+            new NullLogger<RabbitMqJobSource>(),
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
         var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
@@ -599,7 +603,8 @@ public class RabbitMqJobSourceTests
             .ReturnsAsync(() => mockChannelQueue.TryDequeue(out var job) ? job : null);
 
         var jobSource = new RabbitMqJobSource(rabbitConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>());
+            new NullLogger<RabbitMqJobSource>(),
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
@@ -621,7 +626,8 @@ public class RabbitMqJobSourceTests
         };
 
         var jobSource = new RabbitMqJobSource(null!, Options.Create(configuration),
-            new NullLogger<RabbitMqJobSource>());
+            new NullLogger<RabbitMqJobSource>(),
+            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object);
 
         // Run. Source should be executing an empty block with no complains about all the nulls that it's been given.
         await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);
