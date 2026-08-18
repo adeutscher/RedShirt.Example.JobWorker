@@ -76,6 +76,8 @@ internal sealed class AzureExceptionArbiterService : IAzureExceptionArbiterServi
             HttpRequestException => Fresh(true, true, true),
             // Low-level network failure; typically intermittent connectivity.
             SocketException => Fresh(true, true, true),
+            // SDK / AMQP client timeouts (distinct from TaskCanceledException).
+            TimeoutException => Fresh(true, true, true),
             // HttpClient request timeouts commonly surface as TaskCanceledException; treat as retryable.
             // Must be matched before OperationCanceledException (TCE derives from OCE).
             TaskCanceledException => Fresh(true, true, true),

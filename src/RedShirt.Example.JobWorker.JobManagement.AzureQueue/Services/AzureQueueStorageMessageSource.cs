@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Models;
+using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services;
 
@@ -12,6 +13,7 @@ internal interface IAzureQueueStorageMessageSource
 
 internal class AzureQueueStorageMessageSource(
     IQueueConsumerClientSource clientSource,
+    IAzureQueueStorageRetryWrapperService retryWrapperService,
     IOptions<AzureQueueStorageConfigurationModel> options) : IAzureQueueStorageMessageSource
 {
     /// <summary>
@@ -20,11 +22,14 @@ internal class AzureQueueStorageMessageSource(
     /// </summary>
     private const int MaxBatchSizePerRequest = 32;
 
-    private async Task<List<IQueueMessageModel>> GetAsync(int batchSize, CancellationToken cancellationToken = default)
+    private Task<List<IQueueMessageModel>> GetAsync(int batchSize, CancellationToken cancellationToken = default)
     {
-        var client = await clientSource.GetQueueClientAsync(cancellationToken);
-        return await client.GetMessagesAsync(batchSize,
-            TimeSpan.FromSeconds(options.Value.EffectiveVisibilityTimeoutSeconds), cancellationToken);
+        return retryWrapperService.RunAsync(async ct =>
+        {
+            var client = await clientSource.GetQueueClientAsync(ct);
+            return await client.GetMessagesAsync(batchSize,
+                TimeSpan.FromSeconds(options.Value.EffectiveVisibilityTimeoutSeconds), ct);
+        }, cancellationToken);
     }
 
     public async Task<List<IQueueMessageModel>> GetMessagesAsync(int batchSize,

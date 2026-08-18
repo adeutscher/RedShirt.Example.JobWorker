@@ -6,6 +6,7 @@ using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Models;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services;
+using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tests.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tests.Services;
@@ -28,6 +29,7 @@ public class AzureServiceBusJobSourceTests
         AzureServiceBusConfigurationModel? config = null)
     {
         return new AzureServiceBusJobSource(clientSource, messageSource,
+            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             Options.Create(config ?? new AzureServiceBusConfigurationModel
             {
                 VisibilityTimeoutSeconds = 0,

@@ -6,12 +6,14 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Models;
+using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services;
 
 internal class AzureQueueStorageJobSource(
     IQueueConsumerClientSource clientSource,
     IAzureQueueStorageMessageSource azureQueueStorageMessageSource,
+    IAzureQueueStorageRetryWrapperService retryWrapperService,
     IOptions<AzureQueueStorageConfigurationModel> options) : IJobSource
 {
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
@@ -29,11 +31,13 @@ internal class AzureQueueStorageJobSource(
             return;
         }
 
-        var client = await clientSource.GetQueueClientAsync(cancellationToken);
-
         // Success and unrecoverable (Empty / Parsing / InvalidData): delete. Azure Queue has no native DLQ.
         // Queueing failed messages in another DLQ would be an application-defined extension.
-        await client.DeleteMessageAsync(messageAsAzureJobModel.Message, cancellationToken);
+        await retryWrapperService.RunAsync(async ct =>
+        {
+            var client = await clientSource.GetQueueClientAsync(ct);
+            await client.DeleteMessageAsync(messageAsAzureJobModel.Message, ct);
+        }, cancellationToken);
     }
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -64,8 +68,11 @@ internal class AzureQueueStorageJobSource(
             return;
         }
 
-        var client = await clientSource.GetQueueClientAsync(cancellationToken);
-        await client.SetMessageVisibilityTimeoutAsync(messageAsAzureJobModel.Message,
-            TimeSpan.FromSeconds(options.Value.EffectiveVisibilityTimeoutSeconds), cancellationToken);
+        await retryWrapperService.RunAsync(async ct =>
+        {
+            var client = await clientSource.GetQueueClientAsync(ct);
+            await client.SetMessageVisibilityTimeoutAsync(messageAsAzureJobModel.Message,
+                TimeSpan.FromSeconds(options.Value.EffectiveVisibilityTimeoutSeconds), ct);
+        }, cancellationToken);
     }
 }
