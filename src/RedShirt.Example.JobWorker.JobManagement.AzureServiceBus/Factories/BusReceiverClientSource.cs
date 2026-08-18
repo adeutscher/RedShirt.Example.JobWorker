@@ -9,10 +9,30 @@ internal interface IBusReceiverClientSource
 
 internal class BusReceiverClientSource(IBusReceiverClientFactory factory) : IBusReceiverClientSource
 {
-    private readonly Lazy<Task<IServiceBusClientWrapper>> _queueClient = new(() => factory.GetQueueClientAsync());
+    private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
+    private IServiceBusClientWrapper? _queueClient;
 
-    public Task<IServiceBusClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default)
+    public async Task<IServiceBusClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default)
     {
-        return _queueClient.Value;
+        if (_queueClient is not null)
+        {
+            return _queueClient;
+        }
+
+        await _semaphoreSlim.WaitAsync(cancellationToken);
+        try
+        {
+            if (_queueClient is not null)
+            {
+                return _queueClient;
+            }
+
+            _queueClient = await factory.GetQueueClientAsync(cancellationToken);
+            return _queueClient;
+        }
+        finally
+        {
+            _semaphoreSlim.Release();
+        }
     }
 }

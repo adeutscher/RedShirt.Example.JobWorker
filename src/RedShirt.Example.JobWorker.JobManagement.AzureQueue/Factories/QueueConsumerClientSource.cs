@@ -9,9 +9,9 @@ internal interface IQueueConsumerClientSource
 
 internal class QueueConsumerClientSource(IQueueConsumerClientFactory factory) : IQueueConsumerClientSource
 {
+    private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
     private IQueueConsumerClientWrapper? _queueClient;
-    private readonly SemaphoreSlim _semaphoreSlim = new SemaphoreSlim(1, 1);
-    
+
     public async Task<IQueueConsumerClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default)
     {
         if (_queueClient is not null)
@@ -25,7 +25,8 @@ internal class QueueConsumerClientSource(IQueueConsumerClientFactory factory) : 
             if (_queueClient is not null)
             {
                 return _queueClient;
-            }   
+            }
+
             _queueClient = await factory.GetQueueClientAsync(cancellationToken);
             return _queueClient;
         }

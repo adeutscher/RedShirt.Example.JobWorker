@@ -1,5 +1,6 @@
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Models;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services.Resilience;
+using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.Tests.Services.Resilience;
 
@@ -15,6 +16,11 @@ internal static class AzureQueueStorageRetryTestHelpers
             .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<List<IQueueMessageModel>>>>(),
                 It.IsAny<CancellationToken>()))
             .Returns<Func<CancellationToken, Task<List<IQueueMessageModel>>>, CancellationToken>((func, token) =>
+                func(token));
+        retry
+            .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<IQueueConsumerClientWrapper>>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<Func<CancellationToken, Task<IQueueConsumerClientWrapper>>, CancellationToken>((func, token) =>
                 func(token));
         return retry;
     }

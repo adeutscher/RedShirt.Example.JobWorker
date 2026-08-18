@@ -6,21 +6,22 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tes
 public class BusReceiverClientSourceTests
 {
     [Fact]
-    public void Test_Get()
+    public async Task Test_Get()
     {
+        var wrapper = new Mock<IServiceBusClientWrapper>().Object;
         var factory = new Mock<IBusReceiverClientFactory>();
         factory.Setup(f => f.GetQueueClientAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Mock<IServiceBusClientWrapper>().Object);
+            .ReturnsAsync(wrapper);
 
         var source = new BusReceiverClientSource(factory.Object);
         // Not called off the bat
         factory.Verify(f => f.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Never);
 
-        var client = source.GetQueueClientAsync(TestContext.Current.CancellationToken);
+        var client = await source.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client);
         factory.Verify(f => f.GetQueueClientAsync(It.IsAny<CancellationToken>()), Times.Once);
 
-        var client2 = source.GetQueueClientAsync(TestContext.Current.CancellationToken);
+        var client2 = await source.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client2);
         Assert.Same(client, client2);
 
