@@ -201,6 +201,7 @@ public class DependencyInjectionTests
             ["AWS_SECRET_ACCESS_KEY"] = "bar",
             ["AWS_SESSION_TOKEN"] = "foobar",
             ["HEALTH__ENABLED"] = "false",
+            ["JOB_SOURCE__RABBITMQ__SUBSCRIBE"] = "false",
             ["UseActiveMq"] = "0",
             ["UseAzureQueueStorage"] = "0",
             ["UseAzureServiceBus"] = "0",
@@ -225,6 +226,7 @@ public class DependencyInjectionTests
             ["AWS_SECRET_ACCESS_KEY"] = "bar",
             ["AWS_SESSION_TOKEN"] = "foobar",
             ["HEALTH__ENABLED"] = "false",
+            ["JOB_SOURCE__RABBITMQ__SUBSCRIBE"] = "true",
             ["UseActiveMq"] = "0",
             ["UseAzureQueueStorage"] = "0",
             ["UseAzureServiceBus"] = "0",
@@ -232,8 +234,8 @@ public class DependencyInjectionTests
             ["UseKinesis"] = "0",
             ["UseNats"] = "0",
             ["UseRedisStreams"] = "0",
-            ["UseRabbitMq"] = "0",
-            ["UseRabbitMqSubscribe"] = "1",
+            ["UseRabbitMq"] = "1",
+            ["UseRabbitMqSubscribe"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
         }, () => { Assert.NotNull(Setup.GetHost()); });

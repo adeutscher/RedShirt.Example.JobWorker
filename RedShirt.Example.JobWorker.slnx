@@ -48,8 +48,6 @@
         <Project
                 Path="src/RedShirt.Example.JobWorker.JobManagement.RabbitMq/RedShirt.Example.JobWorker.JobManagement.RabbitMq.csproj"/>
         <Project
-                Path="src/RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe/RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.csproj"/>
-        <Project
                 Path="src/RedShirt.Example.JobWorker.JobManagement.RedisStreams/RedShirt.Example.JobWorker.JobManagement.RedisStreams.csproj"/>
         <Project
                 Path="src/RedShirt.Example.JobWorker.JobManagement.Sqs/RedShirt.Example.JobWorker.JobManagement.Sqs.csproj"/>
@@ -104,8 +102,6 @@
                 Path="test/RedShirt.Example.JobWorker.JobManagement.Pulsar.UnitTests/RedShirt.Example.JobWorker.JobManagement.Pulsar.UnitTests.csproj"/>
         <Project
                 Path="test/RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests/RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.csproj"/>
-        <Project
-                Path="test/RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.UnitTests/RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.UnitTests.csproj"/>
         <Project
                 Path="test/RedShirt.Example.JobWorker.JobManagement.RedisStreams.UnitTests/RedShirt.Example.JobWorker.JobManagement.RedisStreams.UnitTests.csproj"/>
         <Project

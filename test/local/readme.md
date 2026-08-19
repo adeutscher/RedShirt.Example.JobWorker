@@ -258,7 +258,7 @@ To initialize RabbitMQ and queue messages:
 6. Before starting the worker, make sure that the `USE_RABBITMQ` is set to `1` and that other `USE_` environment variables are not set to `1`.
    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
-    ```
+    ```bash
     export USE_RABBITMQ=1
     export USE_RABBITMQ_SUBSCRIBE=0
     export USE_KINESIS=0
@@ -273,70 +273,14 @@ To initialize RabbitMQ and queue messages:
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
-7. Bring up the worker:
+7. By default, RabbitMQ implements a short polling strategy. If you want to have RabbitMQ instead subscribe to a queue, then set `JOB_SOURCE__RABBITMQ__SUBSCRIBE`:
 
+    ```bash
+    export JOB_SOURCE__RABBITMQ__SUBSCRIBE=true
     ```
-    docker compose up worker
-    ```
+8. Bring up the worker:
 
-### RabbitMQ (Subscribe Mode)
-
-RabbitMQ takes a few more steps to set up than the other input sources.
-
-To initialize RabbitMQ and queue messages:
-
-1. Bring up ministack and Redis:
-
-    ```
-    docker compose up -d ministack redis
-    ```
-
-2. Run the `make-local-aws-resources.sh` script:
-
-    ```
-    ./make-local-aws-resources.sh
-    ```
-
-3. Bring up RabbitMQ:
-
-    ```
-    docker compose up -d rabbitmq
-    ```
-
-4. Create the RabbitMQ queue (safe to re-run if it already exists). This requires the `pika` Python module:
-
-    ```
-    ./make-local-rabbitmq-resources.py
-    ```
-
-5. Use the `send-rabbitmq-job.py` script to publish a message to the `RabbitQueue` queue. Specify the number of seconds the worker should sleep for in the first argument. You may optionally provide a second argument to set the AMQP `message_id` property for idempotency testing:
-
-    ```
-    ./send-rabbitmq-job.py 12
-    ./send-rabbitmq-job.py 12 example-idempotency-key
-    ```
-
-6. Before starting the worker, make sure that the `USE_RABBITMQ_SUBSCRIBE` is set to `1` and that other `USE_` environment variables are not set to `1`.
-   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
-
-    ```
-    export USE_RABBITMQ_SUBSCRIBE=1
-    export USE_RABBITMQ=0
-    export USE_KINESIS=0
-    export USE_KAFKA=0
-    export USE_PULSAR=0
-    export USE_ACTIVEMQ=0
-    export USE_AZURE_QUEUE_STORAGE=0
-    export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
-    export USE_REDIS_STREAMS=0
-    export USE_GOOGLE_PUB_SUB=0
-    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
-    ```
-
-7. Bring up the worker:
-
-    ```
+    ```bash
     docker compose up worker
     ```
 

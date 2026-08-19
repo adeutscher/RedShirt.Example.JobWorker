@@ -249,6 +249,7 @@ services:
       JOB_SOURCE__RABBITMQ__USER_PATH: /rabbitmq/user
       JOB_SOURCE__RABBITMQ__PASSWORD_PATH: /rabbitmq/password
       JOB_SOURCE__RABBITMQ__QUEUE_NAME: RabbitQueue
+      JOB_SOURCE__RABBITMQ__SUBSCRIBE: ${JOB_SOURCE__RABBITMQ__SUBSCRIBE:-false}
       ## Job Management (ActiveMQ)
       USE_ACTIVEMQ: "${USE_ACTIVEMQ-0}"
       JOB_SOURCE__ACTIVEMQ__BROKER_URI: tcp://activemq:61616

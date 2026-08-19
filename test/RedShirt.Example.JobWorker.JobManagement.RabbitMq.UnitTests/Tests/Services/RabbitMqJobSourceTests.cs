@@ -5,9 +5,9 @@ using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
-using RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Services.Resilience;
 using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Services;
@@ -17,24 +17,35 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Serv
 /// </summary>
 public class RabbitMqJobSourceTests
 {
-    private static (RabbitMqJobSource JobSource, Mock<IRabbitMqChannelCacheSource> ChannelSource)
+    private static (RabbitMqJobSource JobSource, Mock<IRabbitMqChannelRetryWrapper> ChannelRetryWrapper)
         CreateJobSource(IChannel channel, string? queueName = null)
     {
-        var channelSource = new Mock<IRabbitMqChannelCacheSource>(MockBehavior.Strict);
-        channelSource
-            .Setup(s => s.GetChannelAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(channel);
+        var channelRetryWrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
+        channelRetryWrapper
+            .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
+                It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+                It.IsAny<Action<IConnection>?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((Func<IChannel, CancellationToken, Task> callback, Action<IConnection>? _,
+                CancellationToken token) => callback(channel, token));
 
         var jobSource = new RabbitMqJobSource(
-            channelSource.Object,
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(new RabbitMqJobSource.ConfigurationModel
+            channelRetryWrapper.Object,
+            Options.Create(new RabbitMqQueueConfigurationModel
             {
                 QueueName = queueName!
             }),
             NullLogger<RabbitMqJobSource>.Instance);
 
-        return (jobSource, channelSource);
+        return (jobSource, channelRetryWrapper);
+    }
+
+    private static void VerifyWrapperCalled(Mock<IRabbitMqChannelRetryWrapper> channelRetryWrapper, Times times)
+    {
+        channelRetryWrapper.Verify(w => w.GetChannelAndDoActionWithRetryAsync(
+            It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+            It.IsAny<Action<IConnection>?>(),
+            TestContext.Current.CancellationToken), times);
     }
 
     [Fact]
@@ -45,7 +56,7 @@ public class RabbitMqJobSourceTests
             .Setup(c => c.BasicAckAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .Returns(() => new ValueTask());
 
-        var (jobSource, channelSource) = CreateJobSource(mockChannel.Object);
+        var (jobSource, channelRetryWrapper) = CreateJobSource(mockChannel.Object);
 
         var job = new RabbitMqRawJobModel
         {
@@ -58,7 +69,7 @@ public class RabbitMqJobSourceTests
         await jobSource.AcknowledgeAsync(job, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
 
-        channelSource.Verify(s => s.GetChannelAsync(TestContext.Current.CancellationToken), Times.Once);
+        VerifyWrapperCalled(channelRetryWrapper, Times.Once());
         Assert.Single(mockChannel.Invocations);
         mockChannel.Verify(c => c.BasicAckAsync(4321, false, TestContext.Current.CancellationToken), Times.Once);
     }
@@ -67,12 +78,11 @@ public class RabbitMqJobSourceTests
     public async Task Test_AcknowledgeAsync_Incompatible()
     {
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-        var channelSource = new Mock<IRabbitMqChannelCacheSource>(MockBehavior.Strict);
+        var channelRetryWrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
 
         var jobSource = new RabbitMqJobSource(
-            channelSource.Object,
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(new RabbitMqJobSource.ConfigurationModel
+            channelRetryWrapper.Object,
+            Options.Create(new RabbitMqQueueConfigurationModel
             {
                 QueueName = null!
             }),
@@ -83,7 +93,10 @@ public class RabbitMqJobSourceTests
         await jobSource.AcknowledgeAsync(job.Object, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
 
-        channelSource.Verify(s => s.GetChannelAsync(It.IsAny<CancellationToken>()), Times.Never);
+        channelRetryWrapper.Verify(w => w.GetChannelAndDoActionWithRetryAsync(
+            It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+            It.IsAny<Action<IConnection>?>(),
+            It.IsAny<CancellationToken>()), Times.Never);
         Assert.Empty(mockChannel.Invocations);
         mockChannel.Verify(
             c => c.BasicAckAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
@@ -183,7 +196,7 @@ public class RabbitMqJobSourceTests
             .Setup(c => c.BasicAckAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .Returns(() => throw new Exception("test"));
 
-        var (jobSource, channelSource) = CreateJobSource(mockChannel.Object);
+        var (jobSource, channelRetryWrapper) = CreateJobSource(mockChannel.Object);
 
         var job = new RabbitMqRawJobModel
         {
@@ -196,7 +209,7 @@ public class RabbitMqJobSourceTests
         await Assert.ThrowsAsync<Exception>(async () =>
             await jobSource.AcknowledgeAsync(job, CoreJobResult.Success, TestContext.Current.CancellationToken));
 
-        channelSource.Verify(s => s.GetChannelAsync(TestContext.Current.CancellationToken), Times.Once);
+        VerifyWrapperCalled(channelRetryWrapper, Times.Once());
         Assert.Single(mockChannel.Invocations);
         mockChannel.Verify(c => c.BasicAckAsync(1234, false, TestContext.Current.CancellationToken), Times.Once);
     }
@@ -249,12 +262,12 @@ public class RabbitMqJobSourceTests
             .ThrowsAsync(new AlreadyClosedException(
                 new ShutdownEventArgs(ShutdownInitiator.Application, 0, "closed")));
 
-        var (jobSource, channelSource) = CreateJobSource(mockChannel.Object, queueName);
+        var (jobSource, channelRetryWrapper) = CreateJobSource(mockChannel.Object, queueName);
 
         await Assert.ThrowsAsync<AlreadyClosedException>(() =>
             jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken));
 
-        channelSource.Verify(s => s.GetChannelAsync(TestContext.Current.CancellationToken), Times.Once);
+        VerifyWrapperCalled(channelRetryWrapper, Times.Once());
         mockChannel.Verify(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken), Times.Once);
     }
 
@@ -267,13 +280,13 @@ public class RabbitMqJobSourceTests
             .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
             .ReturnsAsync((BasicGetResult?) null);
 
-        var (jobSource, channelSource) = CreateJobSource(mockChannel.Object, queueName);
+        var (jobSource, channelRetryWrapper) = CreateJobSource(mockChannel.Object, queueName);
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(jobResponse.Items);
-        channelSource.Verify(s => s.GetChannelAsync(TestContext.Current.CancellationToken), Times.Once);
+        VerifyWrapperCalled(channelRetryWrapper, Times.Once());
         Assert.Single(mockChannel.Invocations);
     }
 
@@ -302,7 +315,7 @@ public class RabbitMqJobSourceTests
             .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
             .ReturnsAsync(() => mockChannelQueue.TryDequeue(out var job) ? job : null);
 
-        var (jobSource, channelSource) = CreateJobSource(mockChannel.Object, queueName);
+        var (jobSource, channelRetryWrapper) = CreateJobSource(mockChannel.Object, queueName);
 
         var jobResponse = await jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken);
 
@@ -313,7 +326,7 @@ public class RabbitMqJobSourceTests
         Assert.Equal(bodyString, returnedJobItem.Body);
         Assert.Equal(deliveryTag, Assert.IsType<RabbitMqRawJobModel>(returnedJobItem).DeliveryTag);
 
-        channelSource.Verify(s => s.GetChannelAsync(TestContext.Current.CancellationToken), Times.Once);
+        VerifyWrapperCalled(channelRetryWrapper, Times.Exactly(2));
         Assert.Equal(2, mockChannel.Invocations.Count);
     }
 
@@ -355,7 +368,7 @@ public class RabbitMqJobSourceTests
             .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
             .ReturnsAsync(() => mockChannelQueue.TryDequeue(out var job) ? job : null);
 
-        var (jobSource, channelSource) = CreateJobSource(mockChannel.Object, queueName);
+        var (jobSource, channelRetryWrapper) = CreateJobSource(mockChannel.Object, queueName);
 
         var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
@@ -376,7 +389,7 @@ public class RabbitMqJobSourceTests
             Assert.Equal(deliveryTag, Assert.IsType<RabbitMqRawJobModel>(returnedJobItem).DeliveryTag);
         }
 
-        channelSource.Verify(s => s.GetChannelAsync(TestContext.Current.CancellationToken), Times.Once);
+        VerifyWrapperCalled(channelRetryWrapper, Times.Exactly(batchSize));
         Assert.Equal(batchSize, mockChannel.Invocations.Count);
         Assert.Empty(mockChannelQueue);
     }
@@ -418,8 +431,7 @@ public class RabbitMqJobSourceTests
     {
         var jobSource = new RabbitMqJobSource(
             null!,
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(new RabbitMqJobSource.ConfigurationModel
+            Options.Create(new RabbitMqQueueConfigurationModel
             {
                 QueueName = null!
             }),

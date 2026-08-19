@@ -14,31 +14,26 @@ using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 using RedShirt.Example.JobWorker.Core.Utility;
-using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.Constants;
-using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.Models;
-using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.Services.Resilience;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using System.Text;
 
-namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.Services;
+namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 
 #pragma warning disable S107
 internal class RabbitMqSubscribeJobSource(
-    IRabbitMqConnectionCacheSource cacheSource,
-    IRabbitMqRetryWrapperService retryWrapperService,
+    IRabbitMqChannelRetryWrapper channelRetryWrapper,
     IJobBacklogSizeService backlogSizeService,
     IJobSubscriberIntakeQueue jobSubscriberIntakeQueue,
     IExecutionEndArbiter executionEndArbiter,
     ISleepService sleepService,
     IOptions<CoreConfigurationModel> coreOptions,
-    IOptions<RabbitMqSubscribeJobSource.ConfigurationModel> rabbitMqConfiguration,
+    IOptions<RabbitMqQueueConfigurationModel> rabbitMqConfiguration,
     ILogger<RabbitMqSubscribeJobSource> logger)
 #pragma warning restore S107
     : IJobSource
 {
-    private readonly SemaphoreSlim _connectionLock = new(1, 1);
     private readonly AsyncManualResetEvent _subscriberCancelEvent = new();
-
-    private IChannel? _mostRecentChannel;
 
     private string? _subscriberTag;
 
@@ -117,7 +112,8 @@ internal class RabbitMqSubscribeJobSource(
 
             try
             {
-                await GetChannelAndDoActionWithRetryAsync(StartConsumerAsync, args.CancellationToken);
+                await channelRetryWrapper.GetChannelAndDoActionWithRetryAsync(StartConsumerAsync,
+                    cancellationToken: args.CancellationToken);
             }
             catch (OperationCanceledException e) when (e.CancellationToken.IsCancellationRequested)
             {
@@ -149,6 +145,20 @@ internal class RabbitMqSubscribeJobSource(
         }
     }
 
+    private Task GetChannelAndDoActionWithRetryAsync(Func<IChannel, CancellationToken, Task> callback,
+        CancellationToken cancellationToken)
+    {
+        return channelRetryWrapper.GetChannelAndDoActionWithRetryAsync(callback,
+            OnNewConnection,
+            cancellationToken);
+    }
+
+    private void OnNewConnection(IConnection connection)
+    {
+        connection.RecoverySucceededAsync -= OnRecoveryAsync;
+        connection.RecoverySucceededAsync += OnRecoveryAsync;
+    }
+
     private void StopSubscriber()
     {
         // Need to middleman through a manual reset event in order to make async calls.
@@ -177,80 +187,6 @@ internal class RabbitMqSubscribeJobSource(
                 // Not terribly concerned about any other exceptions because it's in the shutdown period anyway, but just in case...
             }
         }
-    }
-
-    private Task GetChannelAndDoActionWithRetryAsync(Func<IChannel, CancellationToken, Task> callback,
-        CancellationToken cancellationToken)
-    {
-        return retryWrapperService.RunAsync(async (state, ct) =>
-        {
-            // Using previous iteration's exception stored in state to judge whether we need to regenerate the connection and/or channel.
-            var regenerateConnection = false;
-            var regenerateChannel = false;
-
-            if (state.Exception is OperationInterruptedException
-                {
-                    ShutdownReason.ReplyCode: >= RabbitMqExceptionCodeConstants.ConnectionCodeRangeAMin
-                    and <= RabbitMqExceptionCodeConstants.ConnectionCodeRangeAMax
-                }
-                or OperationInterruptedException
-                {
-                    ShutdownReason.ReplyCode: >= RabbitMqExceptionCodeConstants.ConnectionCodeRangeBMin
-                    and <= RabbitMqExceptionCodeConstants.ConnectionCodeRangeBMax
-                })
-            {
-                regenerateConnection = true;
-            }
-
-            if (regenerateConnection || state.Exception is OperationInterruptedException
-                {
-                    ShutdownReason.ReplyCode: >= RabbitMqExceptionCodeConstants.ChannelCodeMin
-                    and <= RabbitMqExceptionCodeConstants.ChannelCodeMax
-                })
-            {
-                regenerateChannel = true;
-            }
-
-            try
-            {
-                IConnection? connection;
-                await _connectionLock.WaitAsync(ct);
-                try
-                {
-                    var connectionWrapper = await cacheSource.GetConnectionAsync(regenerateConnection, ct);
-                    if (!connectionWrapper.CachedConnection)
-                    {
-                        // Fresh connection
-
-                        // Confirm that we aren't doubling-up on RecoverySucceededAsync
-                        connectionWrapper.Connection.RecoverySucceededAsync -= OnRecoveryAsync;
-                        connectionWrapper.Connection.RecoverySucceededAsync += OnRecoveryAsync;
-                        regenerateChannel = true;
-                    }
-
-                    connection = connectionWrapper.Connection;
-                }
-                finally
-                {
-                    _connectionLock.Release();
-                }
-
-                if (regenerateChannel)
-                {
-                    _mostRecentChannel = await connection.CreateChannelAsync(cancellationToken: ct);
-                }
-
-                await callback(_mostRecentChannel!, cancellationToken);
-            }
-            catch (Exception e)
-            {
-                state.Exception = e;
-                throw;
-            }
-        }, new ChannelState
-        {
-            Exception = null
-        }, cancellationToken);
     }
 
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
@@ -347,15 +283,5 @@ internal class RabbitMqSubscribeJobSource(
 
             break;
         }
-    }
-
-    private sealed class ChannelState
-    {
-        public required Exception? Exception { get; set; }
-    }
-
-    public sealed class ConfigurationModel
-    {
-        public required string QueueName { get; init; }
     }
 }
