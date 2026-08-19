@@ -98,7 +98,7 @@ internal class RabbitMqSubscribeJobSource(
         {
             try
             {
-                var recoveredChannel = await channelSource.GetChannelAsync(args.CancellationToken);
+                var recoveredChannel = await channelSource.GetChannelAsync(cancellationToken: args.CancellationToken);
                 await StartConsumerAsync(recoveredChannel, args.CancellationToken);
             }
             catch (OperationCanceledException e) when (e.CancellationToken.IsCancellationRequested)
@@ -141,7 +141,8 @@ internal class RabbitMqSubscribeJobSource(
     {
         await _subscriberCancelEvent.WaitAsync(cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(_subscriberTag) && await channelSource.GetChannelAsync(cancellationToken) is
+        if (!string.IsNullOrWhiteSpace(_subscriberTag) &&
+            await channelSource.GetChannelAsync(cancellationToken: cancellationToken) is
                 { } channel)
         {
             try
@@ -170,7 +171,7 @@ internal class RabbitMqSubscribeJobSource(
             return;
         }
 
-        var channel = await channelSource.GetChannelAsync(cancellationToken);
+        var channel = await channelSource.GetChannelAsync(cancellationToken: cancellationToken);
 
         await retryWrapperService.RunAsync(async ct =>
         {
@@ -220,7 +221,7 @@ internal class RabbitMqSubscribeJobSource(
         {
             try
             {
-                channel = await channelSource.GetChannelAsync(cancellationToken);
+                channel = await channelSource.GetChannelAsync(cancellationToken: cancellationToken);
                 await StartConsumerAsync(channel, cancellationToken);
             }
             catch (OperationCanceledException e) when (e.CancellationToken.IsCancellationRequested)
