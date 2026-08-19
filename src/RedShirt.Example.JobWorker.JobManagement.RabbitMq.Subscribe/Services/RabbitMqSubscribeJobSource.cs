@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
+using RedShirt.Example.JobWorker.Common.Services.Utility;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
@@ -13,6 +14,7 @@ using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 using RedShirt.Example.JobWorker.Core.Utility;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.Constants;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.Services.Resilience;
 using System.Text;
@@ -21,18 +23,22 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.Services;
 
 #pragma warning disable S107
 internal class RabbitMqSubscribeJobSource(
-    IRabbitMqChannelCacheSource channelSource,
+    IRabbitMqConnectionCacheSource cacheSource,
     IRabbitMqRetryWrapperService retryWrapperService,
     IJobBacklogSizeService backlogSizeService,
     IJobSubscriberIntakeQueue jobSubscriberIntakeQueue,
     IExecutionEndArbiter executionEndArbiter,
+    ISleepService sleepService,
     IOptions<CoreConfigurationModel> coreOptions,
     IOptions<RabbitMqSubscribeJobSource.ConfigurationModel> rabbitMqConfiguration,
     ILogger<RabbitMqSubscribeJobSource> logger)
 #pragma warning restore S107
     : IJobSource
 {
+    private readonly SemaphoreSlim _connectionLock = new(1, 1);
     private readonly AsyncManualResetEvent _subscriberCancelEvent = new();
+
+    private IChannel? _mostRecentChannel;
 
     private string? _subscriberTag;
 
@@ -91,17 +97,25 @@ internal class RabbitMqSubscribeJobSource(
             await channel.BasicConsumeAsync(rabbitMqConfiguration.Value.QueueName, false, consumer, cancellationToken);
     }
 
-    private async Task OnRecoveryAsync(CancellationToken cancellationToken)
+    private async Task OnRecoveryAsync(object? _, AsyncEventArgs args)
     {
         logger.LogInformation(
             "RabbitMQ channel recovered; re-subscribing to queue {QueueName}",
             rabbitMqConfiguration.Value.QueueName);
 
+        var firstIteration = true;
+
         while (true)
         {
+            if (firstIteration)
+            {
+                firstIteration = false;
+                await sleepService.DelayAsync(TimeSpan.FromSeconds(1), args.CancellationToken);
+            }
+
             try
             {
-                await GetChannelAndDoActionWithRetryAsync(StartConsumerAsync, cancellationToken);
+                await GetChannelAndDoActionWithRetryAsync(StartConsumerAsync, args.CancellationToken);
             }
             catch (OperationCanceledException e) when (e.CancellationToken.IsCancellationRequested)
             {
@@ -169,12 +183,73 @@ internal class RabbitMqSubscribeJobSource(
         return retryWrapperService.RunAsync(async (state, ct) =>
         {
             state.AttemptNumber++;
-            // Force getting a new channel if this is beyond the first attempt.
-            var channel = await channelSource.GetChannelAsync(OnRecoveryAsync, state.AttemptNumber > 1, ct);
-            await callback(channel.Channel, cancellationToken);
+
+            var regenerateConnection = false;
+            var regenerateChannel = false;
+
+            if (state.Exception is OperationInterruptedException
+                {
+                    ShutdownReason.ReplyCode: >= RabbitMqExceptionCodeConstants.ConnectionCodeRangeAMin
+                    and <= RabbitMqExceptionCodeConstants.ConnectionCodeRangeAMax
+                }
+                or OperationInterruptedException
+                {
+                    ShutdownReason.ReplyCode: >= RabbitMqExceptionCodeConstants.ConnectionCodeRangeBMin
+                    and <= RabbitMqExceptionCodeConstants.ConnectionCodeRangeBMax
+                })
+            {
+                regenerateConnection = true;
+            }
+
+            if (regenerateConnection || state.Exception is OperationInterruptedException
+                {
+                    ShutdownReason.ReplyCode: >= RabbitMqExceptionCodeConstants.ChannelCodeMin
+                    and <= RabbitMqExceptionCodeConstants.ChannelCodeMax
+                })
+            {
+                regenerateChannel = true;
+            }
+
+            try
+            {
+                IConnection? connection = null;
+                await _connectionLock.WaitAsync(ct);
+                try
+                {
+                    var connectionWrapper = await cacheSource.GetConnectionAsync(regenerateConnection, ct);
+                    if (!connectionWrapper.CachedConnection)
+                    {
+                        // Fresh connection
+
+                        // Confirm that we aren't doubling-up on RecoverySucceededAsync
+                        connectionWrapper.Connection.RecoverySucceededAsync -= OnRecoveryAsync;
+                        connectionWrapper.Connection.RecoverySucceededAsync += OnRecoveryAsync;
+                        regenerateChannel = true;
+                    }
+
+                    connection = connectionWrapper.Connection;
+                }
+                finally
+                {
+                    _connectionLock.Release();
+                }
+
+                if (regenerateChannel)
+                {
+                    _mostRecentChannel = await connection.CreateChannelAsync(cancellationToken: ct);
+                }
+
+                await callback(_mostRecentChannel!, cancellationToken);
+            }
+            catch (Exception e)
+            {
+                state.Exception = e;
+                throw;
+            }
         }, new ChannelState
         {
-            AttemptNumber = 0
+            AttemptNumber = 0,
+            Exception = null
         }, cancellationToken);
     }
 
@@ -229,9 +304,15 @@ internal class RabbitMqSubscribeJobSource(
         executionEndArbiter.AddOnStopCallback(_ => StopSubscriber());
         _ = Task.Run(() => WaitThenStopSubscriberAsync(cancellationToken), cancellationToken);
 
-        IChannel? channel = null;
+        var firstIteration = true;
         while (true)
         {
+            if (firstIteration)
+            {
+                firstIteration = false;
+                await sleepService.DelayAsync(TimeSpan.FromSeconds(1), cancellationToken);
+            }
+
             try
             {
                 await GetChannelAndDoActionWithRetryAsync(StartConsumerAsync, cancellationToken);
@@ -271,6 +352,7 @@ internal class RabbitMqSubscribeJobSource(
     private sealed class ChannelState
     {
         public required int AttemptNumber { get; set; }
+        public required Exception? Exception { get; set; }
     }
 
     public sealed class ConfigurationModel

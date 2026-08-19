@@ -23,7 +23,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IRabbitMqServerConfigurationSource, RabbitMqServerConfigurationSource>()
             .AddSingleton<IInnerRabbitMqConnectionFactory, InnerRabbitMqConnectionFactory>()
             .AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>()
-            .AddSingleton<IRabbitMqChannelCacheSource, RabbitMqChannelCacheSource>()
+            .AddSingleton<IRabbitMqConnectionCacheSource, RabbitMqConnectionCacheSource>()
             .AddSingleton<IRabbitMqExceptionArbiterService, RabbitMqExceptionArbiterService>()
             .AddSingleton<IRabbitMqRetryWrapperService, RabbitMqRetryWrapperService>();
     }
