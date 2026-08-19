@@ -9,7 +9,6 @@ using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.Services;
 
 internal class NatsJobSource(
-    INatsConsumerSource consumerSource,
     INatsMessageSource messageSource,
     ILogger<NatsJobSource> logger,
     IOptions<NatsStreamConfigurationModel> options) : IJobSource

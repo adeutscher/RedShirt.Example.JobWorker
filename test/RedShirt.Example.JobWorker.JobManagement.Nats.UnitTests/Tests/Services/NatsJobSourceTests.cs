@@ -13,11 +13,9 @@ namespace RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Services
 
 public class NatsJobSourceTests
 {
-    private static NatsJobSource CreateJobSource(INatsMessageSource messageSource,
-        INatsConsumerSource? consumerSource = null, string? streamName = null)
+    private static NatsJobSource CreateJobSource(INatsMessageSource messageSource, string? streamName = null)
     {
         return new NatsJobSource(
-            consumerSource ?? new Mock<INatsConsumerSource>(MockBehavior.Strict).Object,
             messageSource,
             new NullLogger<NatsJobSource>(),
             Options.Create(new NatsStreamConfigurationModel
@@ -70,15 +68,13 @@ public class NatsJobSourceTests
     {
         var job = new Mock<IRawJobModel>();
 
-        var consumerSource = new Mock<INatsConsumerSource>(MockBehavior.Strict);
         var messageSource = new Mock<INatsMessageSource>(MockBehavior.Strict);
 
-        var natsJobSource = CreateJobSource(messageSource.Object, consumerSource.Object);
+        var natsJobSource = CreateJobSource(messageSource.Object);
 
         await natsJobSource.AcknowledgeAsync(job.Object, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
 
-        Assert.Empty(consumerSource.Invocations);
         Assert.Empty(messageSource.Invocations);
     }
 
@@ -86,13 +82,12 @@ public class NatsJobSourceTests
     public async Task Test_GetJobs_GetNoJobs()
     {
         var mockMessageSource = new Mock<INatsMessageSource>(MockBehavior.Strict);
-        var consumerSource = new Mock<INatsConsumerSource>(MockBehavior.Strict);
 
         mockMessageSource
             .Setup(m => m.FetchMessagesAsync(1, TestContext.Current.CancellationToken))
             .ReturnsAsync(new NatsMessageSourceResponse {Messages = []});
 
-        var jobSource = CreateJobSource(mockMessageSource.Object, consumerSource.Object);
+        var jobSource = CreateJobSource(mockMessageSource.Object);
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
@@ -102,7 +97,6 @@ public class NatsJobSourceTests
         mockMessageSource.Verify(
             m => m.FetchMessagesAsync(1, TestContext.Current.CancellationToken),
             Times.Once);
-        consumerSource.Verify(s => s.GetConsumerAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
