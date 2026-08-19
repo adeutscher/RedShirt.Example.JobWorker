@@ -81,9 +81,4 @@ internal class AzureQueueStorageJobSource(
     {
         throw new NotSupportedException();
     }
-
-    public void StopSubscriber()
-    {
-        throw new NotSupportedException();
-    }
 }

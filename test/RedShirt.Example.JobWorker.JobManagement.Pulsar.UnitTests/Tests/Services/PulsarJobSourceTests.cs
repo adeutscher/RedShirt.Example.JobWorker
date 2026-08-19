@@ -290,18 +290,4 @@ public class PulsarJobSourceTests
         Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         await jobSource.HeartbeatAsync(new Mock<IRawJobModel>().Object, TestContext.Current.CancellationToken);
     }
-
-    [Fact]
-    public void StopSubscriber_ThrowsNotSupportedException()
-    {
-        var jobSource = new PulsarJobSource(
-            new Mock<IPulsarConsumerSource>().Object,
-            new Mock<IPulsarMessageSource>().Object,
-            PulsarRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new NullLogger<PulsarJobSource>(),
-            CreateOptions());
-
-        Assert.False(jobSource.IsSubscriptionSource);
-        Assert.Throws<NotSupportedException>(jobSource.StopSubscriber);
-    }
 }

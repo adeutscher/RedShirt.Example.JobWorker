@@ -38,22 +38,6 @@ public class RabbitMqJobSourceTests
     }
 
     [Fact]
-    public void StopSubscriber_ThrowsNotSupportedException()
-    {
-        var jobSource = new RabbitMqJobSource(
-            null!,
-            RabbitMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(new RabbitMqJobSource.ConfigurationModel
-            {
-                QueueName = null!
-            }),
-            NullLogger<RabbitMqJobSource>.Instance);
-
-        Assert.False(jobSource.IsSubscriptionSource);
-        Assert.Throws<NotSupportedException>(jobSource.StopSubscriber);
-    }
-
-    [Fact]
     public async Task Test_AcknowledgeAsync()
     {
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);

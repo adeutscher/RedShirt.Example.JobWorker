@@ -12,20 +12,6 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.Tests.Se
 
 public class AzureQueueStorageJobSourceTests
 {
-    [Fact]
-    public void StopSubscriber_ThrowsNotSupportedException()
-    {
-        var jobSource = new AzureQueueStorageJobSource(null!, null!,
-            AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(new AzureQueueStorageConfigurationModel
-            {
-                VisibilityTimeoutSeconds = 20
-            }));
-
-        Assert.False(jobSource.IsSubscriptionSource);
-        Assert.Throws<NotSupportedException>(jobSource.StopSubscriber);
-    }
-
     [Theory]
     [InlineData(2)]
     [InlineData(5)]

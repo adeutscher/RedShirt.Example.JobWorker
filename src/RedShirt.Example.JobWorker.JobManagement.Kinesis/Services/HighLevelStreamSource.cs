@@ -193,11 +193,6 @@ internal class HighLevelStreamSource(
         throw new NotSupportedException();
     }
 
-    public void StopSubscriber()
-    {
-        throw new NotSupportedException();
-    }
-
     /// <summary>
     ///     Update trackers.
     /// </summary>

@@ -39,15 +39,6 @@ public class AzureServiceBusJobSourceTests
             }));
     }
 
-    [Fact]
-    public void StopSubscriber_ThrowsNotSupportedException()
-    {
-        var jobSource = CreateJobSource(null!, null!);
-
-        Assert.False(jobSource.IsSubscriptionSource);
-        Assert.Throws<NotSupportedException>(jobSource.StopSubscriber);
-    }
-
     [Theory]
     [InlineData(2)]
     [InlineData(5)]

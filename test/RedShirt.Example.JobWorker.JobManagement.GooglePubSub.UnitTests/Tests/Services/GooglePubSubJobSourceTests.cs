@@ -66,19 +66,6 @@ public class GooglePubSubJobSourceTests
         return container.Object;
     }
 
-    [Fact]
-    public void StopSubscriber_ThrowsNotSupportedException()
-    {
-        var jobSource = new GooglePubSubJobSource(null!, null!,
-            GooglePubSubRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Mock.Of<IGooglePubSubPoisonMessagesHandler>(),
-            NullLogger<GooglePubSubJobSource>.Instance,
-            Options.Create(DefaultOptions(20)));
-
-        Assert.False(jobSource.IsSubscriptionSource);
-        Assert.Throws<NotSupportedException>(jobSource.StopSubscriber);
-    }
-
     [Theory]
     [InlineData(2)]
     [InlineData(5)]

@@ -182,17 +182,4 @@ public class RedisStreamsJobSourceTests
         await jobSource.HeartbeatAsync(new Mock<IRawJobModel>().Object, TestContext.Current.CancellationToken);
         Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
     }
-
-    [Fact]
-    public void StopSubscriber_ThrowsNotSupportedException()
-    {
-        var jobSource = new RedisStreamsJobSource(
-            new Mock<IRedisConnectionCacheService>().Object,
-            RedisStreamsRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new NullLogger<RedisStreamsJobSource>(),
-            Options.Create(CreateConfig()));
-
-        Assert.False(jobSource.IsSubscriptionSource);
-        Assert.Throws<NotSupportedException>(jobSource.StopSubscriber);
-    }
 }

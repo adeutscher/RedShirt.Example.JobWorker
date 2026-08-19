@@ -153,8 +153,8 @@ public class ServiceCollectionExtensionTests
         var services = new ServiceCollection()
             .AddCoreJobManagement(configuration);
 
-        var descriptor = Assert.Single(services, d => d.ServiceType == typeof(IMessageSubscribeSourceStarter));
-        Assert.Equal(typeof(MessageSubscribeSourceStarter), descriptor.ImplementationType);
+        var descriptor = Assert.Single(services, d => d.ServiceType == typeof(IJobSubscriberManager));
+        Assert.Equal(typeof(JobSubscriberManager), descriptor.ImplementationType);
     }
 
     [Theory]

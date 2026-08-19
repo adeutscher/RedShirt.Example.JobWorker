@@ -37,14 +37,17 @@ internal interface IHandlerSubComponent
 /// <param name="jobExecutor"></param>
 /// <param name="idempotencyMonitor"></param>
 /// <param name="threadOptions"></param>
+#pragma warning disable S107
 internal sealed class Handler(
     IJobLoaderLoop jobLoaderLoop,
     IHeartbeatMaintainer heartbeatMaintainer,
     IJobExecutor jobExecutor,
     IIdempotencyMonitor idempotencyMonitor,
-    IMessageSubscribeSourceStarter messageSubscribeSourceStarter,
+    IJobSubscriberManager jobSubscriberManager,
+    IJobSubscriberExceptionRelay jobSubscriberExceptionRelay,
     IOptions<ThreadConfigurationModel> threadOptions,
     ILogger<Handler> logger)
+#pragma warning restore S107
     : IHandler
 {
     private readonly SemaphoreSlim _exceptionLock = new(1, 1);
@@ -94,7 +97,7 @@ internal sealed class Handler(
         var tasksLock = new SemaphoreSlim(1, 1);
         var tasks = new List<Task>();
 
-        var addToTaskFunc = new Func<Func<Task<HandlerComponentResponse>>, Task>(async callback =>
+        var addToTaskFuncAsync = new Func<Func<Task<HandlerComponentResponse>>, Task>(async callback =>
         {
             await tasksLock.WaitAsync(cancellationToken);
             try
@@ -108,15 +111,16 @@ internal sealed class Handler(
         });
 
         // Loader loop
-        await addToTaskFunc(() => jobLoaderLoop.RunAsync(cancellationToken));
-        // Subscription
-        await addToTaskFunc(() => messageSubscribeSourceStarter.RunAsync(cancellationToken));
+        await addToTaskFuncAsync(() => jobLoaderLoop.RunAsync(cancellationToken));
+        // Subscription threads
+        await addToTaskFuncAsync(() => jobSubscriberManager.RunAsync(cancellationToken));
+        await addToTaskFuncAsync(() => jobSubscriberExceptionRelay.RunAsync(cancellationToken));
 
         // Executor threads
         for (var i = 0; i < threadOptions.Value.EffectiveWorkerThreadCount; i++)
         {
             var i1 = i;
-            await addToTaskFunc(() => jobExecutor.RunAsync(i1, cancellationToken));
+            await addToTaskFuncAsync(() => jobExecutor.RunAsync(i1, cancellationToken));
         }
 
         /*
@@ -125,10 +129,10 @@ internal sealed class Handler(
          */
 
         // Maintainer thread
-        await addToTaskFunc(() => heartbeatMaintainer.RunAsync(cancellationToken));
+        await addToTaskFuncAsync(() => heartbeatMaintainer.RunAsync(cancellationToken));
 
         // Idempotency monitor thread
-        await addToTaskFunc(() => idempotencyMonitor.RunAsync(cancellationToken));
+        await addToTaskFuncAsync(() => idempotencyMonitor.RunAsync(cancellationToken));
 
         /*
          * Wait for the worker done event to be triggered, indicating the first component to finish.
