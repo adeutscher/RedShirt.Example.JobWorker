@@ -66,6 +66,12 @@ internal class RabbitMqSubscribeJobSource(
         }
     }
 
+    /// <summary>
+    ///     Use a channel to start a consumer.
+    ///     Assumed to be invoked within a retry wrapper.
+    /// </summary>
+    /// <param name="channel"></param>
+    /// <param name="cancellationToken"></param>
     private async Task StartConsumerAsync(IChannel channel, CancellationToken cancellationToken)
     {
         logger.LogTrace("Subscribing to RabbitMQ Queue: {QueueName}", rabbitMqConfiguration.Value.QueueName);
@@ -73,19 +79,16 @@ internal class RabbitMqSubscribeJobSource(
         var consumer = new AsyncEventingBasicConsumer(channel);
         consumer.ReceivedAsync += OnReceivedAsync;
 
-        await retryWrapperService.RunAsync(
-            async ct =>
-            {
-                await channel.BasicQosAsync(
-                    0, // no byte-size cap
-                    Math.Max(ushort.MaxValue,
-                        (ushort) Math.Min(ushort.MaxValue, backlogSizeService.BacklogSize)), // max unacked messages
-                    false, // per consumer, not the whole channel
-                    ct);
-                _subscriberTag =
-                    await channel.BasicConsumeAsync(rabbitMqConfiguration.Value.QueueName, false, consumer, ct);
-            },
+        // Reminder: Not doing any retry wrapping here because it is assumed to already be done.
+
+        await channel.BasicQosAsync(
+            0, // no byte-size cap
+            Math.Max(ushort.MaxValue,
+                (ushort) Math.Min(ushort.MaxValue, backlogSizeService.BacklogSize)), // max unacked messages
+            false, // per consumer, not the whole channel
             cancellationToken);
+        _subscriberTag =
+            await channel.BasicConsumeAsync(rabbitMqConfiguration.Value.QueueName, false, consumer, cancellationToken);
     }
 
     private async Task OnRecoveryAsync(object _, AsyncEventArgs args)
@@ -98,8 +101,7 @@ internal class RabbitMqSubscribeJobSource(
         {
             try
             {
-                var recoveredChannel = await channelSource.GetChannelAsync(cancellationToken: args.CancellationToken);
-                await StartConsumerAsync(recoveredChannel, args.CancellationToken);
+                await GetChannelAndDoActionWithRetryAsync(StartConsumerAsync, args.CancellationToken);
             }
             catch (OperationCanceledException e) when (e.CancellationToken.IsCancellationRequested)
             {
@@ -141,14 +143,13 @@ internal class RabbitMqSubscribeJobSource(
     {
         await _subscriberCancelEvent.WaitAsync(cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(_subscriberTag) &&
-            await channelSource.GetChannelAsync(cancellationToken: cancellationToken) is
-                { } channel)
+        if (!string.IsNullOrWhiteSpace(_subscriberTag))
         {
             try
             {
-                await retryWrapperService.RunAsync(
-                    ct => channel.BasicCancelAsync(_subscriberTag, cancellationToken: ct), cancellationToken);
+                await GetChannelAndDoActionWithRetryAsync(
+                    (channel, ct) => channel.BasicCancelAsync(_subscriberTag, cancellationToken: ct),
+                    cancellationToken);
             }
             catch (WorkerJobSourceException e) when (e.InnerException is AlreadyClosedException)
             {
@@ -162,6 +163,21 @@ internal class RabbitMqSubscribeJobSource(
         }
     }
 
+    private Task GetChannelAndDoActionWithRetryAsync(Func<IChannel, CancellationToken, Task> callback,
+        CancellationToken cancellationToken)
+    {
+        return retryWrapperService.RunAsync(async (state, ct) =>
+        {
+            state.AttemptNumber++;
+            // Force getting a new channel if this is beyond the first attempt.
+            var channel = await channelSource.GetChannelAsync(state.AttemptNumber > 1, ct);
+            await callback(channel, cancellationToken);
+        }, new ChannelState
+        {
+            AttemptNumber = 0
+        }, cancellationToken);
+    }
+
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
@@ -171,9 +187,7 @@ internal class RabbitMqSubscribeJobSource(
             return;
         }
 
-        var channel = await channelSource.GetChannelAsync(cancellationToken: cancellationToken);
-
-        await retryWrapperService.RunAsync(async ct =>
+        await GetChannelAndDoActionWithRetryAsync(async (channel, ct) =>
         {
             if (result.IsSuccessful())
             {
@@ -211,9 +225,8 @@ internal class RabbitMqSubscribeJobSource(
 
     public async Task StartSubscriberAsync(CancellationToken cancellationToken = default)
     {
-        executionEndArbiter.AddOnStopCallback(_ => StopSubscriber());
-
         // Kick off the waiting task
+        executionEndArbiter.AddOnStopCallback(_ => StopSubscriber());
         _ = Task.Run(() => WaitThenStopSubscriberAsync(cancellationToken), cancellationToken);
 
         IChannel? channel = null;
@@ -221,8 +234,7 @@ internal class RabbitMqSubscribeJobSource(
         {
             try
             {
-                channel = await channelSource.GetChannelAsync(cancellationToken: cancellationToken);
-                await StartConsumerAsync(channel, cancellationToken);
+                await GetChannelAndDoActionWithRetryAsync(StartConsumerAsync, cancellationToken);
             }
             catch (OperationCanceledException e) when (e.CancellationToken.IsCancellationRequested)
             {
@@ -247,7 +259,7 @@ internal class RabbitMqSubscribeJobSource(
                     continue;
                 }
 
-                // Unlike OnRecovery, we aren't in some thread kicked off by RabbitMQ.
+                // Unlike OnRecoveryAsync, we aren't in some thread kicked off by RabbitMQ.
                 // Just throw it upwards.
                 throw;
             }
@@ -269,6 +281,11 @@ internal class RabbitMqSubscribeJobSource(
         {
             recoverable.RecoveryAsync += OnRecoveryAsync;
         }
+    }
+
+    private sealed class ChannelState
+    {
+        public required int AttemptNumber { get; set; }
     }
 
     public sealed class ConfigurationModel
