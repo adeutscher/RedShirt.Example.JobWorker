@@ -95,6 +95,8 @@ internal class RabbitMqSubscribeJobSource(
             cancellationToken);
         _subscriberTag =
             await channel.BasicConsumeAsync(rabbitMqConfiguration.Value.QueueName, false, consumer, cancellationToken);
+
+        logger.LogTrace("Subscribed to RabbitMQ Queue: {QueueName}", rabbitMqConfiguration.Value.QueueName);
     }
 
     private async Task OnRecoveryAsync(object? _, AsyncEventArgs args)
