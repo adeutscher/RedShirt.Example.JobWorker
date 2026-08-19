@@ -1,9 +1,12 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Constants;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
 using System.Text;
@@ -11,7 +14,7 @@ using System.Text;
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 
 internal class RabbitMqJobSource(
-    IRabbitMqChannelCacheSource channelSource,
+    IRabbitMqConnectionCacheSource connectionCacheSource,
     IRabbitMqRetryWrapperService retryWrapperService,
     IOptions<RabbitMqJobSource.ConfigurationModel> configuration,
     ILogger<RabbitMqJobSource> logger)
@@ -25,10 +28,8 @@ internal class RabbitMqJobSource(
             // Message did not originate from RabbitMQ, return
             return;
         }
-
-        var channel = await channelSource.GetChannelAsync(cancellationToken);
-
-        await retryWrapperService.RunAsync(async ct =>
+        
+        await GetChannelAndDoActionWithRetryAsync(async (channel, ct) =>
         {
             if (result.IsSuccessful())
             {
@@ -44,6 +45,84 @@ internal class RabbitMqJobSource(
         }, cancellationToken);
     }
 
+    private Task GetChannelAndDoActionWithRetryAsync(Func<IChannel, CancellationToken, Task> callback,
+        CancellationToken cancellationToken)
+    {
+        return retryWrapperService.RunAsync(async (state, ct) =>
+        {
+            // Using previous iteration's exception stored in state to judge whether we need to regenerate the connection and/or channel.
+            var regenerateConnection = false;
+            var regenerateChannel = false;
+
+            if (state.Exception is OperationInterruptedException
+                {
+                    ShutdownReason.ReplyCode: >= RabbitMqExceptionCodeConstants.ConnectionCodeRangeAMin
+                    and <= RabbitMqExceptionCodeConstants.ConnectionCodeRangeAMax
+                }
+                or OperationInterruptedException
+                {
+                    ShutdownReason.ReplyCode: >= RabbitMqExceptionCodeConstants.ConnectionCodeRangeBMin
+                    and <= RabbitMqExceptionCodeConstants.ConnectionCodeRangeBMax
+                })
+            {
+                regenerateConnection = true;
+            }
+
+            if (regenerateConnection || state.Exception is OperationInterruptedException
+                {
+                    ShutdownReason.ReplyCode: >= RabbitMqExceptionCodeConstants.ChannelCodeMin
+                    and <= RabbitMqExceptionCodeConstants.ChannelCodeMax
+                })
+            {
+                regenerateChannel = true;
+            }
+
+            try
+            {
+                IConnection? connection;
+                await _connectionLock.WaitAsync(ct);
+                try
+                {
+                    var connectionWrapper = await connectionCacheSource.GetConnectionAsync(regenerateConnection, ct);
+                    if (!connectionWrapper.CachedConnection)
+                    {
+                        // Fresh connection
+                        regenerateChannel = true;
+                    }
+
+                    connection = connectionWrapper.Connection;
+                }
+                finally
+                {
+                    _connectionLock.Release();
+                }
+
+                if (regenerateChannel)
+                {
+                    _mostRecentChannel = await connection.CreateChannelAsync(cancellationToken: ct);
+                }
+
+                await callback(_mostRecentChannel!, cancellationToken);
+            }
+            catch (Exception e)
+            {
+                state.Exception = e;
+                throw;
+            }
+        }, new ChannelState
+        {
+            Exception = null
+        }, cancellationToken);
+    }
+    
+    private readonly SemaphoreSlim _connectionLock = new(1, 1);
+    private IChannel? _mostRecentChannel;
+    
+    private sealed class ChannelState
+    {
+        public required Exception? Exception { get; set; }
+    }
+    
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from RabbitMQ Queue: {QueueName}",
@@ -51,13 +130,14 @@ internal class RabbitMqJobSource(
 
         var getJobsResponseItems = new List<IRawJobModel>();
 
-        var channel = await channelSource.GetChannelAsync(cancellationToken);
 
         while (getJobsResponseItems.Count < batchSize)
         {
-            var result =
-                await retryWrapperService.RunAsync(
-                    ct => channel.BasicGetAsync(configuration.Value.QueueName, false, ct), cancellationToken);
+            BasicGetResult? result = null;
+            await GetChannelAndDoActionWithRetryAsync(async (channel, ct) =>
+            {
+                result = await channel.BasicGetAsync(configuration.Value.QueueName, false, ct);
+            }, cancellationToken);
 
             /*
              * Historical note: Prior to adding Polly support to RabbitMQ, we used to capture AlreadyClosedException instances

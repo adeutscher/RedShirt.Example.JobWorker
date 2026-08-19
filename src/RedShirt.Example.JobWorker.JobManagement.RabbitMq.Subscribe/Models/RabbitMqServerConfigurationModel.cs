@@ -1,5 +1,8 @@
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.Models;
 
+/// <summary>
+/// Resolved configuration as distributed by the configuration source service.
+/// </summary>
 public sealed class RabbitMqServerConfigurationModel
 {
     public required string Hostname { get; init; }
