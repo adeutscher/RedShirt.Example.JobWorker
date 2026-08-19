@@ -5,6 +5,9 @@ using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 
+/// <summary>
+///     Central point to perform operations on a channel and manage retries.
+/// </summary>
 internal interface IRabbitMqChannelRetryWrapper
 {
     Task GetChannelAndDoActionWithRetryAsync(Func<IChannel, CancellationToken, Task> callback,
