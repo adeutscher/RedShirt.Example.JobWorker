@@ -7,10 +7,9 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Health;
-using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using System.Diagnostics;
 
-namespace RedShirt.Example.JobWorker.Core.Services.MessagePolling;
+namespace RedShirt.Example.JobWorker.Core.Services.Jobs.Polling;
 
 #pragma warning disable S107
 internal sealed class LoaderModeJobLoader(

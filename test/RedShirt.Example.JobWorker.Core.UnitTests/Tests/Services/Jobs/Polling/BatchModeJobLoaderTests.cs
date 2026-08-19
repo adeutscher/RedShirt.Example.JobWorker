@@ -6,9 +6,9 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
-using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
+using RedShirt.Example.JobWorker.Core.Services.Jobs.Polling;
 
-namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.MessagePolling;
+namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Jobs.Polling;
 
 public class BatchModeJobLoaderTests
 {

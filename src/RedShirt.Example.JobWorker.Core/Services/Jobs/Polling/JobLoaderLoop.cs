@@ -10,7 +10,7 @@ using RedShirt.Example.JobWorker.Core.Exceptions.MessagePolling;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 
-namespace RedShirt.Example.JobWorker.Core.Services.MessagePolling;
+namespace RedShirt.Example.JobWorker.Core.Services.Jobs.Polling;
 
 /// <summary>
 ///     Common job loader loop.

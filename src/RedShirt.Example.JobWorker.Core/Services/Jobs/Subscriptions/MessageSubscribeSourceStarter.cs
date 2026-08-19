@@ -1,7 +1,7 @@
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 
-namespace RedShirt.Example.JobWorker.Core.Services.MessagePolling;
+namespace RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 
 internal interface IMessageSubscribeSourceStarter : IHandlerSubComponent;
 
