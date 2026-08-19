@@ -1,6 +1,6 @@
 using RabbitMQ.Client;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Factories;
-using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.Models;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 

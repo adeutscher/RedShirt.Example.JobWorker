@@ -1,6 +1,6 @@
 using RabbitMQ.Client;
 
-namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Subscribe.Models;
+namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 
 internal interface IConnectionCacheResponse
 {
