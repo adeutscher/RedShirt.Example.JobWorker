@@ -417,4 +417,17 @@ public class KafkaJobSourceTests
         Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
         await jobSource.HeartbeatAsync(new Mock<IRawJobModel>().Object, TestContext.Current.CancellationToken);
     }
+
+    [Fact]
+    public void StopSubscriber_ThrowsNotSupportedException()
+    {
+        var jobSource = new KafkaJobSource(
+            new Mock<IKafkaConsumerSource>().Object,
+            new Mock<IKafkaMessageSource>().Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            new NullLogger<KafkaJobSource>());
+
+        Assert.False(jobSource.IsSubscriptionSource);
+        Assert.Throws<NotSupportedException>(jobSource.StopSubscriber);
+    }
 }

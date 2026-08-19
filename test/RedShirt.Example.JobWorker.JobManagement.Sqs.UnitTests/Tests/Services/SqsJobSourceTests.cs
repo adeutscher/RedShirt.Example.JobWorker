@@ -35,6 +35,20 @@ public class SqsJobSourceTests
         };
     }
 
+    /// <summary>
+    ///     Stand-in IRawJobModel that is not an <see cref="SqsJobModel" />, used to exercise
+    ///     SqsJobSource paths that ignore messages from outside this job source.
+    /// </summary>
+    [Fact]
+    public void StopSubscriber_ThrowsNotSupportedException()
+    {
+        var jobSource = new SqsJobSource(null!, null!, Mock.Of<ISqsPoisonMessagesHandler>(),
+            CreatePassthroughRetryWrapper(), Options.Create(CreateConfig()));
+
+        Assert.False(jobSource.IsSubscriptionSource);
+        Assert.Throws<NotSupportedException>(jobSource.StopSubscriber);
+    }
+
     [Fact]
     public async Task TestGetJobsAsync()
     {
@@ -463,10 +477,6 @@ public class SqsJobSourceTests
         }
     }
 
-    /// <summary>
-    ///     Stand-in IRawJobModel that is not an <see cref="SqsJobModel" />, used to exercise
-    ///     SqsJobSource paths that ignore messages from outside this job source.
-    /// </summary>
     private class OutsideContextJobModel : IRawJobModel
     {
         public required string MessageId { get; init; }

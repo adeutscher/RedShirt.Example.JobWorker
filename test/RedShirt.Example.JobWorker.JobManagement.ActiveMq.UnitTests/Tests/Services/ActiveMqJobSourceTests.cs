@@ -13,6 +13,21 @@ namespace RedShirt.Example.JobWorker.JobManagement.ActiveMq.UnitTests.Tests.Serv
 public class ActiveMqJobSourceTests
 {
     [Fact]
+    public void StopSubscriber_ThrowsNotSupportedException()
+    {
+        var configuration = new ActiveMqJobSource.ConfigurationModel
+        {
+            QueueName = null!
+        };
+
+        var jobSource = new ActiveMqJobSource(null!, Options.Create(configuration),
+            new NullLogger<ActiveMqJobSource>());
+
+        Assert.False(jobSource.IsSubscriptionSource);
+        Assert.Throws<NotSupportedException>(jobSource.StopSubscriber);
+    }
+
+    [Fact]
     public async Task Test_AcknowledgeAsync()
     {
         var message = new Mock<IMessage>();

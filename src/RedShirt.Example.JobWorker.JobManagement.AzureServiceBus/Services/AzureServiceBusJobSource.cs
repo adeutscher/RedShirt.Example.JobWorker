@@ -97,4 +97,9 @@ internal class AzureServiceBusJobSource(
     {
         throw new NotSupportedException();
     }
+
+    public void StopSubscriber()
+    {
+        throw new NotSupportedException();
+    }
 }

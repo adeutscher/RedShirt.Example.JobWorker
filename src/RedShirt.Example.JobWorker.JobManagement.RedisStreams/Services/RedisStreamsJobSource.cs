@@ -86,6 +86,11 @@ internal class RedisStreamsJobSource(
         throw new NotSupportedException();
     }
 
+    public void StopSubscriber()
+    {
+        throw new NotSupportedException();
+    }
+
     public sealed class ConfigurationModel
     {
         public required string StreamName { get; init; }

@@ -18,7 +18,8 @@ public interface IJobSource
 
     /// <summary>
     ///     Indicates whether this job source delivers work by subscription rather than polling.
-    ///     When <c>false</c>, <see cref="StartSubscriberAsync" /> shall throw <see cref="NotSupportedException" />.
+    ///     When <c>false</c>, <see cref="StartSubscriberAsync" /> and <see cref="StopSubscriber" /> shall throw
+    ///     <see cref="NotSupportedException" />.
     /// </summary>
     public bool IsSubscriptionSource { get; }
 
@@ -75,4 +76,13 @@ public interface IJobSource
     ///     Thrown when <see cref="IsSubscriptionSource" /> is <c>false</c>.
     /// </exception>
     Task StartSubscriberAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Stop a subscriber previously started by <see cref="StartSubscriberAsync" />.
+    ///     Supported only when <see cref="IsSubscriptionSource" /> is <c>true</c>.
+    /// </summary>
+    /// <exception cref="NotSupportedException">
+    ///     Thrown when <see cref="IsSubscriptionSource" /> is <c>false</c>.
+    /// </exception>
+    void StopSubscriber();
 }

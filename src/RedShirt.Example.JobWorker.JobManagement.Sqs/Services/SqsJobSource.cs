@@ -156,4 +156,9 @@ internal class SqsJobSource(
     {
         throw new NotSupportedException();
     }
+
+    public void StopSubscriber()
+    {
+        throw new NotSupportedException();
+    }
 }

@@ -140,6 +140,11 @@ internal class RabbitMqSubscribeJobSource(
         }
     }
 
+    public void StopSubscriber()
+    {
+        throw new NotImplementedException();
+    }
+
     public sealed class ConfigurationModel
     {
         public required string QueueName { get; init; }

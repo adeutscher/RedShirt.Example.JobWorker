@@ -549,6 +549,15 @@ public class HighLevelStreamSourceTests
         Assert.Equal(0, streamSource.RecommendedHeartbeatIntervalSeconds);
     }
 
+    [Fact]
+    public void StopSubscriber_ThrowsNotSupportedException()
+    {
+        var streamSource = CreateStreamSource();
+
+        Assert.False(streamSource.IsSubscriptionSource);
+        Assert.Throws<NotSupportedException>(streamSource.StopSubscriber);
+    }
+
     private sealed class PassthroughRetryWrapper : IKinesisRetryWrapperService
     {
         public Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default)

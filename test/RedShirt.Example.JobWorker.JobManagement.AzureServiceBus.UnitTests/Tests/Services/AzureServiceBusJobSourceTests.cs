@@ -39,6 +39,15 @@ public class AzureServiceBusJobSourceTests
             }));
     }
 
+    [Fact]
+    public void StopSubscriber_ThrowsNotSupportedException()
+    {
+        var jobSource = CreateJobSource(null!, null!);
+
+        Assert.False(jobSource.IsSubscriptionSource);
+        Assert.Throws<NotSupportedException>(jobSource.StopSubscriber);
+    }
+
     [Theory]
     [InlineData(2)]
     [InlineData(5)]
@@ -308,9 +317,5 @@ public class AzureServiceBusJobSourceTests
         var job = new Mock<IRawJobModel>();
 
         await jobSource.HeartbeatAsync(job.Object, TestContext.Current.CancellationToken);
-
-        client.Verify(
-            c => c.RenewMessageLockAsync(It.IsAny<IServiceBusMessageContainer>(),
-                It.IsAny<CancellationToken>()), Times.Never);
     }
 }

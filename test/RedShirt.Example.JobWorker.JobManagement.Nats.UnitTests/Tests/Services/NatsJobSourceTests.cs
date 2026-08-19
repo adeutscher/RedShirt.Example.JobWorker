@@ -37,6 +37,15 @@ public class NatsJobSourceTests
         mockMessage.Setup(m => m.Data).Returns(owner);
     }
 
+    [Fact]
+    public void StopSubscriber_ThrowsNotSupportedException()
+    {
+        var jobSource = CreateJobSource(new Mock<INatsMessageSource>(MockBehavior.Strict).Object);
+
+        Assert.False(jobSource.IsSubscriptionSource);
+        Assert.Throws<NotSupportedException>(jobSource.StopSubscriber);
+    }
+
     [Theory]
     [InlineData(CoreJobResult.Success)]
     [InlineData(CoreJobResult.Failure)]
