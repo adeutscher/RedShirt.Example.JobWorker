@@ -32,6 +32,7 @@ Repo features:
     * [Google Pub/Sub](https://cloud.google.com/pubsub/docs)
     * [NATS](https://nats.io/)
     * [RabbitMQ](https://www.rabbitmq.com/)
+        * Supports short polling or consumer subscriptions
     * [Redis Streams](https://redis.io/docs/latest/develop/data-types/streams/)
 * Cache-based idempotency support
     * Prevents the same message from being run twice in the event that an executor loses custody of a message.
@@ -130,7 +131,16 @@ This is an example of the returned statistics model (C# definitions can be found
 }
 ```
 
-## Batch Mode vs. Loader Mode
+## Message Sourcing Strategies
+
+This template supports flexibility in how messages are sourced.
+
+The default behaviour of each message source is short polling with an exponential back-off. Depending on the messaging
+technology, the implementation may also support long polling or a subscription consumer.
+
+### Polling
+
+#### Batch Mode vs. Loader Mode
 
 This template offers two different approaches to how messages are polled from a message source (internally referred to
 as a job source):
@@ -148,7 +158,7 @@ Batch mode is the default mode for this template. To enable loader mode:
 
 Some job sources work better with Loader Mode than others, as the below subsections will explain.
 
-### Important Note: Loader Mode + Kinesis
+##### Important Note: Loader Mode + Kinesis
 
 Important note: Before combining Loader mode with the Kinesis job source, please consider the below message about some
 behaviours of the job source implementation that one should be aware of.
@@ -167,7 +177,7 @@ distinction between class roles rather than entirely replaced in the future.
 
 If you choose to apply this template by combining Loader mode and Kinesis, please be aware of this warning.
 
-## Long Polling
+#### Long Polling
 
 Several job sources can wait on the broker for the first messages of a poll instead of returning immediately when the
 queue is idle. This increases the responsiveness of the JobWorker to new messages.
@@ -204,6 +214,18 @@ interface library.
 For configuration examples, see the `worker` section of the `test/local/docker-compose.yaml` file. Because some job
 sources do not support long polling and long polling is a recent addition to the template, the defaults in the local
 testing stack are still tuned for short polling.
+
+### Subscriptions
+
+Subscribing to a source is an option for allowing a job worker to be more responsive to messages without bombarding the
+source with poll requests.
+
+Subscribing is configured on job sources that support it with a `SUBSCRIBE` environment variable. Setting this value to
+`true` will enable it.
+
+| Job source | Environment variable              |
+|------------|-----------------------------------|
+| RabbitMQ   | `JOB_SOURCE__RABBITMQ__SUBSCRIBE` |
 
 ## Idempotency
 
