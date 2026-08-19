@@ -172,7 +172,7 @@ internal class RabbitMqSubscribeJobSource(
             catch (Exception exception)
             {
                 logger.LogError(exception, "Could not unsubscribe: {Message}", exception.Message);
-                // Not terribly concerned about this exception because it's in the shutdown period anyway, but just in case...
+                // Not terribly concerned about any other exceptions because it's in the shutdown period anyway, but just in case...
             }
         }
     }
@@ -182,8 +182,7 @@ internal class RabbitMqSubscribeJobSource(
     {
         return retryWrapperService.RunAsync(async (state, ct) =>
         {
-            state.AttemptNumber++;
-
+            // Using previous iteration's exception stored in state to judge whether we need to regenerate the connection and/or channel.
             var regenerateConnection = false;
             var regenerateChannel = false;
 
@@ -212,7 +211,7 @@ internal class RabbitMqSubscribeJobSource(
 
             try
             {
-                IConnection? connection = null;
+                IConnection? connection;
                 await _connectionLock.WaitAsync(ct);
                 try
                 {
@@ -248,7 +247,6 @@ internal class RabbitMqSubscribeJobSource(
             }
         }, new ChannelState
         {
-            AttemptNumber = 0,
             Exception = null
         }, cancellationToken);
     }
@@ -351,7 +349,6 @@ internal class RabbitMqSubscribeJobSource(
 
     private sealed class ChannelState
     {
-        public required int AttemptNumber { get; set; }
         public required Exception? Exception { get; set; }
     }
 
