@@ -14,6 +14,7 @@ using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
+using System.Reflection;
 using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Services;
@@ -94,33 +95,29 @@ public class RabbitMqSubscribeJobSourceTests
             .ReturnsAsync(consumerTag);
     }
 
-    [Fact]
-    public void IsSubscriptionSource_IsTrue()
+    private static void InvokeStopSubscriber(RabbitMqSubscribeJobSource jobSource)
     {
-        var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
-        var jobSource = CreateJobSource(wrapper);
-
-        Assert.True(jobSource.IsSubscriptionSource);
-        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
+        var method = typeof(RabbitMqSubscribeJobSource).GetMethod("StopSubscriber",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        method.Invoke(jobSource, null);
     }
 
-    [Fact]
-    public async Task GetJobsAsync_ThrowsNotSupportedException()
+    private static Task InvokeWaitThenStopSubscriberAsync(RabbitMqSubscribeJobSource jobSource,
+        CancellationToken cancellationToken)
     {
-        var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
-        var jobSource = CreateJobSource(wrapper);
-
-        await Assert.ThrowsAsync<NotSupportedException>(() =>
-            jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken));
+        var method = typeof(RabbitMqSubscribeJobSource).GetMethod("WaitThenStopSubscriberAsync",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        return (Task) method.Invoke(jobSource, [cancellationToken])!;
     }
 
-    [Fact]
-    public async Task HeartbeatAsync_Completes()
+    private static void SetSubscriberTag(RabbitMqSubscribeJobSource jobSource, string? tag)
     {
-        var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
-        var jobSource = CreateJobSource(wrapper);
-
-        await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);
+        var field = typeof(RabbitMqSubscribeJobSource).GetField("_subscriberTag",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        field.SetValue(jobSource, tag);
     }
 
     [Fact]
@@ -189,6 +186,35 @@ public class RabbitMqSubscribeJobSourceTests
     }
 
     [Fact]
+    public async Task GetJobsAsync_ThrowsNotSupportedException()
+    {
+        var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
+        var jobSource = CreateJobSource(wrapper);
+
+        await Assert.ThrowsAsync<NotSupportedException>(() =>
+            jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task HeartbeatAsync_Completes()
+    {
+        var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
+        var jobSource = CreateJobSource(wrapper);
+
+        await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public void IsSubscriptionSource_IsTrue()
+    {
+        var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
+        var jobSource = CreateJobSource(wrapper);
+
+        Assert.True(jobSource.IsSubscriptionSource);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
+    }
+
+    [Fact]
     public async Task StartSubscriberAsync_ConsumesQueueAndRegistersStopCallback()
     {
         var channel = new Mock<IChannel>(MockBehavior.Strict);
@@ -214,6 +240,84 @@ public class RabbitMqSubscribeJobSourceTests
             It.IsAny<IDictionary<string, object?>>(),
             It.IsAny<IAsyncBasicConsumer>(),
             TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Fact]
+    public async Task StartSubscriberAsync_WhenConnectionRecovers_Resubscribes()
+    {
+        var channel = new Mock<IChannel>(MockBehavior.Strict);
+        SetupConsume(channel);
+
+        var connection = new Mock<IConnection>();
+        AsyncEventHandler<AsyncEventArgs>? recoveryHandler = null;
+        connection
+            .SetupAdd(c => c.RecoverySucceededAsync += It.IsAny<AsyncEventHandler<AsyncEventArgs>>())
+            .Callback<AsyncEventHandler<AsyncEventArgs>>(handler => recoveryHandler += handler);
+        connection.SetupRemove(c => c.RecoverySucceededAsync -= It.IsAny<AsyncEventHandler<AsyncEventArgs>>());
+
+        var wrapper = CreatePassthroughWrapper(channel.Object, onNew => onNew?.Invoke(connection.Object));
+        var jobSource = CreateJobSource(wrapper);
+
+        await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
+
+        Assert.NotNull(recoveryHandler);
+        await recoveryHandler!(connection.Object, new AsyncEventArgs(TestContext.Current.CancellationToken));
+
+        channel.Verify(c => c.BasicConsumeAsync(
+            QueueName,
+            false,
+            It.IsAny<string>(),
+            It.IsAny<bool>(),
+            It.IsAny<bool>(),
+            It.IsAny<IDictionary<string, object?>>(),
+            It.IsAny<IAsyncBasicConsumer>(),
+            TestContext.Current.CancellationToken), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task StartSubscriberAsync_WhenMessageIdMissing_UsesUnknown()
+    {
+        var channel = new Mock<IChannel>(MockBehavior.Strict);
+        IAsyncBasicConsumer? consumer = null;
+        SetupConsume(channel, captureConsumer: c => consumer = c);
+
+        var intakeQueue = new Mock<IJobSubscriberIntakeQueue>(MockBehavior.Strict);
+        IJobSourceResponse? loaded = null;
+        intakeQueue
+            .Setup(q => q.Load(It.IsAny<IJobSourceResponse>()))
+            .Callback<IJobSourceResponse>(response => loaded = response);
+
+        var wrapper = CreatePassthroughWrapper(channel.Object);
+        var jobSource = CreateJobSource(wrapper, intakeQueue);
+
+        await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
+
+        var properties = new Mock<IReadOnlyBasicProperties>(MockBehavior.Strict);
+        properties.SetupGet(p => p.MessageId).Returns((string?) null);
+
+        await consumer!.HandleBasicDeliverAsync("ctag", 1, false, "", "", properties.Object,
+            Encoding.UTF8.GetBytes("body"), TestContext.Current.CancellationToken);
+
+        var job = Assert.IsType<RabbitMqRawJobModel>(Assert.Single(loaded!.Items));
+        Assert.Equal("UNKNOWN", job.MessageId);
+        Assert.Null(job.IdempotencyId);
+    }
+
+    [Fact]
+    public async Task StartSubscriberAsync_WhenNonTransientAndHaltOnFailure_Propagates()
+    {
+        var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
+        wrapper
+            .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
+                It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+                It.IsAny<Action<IConnection>?>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("permanent"));
+
+        var jobSource = CreateJobSource(wrapper);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -249,32 +353,82 @@ public class RabbitMqSubscribeJobSourceTests
     }
 
     [Fact]
-    public async Task StartSubscriberAsync_WhenMessageIdMissing_UsesUnknown()
+    public async Task StartSubscriberAsync_WhenRecoveryFailsPermanentlyAndHaltOnFailure_StopsArbiter()
     {
         var channel = new Mock<IChannel>(MockBehavior.Strict);
-        IAsyncBasicConsumer? consumer = null;
-        SetupConsume(channel, captureConsumer: c => consumer = c);
+        SetupConsume(channel);
 
-        var intakeQueue = new Mock<IJobSubscriberIntakeQueue>(MockBehavior.Strict);
-        IJobSourceResponse? loaded = null;
-        intakeQueue
-            .Setup(q => q.Load(It.IsAny<IJobSourceResponse>()))
-            .Callback<IJobSourceResponse>(response => loaded = response);
+        var connection = new Mock<IConnection>();
+        AsyncEventHandler<AsyncEventArgs>? recoveryHandler = null;
+        connection
+            .SetupAdd(c => c.RecoverySucceededAsync += It.IsAny<AsyncEventHandler<AsyncEventArgs>>())
+            .Callback<AsyncEventHandler<AsyncEventArgs>>(handler => recoveryHandler += handler);
+        connection.SetupRemove(c => c.RecoverySucceededAsync -= It.IsAny<AsyncEventHandler<AsyncEventArgs>>());
+
+        var attempts = 0;
+        var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
+        wrapper
+            .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
+                It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+                It.IsAny<Action<IConnection>?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((Func<IChannel, CancellationToken, Task> callback, Action<IConnection>? onNew,
+                CancellationToken token) =>
+            {
+                attempts++;
+                if (attempts == 1)
+                {
+                    onNew?.Invoke(connection.Object);
+                    return callback(channel.Object, token);
+                }
+
+                return Task.FromException(new InvalidOperationException("recovery failed"));
+            });
+
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter.Setup(a => a.AddOnStopCallback(It.IsAny<Action<Exception?>>()));
+        executionEndArbiter.Setup(a => a.Stop(It.IsAny<Exception?>()));
+
+        var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
+
+        await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
+        await recoveryHandler!(connection.Object, new AsyncEventArgs(TestContext.Current.CancellationToken));
+
+        executionEndArbiter.Verify(
+            a => a.Stop(It.Is<InvalidOperationException>(e => e.Message == "recovery failed")), Times.Once);
+    }
+
+    [Fact]
+    public async Task StartSubscriberAsync_WhenStopSignaled_CancelsConsumer()
+    {
+        var channel = new Mock<IChannel>(MockBehavior.Strict);
+        SetupConsume(channel, "consumer-1");
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        channel
+            .Setup(c => c.BasicCancelAsync("consumer-1", false, It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                cancelled.TrySetResult();
+                return Task.CompletedTask;
+            });
+
+        Action<Exception?>? stopCallback = null;
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter
+            .Setup(a => a.AddOnStopCallback(It.IsAny<Action<Exception?>>()))
+            .Callback<Action<Exception?>>(callback => stopCallback = callback);
 
         var wrapper = CreatePassthroughWrapper(channel.Object);
-        var jobSource = CreateJobSource(wrapper, intakeQueue);
+        var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
 
         await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
 
-        var properties = new Mock<IReadOnlyBasicProperties>(MockBehavior.Strict);
-        properties.SetupGet(p => p.MessageId).Returns((string?) null);
+        Assert.NotNull(stopCallback);
+        stopCallback!(null);
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
-        await consumer!.HandleBasicDeliverAsync("ctag", 1, false, "", "", properties.Object,
-            Encoding.UTF8.GetBytes("body"), TestContext.Current.CancellationToken);
-
-        var job = Assert.IsType<RabbitMqRawJobModel>(Assert.Single(loaded!.Items));
-        Assert.Equal("UNKNOWN", job.MessageId);
-        Assert.Null(job.IdempotencyId);
+        channel.Verify(c => c.BasicCancelAsync("consumer-1", false, TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Fact]
@@ -324,7 +478,7 @@ public class RabbitMqSubscribeJobSourceTests
     }
 
     [Fact]
-    public async Task StartSubscriberAsync_WhenNonTransientAndHaltOnFailure_Propagates()
+    public async Task WaitThenStopSubscriberAsync_WhenAlreadyClosedException_IsSwallowed()
     {
         var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
         wrapper
@@ -332,122 +486,89 @@ public class RabbitMqSubscribeJobSourceTests
                 It.IsAny<Func<IChannel, CancellationToken, Task>>(),
                 It.IsAny<Action<IConnection>?>(),
                 It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("permanent"));
+            .ThrowsAsync(new WorkerJobSourceException(
+                new AlreadyClosedException(new ShutdownEventArgs(ShutdownInitiator.Application, 0, "closed")))
+            {
+                IsHandled = true,
+                CouldBeTransient = true,
+                CouldBeExternallySolvable = false
+            });
 
         var jobSource = CreateJobSource(wrapper);
+        SetSubscriberTag(jobSource, "consumer-1");
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken));
+        InvokeStopSubscriber(jobSource);
+        await InvokeWaitThenStopSubscriberAsync(jobSource, TestContext.Current.CancellationToken);
     }
 
     [Fact]
-    public async Task StartSubscriberAsync_WhenStopSignaled_CancelsConsumer()
+    public async Task WaitThenStopSubscriberAsync_WhenCanceledBeforeStop_ThrowsAndDoesNotCancelConsumer()
+    {
+        var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
+        var jobSource = CreateJobSource(wrapper);
+        SetSubscriberTag(jobSource, "consumer-1");
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            InvokeWaitThenStopSubscriberAsync(jobSource, cts.Token));
+
+        wrapper.Verify(w => w.GetChannelAndDoActionWithRetryAsync(
+            It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+            It.IsAny<Action<IConnection>?>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task WaitThenStopSubscriberAsync_WhenNoSubscriberTag_DoesNotCancelConsumer()
+    {
+        var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
+        var jobSource = CreateJobSource(wrapper);
+
+        InvokeStopSubscriber(jobSource);
+        await InvokeWaitThenStopSubscriberAsync(jobSource, TestContext.Current.CancellationToken);
+
+        wrapper.Verify(w => w.GetChannelAndDoActionWithRetryAsync(
+            It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+            It.IsAny<Action<IConnection>?>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task WaitThenStopSubscriberAsync_WhenSubscriberTagSet_CancelsConsumer()
     {
         var channel = new Mock<IChannel>(MockBehavior.Strict);
-        SetupConsume(channel, "consumer-1");
-        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         channel
-            .Setup(c => c.BasicCancelAsync("consumer-1", false, It.IsAny<CancellationToken>()))
-            .Returns(() =>
-            {
-                cancelled.TrySetResult();
-                return Task.CompletedTask;
-            });
-
-        Action<Exception?>? stopCallback = null;
-        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        executionEndArbiter
-            .Setup(a => a.AddOnStopCallback(It.IsAny<Action<Exception?>>()))
-            .Callback<Action<Exception?>>(callback => stopCallback = callback);
+            .Setup(c => c.BasicCancelAsync("consumer-1", false, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
 
         var wrapper = CreatePassthroughWrapper(channel.Object);
-        var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
+        var jobSource = CreateJobSource(wrapper);
+        SetSubscriberTag(jobSource, "consumer-1");
 
-        await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
-
-        Assert.NotNull(stopCallback);
-        stopCallback!(null);
-        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        InvokeStopSubscriber(jobSource);
+        await InvokeWaitThenStopSubscriberAsync(jobSource, TestContext.Current.CancellationToken);
 
         channel.Verify(c => c.BasicCancelAsync("consumer-1", false, TestContext.Current.CancellationToken),
             Times.Once);
     }
 
     [Fact]
-    public async Task StartSubscriberAsync_WhenConnectionRecovers_Resubscribes()
+    public async Task WaitThenStopSubscriberAsync_WhenUnexpectedException_IsSwallowed()
     {
-        var channel = new Mock<IChannel>(MockBehavior.Strict);
-        SetupConsume(channel);
-
-        var connection = new Mock<IConnection>();
-        AsyncEventHandler<AsyncEventArgs>? recoveryHandler = null;
-        connection
-            .SetupAdd(c => c.RecoverySucceededAsync += It.IsAny<AsyncEventHandler<AsyncEventArgs>>())
-            .Callback<AsyncEventHandler<AsyncEventArgs>>(handler => recoveryHandler += handler);
-        connection.SetupRemove(c => c.RecoverySucceededAsync -= It.IsAny<AsyncEventHandler<AsyncEventArgs>>());
-
-        var wrapper = CreatePassthroughWrapper(channel.Object, onNew => onNew?.Invoke(connection.Object));
-        var jobSource = CreateJobSource(wrapper);
-
-        await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
-
-        Assert.NotNull(recoveryHandler);
-        await recoveryHandler!(connection.Object, new AsyncEventArgs(TestContext.Current.CancellationToken));
-
-        channel.Verify(c => c.BasicConsumeAsync(
-            QueueName,
-            false,
-            It.IsAny<string>(),
-            It.IsAny<bool>(),
-            It.IsAny<bool>(),
-            It.IsAny<IDictionary<string, object?>>(),
-            It.IsAny<IAsyncBasicConsumer>(),
-            TestContext.Current.CancellationToken), Times.Exactly(2));
-    }
-
-    [Fact]
-    public async Task StartSubscriberAsync_WhenRecoveryFailsPermanentlyAndHaltOnFailure_StopsArbiter()
-    {
-        var channel = new Mock<IChannel>(MockBehavior.Strict);
-        SetupConsume(channel);
-
-        var connection = new Mock<IConnection>();
-        AsyncEventHandler<AsyncEventArgs>? recoveryHandler = null;
-        connection
-            .SetupAdd(c => c.RecoverySucceededAsync += It.IsAny<AsyncEventHandler<AsyncEventArgs>>())
-            .Callback<AsyncEventHandler<AsyncEventArgs>>(handler => recoveryHandler += handler);
-        connection.SetupRemove(c => c.RecoverySucceededAsync -= It.IsAny<AsyncEventHandler<AsyncEventArgs>>());
-
-        var attempts = 0;
         var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
         wrapper
             .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
                 It.IsAny<Func<IChannel, CancellationToken, Task>>(),
                 It.IsAny<Action<IConnection>?>(),
                 It.IsAny<CancellationToken>()))
-            .Returns((Func<IChannel, CancellationToken, Task> callback, Action<IConnection>? onNew,
-                CancellationToken token) =>
-            {
-                attempts++;
-                if (attempts == 1)
-                {
-                    onNew?.Invoke(connection.Object);
-                    return callback(channel.Object, token);
-                }
+            .ThrowsAsync(new InvalidOperationException("cancel failed"));
 
-                return Task.FromException(new InvalidOperationException("recovery failed"));
-            });
+        var jobSource = CreateJobSource(wrapper);
+        SetSubscriberTag(jobSource, "consumer-1");
 
-        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        executionEndArbiter.Setup(a => a.AddOnStopCallback(It.IsAny<Action<Exception?>>()));
-        executionEndArbiter.Setup(a => a.Stop(It.IsAny<Exception?>()));
-
-        var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
-
-        await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
-        await recoveryHandler!(connection.Object, new AsyncEventArgs(TestContext.Current.CancellationToken));
-
-        executionEndArbiter.Verify(
-            a => a.Stop(It.Is<InvalidOperationException>(e => e.Message == "recovery failed")), Times.Once);
+        InvokeStopSubscriber(jobSource);
+        await InvokeWaitThenStopSubscriberAsync(jobSource, TestContext.Current.CancellationToken);
     }
 }
