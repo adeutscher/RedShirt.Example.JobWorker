@@ -91,7 +91,7 @@ internal class RabbitMqSubscribeJobSource(
             await channel.BasicConsumeAsync(rabbitMqConfiguration.Value.QueueName, false, consumer, cancellationToken);
     }
 
-    private async Task OnRecoveryAsync(object _, AsyncEventArgs args)
+    private async Task OnRecoveryAsync(CancellationToken cancellationToken)
     {
         logger.LogInformation(
             "RabbitMQ channel recovered; re-subscribing to queue {QueueName}",
@@ -101,7 +101,7 @@ internal class RabbitMqSubscribeJobSource(
         {
             try
             {
-                await GetChannelAndDoActionWithRetryAsync(StartConsumerAsync, args.CancellationToken);
+                await GetChannelAndDoActionWithRetryAsync(StartConsumerAsync, cancellationToken);
             }
             catch (OperationCanceledException e) when (e.CancellationToken.IsCancellationRequested)
             {
@@ -170,8 +170,8 @@ internal class RabbitMqSubscribeJobSource(
         {
             state.AttemptNumber++;
             // Force getting a new channel if this is beyond the first attempt.
-            var channel = await channelSource.GetChannelAsync(state.AttemptNumber > 1, ct);
-            await callback(channel, cancellationToken);
+            var channel = await channelSource.GetChannelAsync(OnRecoveryAsync, state.AttemptNumber > 1, ct);
+            await callback(channel.Channel, cancellationToken);
         }, new ChannelState
         {
             AttemptNumber = 0
@@ -265,21 +265,6 @@ internal class RabbitMqSubscribeJobSource(
             }
 
             break;
-        }
-
-        /*
-         * The hardcoded AutomaticRecoveryEnabled property on the RabbitMQ connection parameters restores the connection
-         * and channel after a network failure. Topology recovery would also re-register consumers, so
-         * TopologyRecoveryEnabled is false: this worker does not declare topology (the queue is owned elsewhere),
-         * and StartConsumerAsync is the subscribe path (retry wrapper, logging, a new AsyncEventingBasicConsumer).
-         *
-         * If topology recovery had stayed on, then the client would restore the old consumer and this handler
-         * would BasicConsume again, leaving two competing consumers on the same queue.
-         * Re-subscribe here when the channel recovers.
-         */
-        if (channel is IRecoverable recoverable)
-        {
-            recoverable.RecoveryAsync += OnRecoveryAsync;
         }
     }
 

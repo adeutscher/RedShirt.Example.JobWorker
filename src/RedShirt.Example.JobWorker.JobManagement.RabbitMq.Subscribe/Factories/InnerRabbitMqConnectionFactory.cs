@@ -26,7 +26,9 @@ internal class InnerRabbitMqConnectionFactory(IRabbitMqServerConfigurationSource
             AutomaticRecoveryEnabled = true,
             TopologyRecoveryEnabled = false,
             NetworkRecoveryInterval = TimeSpan.FromSeconds(1),
-            RequestedConnectionTimeout = TimeSpan.FromSeconds(5)
+            RequestedConnectionTimeout = TimeSpan.FromSeconds(5),
+            // Best practice range: 5 to 20 seconds
+            RequestedHeartbeat = TimeSpan.FromSeconds(15)
         };
 
         return new RabbitConnectionWrapper(connectionFactory);
