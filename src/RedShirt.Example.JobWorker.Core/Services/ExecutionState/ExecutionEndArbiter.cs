@@ -80,6 +80,8 @@ internal sealed class ExecutionEndArbiter : IExecutionEndArbiter
                 return;
             }
 
+            _logger.LogTrace("Stopping application");
+
             IsRunning = false;
             _exception = exception;
             primaryCallbacks = _primaryCallbacks;
