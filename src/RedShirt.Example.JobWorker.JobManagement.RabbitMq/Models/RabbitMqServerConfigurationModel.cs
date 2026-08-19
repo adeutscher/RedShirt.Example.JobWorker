@@ -1,7 +1,7 @@
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 
 /// <summary>
-/// Resolved configuration as distributed by the configuration source service.
+///     Resolved configuration as distributed by the configuration source service.
 /// </summary>
 internal sealed class RabbitMqServerConfigurationModel
 {
