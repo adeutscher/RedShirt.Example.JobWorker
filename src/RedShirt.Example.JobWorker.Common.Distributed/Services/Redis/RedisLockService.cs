@@ -17,13 +17,33 @@ internal sealed class RedisLockService(
     IRedisConnectionCacheService redisConnectionCacheService,
     IOptions<LockConfigurationModel> options) : IAbstractedLockService
 {
+    /// <summary>
+    ///     Maximum timeout after which a lock will be considered failed.
+    ///     Reaching a timeout implies an unstable connection to the lock service,
+    ///     a stable connection that failed to acquire a lock is expected to immediately exit.
+    /// </summary>
     public TimeSpan Timeout => options.Value.EffectiveTimeout;
 
     public async Task<IAbstractedLock> GetLockAsync(string lockName, CancellationToken cancellationToken = default)
     {
         var redis = await retryWrapper.RunAsync(redisConnectionCacheService.GetDatabaseAsync, cancellationToken);
         var redisLock = new RedisDistributedLock(lockName, redis);
-        return new DistributedLock(retryWrapper, await redisLock.TryAcquireAsync(Timeout, cancellationToken));
+
+        // The timeout in this context is to give leeway for possible network errors.
+        // A stable connection is expected to immediately fail to acquire a lock.
+        using var timeoutCts = new CancellationTokenSource(Timeout);
+        using var constrainedCompositeCts =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+        try
+        {
+            return new DistributedLock(retryWrapper,
+                await redisLock.TryAcquireAsync(cancellationToken: constrainedCompositeCts.Token));
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Account for max timeout
+            return new DistributedLock(retryWrapper, null);
+        }
     }
 
     internal sealed class DistributedLock(
