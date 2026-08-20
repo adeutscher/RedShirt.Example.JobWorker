@@ -4,14 +4,13 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 using RedShirt.Example.JobWorker.Common.Services.Utility;
-using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
-using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
@@ -19,17 +18,14 @@ using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 
-#pragma warning disable S107
 internal class RabbitMqSubscribeJobSource(
     IRabbitMqChannelRetryWrapper channelRetryWrapper,
-    IJobBacklogSizeService backlogSizeService,
+    ICoreConfigurationService coreConfigurationService,
     IJobSubscriberIntakeQueue jobSubscriberIntakeQueue,
     IExecutionEndArbiter executionEndArbiter,
     ISleepService sleepService,
-    IOptions<CoreConfigurationModel> coreOptions,
     IOptions<RabbitMqQueueConfigurationModel> rabbitMqConfiguration,
     ILogger<RabbitMqSubscribeJobSource> logger)
-#pragma warning restore S107
     : IJobSource
 {
     private string? _subscriberTag;
@@ -83,7 +79,7 @@ internal class RabbitMqSubscribeJobSource(
             0, // no byte-size cap
             // Set backlog size according to Core's configured buffer
             Math.Max(ushort.MaxValue,
-                (ushort) Math.Min(ushort.MaxValue, backlogSizeService.BacklogSize)), // max unacked messages
+                (ushort) Math.Min(ushort.MaxValue, coreConfigurationService.GetBacklogSize())), // max unacked messages
             false, // per consumer, not the whole channel
             cancellationToken);
         _subscriberTag =
@@ -128,7 +124,7 @@ internal class RabbitMqSubscribeJobSource(
                 // Some variety of non-transient failure
                 logger.LogError(e, "Error re-subscribing to RabbitMQ");
 
-                if (!coreOptions.Value.HaltOnFailure)
+                if (!coreConfigurationService.IsHaltOnFailure())
                 {
                     // Not halting on failure, continue and try again
                     continue;
@@ -263,7 +259,7 @@ internal class RabbitMqSubscribeJobSource(
             {
                 // Some variety of non-transient failure
                 logger.LogError(e, "Error subscribing to RabbitMQ");
-                if (!coreOptions.Value.HaltOnFailure)
+                if (!coreConfigurationService.IsHaltOnFailure())
                 {
                     // Not halting on failure, continue and try again
                     continue;

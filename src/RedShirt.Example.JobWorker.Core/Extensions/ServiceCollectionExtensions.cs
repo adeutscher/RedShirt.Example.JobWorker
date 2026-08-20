@@ -4,6 +4,7 @@ using RedShirt.Example.JobWorker.Common.Extensions;
 using RedShirt.Example.JobWorker.Common.Health.Configuration;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Heartbeats;
@@ -42,7 +43,10 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobIntakeService, JobIntakeService>()
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
             .AddSingleton<IJobRepository, JobRepository>()
+            .AddSingleton<ICoreConfigurationService, CoreConfigurationService>()
+#pragma warning disable CS0618 // Type or member is obsolete
             .AddSingleton<IJobBacklogSizeService, JobBacklogSizeService>()
+#pragma warning restore CS0618 // Type or member is obsolete
             .Configure<JobRepository.ConfigurationModel>(coreSection)
             .AddSingleton<IJobLoaderStateService, JobLoaderStateService>()
             .AddSingleton<IJobLoaderStateReaderService>(provider =>

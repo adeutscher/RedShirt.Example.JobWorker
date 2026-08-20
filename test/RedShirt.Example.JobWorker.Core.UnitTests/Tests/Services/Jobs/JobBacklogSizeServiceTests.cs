@@ -11,6 +11,7 @@ public class JobBacklogSizeServiceTests
     [InlineData(0, 0)]
     [InlineData(1, 1)]
     [InlineData(10, 10)]
+#pragma warning disable CS0618 // Type or member is obsolete
     public void BacklogSize_ReturnsEffectiveBacklogSize(int configuredBacklogSize, int expectedBacklogSize)
     {
         var service = new JobBacklogSizeService(Options.Create(new JobRepository.ConfigurationModel
@@ -20,4 +21,5 @@ public class JobBacklogSizeServiceTests
 
         Assert.Equal(expectedBacklogSize, service.BacklogSize);
     }
+#pragma warning restore CS0618 // Type or member is obsolete
 }

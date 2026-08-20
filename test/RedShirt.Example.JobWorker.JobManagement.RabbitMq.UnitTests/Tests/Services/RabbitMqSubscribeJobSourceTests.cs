@@ -4,12 +4,11 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 using RedShirt.Example.JobWorker.Common.Services.Utility;
-using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
-using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
@@ -31,8 +30,9 @@ public class RabbitMqSubscribeJobSourceTests
         bool haltOnFailure = true,
         int backlogSize = 5)
     {
-        var backlog = new Mock<IJobBacklogSizeService>(MockBehavior.Strict);
-        backlog.SetupGet(b => b.BacklogSize).Returns(backlogSize);
+        var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
+        coreConfiguration.Setup(c => c.GetBacklogSize()).Returns(backlogSize);
+        coreConfiguration.Setup(c => c.IsHaltOnFailure()).Returns(haltOnFailure);
 
         sleepService ??= new Mock<ISleepService>(MockBehavior.Strict);
         sleepService
@@ -47,11 +47,10 @@ public class RabbitMqSubscribeJobSourceTests
 
         return new RabbitMqSubscribeJobSource(
             channelRetryWrapper.Object,
-            backlog.Object,
+            coreConfiguration.Object,
             (intakeQueue ?? new Mock<IJobSubscriberIntakeQueue>(MockBehavior.Strict)).Object,
             executionEndArbiter.Object,
             sleepService.Object,
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = haltOnFailure}),
             Options.Create(new RabbitMqQueueConfigurationModel {QueueName = QueueName}),
             NullLogger<RabbitMqSubscribeJobSource>.Instance);
     }
