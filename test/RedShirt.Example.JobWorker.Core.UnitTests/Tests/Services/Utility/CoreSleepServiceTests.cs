@@ -7,6 +7,25 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Utility;
 public class CoreSleepServiceTests
 {
     [Fact]
+    public async Task DelayAsync_PassesThroughToSleepService()
+    {
+        var delay = TimeSpan.FromSeconds(3);
+        var token = TestContext.Current.CancellationToken;
+
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        sleepService
+            .Setup(s => s.DelayAsync(delay, token))
+            .Returns(Task.CompletedTask);
+
+        var service = new CoreSleepService(executionEndArbiter.Object, sleepService.Object);
+
+        await service.DelayAsync(delay, token);
+
+        sleepService.Verify(s => s.DelayAsync(delay, token), Times.Once);
+    }
+
+    [Fact]
     public async Task DelayWithStopAwareness_CompletesNormallyWhenNeitherTokenCancels()
     {
         var delay = TimeSpan.FromSeconds(5);
