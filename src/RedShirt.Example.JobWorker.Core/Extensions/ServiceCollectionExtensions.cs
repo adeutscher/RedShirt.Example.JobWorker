@@ -44,9 +44,6 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
             .AddSingleton<IJobRepository, JobRepository>()
             .AddSingleton<ICoreConfigurationService, CoreConfigurationService>()
-#pragma warning disable CS0618 // Type or member is obsolete
-            .AddSingleton<IJobBacklogSizeService, JobBacklogSizeService>()
-#pragma warning restore CS0618 // Type or member is obsolete
             .Configure<JobRepository.ConfigurationModel>(coreSection)
             .AddSingleton<IJobLoaderStateService, JobLoaderStateService>()
             .AddSingleton<IJobLoaderStateReaderService>(provider =>
