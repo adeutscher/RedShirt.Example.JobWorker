@@ -227,6 +227,19 @@ Subscribing is configured on job sources that support it with a `SUBSCRIBE` envi
 |------------|-----------------------------------|
 | RabbitMQ   | `JOB_SOURCE__RABBITMQ__SUBSCRIBE` |
 
+#### Notes on Implementing Other Subscribe Patterns
+
+A subscription job source is made to leverage the consume feature of a message provider. Like with long polling, the
+goal of a subscription pattern is increased responsiveness to new messages in an empty queue.
+
+It the fundamental behaviour of a subscription's behaviour is still a pull behaviour, then I would advise against
+implementing the subscription pattern and instead use this template's established poll pattern to pull messages.
+
+To give this some historical context: NATS was considered for an implementation option using the subscribe pattern, but
+the underlying behaviour of its client's `ConsumeAsync` method is still a pull. Implementing this as a subscription
+would have been a bespoke phrasing of a pull pattern, offering no added benefit to the template that couldn't have been
+gained by adjusting the maximum rest time between pulls in the existing logic.
+
 ## Idempotency
 
 In order to properly implement the idempotent consumer pattern, the outcome of processing the same message repeatedly

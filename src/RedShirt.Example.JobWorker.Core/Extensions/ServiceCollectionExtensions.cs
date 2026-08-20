@@ -23,6 +23,8 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddCoreJobManagement(this IServiceCollection services,
         IConfigurationRoot configuration)
     {
+        var coreSection = configuration.GetSection(ConfigSectionName);
+
         services = services
             .AddCommon()
             // General
@@ -30,7 +32,6 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobLoaderLoop, JobLoaderLoop>()
             .AddSingleton<IJobSubscriberManager, JobSubscriberManager>()
             .AddSingleton<IJobSubscriberIntakeQueue, JobSubscriberIntakeQueue>()
-            .AddSingleton<IJobSubscriberExceptionRelay, JobSubscriberExceptionRelay>()
             .AddSingleton<IJobExecutor, JobExecutor>()
             .AddSingleton<IAppliedExecutionEndArbiter, AppliedExecutionEndArbiter>()
             .AddSingleton<IHeartbeatMaintainer, HeartbeatMaintainer>()
@@ -42,16 +43,16 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
             .AddSingleton<IJobRepository, JobRepository>()
             .AddSingleton<IJobBacklogSizeService, JobBacklogSizeService>()
-            .Configure<JobRepository.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
+            .Configure<JobRepository.ConfigurationModel>(coreSection)
             .AddSingleton<IJobLoaderStateService, JobLoaderStateService>()
             .AddSingleton<IJobLoaderStateReaderService>(provider =>
                 provider.GetRequiredService<IJobLoaderStateService>())
-            .Configure<SafeJobRunner.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
-            .Configure<TimeBorderWrapperService.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
+            .Configure<SafeJobRunner.ConfigurationModel>(coreSection)
+            .Configure<TimeBorderWrapperService.ConfigurationModel>(coreSection)
             .Configure<JobSourceConfigurationModel>(configuration.GetSection("JobSource"))
-            .Configure<LoopOptionsConfigurationModel>(configuration.GetSection(ConfigSectionName))
-            .Configure<ThreadConfigurationModel>(configuration.GetSection(ConfigSectionName))
-            .Configure<CoreConfigurationModel>(configuration.GetSection(ConfigSectionName))
+            .Configure<LoopOptionsConfigurationModel>(coreSection)
+            .Configure<ThreadConfigurationModel>(coreSection)
+            .Configure<CoreConfigurationModel>(coreSection)
             // Idempotency
             .AddSingleton<IIdempotencyMonitor, IdempotencyMonitor>()
             .AddSingleton<IIdempotencyExecutionService, IdempotencyExecutionService>()

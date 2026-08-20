@@ -130,6 +130,7 @@ internal class RabbitMqSubscribeJobSource(
             {
                 // Some variety of non-transient failure
                 logger.LogError(e, "Error re-subscribing to RabbitMQ");
+
                 if (!coreOptions.Value.HaltOnFailure)
                 {
                     // Not halting on failure, continue and try again
@@ -277,9 +278,7 @@ internal class RabbitMqSubscribeJobSource(
                     continue;
                 }
 
-                // Unlike OnRecoveryAsync, we aren't in some thread kicked off by RabbitMQ.
-                // Just throw it upwards.
-                throw;
+                executionEndArbiter.Stop(e);
             }
 
             break;

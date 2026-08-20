@@ -75,9 +75,7 @@ internal sealed class JobLoaderLoop(
     {
         if (jobSource.IsSubscriptionSource)
         {
-            // Still mark start
-            jobLoaderStateService.ReportLoaderStart();
-            return HandlerComponentResponse.Finished;
+            return HandlerComponentResponse.NotEnabled;
         }
 
         try
