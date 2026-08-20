@@ -21,7 +21,7 @@ internal interface IIdempotencyMonitor : IHandlerSubComponent;
 
 #pragma warning disable S107
 internal sealed class IdempotencyMonitor(
-    IExecutionEndArbiter executionEndArbiter,
+    IAppliedExecutionEndArbiter executionEndArbiter,
     IJobRepository jobRepository,
     IIdempotencyExecutionService idempotencyExecutionService,
     ISafeJobAcknowledgementService safeJobAcknowledgementService,
@@ -126,7 +126,7 @@ internal sealed class IdempotencyMonitor(
 
         var intervalTimeSpan = TimeSpan.FromSeconds(options.Value.EffectiveMonitorIntervalSeconds);
 
-        while (executionEndArbiter.ShouldKeepRunning())
+        while (await executionEndArbiter.MaintainerShouldKeepRunningAsync(cancellationToken))
         {
             await CheckBlockedJobsAsync(cancellationToken);
             await sleepService.DelayAsync(intervalTimeSpan, cancellationToken);
