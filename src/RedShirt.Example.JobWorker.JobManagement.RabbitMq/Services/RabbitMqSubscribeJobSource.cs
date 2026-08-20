@@ -13,7 +13,6 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
-using RedShirt.Example.JobWorker.Core.Utility;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using System.Text;
@@ -33,8 +32,6 @@ internal class RabbitMqSubscribeJobSource(
 #pragma warning restore S107
     : IJobSource
 {
-    private readonly AsyncManualResetEvent _subscriberCancelEvent = new();
-
     private string? _subscriberTag;
 
     private Task OnReceivedAsync(object sender, BasicDeliverEventArgs args)
@@ -161,15 +158,9 @@ internal class RabbitMqSubscribeJobSource(
         connection.RecoverySucceededAsync += OnRecoveryAsync;
     }
 
-    private void StopSubscriber()
-    {
-        // Need to middleman through a manual reset event in order to make async calls.
-        _subscriberCancelEvent.Set();
-    }
-
     private async Task WaitThenStopSubscriberAsync(CancellationToken cancellationToken = default)
     {
-        await _subscriberCancelEvent.WaitAsync(cancellationToken);
+        await executionEndArbiter.WaitForFinishedAsync(cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(_subscriberTag))
         {
@@ -186,7 +177,8 @@ internal class RabbitMqSubscribeJobSource(
             catch (Exception exception)
             {
                 logger.LogError(exception, "Could not unsubscribe: {Message}", exception.Message);
-                // Not terribly concerned about any other exceptions because it's in the shutdown period anyway, but just in case...
+                // Not terribly concerned about any other exceptions because it's assumed in the shutdown period anyway.
+                // But just in case...
             }
         }
     }
@@ -238,8 +230,7 @@ internal class RabbitMqSubscribeJobSource(
 
     public async Task StartSubscriberAsync(CancellationToken cancellationToken = default)
     {
-        // Kick off the waiting task
-        executionEndArbiter.AddOnStopCallback(_ => StopSubscriber());
+        // Kick off the task that shall watch for unsubscribes
         _ = Task.Run(() => WaitThenStopSubscriberAsync(cancellationToken), cancellationToken);
 
         var firstIteration = true;
