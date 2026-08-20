@@ -32,6 +32,14 @@ public class ExecutionEndArbiterTests
     }
 
     [Fact]
+    public void CancellationToken_WhenConstructed_IsNotCanceled()
+    {
+        using var arbiter = CreateArbiter();
+
+        Assert.False(arbiter.CancellationToken.IsCancellationRequested);
+    }
+
+    [Fact]
     public async Task Dispose_DoesNotStopRunningOrReleaseWaiters()
     {
         var arbiter = CreateArbiter();
@@ -84,6 +92,16 @@ public class ExecutionEndArbiterTests
 
         Assert.True(arbiter.IsRunning);
         Assert.True(arbiter.ShouldKeepRunning());
+    }
+
+    [Fact]
+    public void Stop_CancelsCancellationToken()
+    {
+        using var arbiter = CreateArbiter();
+
+        arbiter.Stop();
+
+        Assert.True(arbiter.CancellationToken.IsCancellationRequested);
     }
 
     [Fact]
