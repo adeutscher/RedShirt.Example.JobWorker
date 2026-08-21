@@ -77,7 +77,7 @@ internal class RabbitMqSubscribeJobSource(
 
         await channel.BasicQosAsync(
             0, // no byte-size cap
-            // Set backlog size according to Core's configured buffer
+            // Set backlog size according to Core's configured buffer (within the limits of usage of ushort in RabbitMQ)
             Math.Max(ushort.MaxValue,
                 (ushort) Math.Min(ushort.MaxValue, coreConfigurationService.GetBacklogSize())), // max unacked messages
             false, // per consumer, not the whole channel
