@@ -100,7 +100,10 @@ internal sealed class Handler(
          * but that's so remote that I'm not concerned about it.
          */
 
-        Interlocked.Exchange(ref _workerException, e);
+        if (e is not null)
+        {
+            Interlocked.Exchange(ref _workerException, e);
+        }
     }
 
     public async Task<bool> HandleAsync(CancellationToken cancellationToken = default)
