@@ -47,9 +47,9 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
     ///     Centralize decision on whether to send interrupt signal.
     ///     Unsafe on its own, assumed to be running within a lock statement by the method that invokes it.
     /// </summary>
-    private bool ShouldSendInterruptSignalUnsafe()
+    private bool ShouldSendMaintainerInterruptSignalUnsafe()
     {
-        return _executionEndArbiter.ShouldKeepRunning()
+        return !_executionEndArbiter.ShouldKeepRunning()
                && _inactiveJobsCount == 0
                && _watchedJobsCount == 0;
     }
@@ -62,13 +62,13 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
         }
         catch (ObjectDisposedException)
         {
-            // Dispose may have already run (e.g. host shutdown); interrupt signaling is best-effort.
+            // Dispose may have already run (e.g. host shutdown); interrupt signalling is best-effort.
         }
     }
 
     private void OnInactiveJobChange(int inactiveJobCount)
     {
-        var shouldInterrupt = false;
+        bool shouldInterrupt;
         lock (_lock)
         {
             if (_disposed)
@@ -77,7 +77,7 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
             }
 
             _inactiveJobsCount = inactiveJobCount;
-            shouldInterrupt = ShouldSendInterruptSignalUnsafe();
+            shouldInterrupt = ShouldSendMaintainerInterruptSignalUnsafe();
         }
 
         if (shouldInterrupt)
@@ -88,7 +88,7 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
 
     private void OnWatchedJobChange(int watchedJobCount)
     {
-        var shouldInterrupt = false;
+        bool shouldInterrupt;
         lock (_lock)
         {
             if (_disposed)
@@ -97,7 +97,7 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
             }
 
             _watchedJobsCount = watchedJobCount;
-            shouldInterrupt = ShouldSendInterruptSignalUnsafe();
+            shouldInterrupt = ShouldSendMaintainerInterruptSignalUnsafe();
         }
 
         if (shouldInterrupt)

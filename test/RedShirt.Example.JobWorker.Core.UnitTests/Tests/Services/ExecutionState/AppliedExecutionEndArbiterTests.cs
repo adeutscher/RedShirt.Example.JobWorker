@@ -134,11 +134,12 @@ public class AppliedExecutionEndArbiterTests
     }
 
     [Fact]
-    public async Task DelayMaintainerWithStopAwarenessAsync_WhenCountsDropToEmpty_InterruptsAndCompletes()
+    public async Task DelayMaintainerWithStopAwarenessAsync_WhenCountsDropToEmptyWhileStopping_InterruptsAndCompletes()
     {
         var delay = TimeSpan.FromSeconds(5);
         var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+        // Stopping, but jobs are still present so the interrupt is not sent yet.
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(false);
 
         var delayStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken linkedToken = default;
@@ -190,11 +191,11 @@ public class AppliedExecutionEndArbiterTests
     }
 
     [Fact]
-    public async Task DelayMaintainerWithStopAwarenessAsync_WhenEmptyButInnerSaysStop_DoesNotInterrupt()
+    public async Task DelayMaintainerWithStopAwarenessAsync_WhenEmptyButInnerSaysKeepRunning_DoesNotInterrupt()
     {
         var delay = TimeSpan.FromSeconds(5);
         var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(false);
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
 
         var sleepService = CreateSleepService();
         sleepService
@@ -218,8 +219,8 @@ public class AppliedExecutionEndArbiterTests
     {
         var delay = TimeSpan.FromSeconds(5);
         var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        // Empty job counts while still "keep running" cancels the internal interrupt token on subscribe.
-        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+        // Empty job counts while stopping cancels the internal interrupt token on subscribe.
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(false);
 
         var sleepService = CreateSleepService();
         sleepService
