@@ -112,6 +112,16 @@ internal sealed class IdempotencyMonitor(
         }
     }
 
+    /// <summary>
+    ///     Minor centralization of a log message, mirroring <c>HeartbeatMaintainer</c>.
+    /// </summary>
+    private async Task LogAndWaitAsync(TimeSpan timeToWait, CancellationToken cancellationToken = default)
+    {
+        logger.LogTrace("Waiting for {Time} until next follow-up check of already running jobs by idempotency monitor",
+            timeToWait);
+        await executionEndArbiter.DelayMaintainerWithStopAwarenessAsync(timeToWait, cancellationToken);
+    }
+
     public async Task<HandlerComponentResponse> RunAsync(CancellationToken cancellationToken = default)
     {
         if (!options.Value.Enabled)
@@ -125,7 +135,7 @@ internal sealed class IdempotencyMonitor(
         while (executionEndArbiter.MaintainerShouldKeepRunning())
         {
             await CheckBlockedJobsAsync(cancellationToken);
-            await executionEndArbiter.DelayMaintainerWithStopAwarenessAsync(intervalTimeSpan, cancellationToken);
+            await LogAndWaitAsync(intervalTimeSpan, cancellationToken);
         }
 
         return HandlerComponentResponse.Finished;

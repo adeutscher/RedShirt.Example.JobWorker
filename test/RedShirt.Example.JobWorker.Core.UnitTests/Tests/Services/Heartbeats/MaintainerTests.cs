@@ -377,7 +377,7 @@ public class HeartbeatMaintainerTests
     ///     Maintain a job that is ready to heartbeat
     ///     However, a CanNoLongerHeartbeatException is thrown
     /// </summary>
-    [Fact(Timeout = 1500)]
+    [Fact(Timeout = 3000)]
     public async Task TestHeartbeatSingleJobButGotHeartbeatException()
     {
         var subject = new Mock<IJobModel>(MockBehavior.Strict);

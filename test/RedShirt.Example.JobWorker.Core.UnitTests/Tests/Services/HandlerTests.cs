@@ -195,6 +195,36 @@ public class HandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenInvokedTwice_ThrowsInvalidOperationException()
+    {
+        using var executionEndArbiter = CreateExecutionEndArbiter();
+
+        var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
+        jobLoaderLoop
+            .Setup(l => l.RunAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(HandlerComponentResponse.Finished);
+
+        var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
+        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
+        var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
+        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+            idempotencyMonitor.Object, jobSubscriberManager.Object,
+            Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
+            new NullLogger<Handler>());
+
+        Assert.True(await handler.HandleAsync(TestContext.Current.CancellationToken));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            handler.HandleAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("Handler should only be run once.", ex.Message);
+        jobLoaderLoop.Verify(l => l.RunAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenWorkerThrowsOperationCanceledWhileTokenCanceled_DoesNotRethrow()
     {
         using var executionEndArbiter = CreateExecutionEndArbiter();
