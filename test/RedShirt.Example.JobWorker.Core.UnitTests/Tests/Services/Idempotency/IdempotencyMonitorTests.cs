@@ -72,8 +72,8 @@ public class IdempotencyMonitorTests
                 TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync((CancellationToken _) =>
+            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Returns(() =>
             {
                 if (doQuit)
                 {
@@ -127,8 +127,8 @@ public class IdempotencyMonitorTests
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync((CancellationToken _) =>
+            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Returns(() =>
             {
                 if (doQuit)
                 {
@@ -193,8 +193,8 @@ public class IdempotencyMonitorTests
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync((CancellationToken _) =>
+            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Returns(() =>
             {
                 if (doQuit)
                 {
@@ -269,8 +269,8 @@ public class IdempotencyMonitorTests
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync((CancellationToken _) =>
+            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Returns(() =>
             {
                 if (doQuit)
                 {
@@ -345,8 +345,8 @@ public class IdempotencyMonitorTests
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync((CancellationToken _) =>
+            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Returns(() =>
             {
                 if (doQuit)
                 {

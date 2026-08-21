@@ -99,8 +99,8 @@ public class JobResultTranslationTests
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedExecutorExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync((CancellationToken _) =>
+            .Setup(a => a.ExecutorsShouldKeepRunning())
+            .Returns(() =>
             {
                 if (doQuit)
                 {

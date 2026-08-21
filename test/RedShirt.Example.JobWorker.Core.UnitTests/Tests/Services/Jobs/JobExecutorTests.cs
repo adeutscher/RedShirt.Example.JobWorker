@@ -73,8 +73,8 @@ public class JobExecutorTests
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedExecutorExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync((CancellationToken _) =>
+            .Setup(a => a.ExecutorsShouldKeepRunning())
+            .Returns(() =>
             {
                 if (!doQuit)
                 {
@@ -135,8 +135,8 @@ public class JobExecutorTests
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedExecutorExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync((CancellationToken _) =>
+            .Setup(a => a.ExecutorsShouldKeepRunning())
+            .Returns(() =>
             {
                 if (doQuit)
                 {
@@ -188,8 +188,8 @@ public class JobExecutorTests
         var calls = 0;
         var executionEndArbiter = new Mock<IAppliedExecutorExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync((CancellationToken _) => ++calls <= 1);
+            .Setup(a => a.ExecutorsShouldKeepRunning())
+            .Returns(() => ++calls <= 1);
 
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         jobRepository
@@ -260,8 +260,8 @@ public class JobExecutorTests
         var calls = 0;
         var executionEndArbiter = new Mock<IAppliedExecutorExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync((CancellationToken _) => ++calls <= 1);
+            .Setup(a => a.ExecutorsShouldKeepRunning())
+            .Returns(() => ++calls <= 1);
 
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         jobRepository
@@ -341,8 +341,8 @@ public class JobExecutorTests
         var calls = 0;
         var executionEndArbiter = new Mock<IAppliedExecutorExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync((CancellationToken _) => ++calls <= 1);
+            .Setup(a => a.ExecutorsShouldKeepRunning())
+            .Returns(() => ++calls <= 1);
 
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         jobRepository
@@ -405,8 +405,8 @@ public class JobExecutorTests
         var calls = 0;
         var executionEndArbiter = new Mock<IAppliedExecutorExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync((CancellationToken _) => ++calls <= 1);
+            .Setup(a => a.ExecutorsShouldKeepRunning())
+            .Returns(() => ++calls <= 1);
 
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         jobRepository

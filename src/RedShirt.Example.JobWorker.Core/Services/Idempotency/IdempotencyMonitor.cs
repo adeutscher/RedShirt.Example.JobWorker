@@ -122,7 +122,7 @@ internal sealed class IdempotencyMonitor(
 
         var intervalTimeSpan = TimeSpan.FromSeconds(options.Value.EffectiveMonitorIntervalSeconds);
 
-        while (await executionEndArbiter.MaintainerShouldKeepRunningAsync(cancellationToken))
+        while (executionEndArbiter.MaintainerShouldKeepRunning())
         {
             await CheckBlockedJobsAsync(cancellationToken);
             await executionEndArbiter.DelayMaintainerWithStopAwarenessAsync(intervalTimeSpan, cancellationToken);

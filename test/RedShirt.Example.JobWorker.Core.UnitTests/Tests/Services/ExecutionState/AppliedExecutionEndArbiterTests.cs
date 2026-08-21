@@ -90,7 +90,7 @@ public class AppliedExecutionEndArbiterTests
     ///     Test with impossible IJobRepository output
     /// </summary>
     [Fact]
-    public async Task TestExecutorStopRunningWeird()
+    public void TestExecutorStopRunningWeird()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>();
         innerArbiter
@@ -100,14 +100,14 @@ public class AppliedExecutionEndArbiterTests
         var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(-1).Object,
             CreateSleepService().Object);
 
-        Assert.False(await arbiter.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken));
+        Assert.False(arbiter.ExecutorsShouldKeepRunning());
     }
 
     /// <summary>
     ///     All checks return true
     /// </summary>
     [Fact]
-    public async Task TestExecutorsKeepRunningA()
+    public void TestExecutorsKeepRunningA()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>();
         innerArbiter
@@ -117,11 +117,11 @@ public class AppliedExecutionEndArbiterTests
         var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
             CreateSleepService().Object);
 
-        Assert.True(await arbiter.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken));
+        Assert.True(arbiter.ExecutorsShouldKeepRunning());
     }
 
     [Fact]
-    public async Task TestExecutorsKeepRunningBecauseInactive()
+    public void TestExecutorsKeepRunningBecauseInactive()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>();
         innerArbiter
@@ -131,11 +131,11 @@ public class AppliedExecutionEndArbiterTests
         var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
             CreateSleepService().Object);
 
-        Assert.True(await arbiter.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken));
+        Assert.True(arbiter.ExecutorsShouldKeepRunning());
     }
 
     [Fact]
-    public async Task TestExecutorsKeepRunningDespiteInner()
+    public void TestExecutorsKeepRunningDespiteInner()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>();
         innerArbiter
@@ -145,11 +145,11 @@ public class AppliedExecutionEndArbiterTests
         var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
             CreateSleepService().Object);
 
-        Assert.True(await arbiter.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken));
+        Assert.True(arbiter.ExecutorsShouldKeepRunning());
     }
 
     [Fact]
-    public async Task TestExecutorsKeepRunningDespiteWatched()
+    public void TestExecutorsKeepRunningDespiteWatched()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>();
         innerArbiter
@@ -160,11 +160,11 @@ public class AppliedExecutionEndArbiterTests
             CreateSleepService().Object);
 
         // Confirming that we're ignoring watched jobs
-        Assert.False(await arbiter.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken));
+        Assert.False(arbiter.ExecutorsShouldKeepRunning());
     }
 
     [Fact]
-    public async Task TestExecutorsStopRunning()
+    public void TestExecutorsStopRunning()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>();
         innerArbiter
@@ -174,14 +174,14 @@ public class AppliedExecutionEndArbiterTests
         var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
             CreateSleepService().Object);
 
-        Assert.False(await arbiter.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken));
+        Assert.False(arbiter.ExecutorsShouldKeepRunning());
     }
 
     /// <summary>
     ///     All checks return true
     /// </summary>
     [Fact]
-    public async Task TestMaintainerKeepRunningA()
+    public void TestMaintainerKeepRunningA()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>();
         innerArbiter
@@ -191,11 +191,11 @@ public class AppliedExecutionEndArbiterTests
         var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
             CreateSleepService().Object);
 
-        Assert.True(await arbiter.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken));
+        Assert.True(arbiter.MaintainerShouldKeepRunning());
     }
 
     [Fact]
-    public async Task TestMaintainerKeepRunningBecauseInactive()
+    public void TestMaintainerKeepRunningBecauseInactive()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>();
         innerArbiter
@@ -205,11 +205,11 @@ public class AppliedExecutionEndArbiterTests
         var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
             CreateSleepService().Object);
 
-        Assert.True(await arbiter.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken));
+        Assert.True(arbiter.MaintainerShouldKeepRunning());
     }
 
     [Fact]
-    public async Task TestMaintainerKeepRunningBecauseWatched()
+    public void TestMaintainerKeepRunningBecauseWatched()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>();
         innerArbiter
@@ -219,11 +219,11 @@ public class AppliedExecutionEndArbiterTests
         var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(0, 1).Object,
             CreateSleepService().Object);
 
-        Assert.True(await arbiter.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken));
+        Assert.True(arbiter.MaintainerShouldKeepRunning());
     }
 
     [Fact]
-    public async Task TestMaintainerKeepRunningDespiteInner()
+    public void TestMaintainerKeepRunningDespiteInner()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>();
         innerArbiter
@@ -233,11 +233,11 @@ public class AppliedExecutionEndArbiterTests
         var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
             CreateSleepService().Object);
 
-        Assert.True(await arbiter.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken));
+        Assert.True(arbiter.MaintainerShouldKeepRunning());
     }
 
     [Fact]
-    public async Task TestMaintainerStopRunning()
+    public void TestMaintainerStopRunning()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>();
         innerArbiter
@@ -247,14 +247,14 @@ public class AppliedExecutionEndArbiterTests
         var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
             CreateSleepService().Object);
 
-        Assert.False(await arbiter.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken));
+        Assert.False(arbiter.MaintainerShouldKeepRunning());
     }
 
     /// <summary>
     ///     Test with impossible IJobRepository output
     /// </summary>
     [Fact]
-    public async Task TestMaintainerStopRunningWeird()
+    public void TestMaintainerStopRunningWeird()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>();
         innerArbiter
@@ -264,6 +264,6 @@ public class AppliedExecutionEndArbiterTests
         var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(-1, -1).Object,
             CreateSleepService().Object);
 
-        Assert.False(await arbiter.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken));
+        Assert.False(arbiter.MaintainerShouldKeepRunning());
     }
 }

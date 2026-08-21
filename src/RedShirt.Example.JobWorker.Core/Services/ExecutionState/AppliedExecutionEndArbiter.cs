@@ -18,7 +18,7 @@ internal interface IAppliedMaintainerExecutionEndArbiter
     /// </summary>
     Task DelayMaintainerWithStopAwarenessAsync(TimeSpan delay, CancellationToken cancellationToken = default);
 
-    Task<bool> MaintainerShouldKeepRunningAsync(CancellationToken cancellationToken = default);
+    bool MaintainerShouldKeepRunning();
 }
 
 /// <summary>
@@ -28,7 +28,7 @@ internal interface IAppliedMaintainerExecutionEndArbiter
 /// </summary>
 internal interface IAppliedExecutorExecutionEndArbiter
 {
-    Task<bool> ExecutorsShouldKeepRunningAsync(CancellationToken cancellationToken = default);
+    bool ExecutorsShouldKeepRunning();
 }
 
 internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEndArbiter,
@@ -36,29 +36,52 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
 {
     private readonly IExecutionEndArbiter _executionEndArbiter;
     private readonly CancellationTokenSource _interruptCts = new();
+    private readonly Lock _lock = new();
     private readonly ISleepService _sleepService;
 
     private int _inactiveJobsCount;
     private int _watchedJobsCount;
 
-    private void ConsiderSendingInterruptSignal()
+    /// <summary>
+    ///     Centralize decision on whether to send interrupt signal.
+    ///     Unsafe on its own, assumed to be running within a lock statement by the method that invokes it.
+    /// </summary>
+    /// <returns></returns>
+    private bool ShouldSendInterruptSignalUnsafe()
     {
-        if (_executionEndArbiter.ShouldKeepRunning() && _inactiveJobsCount == 0 && _watchedJobsCount == 0)
+        return _executionEndArbiter.ShouldKeepRunning()
+               && _inactiveJobsCount == 0
+               && _watchedJobsCount == 0;
+    }
+
+    private void OnInactiveJobChange(int inactiveJobCount)
+    {
+        var shouldInterrupt = false;
+        lock (_lock)
+        {
+            _inactiveJobsCount = inactiveJobCount;
+            shouldInterrupt = ShouldSendInterruptSignalUnsafe();
+        }
+
+        if (shouldInterrupt)
         {
             _interruptCts.Cancel();
         }
     }
 
-    private void OnInactiveJobChange(int inactiveJobCount)
-    {
-        _inactiveJobsCount = inactiveJobCount;
-        ConsiderSendingInterruptSignal();
-    }
-
     private void OnWatchedJobChange(int watchedJobCount)
     {
-        _watchedJobsCount = watchedJobCount;
-        ConsiderSendingInterruptSignal();
+        var shouldInterrupt = false;
+        lock (_lock)
+        {
+            _watchedJobsCount = watchedJobCount;
+            shouldInterrupt = ShouldSendInterruptSignalUnsafe();
+        }
+
+        if (shouldInterrupt)
+        {
+            _interruptCts.Cancel();
+        }
     }
 
     public AppliedExecutionEndArbiter(
@@ -72,11 +95,14 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
         jobRepository.SubscribeToWatchedJobsUpdate(OnWatchedJobChange);
     }
 
-    public Task<bool> ExecutorsShouldKeepRunningAsync(CancellationToken cancellationToken = default)
+    public bool ExecutorsShouldKeepRunning()
     {
         // The executor doesn't care about other executors currently processing jobs, so ignoring the watched jobs count.
-        return Task.FromResult(_executionEndArbiter.ShouldKeepRunning()
-                               || _inactiveJobsCount > 0);
+        lock (_lock)
+        {
+            return _executionEndArbiter.ShouldKeepRunning()
+                   || _inactiveJobsCount > 0;
+        }
     }
 
     public async Task DelayMaintainerWithStopAwarenessAsync(TimeSpan delay,
@@ -96,10 +122,13 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
         }
     }
 
-    public Task<bool> MaintainerShouldKeepRunningAsync(CancellationToken cancellationToken = default)
+    public bool MaintainerShouldKeepRunning()
     {
-        return Task.FromResult(_executionEndArbiter.ShouldKeepRunning()
-                               || _inactiveJobsCount > 0
-                               || _watchedJobsCount > 0);
+        lock (_lock)
+        {
+            return _executionEndArbiter.ShouldKeepRunning()
+                   || _inactiveJobsCount > 0
+                   || _watchedJobsCount > 0;
+        }
     }
 }

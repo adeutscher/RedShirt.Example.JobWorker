@@ -98,7 +98,7 @@ internal sealed class JobExecutor(
 
     public async Task<HandlerComponentResponse> RunAsync(int executorId, CancellationToken cancellationToken = default)
     {
-        while (await appliedExecutionEndArbiter.ExecutorsShouldKeepRunningAsync(cancellationToken))
+        while (appliedExecutionEndArbiter.ExecutorsShouldKeepRunning())
         {
             var repositoryEntry = await jobRepository.GetNextJobAsync(cancellationToken);
             if (repositoryEntry is null)

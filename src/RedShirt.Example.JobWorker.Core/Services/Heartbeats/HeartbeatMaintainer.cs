@@ -177,7 +177,7 @@ internal sealed class HeartbeatMaintainer(
             return HandlerComponentResponse.NotEnabled;
         }
 
-        while (await appliedExecutionEndArbiter.MaintainerShouldKeepRunningAsync(cancellationToken))
+        while (appliedExecutionEndArbiter.MaintainerShouldKeepRunning())
         {
             var jobs = await jobRepository.GetAllInFlightJobsAsync(cancellationToken);
 
