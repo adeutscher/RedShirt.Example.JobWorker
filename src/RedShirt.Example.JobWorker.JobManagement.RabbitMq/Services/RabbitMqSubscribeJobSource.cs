@@ -94,34 +94,47 @@ internal class RabbitMqSubscribeJobSource(
             "RabbitMQ channel recovered; re-subscribing to queue {QueueName}",
             rabbitMqConfiguration.Value.QueueName);
 
-        var firstIteration = true;
+        await SubscribeWithRetryLoopAsync("re-subscribing", args.CancellationToken);
+    }
 
+    /// <summary>
+    ///     Attempt to start the consumer, retrying according to transient / halt-on-failure configuration.
+    /// </summary>
+    /// <param name="logVerb">
+    ///     Verb used in error logs (e.g. "subscribing" or "re-subscribing").
+    /// </param>
+    /// <param name="cancellationToken"></param>
+    private async Task SubscribeWithRetryLoopAsync(string logVerb, CancellationToken cancellationToken)
+    {
+        var firstIteration = true;
         while (true)
         {
             if (firstIteration)
             {
                 firstIteration = false;
-                await sleepService.DelayAsync(TimeSpan.FromSeconds(1), args.CancellationToken);
+                await sleepService.DelayAsync(TimeSpan.FromSeconds(1), cancellationToken);
             }
 
             try
             {
-                await channelRetryWrapper.GetChannelAndDoActionWithRetryAsync(StartConsumerAsync,
-                    cancellationToken: args.CancellationToken);
+                await GetChannelAndDoActionWithRetryAsync(StartConsumerAsync, cancellationToken);
             }
             catch (OperationCanceledException e) when (e.CancellationToken.IsCancellationRequested)
             {
                 // Pass
             }
+#pragma warning disable S2139
+            // Misguided sonar warning
             catch (Exception e)
+#pragma warning restore S2139
             {
                 // Some variety of non-transient failure
-                logger.LogError(e, "Error re-subscribing to RabbitMQ");
+                logger.LogError(e, "Error {LogVerb} to RabbitMQ", logVerb);
 
                 if (e is WorkerJobSourceException {CouldBeTransient: true} &&
                     !coreConfigurationService.IsTreatTransientAsFailure())
                 {
-                    // Continue and try again
+                    // Transient: Retry and try again
                     continue;
                 }
 
@@ -180,6 +193,15 @@ internal class RabbitMqSubscribeJobSource(
         }
     }
 
+    /// <summary>
+    ///     Acknowledge a message.
+    ///     Note: Almost but not quite the same as the original RabbitMqJobSource implementation of AcknowledgeAsync,
+    ///     preventing consolidation.
+    ///     Under the hood, using a different reconnect handler. Not worth it to branch that out to grasp at line reduction.
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="result"></param>
+    /// <param name="cancellationToken"></param>
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
@@ -230,48 +252,6 @@ internal class RabbitMqSubscribeJobSource(
         // Kick off the task that shall watch for unsubscribes
         _ = Task.Run(() => WaitThenStopSubscriberAsync(cancellationToken), cancellationToken);
 
-        var firstIteration = true;
-        while (true)
-        {
-            if (firstIteration)
-            {
-                firstIteration = false;
-                await sleepService.DelayAsync(TimeSpan.FromSeconds(1), cancellationToken);
-            }
-
-            try
-            {
-                await GetChannelAndDoActionWithRetryAsync(StartConsumerAsync, cancellationToken);
-            }
-            catch (OperationCanceledException e) when (e.CancellationToken.IsCancellationRequested)
-            {
-                // Pass
-            }
-#pragma warning disable S2139
-            // Misguided sonar warning
-            catch (Exception e)
-#pragma warning restore S2139
-            {
-                // Some variety of non-transient failure
-                logger.LogError(e, "Error subscribing to RabbitMQ");
-
-                if (e is WorkerJobSourceException {CouldBeTransient: true} &&
-                    !coreConfigurationService.IsTreatTransientAsFailure())
-                {
-                    // Transient: Retry and try again
-                    continue;
-                }
-
-                if (!coreConfigurationService.IsHaltOnFailure())
-                {
-                    // Not halting on failure, continue and try again
-                    continue;
-                }
-
-                executionEndArbiter.Stop(e);
-            }
-
-            break;
-        }
+        await SubscribeWithRetryLoopAsync("subscribing", cancellationToken);
     }
 }

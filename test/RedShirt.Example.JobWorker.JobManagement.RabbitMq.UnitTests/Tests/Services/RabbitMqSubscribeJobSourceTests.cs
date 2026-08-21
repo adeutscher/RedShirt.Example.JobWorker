@@ -28,11 +28,13 @@ public class RabbitMqSubscribeJobSourceTests
         Mock<IExecutionEndArbiter>? executionEndArbiter = null,
         Mock<ISleepService>? sleepService = null,
         bool haltOnFailure = true,
-        int backlogSize = 5)
+        int backlogSize = 5,
+        bool treatTransientAsFailure = false)
     {
         var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
         coreConfiguration.Setup(c => c.GetBacklogSize()).Returns(backlogSize);
         coreConfiguration.Setup(c => c.IsHaltOnFailure()).Returns(haltOnFailure);
+        coreConfiguration.Setup(c => c.IsTreatTransientAsFailure()).Returns(treatTransientAsFailure);
 
         sleepService ??= new Mock<ISleepService>(MockBehavior.Strict);
         sleepService
@@ -42,7 +44,10 @@ public class RabbitMqSubscribeJobSourceTests
         if (executionEndArbiter is null)
         {
             executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-            executionEndArbiter.Setup(a => a.AddOnStopCallback(It.IsAny<Action<Exception?>>()));
+            // Background unsubscribe waiter; leave unfinished unless a test signals stop.
+            executionEndArbiter
+                .Setup(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()))
+                .Returns(new TaskCompletionSource().Task);
         }
 
         return new RabbitMqSubscribeJobSource(
@@ -92,14 +97,6 @@ public class RabbitMqSubscribeJobSourceTests
             .Callback(new Action<string, bool, string, bool, bool, IDictionary<string, object?>?, IAsyncBasicConsumer,
                 CancellationToken>((_, _, _, _, _, _, consumer, _) => captureConsumer?.Invoke(consumer)))
             .ReturnsAsync(consumerTag);
-    }
-
-    private static void InvokeStopSubscriber(RabbitMqSubscribeJobSource jobSource)
-    {
-        var method = typeof(RabbitMqSubscribeJobSource).GetMethod("StopSubscriber",
-            BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(method);
-        method.Invoke(jobSource, null);
     }
 
     private static Task InvokeWaitThenStopSubscriberAsync(RabbitMqSubscribeJobSource jobSource,
@@ -214,20 +211,22 @@ public class RabbitMqSubscribeJobSourceTests
     }
 
     [Fact]
-    public async Task StartSubscriberAsync_ConsumesQueueAndRegistersStopCallback()
+    public async Task StartSubscriberAsync_ConsumesQueueAndWaitsForFinished()
     {
         var channel = new Mock<IChannel>(MockBehavior.Strict);
         SetupConsume(channel);
 
         var wrapper = CreatePassthroughWrapper(channel.Object);
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        executionEndArbiter.Setup(a => a.AddOnStopCallback(It.IsAny<Action<Exception?>>()));
+        executionEndArbiter
+            .Setup(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()))
+            .Returns(new TaskCompletionSource().Task);
 
         var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
 
         await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
 
-        executionEndArbiter.Verify(a => a.AddOnStopCallback(It.IsAny<Action<Exception?>>()), Times.Once);
+        executionEndArbiter.Verify(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()), Times.Once);
         channel.Verify(c => c.BasicQosAsync(0, ushort.MaxValue, false, TestContext.Current.CancellationToken),
             Times.Once);
         channel.Verify(c => c.BasicConsumeAsync(
@@ -303,7 +302,7 @@ public class RabbitMqSubscribeJobSourceTests
     }
 
     [Fact]
-    public async Task StartSubscriberAsync_WhenNonTransientAndHaltOnFailure_Propagates()
+    public async Task StartSubscriberAsync_WhenNonTransientAndHaltOnFailure_StopsArbiter()
     {
         var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
         wrapper
@@ -313,10 +312,18 @@ public class RabbitMqSubscribeJobSourceTests
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("permanent"));
 
-        var jobSource = CreateJobSource(wrapper);
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter
+            .Setup(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()))
+            .Returns(new TaskCompletionSource().Task);
+        executionEndArbiter.Setup(a => a.Stop(It.IsAny<Exception?>()));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken));
+        var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
+
+        await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
+
+        executionEndArbiter.Verify(
+            a => a.Stop(It.Is<InvalidOperationException>(e => e.Message == "permanent")), Times.Once);
     }
 
     [Fact]
@@ -385,7 +392,9 @@ public class RabbitMqSubscribeJobSourceTests
             });
 
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        executionEndArbiter.Setup(a => a.AddOnStopCallback(It.IsAny<Action<Exception?>>()));
+        executionEndArbiter
+            .Setup(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()))
+            .Returns(new TaskCompletionSource().Task);
         executionEndArbiter.Setup(a => a.Stop(It.IsAny<Exception?>()));
 
         var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
@@ -411,22 +420,21 @@ public class RabbitMqSubscribeJobSourceTests
                 return Task.CompletedTask;
             });
 
-        Action<Exception?>? stopCallback = null;
+        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
-            .Setup(a => a.AddOnStopCallback(It.IsAny<Action<Exception?>>()))
-            .Callback<Action<Exception?>>(callback => stopCallback = callback);
+            .Setup(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()))
+            .Returns(finished.Task);
 
         var wrapper = CreatePassthroughWrapper(channel.Object);
         var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
 
         await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
 
-        Assert.NotNull(stopCallback);
-        stopCallback!(null);
+        finished.SetResult();
         await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
-        channel.Verify(c => c.BasicCancelAsync("consumer-1", false, TestContext.Current.CancellationToken),
+        channel.Verify(c => c.BasicCancelAsync("consumer-1", false, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -493,10 +501,14 @@ public class RabbitMqSubscribeJobSourceTests
                 CouldBeExternallySolvable = false
             });
 
-        var jobSource = CreateJobSource(wrapper);
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter
+            .Setup(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
         SetSubscriberTag(jobSource, "consumer-1");
 
-        InvokeStopSubscriber(jobSource);
         await InvokeWaitThenStopSubscriberAsync(jobSource, TestContext.Current.CancellationToken);
     }
 
@@ -504,7 +516,12 @@ public class RabbitMqSubscribeJobSourceTests
     public async Task WaitThenStopSubscriberAsync_WhenCanceledBeforeStop_ThrowsAndDoesNotCancelConsumer()
     {
         var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
-        var jobSource = CreateJobSource(wrapper);
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter
+            .Setup(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()))
+            .Returns((CancellationToken token) => Task.FromCanceled(token));
+
+        var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
         SetSubscriberTag(jobSource, "consumer-1");
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
@@ -523,9 +540,13 @@ public class RabbitMqSubscribeJobSourceTests
     public async Task WaitThenStopSubscriberAsync_WhenNoSubscriberTag_DoesNotCancelConsumer()
     {
         var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
-        var jobSource = CreateJobSource(wrapper);
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter
+            .Setup(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-        InvokeStopSubscriber(jobSource);
+        var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
+
         await InvokeWaitThenStopSubscriberAsync(jobSource, TestContext.Current.CancellationToken);
 
         wrapper.Verify(w => w.GetChannelAndDoActionWithRetryAsync(
@@ -543,10 +564,14 @@ public class RabbitMqSubscribeJobSourceTests
             .Returns(Task.CompletedTask);
 
         var wrapper = CreatePassthroughWrapper(channel.Object);
-        var jobSource = CreateJobSource(wrapper);
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter
+            .Setup(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
         SetSubscriberTag(jobSource, "consumer-1");
 
-        InvokeStopSubscriber(jobSource);
         await InvokeWaitThenStopSubscriberAsync(jobSource, TestContext.Current.CancellationToken);
 
         channel.Verify(c => c.BasicCancelAsync("consumer-1", false, TestContext.Current.CancellationToken),
@@ -564,10 +589,14 @@ public class RabbitMqSubscribeJobSourceTests
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("cancel failed"));
 
-        var jobSource = CreateJobSource(wrapper);
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter
+            .Setup(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
         SetSubscriberTag(jobSource, "consumer-1");
 
-        InvokeStopSubscriber(jobSource);
         await InvokeWaitThenStopSubscriberAsync(jobSource, TestContext.Current.CancellationToken);
     }
 }
