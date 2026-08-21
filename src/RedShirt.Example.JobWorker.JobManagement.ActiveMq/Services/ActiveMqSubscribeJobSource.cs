@@ -146,8 +146,15 @@ internal class ActiveMqSubscribeJobSource(
             cancellationToken: cancellationToken);
     }
 
+    private void OnConnectionInterrupted()
+    {
+        logger.LogWarning("ActiveMQ connection interrupted");
+    }
+
     private void OnNewConnection(IConnection connection)
     {
+        connection.ConnectionInterruptedListener -= OnConnectionInterrupted;
+        connection.ConnectionInterruptedListener += OnConnectionInterrupted;
         connection.ConnectionResumedListener -= OnConnectionResumed;
         connection.ConnectionResumedListener += OnConnectionResumed;
     }

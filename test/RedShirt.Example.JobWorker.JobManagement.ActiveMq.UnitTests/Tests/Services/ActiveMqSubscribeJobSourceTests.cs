@@ -1,4 +1,5 @@
 using Apache.NMS;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Services.Utility;
@@ -24,6 +25,7 @@ public class ActiveMqSubscribeJobSourceTests
         Mock<IJobSubscriberIntakeQueue>? intakeQueue = null,
         Mock<IExecutionEndArbiter>? executionEndArbiter = null,
         Mock<ISleepService>? sleepService = null,
+        ILogger<ActiveMqSubscribeJobSource>? logger = null,
         bool haltOnFailure = true,
         bool treatTransientExceptionAsFailure = false)
     {
@@ -54,7 +56,7 @@ public class ActiveMqSubscribeJobSourceTests
             executionEndArbiter.Object,
             sleepService.Object,
             Options.Create(new ActiveMqConfigurationModel {QueueName = QueueName}),
-            NullLogger<ActiveMqSubscribeJobSource>.Instance);
+            logger ?? NullLogger<ActiveMqSubscribeJobSource>.Instance);
     }
 
     private static Mock<IActiveMqConsumerRetryWrapper> CreatePassthroughWrapper(IMessageConsumer consumer,
@@ -196,6 +198,79 @@ public class ActiveMqSubscribeJobSourceTests
     }
 
     [Fact]
+    public async Task StartSubscriberAsync_WhenConnectionInterrupted_InvokesHandler()
+    {
+        var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
+        SetupAsyncListener(consumer);
+
+        var connection = new Mock<IConnection>();
+        ConnectionInterruptedListener? interruptedHandler = null;
+        connection
+            .SetupAdd(c => c.ConnectionInterruptedListener += It.IsAny<ConnectionInterruptedListener>())
+            .Callback<ConnectionInterruptedListener>(handler => interruptedHandler += handler);
+        connection.SetupRemove(c => c.ConnectionInterruptedListener -= It.IsAny<ConnectionInterruptedListener>());
+        connection.SetupAdd(c => c.ConnectionResumedListener += It.IsAny<ConnectionResumedListener>());
+        connection.SetupRemove(c => c.ConnectionResumedListener -= It.IsAny<ConnectionResumedListener>());
+
+        var logger = new Mock<ILogger<ActiveMqSubscribeJobSource>>();
+        logger.Setup(l => l.IsEnabled(LogLevel.Warning)).Returns(true);
+
+        var wrapper = CreatePassthroughWrapper(consumer.Object, onNew => onNew?.Invoke(connection.Object));
+        var jobSource = CreateJobSource(wrapper, logger: logger.Object);
+
+        await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
+
+        Assert.NotNull(interruptedHandler);
+        interruptedHandler!();
+
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) =>
+                    v.ToString()!.Contains("interrupted", StringComparison.OrdinalIgnoreCase)),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task StartSubscriberAsync_WhenConnectionResumed_InvokesHandler()
+    {
+        var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
+        SetupAsyncListener(consumer);
+
+        var connection = new Mock<IConnection>();
+        ConnectionResumedListener? resumedHandler = null;
+        connection
+            .SetupAdd(c => c.ConnectionResumedListener += It.IsAny<ConnectionResumedListener>())
+            .Callback<ConnectionResumedListener>(handler => resumedHandler += handler);
+        connection.SetupRemove(c => c.ConnectionResumedListener -= It.IsAny<ConnectionResumedListener>());
+        connection.SetupAdd(c => c.ConnectionInterruptedListener += It.IsAny<ConnectionInterruptedListener>());
+        connection.SetupRemove(c => c.ConnectionInterruptedListener -= It.IsAny<ConnectionInterruptedListener>());
+
+        var logger = new Mock<ILogger<ActiveMqSubscribeJobSource>>();
+        logger.Setup(l => l.IsEnabled(LogLevel.Information)).Returns(true);
+
+        var wrapper = CreatePassthroughWrapper(consumer.Object, onNew => onNew?.Invoke(connection.Object));
+        var jobSource = CreateJobSource(wrapper, logger: logger.Object);
+
+        await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
+
+        Assert.NotNull(resumedHandler);
+        resumedHandler!();
+
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("resumed", StringComparison.OrdinalIgnoreCase)),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task StartSubscriberAsync_WhenConnectionResumes_DoesNotResubscribe()
     {
         var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
@@ -207,6 +282,8 @@ public class ActiveMqSubscribeJobSourceTests
             .SetupAdd(c => c.ConnectionResumedListener += It.IsAny<ConnectionResumedListener>())
             .Callback<ConnectionResumedListener>(handler => resumedHandler += handler);
         connection.SetupRemove(c => c.ConnectionResumedListener -= It.IsAny<ConnectionResumedListener>());
+        connection.SetupAdd(c => c.ConnectionInterruptedListener += It.IsAny<ConnectionInterruptedListener>());
+        connection.SetupRemove(c => c.ConnectionInterruptedListener -= It.IsAny<ConnectionInterruptedListener>());
 
         var wrapper = CreatePassthroughWrapper(consumer.Object, onNew => onNew?.Invoke(connection.Object));
         var jobSource = CreateJobSource(wrapper);
