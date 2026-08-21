@@ -116,7 +116,8 @@ public class ActiveMqJobSourceTests
             .ReturnsAsync(consumer.Object);
 
         var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.Start());
+        mockConnection.Setup(c => c.StartAsync())
+            .Returns(Task.CompletedTask);
         mockConnection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
             .ReturnsAsync(mockSession.Object);
 
@@ -137,7 +138,7 @@ public class ActiveMqJobSourceTests
 
         Assert.Single(activeConnectionFactory.Invocations);
         Assert.Equal(2, mockConnection.Invocations.Count);
-        mockConnection.Verify(c => c.Start(), Times.Once);
+        mockConnection.Verify(c => c.StartAsync(), Times.Once);
         mockConnection.Verify(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge), Times.Once);
         Assert.Equal(2, mockSession.Invocations.Count);
         mockSession.Verify(s => s.GetQueueAsync(queueName), Times.Once);
@@ -159,7 +160,8 @@ public class ActiveMqJobSourceTests
             .ReturnsAsync((IQueue?) null);
 
         var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.Start());
+        mockConnection.Setup(c => c.StartAsync())
+            .Returns(Task.CompletedTask);
         mockConnection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
             .ReturnsAsync(mockSession.Object);
 
@@ -174,7 +176,7 @@ public class ActiveMqJobSourceTests
 
         Assert.Single(activeConnectionFactory.Invocations);
         Assert.Equal(2, mockConnection.Invocations.Count);
-        mockConnection.Verify(c => c.Start(), Times.Once);
+        mockConnection.Verify(c => c.StartAsync(), Times.Once);
         mockConnection.Verify(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge), Times.Once);
         Assert.Single(mockSession.Invocations);
         mockSession.Verify(s => s.GetQueueAsync(queueName), Times.Once);
@@ -201,7 +203,8 @@ public class ActiveMqJobSourceTests
             .ReturnsAsync(consumer.Object);
 
         var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.Start());
+        mockConnection.Setup(c => c.StartAsync())
+            .Returns(Task.CompletedTask);
         mockConnection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
             .ReturnsAsync(mockSession.Object);
 
@@ -232,7 +235,7 @@ public class ActiveMqJobSourceTests
 
         Assert.Single(activeConnectionFactory.Invocations);
         Assert.Equal(2, mockConnection.Invocations.Count);
-        mockConnection.Verify(c => c.Start(), Times.Once);
+        mockConnection.Verify(c => c.StartAsync(), Times.Once);
         mockConnection.Verify(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge), Times.Once);
         Assert.Equal(2, mockSession.Invocations.Count);
         mockSession.Verify(s => s.GetQueueAsync(queueName), Times.Once);
@@ -260,7 +263,8 @@ public class ActiveMqJobSourceTests
             .ReturnsAsync(consumer.Object);
 
         var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.Start());
+        mockConnection.Setup(c => c.StartAsync())
+            .Returns(Task.CompletedTask);
         mockConnection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
             .ReturnsAsync(mockSession.Object);
 
@@ -314,7 +318,8 @@ public class ActiveMqJobSourceTests
             .ReturnsAsync(consumer.Object);
 
         var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.Start());
+        mockConnection.Setup(c => c.StartAsync())
+            .Returns(Task.CompletedTask);
         mockConnection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
             .ReturnsAsync(mockSession.Object);
 
