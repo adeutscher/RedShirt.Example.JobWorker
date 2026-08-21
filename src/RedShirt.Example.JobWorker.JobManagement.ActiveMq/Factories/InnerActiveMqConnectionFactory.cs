@@ -32,7 +32,7 @@ internal class InnerActiveMqConnectionFactory(
             // Cap unacked messages pushed to the consumer (listener / receive), analogous to RabbitMQ BasicQos.
             // Only do this for subscriptions, as it's not guaranteed that a user
             //  would set a backlog size for batch-mode polling and I don't want to worry about the weird interaction.
-            connectionFactory.PrefetchPolicy.QueuePrefetch = Math.Max(1, coreConfigurationService.GetBacklogSize());
+            connectionFactory.PrefetchPolicy.QueuePrefetch = coreConfigurationService.GetBacklogSize();
         }
 
         return new ActiveMqConnectionWrapper(connectionFactory);
