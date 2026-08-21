@@ -285,6 +285,7 @@ services:
       JOB_SOURCE__ACTIVEMQ__USER_PATH: /activemq/user
       JOB_SOURCE__ACTIVEMQ__PASSWORD_PATH: /activemq/password
       JOB_SOURCE__ACTIVEMQ__QUEUE_NAME: /queue/ActiveQueue
+      JOB_SOURCE__ACTIVEMQ__SUBSCRIBE: ${JOB_SOURCE__ACTIVEMQ__SUBSCRIBE:-false}
       ## Job Management (NATS)
       USE_NATS: "${USE_NATS-0}"
       JOB_SOURCE__NATS__URL: nats://nats:4222

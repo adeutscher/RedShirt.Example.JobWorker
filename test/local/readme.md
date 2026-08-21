@@ -343,7 +343,13 @@ To initialize ActiveMQ and queue messages:
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
-7. Bring up the worker:
+7. By default, ActiveMQ uses short polling. To subscribe with an async listener instead, set `JOB_SOURCE__ACTIVEMQ__SUBSCRIBE`:
+
+    ```bash
+    export JOB_SOURCE__ACTIVEMQ__SUBSCRIBE=true
+    ```
+
+8. Bring up the worker:
 
     ```bash
     docker compose up worker
