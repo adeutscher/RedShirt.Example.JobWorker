@@ -5,12 +5,13 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
+using RedShirt.Example.JobWorker.JobManagement.Nats.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.Services;
 
 internal class NatsJobSource(
-    INatsConsumerSource consumerSource,
     INatsMessageSource messageSource,
+    INatsRetryWrapperService retryWrapperService,
     ILogger<NatsJobSource> logger,
     IOptions<NatsStreamConfigurationModel> options) : IJobSource
 {
@@ -31,7 +32,9 @@ internal class NatsJobSource(
         // Ack. Whether result successful, a recoverable failures, or an unrecoverable failure.
         // JetStream dead-lettering is typically consumer/policy based, so this should be handled
         //  by the IJobFailureHandler implementation on an application-to-application basis.
-        await jobModel.Message.AckAsync(cancellationToken: cancellationToken);
+        await retryWrapperService.RunAsync(
+            async ct => await jobModel.Message.AckAsync(cancellationToken: ct),
+            cancellationToken);
     }
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
