@@ -1,6 +1,7 @@
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
+using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services.Resilience;
 using System.Net.Sockets;
@@ -316,5 +317,30 @@ public class NatsExceptionArbiterServiceTests
         Assert.True(report.IsExpected);
         Assert.True(report.CouldBeTransient);
         Assert.True(report.CouldBeExternallySolvable);
+    }
+
+    [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, true)]
+    [InlineData(false, false, false)]
+    public void GetReport_WorkerSecretManagerException_IsAlreadyHandledWithFlags(
+        bool isHandled,
+        bool couldBeTransient,
+        bool couldBeExternallySolvable)
+    {
+        var exception = new WorkerSecretManagerException("secret failure")
+        {
+            IsHandled = isHandled,
+            CouldBeTransient = couldBeTransient,
+            CouldBeExternallySolvable = couldBeExternallySolvable
+        };
+
+        var report = _sut.GetReport(exception);
+
+        Assert.True(report.AlreadyHandled);
+        Assert.True(report.IsExpected);
+        Assert.Equal(couldBeTransient, report.CouldBeTransient);
+        Assert.Equal(couldBeExternallySolvable, report.CouldBeExternallySolvable);
     }
 }

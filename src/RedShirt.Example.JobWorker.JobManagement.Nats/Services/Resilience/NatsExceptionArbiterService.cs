@@ -1,5 +1,6 @@
 using NATS.Client.Core;
 using NATS.Client.JetStream;
+using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
 using System.Net.Sockets;
@@ -126,6 +127,10 @@ internal class NatsExceptionArbiterService : INatsExceptionArbiterService
                     true,
                     workerJobSource is {IsHandled: false, CouldBeTransient: true},
                     workerJobSource.CouldBeExternallySolvable),
+            // Secret-manager failures (e.g. credential fetch) — already wrapped; never retry as NATS
+            // infrastructure. Propagate externally-solvable so ops can fix secrets without a restart.
+            WorkerSecretManagerException workerSecretManager =>
+                Handled(true, workerSecretManager.CouldBeTransient, workerSecretManager.CouldBeExternallySolvable),
             // Connection / timeout / no-responder blips — ops can restore the broker or network.
             NatsNoRespondersException
                 or NatsNoReplyException
