@@ -1,10 +1,12 @@
 using Apache.NMS;
 using Apache.NMS.ActiveMQ;
+using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Models;
 using System.Net.Sockets;
 using ActiveMqIoException = Apache.NMS.ActiveMQ.IOException;
+using IOException = System.IO.IOException;
 
 namespace RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services.Resilience;
 
@@ -68,6 +70,10 @@ internal class ActiveMqExceptionArbiterService : IActiveMqExceptionArbiterServic
                     true,
                     workerJobSource is {IsHandled: false, CouldBeTransient: true},
                     workerJobSource.CouldBeExternallySolvable),
+            // Secret-manager failures (e.g. credential fetch) — already wrapped; propagate the
+            // secret layer's transient / externally-solvable classification for upstream decisions.
+            WorkerSecretManagerException workerSecretManager =>
+                Handled(true, workerSecretManager.CouldBeTransient, workerSecretManager.CouldBeExternallySolvable),
             // Queue lookup returned null — ops can create the destination without a worker restart.
             CouldNotLoadQueueException => Fresh(true, false, true),
             // Unsupported / unreadable payload — a local data issue, not retryable.
@@ -103,7 +109,7 @@ internal class ActiveMqExceptionArbiterService : IActiveMqExceptionArbiterServic
             NMSException => Fresh(true, true, true),
             TimeoutException
                 or SocketException
-                or System.IO.IOException => Fresh(true, true, true),
+                or IOException => Fresh(true, true, true),
             // HttpClient-style timeouts sometimes surface as TaskCanceledException.
             // Must be matched before OperationCanceledException (TCE derives from OCE).
             TaskCanceledException => Fresh(true, true, true),
