@@ -67,6 +67,23 @@ public class InnerActiveMqConnectionFactoryTests
     }
 
     [Fact]
+    public async Task GetWrapperAsync_WhenNotSubscription_LeavesPlainBrokerUriAndDefaultPrefetch()
+    {
+        var configSource = CreateConfigSource();
+        var subscribeConfiguration = CreateSubscribeConfiguration(false);
+        var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
+
+        var innerFactory = CreateFactory(configSource.Object, subscribeConfiguration.Object, coreConfiguration.Object);
+
+        var wrapper = Assert.IsType<ActiveMqConnectionWrapper>(
+            await innerFactory.GetConnectionFactoryWrapperAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(DefaultQueuePrefetch, wrapper.InternalConnectionFactory.PrefetchPolicy.QueuePrefetch);
+        Assert.Equal(PlainBrokerUri, wrapper.InternalConnectionFactory.BrokerUri.ToString());
+        coreConfiguration.Verify(c => c.GetBacklogSize(), Times.Never);
+    }
+
+    [Fact]
     public async Task GetWrapperAsync_WhenSubscriptionAndBrokerUriAlreadyFailover_DoesNotRewrap()
     {
         const string failoverUri = "failover:(tcp://broker:61616)?transport.maxReconnectAttempts=5";
@@ -85,23 +102,6 @@ public class InnerActiveMqConnectionFactoryTests
         Assert.Contains("tcp://broker:61616", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("maxreconnectattempts=5", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("initialreconnectdelay=1000", text, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task GetWrapperAsync_WhenNotSubscription_LeavesPlainBrokerUriAndDefaultPrefetch()
-    {
-        var configSource = CreateConfigSource();
-        var subscribeConfiguration = CreateSubscribeConfiguration(false);
-        var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
-
-        var innerFactory = CreateFactory(configSource.Object, subscribeConfiguration.Object, coreConfiguration.Object);
-
-        var wrapper = Assert.IsType<ActiveMqConnectionWrapper>(
-            await innerFactory.GetConnectionFactoryWrapperAsync(TestContext.Current.CancellationToken));
-
-        Assert.Equal(DefaultQueuePrefetch, wrapper.InternalConnectionFactory.PrefetchPolicy.QueuePrefetch);
-        Assert.Equal(PlainBrokerUri, wrapper.InternalConnectionFactory.BrokerUri.ToString());
-        coreConfiguration.Verify(c => c.GetBacklogSize(), Times.Never);
     }
 
     [Theory]
