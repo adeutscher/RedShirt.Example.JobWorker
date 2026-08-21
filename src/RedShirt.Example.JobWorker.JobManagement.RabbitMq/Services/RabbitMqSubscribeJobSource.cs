@@ -132,7 +132,7 @@ internal class RabbitMqSubscribeJobSource(
                 logger.LogError(e, "Error {LogVerb} to RabbitMQ", logVerb);
 
                 if (e is WorkerJobSourceException {CouldBeTransient: true} &&
-                    !coreConfigurationService.IsTreatTransientAsFailure())
+                    !coreConfigurationService.IsTreatingTransientExceptionAsFailure())
                 {
                     // Transient: Retry and try again
                     continue;

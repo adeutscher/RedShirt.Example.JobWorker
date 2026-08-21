@@ -29,12 +29,13 @@ public class RabbitMqSubscribeJobSourceTests
         Mock<ISleepService>? sleepService = null,
         bool haltOnFailure = true,
         int backlogSize = 5,
-        bool treatTransientAsFailure = false)
+        bool treatTransientExceptionAsFailure = false)
     {
         var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
         coreConfiguration.Setup(c => c.GetBacklogSize()).Returns(backlogSize);
         coreConfiguration.Setup(c => c.IsHaltOnFailure()).Returns(haltOnFailure);
-        coreConfiguration.Setup(c => c.IsTreatTransientAsFailure()).Returns(treatTransientAsFailure);
+        coreConfiguration.Setup(c => c.IsTreatingTransientExceptionAsFailure())
+            .Returns(treatTransientExceptionAsFailure);
 
         sleepService ??= new Mock<ISleepService>(MockBehavior.Strict);
         sleepService

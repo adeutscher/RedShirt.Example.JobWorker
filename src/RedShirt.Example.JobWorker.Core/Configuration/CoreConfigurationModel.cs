@@ -7,5 +7,5 @@ internal class CoreConfigurationModel
     /// <summary>
     ///     When true, transient exceptions are escalated and treated as unexpected errors.
     /// </summary>
-    public bool TreatTransientAsFailure { get; init; }
+    public bool TreatTransientExceptionAsFailure { get; init; }
 }

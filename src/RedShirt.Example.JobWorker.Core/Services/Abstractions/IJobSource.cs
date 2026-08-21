@@ -69,6 +69,9 @@ public interface IJobSource
     /// <summary>
     ///     Start a subscriber that delivers jobs from this source into the worker.
     ///     Supported only when <see cref="IsSubscriptionSource" /> is <c>true</c>.
+    ///     The implementation of this method is expected to complete execution in a timely manner.
+    ///     If the underlying messaging library were to expect a blocking call, then it is advised to sequester that operation
+    ///     in a worker thread.
     /// </summary>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>

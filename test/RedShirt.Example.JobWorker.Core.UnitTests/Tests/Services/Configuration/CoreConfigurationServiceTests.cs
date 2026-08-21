@@ -37,16 +37,16 @@ public class CoreConfigurationServiceTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void IsTreatTransientAsFailure_ReturnsConfiguredValue(bool treatTransientAsFailure)
+    public void IsTreatingTransientExceptionAsFailure_ReturnsConfiguredValue(bool treatTransientExceptionAsFailure)
     {
         var service = new CoreConfigurationService(
             Options.Create(new CoreConfigurationModel
             {
                 HaltOnFailure = false,
-                TreatTransientAsFailure = treatTransientAsFailure
+                TreatTransientExceptionAsFailure = treatTransientExceptionAsFailure
             }),
             Options.Create(new JobRepository.ConfigurationModel {BacklogSize = 1}));
 
-        Assert.Equal(treatTransientAsFailure, service.IsTreatTransientAsFailure());
+        Assert.Equal(treatTransientExceptionAsFailure, service.IsTreatingTransientExceptionAsFailure());
     }
 }

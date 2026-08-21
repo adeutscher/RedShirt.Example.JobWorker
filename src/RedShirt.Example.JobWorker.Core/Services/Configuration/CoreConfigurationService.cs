@@ -15,7 +15,7 @@ public interface ICoreConfigurationService
     /// <summary>
     ///     When true, transient exceptions are escalated and treated as unexpected errors.
     /// </summary>
-    bool IsTreatTransientAsFailure();
+    bool IsTreatingTransientExceptionAsFailure();
 }
 
 internal sealed class CoreConfigurationService(
@@ -27,9 +27,9 @@ internal sealed class CoreConfigurationService(
         return coreOptions.Value.HaltOnFailure;
     }
 
-    public bool IsTreatTransientAsFailure()
+    public bool IsTreatingTransientExceptionAsFailure()
     {
-        return coreOptions.Value.TreatTransientAsFailure;
+        return coreOptions.Value.TreatTransientExceptionAsFailure;
     }
 
     public int GetBacklogSize()
