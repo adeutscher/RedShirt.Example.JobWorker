@@ -2,6 +2,7 @@ using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
+using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
@@ -13,10 +14,11 @@ internal interface IBusReceiverClientFactory
 
 internal class BusReceiverClientFactory(
     ISecretManagerCacheService secretManagerService,
+    IAzureServiceBusRetryWrapperService retryWrapperService,
     IOptions<BusReceiverClientFactory.ConfigurationModel> options)
     : IBusReceiverClientFactory
 {
-    public async Task<IServiceBusClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default)
+    private async Task<IServiceBusClientWrapper> GetQueueClientInnerAsync(CancellationToken cancellationToken)
     {
         ServiceBusClient innerClient;
 
@@ -41,6 +43,11 @@ internal class BusReceiverClientFactory(
         }
 
         return new ServiceBusClientWrapper(innerClient.CreateReceiver(options.Value.QueueName));
+    }
+
+    public Task<IServiceBusClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default)
+    {
+        return retryWrapperService.RunAsync(GetQueueClientInnerAsync, cancellationToken);
     }
 
     public sealed class ConfigurationModel

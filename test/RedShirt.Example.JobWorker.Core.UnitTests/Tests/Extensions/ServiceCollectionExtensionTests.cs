@@ -4,7 +4,8 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
-using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
+using RedShirt.Example.JobWorker.Core.Services.Jobs.Polling;
+using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Extensions;
@@ -142,6 +143,18 @@ public class ServiceCollectionExtensionTests
 
         var options = provider.GetRequiredService<IOptions<ThreadConfigurationModel>>().Value;
         Assert.Equal(workerThreadCount, options.WorkerThreadCount);
+    }
+
+    [Fact]
+    public void AddCoreJobManagement_RegistersMessageSubscribeSourceStarter()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection().Build();
+
+        var services = new ServiceCollection()
+            .AddCoreJobManagement(configuration);
+
+        var descriptor = Assert.Single(services, d => d.ServiceType == typeof(IJobSubscriberManager));
+        Assert.Equal(typeof(JobSubscriberManager), descriptor.ImplementationType);
     }
 
     [Theory]

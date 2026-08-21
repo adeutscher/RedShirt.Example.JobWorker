@@ -25,7 +25,7 @@ internal interface IJobExecutor
 }
 
 internal sealed class JobExecutor(
-    IAppliedExecutionEndArbiter appliedExecutionEndArbiter,
+    IAppliedExecutorExecutionEndArbiter appliedExecutionEndArbiter,
     IJobRepository jobRepository,
     IIdempotencyExecutionService idempotencyExecutionService,
     ISafeJobRunner safeJobRunner,
@@ -98,7 +98,7 @@ internal sealed class JobExecutor(
 
     public async Task<HandlerComponentResponse> RunAsync(int executorId, CancellationToken cancellationToken = default)
     {
-        while (await appliedExecutionEndArbiter.ExecutorsShouldKeepRunningAsync(cancellationToken))
+        while (appliedExecutionEndArbiter.ExecutorsShouldKeepRunning())
         {
             var repositoryEntry = await jobRepository.GetNextJobAsync(cancellationToken);
             if (repositoryEntry is null)

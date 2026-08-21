@@ -151,11 +151,18 @@ internal class KafkaJobSource(
     /// </summary>
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
+    public bool IsSubscriptionSource => false;
+
     public Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         /*
          * Not necessary. Consumer group heartbeats are managed by underlying Kafka protocol for the IConsumer lifetime.
          */
         return Task.CompletedTask;
+    }
+
+    public Task StartSubscriberAsync(CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException();
     }
 }

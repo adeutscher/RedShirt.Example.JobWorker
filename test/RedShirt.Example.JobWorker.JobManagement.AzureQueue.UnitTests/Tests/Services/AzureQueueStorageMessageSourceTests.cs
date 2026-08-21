@@ -3,6 +3,7 @@ using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Models;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services;
+using RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.Tests.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.Tests.Services;
@@ -67,7 +68,8 @@ public class AzureQueueStorageMessageSourceTests
             VisibilityTimeoutSeconds = visibilityTimeout
         };
 
-        var messageSource = new AzureQueueStorageMessageSource(source.Object, Options.Create(options));
+        var messageSource = new AzureQueueStorageMessageSource(source.Object,
+            AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object, Options.Create(options));
 
         var messages = await messageSource.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 

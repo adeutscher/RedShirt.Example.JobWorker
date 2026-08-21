@@ -1,33 +1,38 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Heartbeats;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
-using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
+using RedShirt.Example.JobWorker.Core.Services.Jobs.Polling;
+using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services;
 
 public class HandlerTests
 {
-    private static Handler CreateHandler(
-        IJobLoaderLoop jobLoaderLoop,
-        IJobExecutor executor,
-        IHeartbeatMaintainer maintainer,
-        IIdempotencyMonitor idempotencyMonitor,
-        int workerThreadCount = 1)
+    private static ExecutionEndArbiter CreateExecutionEndArbiter()
     {
-        return new Handler(jobLoaderLoop, maintainer, executor, idempotencyMonitor,
-            Options.Create(new ThreadConfigurationModel {WorkerThreadCount = workerThreadCount}),
-            new NullLogger<Handler>());
+        return new ExecutionEndArbiter(NullLogger<ExecutionEndArbiter>.Instance);
+    }
+
+    private static Mock<ILogger<Handler>> CreateLogger()
+    {
+        var logger = new Mock<ILogger<Handler>>();
+        logger.Setup(l => l.IsEnabled(LogLevel.Trace)).Returns(true);
+        logger.Setup(l => l.IsEnabled(LogLevel.Error)).Returns(true);
+        return logger;
     }
 
     private static void SetupNotEnabledWorkers(
         Mock<IJobExecutor> executor,
         Mock<IHeartbeatMaintainer> maintainer,
-        Mock<IIdempotencyMonitor> idempotencyMonitor)
+        Mock<IIdempotencyMonitor> idempotencyMonitor,
+        Mock<IJobSubscriberManager> jobSubscriberManager)
     {
         executor.Setup(e => e.RunAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(HandlerComponentResponse.NotEnabled);
@@ -35,11 +40,48 @@ public class HandlerTests
             .ReturnsAsync(HandlerComponentResponse.NotEnabled);
         idempotencyMonitor.Setup(m => m.RunAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(HandlerComponentResponse.NotEnabled);
+        jobSubscriberManager.Setup(s => s.RunAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(HandlerComponentResponse.NotEnabled);
+    }
+
+    private static void VerifyWorkerResponseLogged(
+        Mock<ILogger<Handler>> logger,
+        HandlerComponentResponse response,
+        Times times)
+    {
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Trace,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) =>
+                    state.ToString()!.Contains($"Response: {response}", StringComparison.Ordinal)),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            times);
+    }
+
+    private static void VerifyWorkerDoneLogged(
+        Mock<ILogger<Handler>> logger,
+        string workerType,
+        HandlerComponentResponse response,
+        Times times)
+    {
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Trace,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) =>
+                    state.ToString()!.Contains($"Worker thread for {workerType} done.", StringComparison.Ordinal)
+                    && state.ToString()!.Contains($"Response: {response}", StringComparison.Ordinal)),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            times);
     }
 
     [Fact]
     public async Task HandleAsync_DoesNotCompleteWhenOnlyNotEnabledWorkersFinish()
     {
+        using var executionEndArbiter = CreateExecutionEndArbiter();
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
         var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
@@ -54,10 +96,13 @@ public class HandlerTests
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
         var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
-        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor);
+        var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
+        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
 
-        var handler = CreateHandler(jobLoaderLoop.Object, executor.Object, maintainer.Object,
-            idempotencyMonitor.Object);
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+            idempotencyMonitor.Object, jobSubscriberManager.Object,
+            Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
+            new NullLogger<Handler>());
 
         var handleTask = handler.HandleAsync(cts.Token);
 
@@ -86,8 +131,43 @@ public class HandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_RethrowsUnhandledWorkerException()
+    public async Task HandleAsync_LogsFinishedAndNotEnabledResponses()
     {
+        using var executionEndArbiter = CreateExecutionEndArbiter();
+        var logger = CreateLogger();
+
+        var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
+        jobLoaderLoop
+            .Setup(l => l.RunAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(HandlerComponentResponse.Finished);
+
+        var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
+        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
+        var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
+        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+            idempotencyMonitor.Object, jobSubscriberManager.Object,
+            Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
+            logger.Object);
+
+        var result = await handler.HandleAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result);
+        VerifyWorkerDoneLogged(logger, "MessagePoller", HandlerComponentResponse.Finished, Times.Once());
+        VerifyWorkerDoneLogged(logger, "JobExecutor", HandlerComponentResponse.NotEnabled, Times.Once());
+        VerifyWorkerDoneLogged(logger, "HeartbeatMaintainer", HandlerComponentResponse.NotEnabled, Times.Once());
+        VerifyWorkerDoneLogged(logger, "IdempotencyMonitor", HandlerComponentResponse.NotEnabled, Times.Once());
+        VerifyWorkerDoneLogged(logger, "JobSubscriberManager", HandlerComponentResponse.NotEnabled, Times.Once());
+        VerifyWorkerResponseLogged(logger, HandlerComponentResponse.Cancelled, Times.Never());
+        VerifyWorkerResponseLogged(logger, HandlerComponentResponse.Exception, Times.Never());
+    }
+
+    [Fact]
+    public async Task HandleAsync_ReturnsFalseOnUnhandledWorkerException()
+    {
+        using var executionEndArbiter = CreateExecutionEndArbiter();
         var expected = new InvalidOperationException("worker blew up");
 
         // Only the failing worker may return Finished (via the catch path). Other workers
@@ -101,20 +181,23 @@ public class HandlerTests
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
         var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
-        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor);
+        var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
+        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
 
-        var handler = CreateHandler(jobLoaderLoop.Object, executor.Object, maintainer.Object,
-            idempotencyMonitor.Object);
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+            idempotencyMonitor.Object, jobSubscriberManager.Object,
+            Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
+            new NullLogger<Handler>());
 
-        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            handler.HandleAsync(TestContext.Current.CancellationToken));
+        var result = await handler.HandleAsync(TestContext.Current.CancellationToken);
 
-        Assert.Same(expected, thrown);
+        Assert.False(result);
     }
 
     [Fact]
     public async Task HandleAsync_WhenWorkerThrowsOperationCanceledWhileTokenCanceled_DoesNotRethrow()
     {
+        using var executionEndArbiter = CreateExecutionEndArbiter();
         using var cts = new CancellationTokenSource();
 
         var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
@@ -129,10 +212,13 @@ public class HandlerTests
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
         var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
-        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor);
+        var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
+        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
 
-        var handler = CreateHandler(jobLoaderLoop.Object, executor.Object, maintainer.Object,
-            idempotencyMonitor.Object);
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+            idempotencyMonitor.Object, jobSubscriberManager.Object,
+            Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
+            new NullLogger<Handler>());
 
         var handleTask = handler.HandleAsync(cts.Token);
         await Task.Delay(50, TestContext.Current.CancellationToken);
@@ -155,8 +241,58 @@ public class HandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_WhenWorkerThrowsOperationCanceledWhileTokenNotCanceled_Rethrows()
+    public async Task HandleAsync_WhenWorkerThrowsOperationCanceledWhileTokenCanceled_LogsCancelledResponse()
     {
+        using var executionEndArbiter = CreateExecutionEndArbiter();
+        using var cts = new CancellationTokenSource();
+        var logger = CreateLogger();
+        var messagePollerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
+        jobLoaderLoop
+            .Setup(l => l.RunAsync(It.IsAny<CancellationToken>()))
+            .Returns(async (CancellationToken ct) =>
+            {
+                messagePollerStarted.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                return HandlerComponentResponse.Finished;
+            });
+
+        var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
+        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
+        var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
+        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+            idempotencyMonitor.Object, jobSubscriberManager.Object,
+            Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
+            logger.Object);
+
+        var handleTask = handler.HandleAsync(cts.Token);
+        await messagePollerStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        await cts.CancelAsync();
+
+        try
+        {
+            await handleTask;
+        }
+        catch (OperationCanceledException)
+        {
+            // Direct cancellation of HandleAsync waits is still acceptable.
+        }
+
+        // Give Task.Run workers a moment to finish and emit their completion logs.
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+
+        VerifyWorkerDoneLogged(logger, "MessagePoller", HandlerComponentResponse.Cancelled, Times.Once());
+        VerifyWorkerResponseLogged(logger, HandlerComponentResponse.Exception, Times.Never());
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenWorkerThrowsOperationCanceledWhileTokenNotCanceled_ReturnsFalse()
+    {
+        using var executionEndArbiter = CreateExecutionEndArbiter();
         var expected = new OperationCanceledException("unexpected cancel");
 
         var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
@@ -167,15 +303,75 @@ public class HandlerTests
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
         var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
-        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor);
+        var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
+        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
 
-        var handler = CreateHandler(jobLoaderLoop.Object, executor.Object, maintainer.Object,
-            idempotencyMonitor.Object);
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+            idempotencyMonitor.Object, jobSubscriberManager.Object,
+            Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
+            new NullLogger<Handler>());
 
-        var thrown = await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            handler.HandleAsync(CancellationToken.None));
+        var result = await handler.HandleAsync(CancellationToken.None);
 
-        Assert.Same(expected, thrown);
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenWorkerThrowsUnexpectedOperationCanceled_LogsCancelledResponse()
+    {
+        using var executionEndArbiter = CreateExecutionEndArbiter();
+        var logger = CreateLogger();
+
+        var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
+        jobLoaderLoop
+            .Setup(l => l.RunAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException("unexpected cancel"));
+
+        var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
+        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
+        var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
+        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+            idempotencyMonitor.Object, jobSubscriberManager.Object,
+            Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
+            logger.Object);
+
+        var result = await handler.HandleAsync(CancellationToken.None);
+
+        Assert.False(result);
+        VerifyWorkerDoneLogged(logger, "MessagePoller", HandlerComponentResponse.Cancelled, Times.Once());
+        VerifyWorkerResponseLogged(logger, HandlerComponentResponse.Exception, Times.Never());
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenWorkerThrows_LogsExceptionResponse()
+    {
+        using var executionEndArbiter = CreateExecutionEndArbiter();
+        var logger = CreateLogger();
+
+        var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
+        jobLoaderLoop
+            .Setup(l => l.RunAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("worker blew up"));
+
+        var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
+        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
+        var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
+        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+            idempotencyMonitor.Object, jobSubscriberManager.Object,
+            Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
+            logger.Object);
+
+        var result = await handler.HandleAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(result);
+        VerifyWorkerDoneLogged(logger, "MessagePoller", HandlerComponentResponse.Exception, Times.Once());
+        VerifyWorkerResponseLogged(logger, HandlerComponentResponse.Cancelled, Times.Never());
     }
 
     [Theory]
@@ -184,6 +380,7 @@ public class HandlerTests
     [InlineData(2, 2)]
     public async Task TestRunAsync(int numberOfExecutorThreads, int expectedNumberOfThreads)
     {
+        using var executionEndArbiter = CreateExecutionEndArbiter();
         var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
         jobLoaderLoop
             .Setup(l => l.RunAsync(TestContext.Current.CancellationToken))
@@ -201,17 +398,24 @@ public class HandlerTests
         idempotencyMonitor.Setup(m => m.RunAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(HandlerComponentResponse.NotEnabled);
 
+        var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
+        jobSubscriberManager.Setup(s => s.RunAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync(HandlerComponentResponse.NotEnabled);
+
         var options = new ThreadConfigurationModel
         {
             WorkerThreadCount = numberOfExecutorThreads
         };
         Assert.Equal(expectedNumberOfThreads, options.EffectiveWorkerThreadCount);
 
-        var handler = CreateHandler(jobLoaderLoop.Object, executor.Object, maintainer.Object,
-            idempotencyMonitor.Object, numberOfExecutorThreads);
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+            idempotencyMonitor.Object, jobSubscriberManager.Object,
+            Options.Create(new ThreadConfigurationModel {WorkerThreadCount = numberOfExecutorThreads}),
+            new NullLogger<Handler>());
 
-        await handler.HandleAsync(TestContext.Current.CancellationToken);
+        var result = await handler.HandleAsync(TestContext.Current.CancellationToken);
 
+        Assert.True(result);
         Assert.Single(jobLoaderLoop.Invocations);
         Assert.Equal(expectedNumberOfThreads, executor.Invocations.Count);
         for (var i = 0; i < expectedNumberOfThreads; i++)
@@ -222,5 +426,6 @@ public class HandlerTests
 
         Assert.Single(maintainer.Invocations);
         Assert.Single(idempotencyMonitor.Invocations);
+        Assert.Single(jobSubscriberManager.Invocations);
     }
 }

@@ -4,12 +4,14 @@ using RedShirt.Example.JobWorker.Common.Extensions;
 using RedShirt.Example.JobWorker.Common.Health.Configuration;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Services;
+using RedShirt.Example.JobWorker.Core.Services.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Heartbeats;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
-using RedShirt.Example.JobWorker.Core.Services.MessagePolling;
+using RedShirt.Example.JobWorker.Core.Services.Jobs.Polling;
+using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 
@@ -22,13 +24,21 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddCoreJobManagement(this IServiceCollection services,
         IConfigurationRoot configuration)
     {
+        var coreSection = configuration.GetSection(ConfigSectionName);
+
         services = services
             .AddCommon()
             // General
             .AddSingleton<IHandler, Handler>()
             .AddSingleton<IJobLoaderLoop, JobLoaderLoop>()
+            .AddSingleton<IJobSubscriberManager, JobSubscriberManager>()
+            .AddSingleton<IJobSubscriberIntakeQueue, JobSubscriberIntakeQueue>()
             .AddSingleton<IJobExecutor, JobExecutor>()
-            .AddSingleton<IAppliedExecutionEndArbiter, AppliedExecutionEndArbiter>()
+            .AddSingleton<AppliedExecutionEndArbiter>()
+            .AddSingleton<IAppliedMaintainerExecutionEndArbiter>(provider =>
+                provider.GetRequiredService<AppliedExecutionEndArbiter>())
+            .AddSingleton<IAppliedExecutorExecutionEndArbiter>(provider =>
+                provider.GetRequiredService<AppliedExecutionEndArbiter>())
             .AddSingleton<IHeartbeatMaintainer, HeartbeatMaintainer>()
             .AddSingleton<IHeartbeatCalculator, HeartbeatCalculator>()
             .AddSingleton<ISafeJobRunner, SafeJobRunner>()
@@ -37,16 +47,17 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobIntakeService, JobIntakeService>()
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
             .AddSingleton<IJobRepository, JobRepository>()
-            .Configure<JobRepository.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
+            .AddSingleton<ICoreConfigurationService, CoreConfigurationService>()
+            .Configure<JobRepository.ConfigurationModel>(coreSection)
             .AddSingleton<IJobLoaderStateService, JobLoaderStateService>()
             .AddSingleton<IJobLoaderStateReaderService>(provider =>
                 provider.GetRequiredService<IJobLoaderStateService>())
-            .Configure<SafeJobRunner.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
-            .Configure<TimeBorderWrapperService.ConfigurationModel>(configuration.GetSection(ConfigSectionName))
+            .Configure<SafeJobRunner.ConfigurationModel>(coreSection)
+            .Configure<TimeBorderWrapperService.ConfigurationModel>(coreSection)
             .Configure<JobSourceConfigurationModel>(configuration.GetSection("JobSource"))
-            .Configure<LoopOptionsConfigurationModel>(configuration.GetSection(ConfigSectionName))
-            .Configure<ThreadConfigurationModel>(configuration.GetSection(ConfigSectionName))
-            .Configure<CoreConfigurationModel>(configuration.GetSection(ConfigSectionName))
+            .Configure<LoopOptionsConfigurationModel>(coreSection)
+            .Configure<ThreadConfigurationModel>(coreSection)
+            .Configure<CoreConfigurationModel>(coreSection)
             // Idempotency
             .AddSingleton<IIdempotencyMonitor, IdempotencyMonitor>()
             .AddSingleton<IIdempotencyExecutionService, IdempotencyExecutionService>()

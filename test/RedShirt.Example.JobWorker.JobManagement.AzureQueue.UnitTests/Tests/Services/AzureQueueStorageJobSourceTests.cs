@@ -5,6 +5,7 @@ using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Models;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services;
+using RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.Tests.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.Tests.Services;
@@ -61,6 +62,7 @@ public class AzureQueueStorageJobSourceTests
             ]);
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, azureMessageSource.Object,
+            AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             Options.Create(new AzureQueueStorageConfigurationModel
             {
                 VisibilityTimeoutSeconds = 100
@@ -91,6 +93,7 @@ public class AzureQueueStorageJobSourceTests
         };
 
         var jobSource = new AzureQueueStorageJobSource(null!, null!,
+            AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             Options.Create(options));
 
         Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
@@ -115,6 +118,7 @@ public class AzureQueueStorageJobSourceTests
         };
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
+            AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             Options.Create(config));
 
         var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
@@ -150,6 +154,7 @@ public class AzureQueueStorageJobSourceTests
         };
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
+            AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             Options.Create(config));
 
         var job = new Mock<IRawJobModel>();
@@ -175,6 +180,7 @@ public class AzureQueueStorageJobSourceTests
         };
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
+            AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             Options.Create(config));
 
         var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
@@ -208,6 +214,7 @@ public class AzureQueueStorageJobSourceTests
         };
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
+            AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             Options.Create(config));
 
         var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
@@ -248,6 +255,7 @@ public class AzureQueueStorageJobSourceTests
         };
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
+            AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
             Options.Create(config));
 
         var job = new Mock<IRawJobModel>();

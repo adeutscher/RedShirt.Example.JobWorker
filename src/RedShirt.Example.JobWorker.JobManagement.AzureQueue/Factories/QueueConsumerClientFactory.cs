@@ -2,6 +2,7 @@ using Azure.Identity;
 using Azure.Storage.Queues;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
+using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.AzureQueue.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.Factories;
@@ -13,10 +14,11 @@ internal interface IQueueConsumerClientFactory
 
 internal class QueueConsumerClientFactory(
     ISecretManagerCacheService secretManagerCacheService,
+    IAzureQueueStorageRetryWrapperService retryWrapperService,
     IOptions<QueueConsumerClientFactory.ConfigurationModel> options)
     : IQueueConsumerClientFactory
 {
-    public async Task<IQueueConsumerClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default)
+    private async Task<IQueueConsumerClientWrapper> GetQueueClientInnerAsync(CancellationToken cancellationToken)
     {
         QueueClient innerClient;
 
@@ -39,6 +41,11 @@ internal class QueueConsumerClientFactory(
         }
 
         return new QueueClientWrapper(innerClient);
+    }
+
+    public Task<IQueueConsumerClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default)
+    {
+        return retryWrapperService.RunAsync(GetQueueClientInnerAsync, cancellationToken);
     }
 
     public sealed class ConfigurationModel

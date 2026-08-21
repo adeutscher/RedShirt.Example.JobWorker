@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Models;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
+using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tests.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tests.Factories;
@@ -31,7 +32,9 @@ public class BusReceiverClientFactoryTests
                 QueriedSecretManager = true
             });
 
-        var factory = new BusReceiverClientFactory(secrets.Object, Options.Create(config));
+        var factory = new BusReceiverClientFactory(secrets.Object,
+            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            Options.Create(config));
 
         await factory.GetQueueClientAsync(cts.Token);
 
@@ -60,7 +63,9 @@ public class BusReceiverClientFactoryTests
                 QueriedSecretManager = true
             });
 
-        var factory = new BusReceiverClientFactory(secrets.Object, Options.Create(config));
+        var factory = new BusReceiverClientFactory(secrets.Object,
+            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            Options.Create(config));
 
         var client = await factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
 
@@ -90,7 +95,9 @@ public class BusReceiverClientFactoryTests
         };
 
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
-        var factory = new BusReceiverClientFactory(secrets.Object, Options.Create(config));
+        var factory = new BusReceiverClientFactory(secrets.Object,
+            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            Options.Create(config));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             factory.GetQueueClientAsync(TestContext.Current.CancellationToken));
@@ -109,7 +116,9 @@ public class BusReceiverClientFactoryTests
         };
 
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
-        var factory = new BusReceiverClientFactory(secrets.Object, Options.Create(config));
+        var factory = new BusReceiverClientFactory(secrets.Object,
+            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            Options.Create(config));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             factory.GetQueueClientAsync(TestContext.Current.CancellationToken));
@@ -132,7 +141,9 @@ public class BusReceiverClientFactoryTests
         };
 
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
-        var factory = new BusReceiverClientFactory(secrets.Object, Options.Create(config));
+        var factory = new BusReceiverClientFactory(secrets.Object,
+            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            Options.Create(config));
 
         var client = await factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
 
@@ -162,7 +173,9 @@ public class BusReceiverClientFactoryTests
                 QueriedSecretManager = true
             });
 
-        var factory = new BusReceiverClientFactory(secrets.Object, Options.Create(config));
+        var factory = new BusReceiverClientFactory(secrets.Object,
+            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            Options.Create(config));
 
         var client = await factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client);
@@ -187,7 +200,9 @@ public class BusReceiverClientFactoryTests
 
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
 
-        var factory = new BusReceiverClientFactory(secrets.Object, Options.Create(config));
+        var factory = new BusReceiverClientFactory(secrets.Object,
+            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            Options.Create(config));
 
         var client = await factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(client);

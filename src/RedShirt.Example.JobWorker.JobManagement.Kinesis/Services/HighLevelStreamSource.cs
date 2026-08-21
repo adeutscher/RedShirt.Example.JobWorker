@@ -73,6 +73,8 @@ internal class HighLevelStreamSource(
     /// </summary>
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
+    public bool IsSubscriptionSource => false;
+
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         // List through shards
@@ -184,6 +186,11 @@ internal class HighLevelStreamSource(
     {
         // This source does not do heartbeats
         return Task.CompletedTask;
+    }
+
+    public Task StartSubscriberAsync(CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException();
     }
 
     /// <summary>

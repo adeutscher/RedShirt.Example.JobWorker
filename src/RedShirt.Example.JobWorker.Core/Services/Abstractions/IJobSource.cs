@@ -17,6 +17,13 @@ public interface IJobSource
     public int RecommendedHeartbeatIntervalSeconds { get; }
 
     /// <summary>
+    ///     Indicates whether this job source delivers work by subscription rather than polling.
+    ///     When <c>false</c>, <see cref="StartSubscriberAsync" /> shall throw
+    ///     <see cref="NotSupportedException" />.
+    /// </summary>
+    public bool IsSubscriptionSource { get; }
+
+    /// <summary>
     ///     Acknowledge attempted processing of a job record.
     ///     This method is to be called regardless of whether the job record was successfully processed or not.
     ///     What is done on success, recoverable failure, or unrecoverable failure depends on the underlying message source.
@@ -58,4 +65,18 @@ public interface IJobSource
     ///     and should surface to callers as the raw underlying exception.
     /// </exception>
     Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Start a subscriber that delivers jobs from this source into the worker.
+    ///     Supported only when <see cref="IsSubscriptionSource" /> is <c>true</c>.
+    ///     The implementation of this method is expected to complete execution in a timely manner.
+    ///     If the underlying messaging library were to expect a blocking call, then it is advised to sequester that operation
+    ///     in a worker thread.
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    /// <exception cref="NotSupportedException">
+    ///     Thrown when <see cref="IsSubscriptionSource" /> is <c>false</c>.
+    /// </exception>
+    Task StartSubscriberAsync(CancellationToken cancellationToken = default);
 }
