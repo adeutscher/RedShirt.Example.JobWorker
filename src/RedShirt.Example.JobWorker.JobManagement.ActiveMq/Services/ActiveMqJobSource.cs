@@ -65,7 +65,7 @@ internal class ActiveMqJobSource : IJobSource
         }
 
         var connection = await _connectionFactory.GetConnectionAsync(cancellationToken);
-        connection.Start();
+        await connection.StartAsync();
         var session = await connection.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge);
         var queue = await session.GetQueueAsync(_configuration.Value.QueueName);
 
@@ -97,6 +97,9 @@ internal class ActiveMqJobSource : IJobSource
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
+    public bool IsSubscriptionSource => false;
+
+#pragma warning disable S2325
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
@@ -134,6 +137,11 @@ internal class ActiveMqJobSource : IJobSource
          * Not necessary. Heartbeats are managed by the persistence of the IMessage object.
          */
         return Task.CompletedTask;
+    }
+
+    public Task StartSubscriberAsync(CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException();
     }
 
     public sealed class ConfigurationModel

@@ -83,18 +83,6 @@ services:
     command: >
       bash -c "bin/apply-config-from-env.py conf/standalone.conf && bin/pulsar standalone"
 
-  azure-key-vault-emulator1:
-    image: basistheory/azure-keyvault-emulator:latest
-    ports:
-      - 5001:5001
-      - 5000:5000
-    volumes:
-      - ./config/azure-key-vault:/https:ro
-    environment:
-      - ASPNETCORE_URLS=https://+:5001;http://+:5000
-      - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/emulator.local.pfx
-      - ASPNETCORE_Kestrel__Certificates__Default__Password=YourSecurePassword
-
   azure-key-vault-emulator:
     image: jamesgoulddev/azure-keyvault-emulator:latest
     container_name: azure-key-vault-emulator.vault.azure.net
@@ -192,6 +180,7 @@ services:
       HEALTH__PORT: "${HEALTH__PORT:-8081}"
       HEALTH__RECENT_INCIDENT_THRESHOLD_SECONDS: "${HEALTH__RECENT_INCIDENT_THRESHOLD_SECONDS:-30}"
       JOBS__HALT_ON_FAILURE: "${JOBS__HALT_ON_FAILURE:-false}"
+      JOBS__TREAT_TRANSIENT_EXCEPTION_AS_FAILURE: "${JOBS__TREAT_TRANSIENT_EXCEPTION_AS_FAILURE:-false}"
       JOBS__INTERNAL_RETRY_COUNT: "${JOBS__INTERNAL_RETRY_COUNT:-2}"
       JOBS__MAX_JOB_TIME_SECONDS: "${JOBS__MAX_JOB_TIME_SECONDS:-150}"
       JOBS__TASK_WAIT_BUFFER_SECONDS: "${JOBS__TASK_WAIT_BUFFER_SECONDS:-5}"
@@ -255,11 +244,13 @@ services:
       JOB_SOURCE__PULSAR__WAIT_TIME_SECONDS: ${JOB_SOURCE__PULSAR__WAIT_TIME_SECONDS:-1}
       ## Job Management (RabbitMQ)
       USE_RABBITMQ: "${USE_RABBITMQ-0}"
+      USE_RABBITMQ_SUBSCRIBE: "${USE_RABBITMQ_SUBSCRIBE-0}"
       JOB_SOURCE__RABBITMQ__HOSTNAME: rabbitmq
       JOB_SOURCE__RABBITMQ__VHost: /
       JOB_SOURCE__RABBITMQ__USER_PATH: /rabbitmq/user
       JOB_SOURCE__RABBITMQ__PASSWORD_PATH: /rabbitmq/password
       JOB_SOURCE__RABBITMQ__QUEUE_NAME: RabbitQueue
+      JOB_SOURCE__RABBITMQ__SUBSCRIBE: ${JOB_SOURCE__RABBITMQ__SUBSCRIBE:-false}
       ## Job Management (ActiveMQ)
       USE_ACTIVEMQ: "${USE_ACTIVEMQ-0}"
       JOB_SOURCE__ACTIVEMQ__BROKER_URI: tcp://activemq:61616
@@ -296,6 +287,7 @@ services:
       JOB_SOURCE__AZURE_SERVICE_BUS__FULLY_QUALIFIED_NAMESPACE: "not.used.for.local.testing"
       JOB_SOURCE__AZURE_SERVICE_BUS__QUEUE_NAME: "test-queue"
       JOB_SOURCE__AZURE_SERVICE_BUS__WAIT_TIME_SECONDS: ${JOB_SOURCE__AZURE_SERVICE_BUS__WAIT_TIME_SECONDS:-0}
+      JOB_SOURCE__AZURE_SERVICE_BUS__ABANDON_RECOVERED_FAILURES_ON_ACKNOWLEDGE: ${JOB_SOURCE__AZURE_SERVICE_BUS__ABANDON_RECOVERED_FAILURES_ON_ACKNOWLEDGE:-true}
       ## Job Management (Google Pub/Sub)
       USE_GOOGLE_PUB_SUB: "${USE_GOOGLE_PUB_SUB-0}"
       ### Official client-library hook for the emulator (host:port, no scheme)

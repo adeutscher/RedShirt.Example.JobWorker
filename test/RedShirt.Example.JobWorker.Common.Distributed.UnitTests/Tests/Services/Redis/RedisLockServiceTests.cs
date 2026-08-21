@@ -5,6 +5,7 @@ using RedShirt.Example.JobWorker.Common.Distributed.Exceptions;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis.Resilience;
 using StackExchange.Redis;
+using System.Diagnostics;
 
 namespace RedShirt.Example.JobWorker.Common.Distributed.UnitTests.Tests.Services.Redis;
 
@@ -20,6 +21,46 @@ public class RedisLockServiceTests
             .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task>>(), It.IsAny<CancellationToken>()))
             .Returns<Func<CancellationToken, Task>, CancellationToken>((func, ct) => func(ct));
         return retry;
+    }
+
+    /// <summary>
+    ///     DistributedLock.Redis acquire uses
+    ///     <see cref="IDatabase.StringSetAsync(RedisKey, RedisValue, TimeSpan?, When, CommandFlags)" />.
+    ///     Leaving that call incomplete simulates a hung Redis command.
+    /// </summary>
+    private static Mock<IDatabase> CreateHungAcquireDatabase()
+    {
+        var db = new Mock<IDatabase>();
+        var never = new TaskCompletionSource<bool>().Task;
+        db.Setup(d => d.StringSetAsync(
+                It.IsAny<RedisKey>(),
+                It.IsAny<RedisValue>(),
+                It.IsAny<TimeSpan?>(),
+                It.IsAny<When>(),
+                It.IsAny<CommandFlags>()))
+            .Returns(never);
+        return db;
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GetLockAsync_WhenCancelledDuringAcquire_PropagatesOperationCanceledException()
+    {
+        var db = CreateHungAcquireDatabase();
+        var source = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
+        source
+            .Setup(s => s.GetDatabaseAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(db.Object);
+
+        var retry = CreatePassthroughRetryWrapper();
+        var locker = new RedisLockService(retry.Object, source.Object,
+            Options.Create(new LockConfigurationModel {TimeoutSeconds = 10}));
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var acquireTask = locker.GetLockAsync("lock-cancel-during", cts.Token);
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => acquireTask);
     }
 
     [Fact]
@@ -56,7 +97,7 @@ public class RedisLockServiceTests
         var locker = new RedisLockService(retry.Object, source.Object,
             Options.Create(new LockConfigurationModel
             {
-                // Keep the busy-wait short; acquire will not succeed against the mock.
+                // Contention fails immediately; TimeoutSeconds is only network-error leeway.
                 TimeoutSeconds = 1
             }));
 
@@ -95,6 +136,29 @@ public class RedisLockServiceTests
 
         Assert.Same(expected, thrown);
         source.VerifyNoOtherCalls();
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GetLockAsync_WhenTimeoutElapses_ReturnsUnacquiredLock()
+    {
+        var db = CreateHungAcquireDatabase();
+        var source = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
+        source
+            .Setup(s => s.GetDatabaseAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync(db.Object);
+
+        var retry = CreatePassthroughRetryWrapper();
+        var locker = new RedisLockService(retry.Object, source.Object,
+            Options.Create(new LockConfigurationModel {TimeoutSeconds = 1}));
+
+        var stopwatch = Stopwatch.StartNew();
+        var @lock = await locker.GetLockAsync("lock-timeout", TestContext.Current.CancellationToken);
+        stopwatch.Stop();
+
+        Assert.NotNull(@lock);
+        Assert.False(@lock.IsAcquired);
+        Assert.InRange(stopwatch.Elapsed, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(2500));
+        await @lock.UnlockAsync(TestContext.Current.CancellationToken);
     }
 
     [Theory]

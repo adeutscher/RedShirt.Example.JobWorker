@@ -192,6 +192,18 @@ public class AzureExceptionArbiterServiceTests
     }
 
     [Fact]
+    public void GetReport_TimeoutException_IsExpectedAndTransient()
+    {
+        var exception = new TimeoutException("operation timed out");
+
+        var report = _sut.GetReport(exception);
+
+        Assert.True(report.IsExpected);
+        Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
+    }
+
+    [Fact]
     public void GetReport_UnrecognizedException_IsNotExpectedAndNotTransient()
     {
         var exception = new InvalidOperationException("unexpected failure");
