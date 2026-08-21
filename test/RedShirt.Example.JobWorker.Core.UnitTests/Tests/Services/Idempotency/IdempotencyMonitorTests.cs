@@ -106,10 +106,8 @@ public class IdempotencyMonitorTests
                 LogLevel.Trace,
                 It.IsAny<EventId>(),
                 It.Is<It.IsAnyType>((state, _) =>
-                    state.ToString()!.Contains("Waiting for", StringComparison.Ordinal)
-                    && state.ToString()!.Contains(
-                        "until next follow-up check of already running jobs by idempotency monitor",
-                        StringComparison.Ordinal)),
+                    state.ToString()!.Contains("Idempotency Monitor:", StringComparison.Ordinal)
+                    && state.ToString()!.Contains("until next follow-up check", StringComparison.Ordinal)),
                 It.IsAny<Exception?>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
