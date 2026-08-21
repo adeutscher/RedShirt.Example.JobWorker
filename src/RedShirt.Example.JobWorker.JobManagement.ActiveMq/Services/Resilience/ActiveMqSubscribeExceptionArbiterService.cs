@@ -32,17 +32,6 @@ internal interface IActiveMqSubscribeExceptionArbiter
     bool IsAccountedForAndLikelyTransientError(Exception exception);
 
     /// <summary>
-    ///     Whether <paramref name="exception" /> (or any inner exception) is a permanent auth / config
-    ///     failure that should stop the worker when halt-on-failure is enabled.
-    /// </summary>
-    /// <remarks>
-    ///     These are expected NMS signals where reconnecting will not help (bad credentials, missing
-    ///     destination, invalid client id/selector). Callers should only stop when
-    ///     <c>HaltOnFailure</c> is true.
-    /// </remarks>
-    bool IsReasonToStopIfHaltOnFailure(Exception exception);
-
-    /// <summary>
     ///     Whether <paramref name="exception" /> (or any inner exception) is a reason to reset the
     ///     consumer and run the subscribe reconnect loop.
     /// </summary>
@@ -53,6 +42,17 @@ internal interface IActiveMqSubscribeExceptionArbiter
     ///     <see cref="IsReasonToStopIfHaltOnFailure" /> instead.
     /// </remarks>
     bool IsReasonToReconnect(Exception exception);
+
+    /// <summary>
+    ///     Whether <paramref name="exception" /> (or any inner exception) is a permanent auth / config
+    ///     failure that should stop the worker when halt-on-failure is enabled.
+    /// </summary>
+    /// <remarks>
+    ///     These are expected NMS signals where reconnecting will not help (bad credentials, missing
+    ///     destination, invalid client id/selector). Callers should only stop when
+    ///     <c>HaltOnFailure</c> is true.
+    /// </remarks>
+    bool IsReasonToStopIfHaltOnFailure(Exception exception);
 }
 
 /// <summary>

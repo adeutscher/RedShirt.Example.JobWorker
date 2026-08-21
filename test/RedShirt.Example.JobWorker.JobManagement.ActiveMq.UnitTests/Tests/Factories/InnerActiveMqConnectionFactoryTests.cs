@@ -44,21 +44,6 @@ public class InnerActiveMqConnectionFactoryTests
     }
 
     [Theory]
-    [InlineData("tcp://localhost:61616", "tcp://localhost:61616")]
-    [InlineData("tcp://localhost:1234/", "tcp://localhost:1234/")]
-    [InlineData("failover:(tcp://broker:61616)", "tcp://broker:61616")]
-    [InlineData(
-        "failover:(tcp://broker:61616)?transport.maxReconnectAttempts=5",
-        "tcp://broker:61616")]
-    [InlineData(
-        "failover:(tcp://a:61616,tcp://b:61616)?transport.maxReconnectAttempts=5",
-        "tcp://a:61616")]
-    public void StripFailoverUri_RemovesFailoverWrapperAndLeavesPlainUri(string input, string expected)
-    {
-        Assert.Equal(expected, InnerActiveMqConnectionFactory.StripFailoverUri(input));
-    }
-
-    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task GetWrapperAsync_PassesForceNewSecretManagerPullToConfigurationSource(
@@ -157,5 +142,20 @@ public class InnerActiveMqConnectionFactoryTests
         Assert.Same(wrapper.InternalConnectionFactory, wrapper.ConnectionFactory);
         Assert.Equal(backlogSize, wrapper.InternalConnectionFactory.PrefetchPolicy.QueuePrefetch);
         coreConfiguration.Verify(c => c.GetBacklogSize(), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("tcp://localhost:61616", "tcp://localhost:61616")]
+    [InlineData("tcp://localhost:1234/", "tcp://localhost:1234/")]
+    [InlineData("failover:(tcp://broker:61616)", "tcp://broker:61616")]
+    [InlineData(
+        "failover:(tcp://broker:61616)?transport.maxReconnectAttempts=5",
+        "tcp://broker:61616")]
+    [InlineData(
+        "failover:(tcp://a:61616,tcp://b:61616)?transport.maxReconnectAttempts=5",
+        "tcp://a:61616")]
+    public void StripFailoverUri_RemovesFailoverWrapperAndLeavesPlainUri(string input, string expected)
+    {
+        Assert.Equal(expected, InnerActiveMqConnectionFactory.StripFailoverUri(input));
     }
 }

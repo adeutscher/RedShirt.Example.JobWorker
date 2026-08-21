@@ -169,6 +169,15 @@ public class ActiveMqSubscribeJobSourceTests
             It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    public static TheoryData<Exception> ExceptionListenerReconnectExceptions()
+    {
+        return
+        [
+            new EndOfStreamException("peer closed"),
+            new NMSSecurityException("bad credentials")
+        ];
+    }
+
     [Fact]
     public async Task GetJobsAsync_ThrowsNotSupportedException()
     {
@@ -262,6 +271,65 @@ public class ActiveMqSubscribeJobSourceTests
     }
 
     [Fact]
+    public async Task
+        StartSubscriberAsync_WhenExceptionListenerPermanentErrorAndReconnectFailsWithHaltOnFailure_Stops()
+    {
+        var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
+        SetupAsyncListener(consumer);
+
+        var (connection, getExceptionHandler, _) = CreateConnectionCapturingListeners();
+
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter
+            .Setup(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()))
+            .Returns(new TaskCompletionSource().Task);
+        executionEndArbiter
+            .Setup(a => a.Stop(It.IsAny<Exception>()))
+            .Callback(() => stopped.TrySetResult());
+
+        var subscribeCalls = 0;
+        var wrapper = new Mock<IActiveMqConsumerRetryWrapper>(MockBehavior.Strict);
+        wrapper
+            .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
+                It.IsAny<Func<IMessageConsumer, CancellationToken, Task>>(),
+                It.IsAny<Action<IConnection>?>(),
+                It.IsAny<Action<IMessageConsumer>?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((Func<IMessageConsumer, CancellationToken, Task> callback, Action<IConnection>? onNew,
+                Action<IMessageConsumer>? _, CancellationToken token) =>
+            {
+                subscribeCalls++;
+                if (subscribeCalls == 1)
+                {
+                    onNew?.Invoke(connection.Object);
+                    return callback(consumer.Object, token);
+                }
+
+                return Task.FromException(new WorkerJobSourceException("still unauthorized")
+                {
+                    CouldBeTransient = false,
+                    IsHandled = true,
+                    CouldBeExternallySolvable = false
+                });
+            });
+        wrapper.Setup(w => w.ResetConsumer());
+
+        var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter, haltOnFailure: true);
+
+        await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
+
+        var exceptionHandler = getExceptionHandler();
+        Assert.NotNull(exceptionHandler);
+        exceptionHandler!(new NMSSecurityException("bad credentials"));
+
+        await stopped.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+        wrapper.Verify(w => w.ResetConsumer(), Times.Once);
+        executionEndArbiter.Verify(a => a.Stop(It.IsAny<Exception>()), Times.Once);
+    }
+
+    [Fact]
     public async Task StartSubscriberAsync_WhenExceptionListenerReportsAccountedTransient_DoesNotWarnUnaccounted()
     {
         var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
@@ -320,15 +388,6 @@ public class ActiveMqSubscribeJobSourceTests
             It.IsAny<Action<IConnection>?>(),
             It.IsAny<Action<IMessageConsumer>?>(),
             It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    public static TheoryData<Exception> ExceptionListenerReconnectExceptions()
-    {
-        return
-        [
-            new EndOfStreamException("peer closed"),
-            new NMSSecurityException("bad credentials")
-        ];
     }
 
     [Theory]
@@ -398,65 +457,6 @@ public class ActiveMqSubscribeJobSourceTests
         Assert.True(subscribeCalls >= 2);
         // Reconnect succeeded; ExceptionListener itself does not call Stop.
         executionEndArbiter.Verify(a => a.Stop(It.IsAny<Exception>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task
-        StartSubscriberAsync_WhenExceptionListenerPermanentErrorAndReconnectFailsWithHaltOnFailure_Stops()
-    {
-        var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
-        SetupAsyncListener(consumer);
-
-        var (connection, getExceptionHandler, _) = CreateConnectionCapturingListeners();
-
-        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        executionEndArbiter
-            .Setup(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()))
-            .Returns(new TaskCompletionSource().Task);
-        executionEndArbiter
-            .Setup(a => a.Stop(It.IsAny<Exception>()))
-            .Callback(() => stopped.TrySetResult());
-
-        var subscribeCalls = 0;
-        var wrapper = new Mock<IActiveMqConsumerRetryWrapper>(MockBehavior.Strict);
-        wrapper
-            .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
-                It.IsAny<Func<IMessageConsumer, CancellationToken, Task>>(),
-                It.IsAny<Action<IConnection>?>(),
-                It.IsAny<Action<IMessageConsumer>?>(),
-                It.IsAny<CancellationToken>()))
-            .Returns((Func<IMessageConsumer, CancellationToken, Task> callback, Action<IConnection>? onNew,
-                Action<IMessageConsumer>? _, CancellationToken token) =>
-            {
-                subscribeCalls++;
-                if (subscribeCalls == 1)
-                {
-                    onNew?.Invoke(connection.Object);
-                    return callback(consumer.Object, token);
-                }
-
-                return Task.FromException(new WorkerJobSourceException("still unauthorized")
-                {
-                    CouldBeTransient = false,
-                    IsHandled = true,
-                    CouldBeExternallySolvable = false
-                });
-            });
-        wrapper.Setup(w => w.ResetConsumer());
-
-        var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter, haltOnFailure: true);
-
-        await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
-
-        var exceptionHandler = getExceptionHandler();
-        Assert.NotNull(exceptionHandler);
-        exceptionHandler!(new NMSSecurityException("bad credentials"));
-
-        await stopped.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
-
-        wrapper.Verify(w => w.ResetConsumer(), Times.Once);
-        executionEndArbiter.Verify(a => a.Stop(It.IsAny<Exception>()), Times.Once);
     }
 
     [Fact]

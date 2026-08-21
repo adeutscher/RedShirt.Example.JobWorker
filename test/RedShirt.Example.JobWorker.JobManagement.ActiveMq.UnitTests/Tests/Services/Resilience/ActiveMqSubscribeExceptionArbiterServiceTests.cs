@@ -11,6 +11,25 @@ public class ActiveMqSubscribeExceptionArbiterServiceTests
 {
     private readonly ActiveMqSubscribeExceptionArbiterService _sut = new();
 
+    public static TheoryData<Exception> AccountedTransientExceptions()
+    {
+        return
+        [
+            new BrokerException(),
+            new ResourceAllocationException("busy"),
+            new TransactionRolledBackException("rollback"),
+            new IllegalStateException("illegal")
+        ];
+    }
+
+    [Fact]
+    public void Classification_InspectsInnerExceptions()
+    {
+        Assert.True(_sut.IsReasonToReconnect(new Exception("outer", new SocketException())));
+        Assert.True(_sut.IsReasonToStopIfHaltOnFailure(new Exception("outer", new NMSSecurityException("auth"))));
+        Assert.True(_sut.IsAccountedForAndLikelyTransientError(new Exception("outer", new BrokerException())));
+    }
+
     [Theory]
     [MemberData(nameof(AccountedTransientExceptions))]
     public void IsAccountedForAndLikelyTransientError_KnownShapes_ReturnsTrue(Exception exception)
@@ -22,19 +41,6 @@ public class ActiveMqSubscribeExceptionArbiterServiceTests
     public void IsAccountedForAndLikelyTransientError_Unknown_ReturnsFalse()
     {
         Assert.False(_sut.IsAccountedForAndLikelyTransientError(new Exception("mystery")));
-    }
-
-    [Theory]
-    [MemberData(nameof(StopIfHaltOnFailureExceptions))]
-    public void IsReasonToStopIfHaltOnFailure_KnownShapes_ReturnsTrue(Exception exception)
-    {
-        Assert.True(_sut.IsReasonToStopIfHaltOnFailure(exception));
-    }
-
-    [Fact]
-    public void IsReasonToStopIfHaltOnFailure_Unknown_ReturnsFalse()
-    {
-        Assert.False(_sut.IsReasonToStopIfHaltOnFailure(new Exception("mystery")));
     }
 
     [Theory]
@@ -50,34 +56,17 @@ public class ActiveMqSubscribeExceptionArbiterServiceTests
         Assert.False(_sut.IsReasonToReconnect(new Exception("mystery")));
     }
 
+    [Theory]
+    [MemberData(nameof(StopIfHaltOnFailureExceptions))]
+    public void IsReasonToStopIfHaltOnFailure_KnownShapes_ReturnsTrue(Exception exception)
+    {
+        Assert.True(_sut.IsReasonToStopIfHaltOnFailure(exception));
+    }
+
     [Fact]
-    public void Classification_InspectsInnerExceptions()
+    public void IsReasonToStopIfHaltOnFailure_Unknown_ReturnsFalse()
     {
-        Assert.True(_sut.IsReasonToReconnect(new Exception("outer", new SocketException())));
-        Assert.True(_sut.IsReasonToStopIfHaltOnFailure(new Exception("outer", new NMSSecurityException("auth"))));
-        Assert.True(_sut.IsAccountedForAndLikelyTransientError(new Exception("outer", new BrokerException())));
-    }
-
-    public static TheoryData<Exception> AccountedTransientExceptions()
-    {
-        return
-        [
-            new BrokerException(),
-            new ResourceAllocationException("busy"),
-            new TransactionRolledBackException("rollback"),
-            new IllegalStateException("illegal")
-        ];
-    }
-
-    public static TheoryData<Exception> StopIfHaltOnFailureExceptions()
-    {
-        return
-        [
-            new NMSSecurityException("auth"),
-            new InvalidDestinationException("missing"),
-            new InvalidClientIDException("client"),
-            new InvalidSelectorException("selector")
-        ];
+        Assert.False(_sut.IsReasonToStopIfHaltOnFailure(new Exception("mystery")));
     }
 
     public static TheoryData<Exception> ReconnectExceptions()
@@ -92,6 +81,17 @@ public class ActiveMqSubscribeExceptionArbiterServiceTests
             new ConnectionClosedException("closed"),
             new ConnectionFailedException("failed"),
             new ConsumerClosedException("consumer")
+        ];
+    }
+
+    public static TheoryData<Exception> StopIfHaltOnFailureExceptions()
+    {
+        return
+        [
+            new NMSSecurityException("auth"),
+            new InvalidDestinationException("missing"),
+            new InvalidClientIDException("client"),
+            new InvalidSelectorException("selector")
         ];
     }
 }

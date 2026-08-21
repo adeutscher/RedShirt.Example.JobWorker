@@ -60,7 +60,7 @@ internal class ActiveMqConsumerRetryWrapper(
             throw;
         }
     }
-    
+
     /// <summary>
     ///     Get a cached consumer or get a new one from the connection factory.
     ///     Confirming that the invocation of this method should be already covered by the retry wrapper service.
