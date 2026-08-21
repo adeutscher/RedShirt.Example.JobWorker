@@ -1,3 +1,4 @@
+using RedShirt.Example.JobWorker.Common.Services.Utility;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 
@@ -5,6 +6,23 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.ExecutionStat
 
 public class AppliedExecutionEndArbiterTests
 {
+    private static Mock<ISleepService> CreateSleepService()
+    {
+        return new Mock<ISleepService>(MockBehavior.Strict);
+    }
+
+    private static Mock<IJobRepository> CreateJobRepository(int inactiveCount = 0, int watchedCount = 0)
+    {
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        jobRepository
+            .Setup(r => r.SubscribeToInactiveCountUpdate(It.IsAny<Action<int>>()))
+            .Callback<Action<int>>(callback => callback(inactiveCount));
+        jobRepository
+            .Setup(r => r.SubscribeToWatchedJobsUpdate(It.IsAny<Action<int>>()))
+            .Callback<Action<int>>(callback => callback(watchedCount));
+        return jobRepository;
+    }
+
     /// <summary>
     ///     Test with impossible IJobRepository output
     /// </summary>
@@ -16,12 +34,8 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(-1); // Implementation should never return negatives, but here we are
-
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, jobRepository.Object);
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(-1).Object,
+            CreateSleepService().Object);
 
         Assert.False(await arbiter.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken));
     }
@@ -37,12 +51,8 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(true);
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(1);
-
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, jobRepository.Object);
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
+            CreateSleepService().Object);
 
         Assert.True(await arbiter.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken));
     }
@@ -55,15 +65,8 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(1); // Job repository says there is still an in-flight inactive job to be run
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0); // No watched jobs
-
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, jobRepository.Object);
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
+            CreateSleepService().Object);
 
         Assert.True(await arbiter.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken));
     }
@@ -76,12 +79,8 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(1); // Job repository says there is still an in-flight job to be run
-
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, jobRepository.Object);
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
+            CreateSleepService().Object);
 
         Assert.True(await arbiter.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken));
     }
@@ -94,15 +93,8 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0); // No inactive jobs
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(1); // There is a watched job
-
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, jobRepository.Object);
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(0, 1).Object,
+            CreateSleepService().Object);
 
         // Confirming that we're ignoring watched jobs
         Assert.False(await arbiter.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken));
@@ -116,12 +108,8 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0); // Job repository says there are no inactive items
-
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, jobRepository.Object);
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
+            CreateSleepService().Object);
 
         Assert.False(await arbiter.ExecutorsShouldKeepRunningAsync(TestContext.Current.CancellationToken));
     }
@@ -137,15 +125,8 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(true);
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(1);
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(1); // Job repository says that there are currently-watched jobs
-
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, jobRepository.Object);
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
+            CreateSleepService().Object);
 
         Assert.True(await arbiter.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken));
     }
@@ -158,15 +139,8 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(1); // Job repository says there is still an in-flight inactive job to be run
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0); // No watched jobs
-
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, jobRepository.Object);
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
+            CreateSleepService().Object);
 
         Assert.True(await arbiter.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken));
     }
@@ -179,15 +153,8 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0); // No inactive jobs
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(1); // There is a watched job
-
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, jobRepository.Object);
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(0, 1).Object,
+            CreateSleepService().Object);
 
         Assert.True(await arbiter.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken));
     }
@@ -200,15 +167,8 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(1); // Job repository says there is still an in-flight job to be run
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(1);
-
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, jobRepository.Object);
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
+            CreateSleepService().Object);
 
         Assert.True(await arbiter.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken));
     }
@@ -221,15 +181,8 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0); // Job repository says there are no inactive items
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0); // Job repository says there are no inactive items
-
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, jobRepository.Object);
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
+            CreateSleepService().Object);
 
         Assert.False(await arbiter.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken));
     }
@@ -245,16 +198,72 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(-1); // Implementation should never return negatives, but here we are
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(-1); // Implementation should never return negatives, but here we are
-
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, jobRepository.Object);
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(-1, -1).Object,
+            CreateSleepService().Object);
 
         Assert.False(await arbiter.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task DelayWithStopAwarenessAsync_CompletesNormallyWhenNeitherTokenCancels()
+    {
+        var delay = TimeSpan.FromSeconds(5);
+        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        // Keep jobs present so the interrupt signal is not sent.
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+
+        var sleepService = CreateSleepService();
+        sleepService
+            .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
+            sleepService.Object);
+
+        await arbiter.DelayWithStopAwarenessAsync(delay, TestContext.Current.CancellationToken);
+
+        sleepService.Verify(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DelayWithStopAwarenessAsync_WhenInterrupted_IgnoresCancellation()
+    {
+        var delay = TimeSpan.FromSeconds(5);
+        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        // Empty job counts while still "keep running" cancels the internal interrupt token on subscribe.
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+
+        var sleepService = CreateSleepService();
+        sleepService
+            .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
+            .Returns((TimeSpan _, CancellationToken token) => Task.FromCanceled(token));
+
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
+            sleepService.Object);
+
+        await arbiter.DelayWithStopAwarenessAsync(delay, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task DelayWithStopAwarenessAsync_WhenCallerCancels_PropagatesCancellation()
+    {
+        var delay = TimeSpan.FromSeconds(5);
+        using var callerCts = new CancellationTokenSource();
+        await callerCts.CancelAsync();
+
+        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        // Keep jobs present so only the caller token drives cancellation.
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+
+        var sleepService = CreateSleepService();
+        sleepService
+            .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
+            .Returns((TimeSpan _, CancellationToken token) => Task.FromCanceled(token));
+
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
+            sleepService.Object);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            arbiter.DelayWithStopAwarenessAsync(delay, callerCts.Token));
     }
 }

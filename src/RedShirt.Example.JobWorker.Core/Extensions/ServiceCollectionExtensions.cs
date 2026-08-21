@@ -14,7 +14,6 @@ using RedShirt.Example.JobWorker.Core.Services.Jobs.Polling;
 using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
-using RedShirt.Example.JobWorker.Core.Services.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Extensions;
 
@@ -43,7 +42,6 @@ public static class ServiceCollectionExtensions
             .AddSingleton<ISafeJobAcknowledgementService, SafeJobAcknowledgementService>()
             .AddSingleton<IJobIntakeService, JobIntakeService>()
             .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
-            .AddSingleton<ICoreSleepService, CoreSleepService>()
             .AddSingleton<IJobRepository, JobRepository>()
             .AddSingleton<ICoreConfigurationService, CoreConfigurationService>()
             .Configure<JobRepository.ConfigurationModel>(coreSection)

@@ -10,11 +10,6 @@ namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 public interface IExecutionEndArbiter : IDisposable
 {
     /// <summary>
-    ///     Cancelled when <see cref="Stop" /> is invoked.
-    /// </summary>
-    CancellationToken CancellationToken { get; }
-
-    /// <summary>
     ///     Thread-safe addition of callback actions.
     /// </summary>
     /// <param name="callback"></param>
@@ -35,7 +30,6 @@ internal sealed class ExecutionEndArbiter : IExecutionEndArbiter
 {
     private readonly Lock _lock = new();
     private readonly ILogger<ExecutionEndArbiter> _logger;
-    private readonly CancellationTokenSource _stopCts = new();
     private readonly AsyncManualResetEvent _stoppedEvent = new();
     private Exception? _exception;
     private Action<Exception?>? _primaryCallbacks;
@@ -49,8 +43,6 @@ internal sealed class ExecutionEndArbiter : IExecutionEndArbiter
 
     internal bool IsRunning { get; private set; } = true;
 
-    public CancellationToken CancellationToken => _stopCts.Token;
-
     public bool ShouldKeepRunning()
     {
         return IsRunning;
@@ -59,7 +51,6 @@ internal sealed class ExecutionEndArbiter : IExecutionEndArbiter
     void IDisposable.Dispose()
     {
         AppDomain.CurrentDomain.ProcessExit -= HandleSigTerm;
-        _stopCts.Dispose();
     }
 
     public void AddOnStopCallback(Action<Exception?> callback)
@@ -101,15 +92,6 @@ internal sealed class ExecutionEndArbiter : IExecutionEndArbiter
 
         // Call set after all callbacks have been run to signal anything that might be waiting.
         _stoppedEvent.Set();
-
-        try
-        {
-            _stopCts.Cancel();
-        }
-        catch (ObjectDisposedException)
-        {
-            // Dispose may have already run (e.g. tests); stop signaling is still complete.
-        }
     }
 
     public Task WaitForFinishedAsync(CancellationToken cancellationToken = default)
