@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
 using RedShirt.Example.JobWorker.Common.Models;
-using RedShirt.Example.JobWorker.Common.Services.Utility;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
@@ -56,25 +55,22 @@ public class IdempotencyMonitorTests
         return (entry, jobModel, rawJobModel);
     }
 
-    private static ISleepService CreateSleepService()
+    private static void SetupMaintainerDelay(Mock<IAppliedMaintainerExecutionEndArbiter> arbiter)
     {
-        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
-        sleepService
-            .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+        arbiter
+            .Setup(a => a.DelayMaintainerWithStopAwarenessAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        return sleepService.Object;
     }
 
     [Fact(Timeout = 1000)]
     public async Task RunAsync_SleepsUsingEffectiveMonitorIntervalBetweenLoops()
     {
-        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
-        sleepService
-            .Setup(s => s.DelayAsync(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
-
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter
+            .Setup(a => a.DelayMaintainerWithStopAwarenessAsync(TimeSpan.FromSeconds(3),
+                TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -95,14 +91,15 @@ public class IdempotencyMonitorTests
 
         var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
             new Mock<IIdempotencyExecutionService>(MockBehavior.Strict).Object,
-            new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object, sleepService.Object,
+            new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object,
             Options.Create(CreateOptions(monitorIntervalSeconds: 1)), CreateStatisticsService(),
             new NullLogger<IdempotencyMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
-        sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken),
-            Times.Once);
+        executionEndArbiter.Verify(
+            a => a.DelayMaintainerWithStopAwarenessAsync(TimeSpan.FromSeconds(3),
+                TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Theory(Timeout = 2000)]
@@ -120,7 +117,7 @@ public class IdempotencyMonitorTests
                 JobResult = result,
                 AcknowledgementResult = new SafeAcknowledgementResult
                 {
-                    AcknowledgedSuccessfully = true,
+                    AcknowledgedSuccessfully = false,
                     LoggedFailureSuccessfully = null
                 }
             }
@@ -128,6 +125,7 @@ public class IdempotencyMonitorTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -159,7 +157,7 @@ public class IdempotencyMonitorTests
 
         var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
             idempotencyExecutionService.Object, new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object,
-            CreateSleepService(), Options.Create(CreateOptions()), CreateStatisticsService(),
+            Options.Create(CreateOptions()), CreateStatisticsService(),
             new NullLogger<IdempotencyMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
@@ -193,6 +191,7 @@ public class IdempotencyMonitorTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -230,7 +229,7 @@ public class IdempotencyMonitorTests
             .ReturnsAsync(failedAck);
 
         var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
-            idempotencyExecutionService.Object, safeJobAcknowledgementService.Object, CreateSleepService(),
+            idempotencyExecutionService.Object, safeJobAcknowledgementService.Object,
             Options.Create(CreateOptions()), CreateStatisticsService(), new NullLogger<IdempotencyMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
@@ -268,6 +267,7 @@ public class IdempotencyMonitorTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -310,7 +310,7 @@ public class IdempotencyMonitorTests
             .ReturnsAsync(successAck);
 
         var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
-            idempotencyExecutionService.Object, safeJobAcknowledgementService.Object, CreateSleepService(),
+            idempotencyExecutionService.Object, safeJobAcknowledgementService.Object,
             Options.Create(CreateOptions()), CreateStatisticsService(), new NullLogger<IdempotencyMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
@@ -329,7 +329,7 @@ public class IdempotencyMonitorTests
             new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict).Object,
             new Mock<IJobRepository>(MockBehavior.Strict).Object,
             new Mock<IIdempotencyExecutionService>(MockBehavior.Strict).Object,
-            new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object, CreateSleepService(),
+            new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object,
             Options.Create(CreateOptions(false)), CreateStatisticsService(), new NullLogger<IdempotencyMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
@@ -343,6 +343,7 @@ public class IdempotencyMonitorTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -368,7 +369,7 @@ public class IdempotencyMonitorTests
 
         var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
             idempotencyExecutionService.Object, new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object,
-            CreateSleepService(), Options.Create(CreateOptions()), CreateStatisticsService(),
+            Options.Create(CreateOptions()), CreateStatisticsService(),
             new NullLogger<IdempotencyMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);

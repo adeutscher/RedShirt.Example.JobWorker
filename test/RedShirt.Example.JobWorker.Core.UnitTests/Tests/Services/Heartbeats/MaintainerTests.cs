@@ -32,6 +32,13 @@ public class HeartbeatMaintainerTests
         return sleepService.Object;
     }
 
+    private static void SetupMaintainerDelay(Mock<IAppliedMaintainerExecutionEndArbiter> arbiter)
+    {
+        arbiter
+            .Setup(a => a.DelayMaintainerWithStopAwarenessAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+    }
+
     [Theory(Timeout = 500)]
     [InlineData(0)]
     [InlineData(-1)]
@@ -78,6 +85,7 @@ public class HeartbeatMaintainerTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -136,6 +144,7 @@ public class HeartbeatMaintainerTests
         heartbeatCalculator.Setup(c => c.IsReadyForHeartbeat(entry.Object)).Returns(true);
 
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(true);
@@ -202,6 +211,7 @@ public class HeartbeatMaintainerTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -254,6 +264,7 @@ public class HeartbeatMaintainerTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -320,6 +331,7 @@ public class HeartbeatMaintainerTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -393,6 +405,7 @@ public class HeartbeatMaintainerTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -464,6 +477,7 @@ public class HeartbeatMaintainerTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -523,6 +537,7 @@ public class HeartbeatMaintainerTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -596,6 +611,7 @@ public class HeartbeatMaintainerTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -664,6 +680,7 @@ public class HeartbeatMaintainerTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -725,6 +742,7 @@ public class HeartbeatMaintainerTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -833,6 +851,7 @@ public class HeartbeatMaintainerTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>

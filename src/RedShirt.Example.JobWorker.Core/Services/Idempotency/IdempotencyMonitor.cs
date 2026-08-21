@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.Common.Services.Utility;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Extensions;
@@ -19,17 +18,14 @@ namespace RedShirt.Example.JobWorker.Core.Services.Idempotency;
 /// </summary>
 internal interface IIdempotencyMonitor : IHandlerSubComponent;
 
-#pragma warning disable S107
 internal sealed class IdempotencyMonitor(
     IAppliedMaintainerExecutionEndArbiter executionEndArbiter,
     IJobRepository jobRepository,
     IIdempotencyExecutionService idempotencyExecutionService,
     ISafeJobAcknowledgementService safeJobAcknowledgementService,
-    ISleepService sleepService,
     IOptions<IdempotencyConfigurationModel> options,
     ICoreStatisticsService coreStatisticsService,
     ILogger<IdempotencyMonitor> logger) : IIdempotencyMonitor
-#pragma warning restore S107
 {
     private async Task CheckBlockedJobsAsync(CancellationToken cancellationToken = default)
     {
@@ -129,7 +125,7 @@ internal sealed class IdempotencyMonitor(
         while (await executionEndArbiter.MaintainerShouldKeepRunningAsync(cancellationToken))
         {
             await CheckBlockedJobsAsync(cancellationToken);
-            await sleepService.DelayAsync(intervalTimeSpan, cancellationToken);
+            await executionEndArbiter.DelayMaintainerWithStopAwarenessAsync(intervalTimeSpan, cancellationToken);
         }
 
         return HandlerComponentResponse.Finished;
