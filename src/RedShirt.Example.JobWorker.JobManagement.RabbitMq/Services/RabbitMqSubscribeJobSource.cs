@@ -118,7 +118,8 @@ internal class RabbitMqSubscribeJobSource(
                 // Some variety of non-transient failure
                 logger.LogError(e, "Error re-subscribing to RabbitMQ");
 
-                if (e is WorkerJobSourceException {CouldBeTransient: true})
+                if (e is WorkerJobSourceException {CouldBeTransient: true} &&
+                    !coreConfigurationService.IsTreatTransientAsFailure())
                 {
                     // Continue and try again
                     continue;
@@ -254,7 +255,8 @@ internal class RabbitMqSubscribeJobSource(
                 // Some variety of non-transient failure
                 logger.LogError(e, "Error subscribing to RabbitMQ");
 
-                if (e is WorkerJobSourceException {CouldBeTransient: true})
+                if (e is WorkerJobSourceException {CouldBeTransient: true} &&
+                    !coreConfigurationService.IsTreatTransientAsFailure())
                 {
                     // Transient: Retry and try again
                     continue;
