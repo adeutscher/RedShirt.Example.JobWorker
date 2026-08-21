@@ -97,11 +97,15 @@ public class JobRepositoryTests
 
         var blockedEntry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         blockedEntry.Setup(e => e.JobModel).Returns(unblockedModel.Object);
+        var blockedState = JobState.BlockedByIdempotency;
+        blockedEntry.Setup(e => e.State).Returns(() => blockedState);
         blockedEntry
             .Setup(e => e.SetStateAsync(JobState.Inactive, TestContext.Current.CancellationToken))
+            .Callback(() => blockedState = JobState.Inactive)
             .Returns(Task.CompletedTask);
         blockedEntry
             .Setup(e => e.SetStateAsync(JobState.Active, TestContext.Current.CancellationToken))
+            .Callback(() => blockedState = JobState.Active)
             .Returns(Task.CompletedTask);
         jobRepository.WatchedJobs.Add(blockedEntry.Object);
 

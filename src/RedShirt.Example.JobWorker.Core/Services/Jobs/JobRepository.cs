@@ -401,6 +401,7 @@ internal sealed class JobRepository(
             _inactiveCountCallbacks += callback;
         }
 
+        
         _watchedJobsListSemaphore.Wait();
         try
         {

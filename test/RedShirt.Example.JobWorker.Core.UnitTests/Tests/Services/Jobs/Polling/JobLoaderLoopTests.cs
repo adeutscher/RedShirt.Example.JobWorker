@@ -351,11 +351,10 @@ public class JobLoaderLoopTests
     }
 
     [Fact]
-    public async Task RunAsync_WhenSubscriptionSource_ReportsStartAndReturnsFinishedWithoutLoading()
+    public async Task RunAsync_WhenSubscriptionSource_ReturnsNotEnabledWithoutLoading()
     {
+        // Strict + no ReportLoaderStart / ReportLoaderStop: subscription sources exit before loader lifecycle.
         var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
-        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
-
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
         var jobLoader = new Mock<IJobLoader>(MockBehavior.Strict);
@@ -365,9 +364,8 @@ public class JobLoaderLoopTests
 
         var result = await loop.RunAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(HandlerComponentResponse.Finished, result);
-        jobLoaderStateService.Verify(s => s.ReportLoaderStart(), Times.Once);
-        jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Never);
+        Assert.Equal(HandlerComponentResponse.NotEnabled, result);
+        Assert.Empty(jobLoaderStateService.Invocations);
         Assert.Empty(jobLoader.Invocations);
         Assert.Empty(executionEndArbiter.Invocations);
         Assert.Empty(sleepService.Invocations);
