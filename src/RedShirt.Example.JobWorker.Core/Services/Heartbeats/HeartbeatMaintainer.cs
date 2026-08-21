@@ -56,7 +56,7 @@ internal sealed class HeartbeatMaintainer(
     /// <param name="cancellationToken"></param>
     private async Task LogAndWaitAsync(TimeSpan timeToWait, CancellationToken cancellationToken = default)
     {
-        logger.LogTrace("Waiting for {Time} until next heartbeat check", timeToWait);
+        logger.LogTrace("Heartbeat Monitor: Waiting for {Time} until next heartbeat check", timeToWait);
         await appliedExecutionEndArbiter.DelayMaintainerWithStopAwarenessAsync(timeToWait, cancellationToken);
     }
 

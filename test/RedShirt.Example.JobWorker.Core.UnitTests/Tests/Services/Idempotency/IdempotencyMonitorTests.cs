@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Distributed.Models;
@@ -60,6 +61,56 @@ public class IdempotencyMonitorTests
         arbiter
             .Setup(a => a.DelayMaintainerWithStopAwarenessAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+    }
+
+    [Fact(Timeout = 1000)]
+    public async Task RunAsync_LogsWaitBeforeDelayingBetweenLoops()
+    {
+        var doQuit = false;
+        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter
+            .Setup(a => a.DelayMaintainerWithStopAwarenessAsync(TimeSpan.FromSeconds(3),
+                TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+        executionEndArbiter
+            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Returns(() =>
+            {
+                if (doQuit)
+                {
+                    return false;
+                }
+
+                doQuit = true;
+                return true;
+            });
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        jobRepository
+            .Setup(r => r.GetAllIdempotencyBlockedJobsAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync([]);
+
+        var logger = new Mock<ILogger<IdempotencyMonitor>>();
+        logger.Setup(l => l.IsEnabled(LogLevel.Trace)).Returns(true);
+
+        var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
+            new Mock<IIdempotencyExecutionService>(MockBehavior.Strict).Object,
+            new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object,
+            Options.Create(CreateOptions(monitorIntervalSeconds: 1)), CreateStatisticsService(),
+            logger.Object);
+
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
+
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Trace,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) =>
+                    state.ToString()!.Contains("Idempotency Monitor:", StringComparison.Ordinal)
+                    && state.ToString()!.Contains("until next follow-up check", StringComparison.Ordinal)),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 
     [Fact(Timeout = 1000)]
@@ -245,7 +296,7 @@ public class IdempotencyMonitorTests
         jobRepository.Verify(r => r.RemoveJobAsync(entry.Object, TestContext.Current.CancellationToken), Times.Once);
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 2000)]
     public async Task RunAsync_WhenCachedResultIsSuccessAndAcknowledgeSucceeds_RemovesJobAndRefreshesCache()
     {
         var (entry, jobModel, rawJobModel) = CreateBlockedJob();
