@@ -32,13 +32,14 @@ internal interface IAppliedExecutorExecutionEndArbiter
 }
 
 internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEndArbiter,
-    IAppliedExecutorExecutionEndArbiter
+    IAppliedExecutorExecutionEndArbiter, IDisposable
 {
     private readonly IExecutionEndArbiter _executionEndArbiter;
     private readonly CancellationTokenSource _interruptCts = new();
     private readonly Lock _lock = new();
     private readonly ISleepService _sleepService;
 
+    private bool _disposed;
     private int _inactiveJobsCount;
     private int _watchedJobsCount;
 
@@ -46,7 +47,6 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
     ///     Centralize decision on whether to send interrupt signal.
     ///     Unsafe on its own, assumed to be running within a lock statement by the method that invokes it.
     /// </summary>
-    /// <returns></returns>
     private bool ShouldSendInterruptSignalUnsafe()
     {
         return _executionEndArbiter.ShouldKeepRunning()
@@ -54,18 +54,35 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
                && _watchedJobsCount == 0;
     }
 
+    private void TryCancelInterrupt()
+    {
+        try
+        {
+            _interruptCts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Dispose may have already run (e.g. host shutdown); interrupt signaling is best-effort.
+        }
+    }
+
     private void OnInactiveJobChange(int inactiveJobCount)
     {
         var shouldInterrupt = false;
         lock (_lock)
         {
+            if (_disposed)
+            {
+                return;
+            }
+
             _inactiveJobsCount = inactiveJobCount;
             shouldInterrupt = ShouldSendInterruptSignalUnsafe();
         }
 
         if (shouldInterrupt)
         {
-            _interruptCts.Cancel();
+            TryCancelInterrupt();
         }
     }
 
@@ -74,13 +91,18 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
         var shouldInterrupt = false;
         lock (_lock)
         {
+            if (_disposed)
+            {
+                return;
+            }
+
             _watchedJobsCount = watchedJobCount;
             shouldInterrupt = ShouldSendInterruptSignalUnsafe();
         }
 
         if (shouldInterrupt)
         {
-            _interruptCts.Cancel();
+            TryCancelInterrupt();
         }
     }
 
@@ -108,14 +130,25 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
     public async Task DelayMaintainerWithStopAwarenessAsync(TimeSpan delay,
         CancellationToken cancellationToken = default)
     {
+        CancellationToken interruptToken;
+        lock (_lock)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            interruptToken = _interruptCts.Token;
+        }
+
         using var linkedCts =
-            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _interruptCts.Token);
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, interruptToken);
 
         try
         {
             await _sleepService.DelayAsync(delay, linkedCts.Token);
         }
-        catch (OperationCanceledException) when (_interruptCts.IsCancellationRequested
+        catch (OperationCanceledException) when (interruptToken.IsCancellationRequested
                                                  && !cancellationToken.IsCancellationRequested)
         {
             // Interrupt-driven cancellation: treat the delay as having elapsed.
@@ -130,5 +163,20 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
                    || _inactiveJobsCount > 0
                    || _watchedJobsCount > 0;
         }
+    }
+
+    public void Dispose()
+    {
+        lock (_lock)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+        }
+
+        _interruptCts.Dispose();
     }
 }

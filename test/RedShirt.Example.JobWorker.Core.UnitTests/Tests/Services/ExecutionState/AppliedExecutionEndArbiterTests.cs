@@ -36,7 +36,7 @@ public class AppliedExecutionEndArbiterTests
             .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
             sleepService.Object);
 
         await arbiter.DelayMaintainerWithStopAwarenessAsync(delay, TestContext.Current.CancellationToken);
@@ -60,7 +60,7 @@ public class AppliedExecutionEndArbiterTests
             .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
             .Returns((TimeSpan _, CancellationToken token) => Task.FromCanceled(token));
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
             sleepService.Object);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
@@ -80,7 +80,7 @@ public class AppliedExecutionEndArbiterTests
             .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
             .Returns((TimeSpan _, CancellationToken token) => Task.FromCanceled(token));
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
             sleepService.Object);
 
         await arbiter.DelayMaintainerWithStopAwarenessAsync(delay, CancellationToken.None);
@@ -97,7 +97,7 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(-1).Object,
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(-1).Object,
             CreateSleepService().Object);
 
         Assert.False(arbiter.ExecutorsShouldKeepRunning());
@@ -114,7 +114,7 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(true);
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
             CreateSleepService().Object);
 
         Assert.True(arbiter.ExecutorsShouldKeepRunning());
@@ -128,7 +128,7 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
             CreateSleepService().Object);
 
         Assert.True(arbiter.ExecutorsShouldKeepRunning());
@@ -142,7 +142,7 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
             CreateSleepService().Object);
 
         Assert.True(arbiter.ExecutorsShouldKeepRunning());
@@ -156,7 +156,7 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(0, 1).Object,
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(0, 1).Object,
             CreateSleepService().Object);
 
         // Confirming that we're ignoring watched jobs
@@ -171,7 +171,7 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
             CreateSleepService().Object);
 
         Assert.False(arbiter.ExecutorsShouldKeepRunning());
@@ -188,7 +188,7 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(true);
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
             CreateSleepService().Object);
 
         Assert.True(arbiter.MaintainerShouldKeepRunning());
@@ -202,7 +202,7 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
             CreateSleepService().Object);
 
         Assert.True(arbiter.MaintainerShouldKeepRunning());
@@ -216,7 +216,7 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(0, 1).Object,
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(0, 1).Object,
             CreateSleepService().Object);
 
         Assert.True(arbiter.MaintainerShouldKeepRunning());
@@ -230,7 +230,7 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
             CreateSleepService().Object);
 
         Assert.True(arbiter.MaintainerShouldKeepRunning());
@@ -244,7 +244,7 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
             CreateSleepService().Object);
 
         Assert.False(arbiter.MaintainerShouldKeepRunning());
@@ -261,7 +261,7 @@ public class AppliedExecutionEndArbiterTests
             .Setup(a => a.ShouldKeepRunning())
             .Returns(false); // Inner arbiter says no
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(-1, -1).Object,
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(-1, -1).Object,
             CreateSleepService().Object);
 
         Assert.False(arbiter.MaintainerShouldKeepRunning());
