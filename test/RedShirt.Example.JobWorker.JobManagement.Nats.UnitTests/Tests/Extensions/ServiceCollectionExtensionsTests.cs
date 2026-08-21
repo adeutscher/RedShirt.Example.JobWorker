@@ -6,6 +6,7 @@ using RedShirt.Example.JobWorker.JobManagement.Nats.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services;
+using RedShirt.Example.JobWorker.JobManagement.Nats.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Extensions;
 
@@ -69,6 +70,12 @@ public class ServiceCollectionExtensionsTests
                                        && d.Lifetime == ServiceLifetime.Singleton);
         Assert.Contains(services, d => d.ServiceType == typeof(INatsCredentialSource)
                                        && d.ImplementationType == typeof(NatsCredentialSource)
+                                       && d.Lifetime == ServiceLifetime.Singleton);
+        Assert.Contains(services, d => d.ServiceType == typeof(INatsExceptionArbiterService)
+                                       && d.ImplementationType == typeof(NatsExceptionArbiterService)
+                                       && d.Lifetime == ServiceLifetime.Singleton);
+        Assert.Contains(services, d => d.ServiceType == typeof(INatsRetryWrapperService)
+                                       && d.ImplementationType == typeof(NatsRetryWrapperService)
                                        && d.Lifetime == ServiceLifetime.Singleton);
     }
 }

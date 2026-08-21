@@ -4,6 +4,7 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Factories;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services;
+using RedShirt.Example.JobWorker.JobManagement.Nats.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.Extensions;
 
@@ -28,6 +29,8 @@ public static class ServiceCollectionExtensions
             .Configure<NatsMessageSource.ConfigurationModel>(section)
             .AddSingleton<INatsJetStreamContextFactory, NatsJetStreamContextFactory>()
             .Configure<NatsJetStreamContextFactory.ConfigurationModel>(section)
-            .AddSingleton<INatsConsumerSource, NatsConsumerSource>();
+            .AddSingleton<INatsConsumerSource, NatsConsumerSource>()
+            .AddSingleton<INatsExceptionArbiterService, NatsExceptionArbiterService>()
+            .AddSingleton<INatsRetryWrapperService, NatsRetryWrapperService>();
     }
 }

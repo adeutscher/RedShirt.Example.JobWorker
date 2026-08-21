@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
+using RedShirt.Example.JobWorker.JobManagement.Nats.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.Services;
 
@@ -12,6 +13,7 @@ internal interface INatsMessageSource
 
 internal class NatsMessageSource(
     INatsConsumerSource consumerSource,
+    INatsRetryWrapperService retryWrapperService,
     IOptions<NatsMessageSource.ConfigurationModel> options) : INatsMessageSource
 {
     private static readonly TimeSpan HeartbeatTime = TimeSpan.FromSeconds(5);
@@ -39,22 +41,24 @@ internal class NatsMessageSource(
     public async Task<NatsMessageSourceResponse> FetchMessagesAsync(int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var consumer = await consumerSource.GetConsumerAsync(cancellationToken);
+        var consumer = await retryWrapperService.RunAsync(consumerSource.GetConsumerAsync, cancellationToken);
 
         if (options.Value.EffectiveWaitTimeSeconds <= 0)
         {
             return new NatsMessageSourceResponse
             {
-                Messages = await FetchBatchWithNoWaitAsync(batchSize, consumer, cancellationToken)
+                Messages = await retryWrapperService.RunAsync(ct => FetchBatchWithNoWaitAsync(batchSize, consumer, ct),
+                    cancellationToken)
             };
         }
 
         var items = new List<INatsJSMsg<NatsMemoryOwner<byte>>>();
-        var firstResult = await consumer.NextAsync<NatsMemoryOwner<byte>>(opts: new NatsJSNextOpts
-        {
-            IdleHeartbeat = HeartbeatTime,
-            Expires = TimeSpan.FromSeconds(options.Value.EffectiveWaitTimeSeconds)
-        }, cancellationToken: cancellationToken);
+        var firstResult = await retryWrapperService.RunAsync<INatsJSMsg<NatsMemoryOwner<byte>>?>(async ct =>
+            await consumer.NextAsync<NatsMemoryOwner<byte>>(opts: new NatsJSNextOpts
+            {
+                IdleHeartbeat = HeartbeatTime,
+                Expires = TimeSpan.FromSeconds(options.Value.EffectiveWaitTimeSeconds)
+            }, cancellationToken: ct), cancellationToken);
 
         if (firstResult is null)
         {
@@ -70,7 +74,9 @@ internal class NatsMessageSource(
         if (batchSize >= 1)
         {
             // Remaining items to follow up on after getting next
-            items.AddRange(await FetchBatchWithNoWaitAsync(batchSize - 1, consumer, cancellationToken));
+            items.AddRange(
+                await retryWrapperService.RunAsync(ct => FetchBatchWithNoWaitAsync(batchSize - 1, consumer, ct),
+                    cancellationToken));
         }
 
         return new NatsMessageSourceResponse
