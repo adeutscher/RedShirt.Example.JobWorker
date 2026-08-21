@@ -23,6 +23,69 @@ public class AppliedExecutionEndArbiterTests
         return jobRepository;
     }
 
+    [Fact]
+    public async Task DelayMaintainerWithStopAwarenessAsync_CompletesNormallyWhenNeitherTokenCancels()
+    {
+        var delay = TimeSpan.FromSeconds(5);
+        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        // Keep jobs present so the interrupt signal is not sent.
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+
+        var sleepService = CreateSleepService();
+        sleepService
+            .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
+            sleepService.Object);
+
+        await arbiter.DelayMaintainerWithStopAwarenessAsync(delay, TestContext.Current.CancellationToken);
+
+        sleepService.Verify(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DelayMaintainerWithStopAwarenessAsync_WhenCallerCancels_PropagatesCancellation()
+    {
+        var delay = TimeSpan.FromSeconds(5);
+        using var callerCts = new CancellationTokenSource();
+        await callerCts.CancelAsync();
+
+        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        // Keep jobs present so only the caller token drives cancellation.
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+
+        var sleepService = CreateSleepService();
+        sleepService
+            .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
+            .Returns((TimeSpan _, CancellationToken token) => Task.FromCanceled(token));
+
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
+            sleepService.Object);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            arbiter.DelayMaintainerWithStopAwarenessAsync(delay, callerCts.Token));
+    }
+
+    [Fact]
+    public async Task DelayMaintainerWithStopAwarenessAsync_WhenInterrupted_IgnoresCancellation()
+    {
+        var delay = TimeSpan.FromSeconds(5);
+        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        // Empty job counts while still "keep running" cancels the internal interrupt token on subscribe.
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+
+        var sleepService = CreateSleepService();
+        sleepService
+            .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
+            .Returns((TimeSpan _, CancellationToken token) => Task.FromCanceled(token));
+
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
+            sleepService.Object);
+
+        await arbiter.DelayMaintainerWithStopAwarenessAsync(delay, CancellationToken.None);
+    }
+
     /// <summary>
     ///     Test with impossible IJobRepository output
     /// </summary>
@@ -202,68 +265,5 @@ public class AppliedExecutionEndArbiterTests
             CreateSleepService().Object);
 
         Assert.False(await arbiter.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task DelayWithStopAwarenessAsync_CompletesNormallyWhenNeitherTokenCancels()
-    {
-        var delay = TimeSpan.FromSeconds(5);
-        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        // Keep jobs present so the interrupt signal is not sent.
-        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
-
-        var sleepService = CreateSleepService();
-        sleepService
-            .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
-            sleepService.Object);
-
-        await arbiter.DelayWithStopAwarenessAsync(delay, TestContext.Current.CancellationToken);
-
-        sleepService.Verify(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task DelayWithStopAwarenessAsync_WhenInterrupted_IgnoresCancellation()
-    {
-        var delay = TimeSpan.FromSeconds(5);
-        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        // Empty job counts while still "keep running" cancels the internal interrupt token on subscribe.
-        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
-
-        var sleepService = CreateSleepService();
-        sleepService
-            .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
-            .Returns((TimeSpan _, CancellationToken token) => Task.FromCanceled(token));
-
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
-            sleepService.Object);
-
-        await arbiter.DelayWithStopAwarenessAsync(delay, CancellationToken.None);
-    }
-
-    [Fact]
-    public async Task DelayWithStopAwarenessAsync_WhenCallerCancels_PropagatesCancellation()
-    {
-        var delay = TimeSpan.FromSeconds(5);
-        using var callerCts = new CancellationTokenSource();
-        await callerCts.CancelAsync();
-
-        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        // Keep jobs present so only the caller token drives cancellation.
-        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
-
-        var sleepService = CreateSleepService();
-        sleepService
-            .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
-            .Returns((TimeSpan _, CancellationToken token) => Task.FromCanceled(token));
-
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
-            sleepService.Object);
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            arbiter.DelayWithStopAwarenessAsync(delay, callerCts.Token));
     }
 }

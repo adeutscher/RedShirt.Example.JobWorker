@@ -4,25 +4,35 @@ using RedShirt.Example.JobWorker.Core.Services.Jobs;
 namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 
 /// <summary>
-///     Dictates if the app should continue running.
-///     Used by Maintainer implementation.
+///     Dictates if maintainer workers should continue running.
 ///     Extends the functionality of the base IExecutionEndArbiter by accessing the job repository.
 ///     Written as a test-friendly alternative to `while(true){}`
 /// </summary>
-internal interface IAppliedExecutionEndArbiter
+internal interface IAppliedMaintainerExecutionEndArbiter
 {
     /// <summary>
     ///     Delays for <paramref name="delay" />, honouring both <paramref name="cancellationToken" /> and
-    ///     the applied arbiter's interrupt signal.
-    ///     Cancellation caused by the interrupt signal is ignored and treated as a completed delay.
+    ///     an internal interrupt signal that triggers when the worker is stopping.
+    ///     Intended for maintainer workers only.
+    ///     Cancellation caused by the internal interrupt signal is ignored and treated as a completed delay.
     /// </summary>
-    Task DelayWithStopAwarenessAsync(TimeSpan delay, CancellationToken cancellationToken = default);
+    Task DelayMaintainerWithStopAwarenessAsync(TimeSpan delay, CancellationToken cancellationToken = default);
 
-    Task<bool> ExecutorsShouldKeepRunningAsync(CancellationToken cancellationToken = default);
     Task<bool> MaintainerShouldKeepRunningAsync(CancellationToken cancellationToken = default);
 }
 
-internal sealed class AppliedExecutionEndArbiter : IAppliedExecutionEndArbiter
+/// <summary>
+///     Dictates if executor workers should continue running.
+///     Extends the functionality of the base IExecutionEndArbiter by accessing the job repository.
+///     Written as a test-friendly alternative to `while(true){}`
+/// </summary>
+internal interface IAppliedExecutorExecutionEndArbiter
+{
+    Task<bool> ExecutorsShouldKeepRunningAsync(CancellationToken cancellationToken = default);
+}
+
+internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEndArbiter,
+    IAppliedExecutorExecutionEndArbiter
 {
     private readonly IExecutionEndArbiter _executionEndArbiter;
     private readonly CancellationTokenSource _interruptCts = new();
@@ -30,17 +40,6 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedExecutionEndArbiter
 
     private int _inactiveJobsCount;
     private int _watchedJobsCount;
-
-    public AppliedExecutionEndArbiter(
-        IExecutionEndArbiter executionEndArbiter,
-        IJobRepository jobRepository,
-        ISleepService sleepService)
-    {
-        _executionEndArbiter = executionEndArbiter;
-        _sleepService = sleepService;
-        jobRepository.SubscribeToInactiveCountUpdate(OnInactiveJobChange);
-        jobRepository.SubscribeToWatchedJobsUpdate(OnWatchedJobChange);
-    }
 
     private void ConsiderSendingInterruptSignal()
     {
@@ -62,7 +61,26 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedExecutionEndArbiter
         ConsiderSendingInterruptSignal();
     }
 
-    public async Task DelayWithStopAwarenessAsync(TimeSpan delay, CancellationToken cancellationToken = default)
+    public AppliedExecutionEndArbiter(
+        IExecutionEndArbiter executionEndArbiter,
+        IJobRepository jobRepository,
+        ISleepService sleepService)
+    {
+        _executionEndArbiter = executionEndArbiter;
+        _sleepService = sleepService;
+        jobRepository.SubscribeToInactiveCountUpdate(OnInactiveJobChange);
+        jobRepository.SubscribeToWatchedJobsUpdate(OnWatchedJobChange);
+    }
+
+    public Task<bool> ExecutorsShouldKeepRunningAsync(CancellationToken cancellationToken = default)
+    {
+        // The executor doesn't care about other executors currently processing jobs, so ignoring the watched jobs count.
+        return Task.FromResult(_executionEndArbiter.ShouldKeepRunning()
+                               || _inactiveJobsCount > 0);
+    }
+
+    public async Task DelayMaintainerWithStopAwarenessAsync(TimeSpan delay,
+        CancellationToken cancellationToken = default)
     {
         using var linkedCts =
             CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _interruptCts.Token);
@@ -83,12 +101,5 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedExecutionEndArbiter
         return Task.FromResult(_executionEndArbiter.ShouldKeepRunning()
                                || _inactiveJobsCount > 0
                                || _watchedJobsCount > 0);
-    }
-
-    public Task<bool> ExecutorsShouldKeepRunningAsync(CancellationToken cancellationToken = default)
-    {
-        // The executor doesn't care about other executors currently processing jobs, so ignoring the watched jobs count.
-        return Task.FromResult(_executionEndArbiter.ShouldKeepRunning()
-                               || _inactiveJobsCount > 0);
     }
 }

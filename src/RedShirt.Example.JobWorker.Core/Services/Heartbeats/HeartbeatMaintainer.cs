@@ -22,7 +22,7 @@ internal interface IHeartbeatMaintainer : IHandlerSubComponent;
 #pragma warning disable S107
 internal sealed class HeartbeatMaintainer(
     IHeartbeatCalculator heartbeatCalculator,
-    IAppliedExecutionEndArbiter appliedExecutionEndArbiter,
+    IAppliedMaintainerExecutionEndArbiter appliedExecutionEndArbiter,
     IJobRepository jobRepository,
     IJobSource jobSource,
     ICoreHealthStateUpdateService healthStateUpdateService,

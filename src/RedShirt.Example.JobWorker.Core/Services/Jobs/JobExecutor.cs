@@ -25,7 +25,7 @@ internal interface IJobExecutor
 }
 
 internal sealed class JobExecutor(
-    IAppliedExecutionEndArbiter appliedExecutionEndArbiter,
+    IAppliedExecutorExecutionEndArbiter appliedExecutionEndArbiter,
     IJobRepository jobRepository,
     IIdempotencyExecutionService idempotencyExecutionService,
     ISafeJobRunner safeJobRunner,

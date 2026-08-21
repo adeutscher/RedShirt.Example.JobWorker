@@ -6,7 +6,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.Safety;
 
 /// <summary>
 ///     Runs a callback under a composite cancellation token so that a per-invocation time limit
-///     (or job-local cancellation) does not cancel the caller's token.
+///     does not cancel the caller's token.
 /// </summary>
 internal interface ITimeBorderWrapperService
 {

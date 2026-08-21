@@ -21,7 +21,7 @@ internal interface IIdempotencyMonitor : IHandlerSubComponent;
 
 #pragma warning disable S107
 internal sealed class IdempotencyMonitor(
-    IAppliedExecutionEndArbiter executionEndArbiter,
+    IAppliedMaintainerExecutionEndArbiter executionEndArbiter,
     IJobRepository jobRepository,
     IIdempotencyExecutionService idempotencyExecutionService,
     ISafeJobAcknowledgementService safeJobAcknowledgementService,

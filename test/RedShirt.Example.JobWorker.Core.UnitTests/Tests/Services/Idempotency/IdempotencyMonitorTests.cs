@@ -74,7 +74,7 @@ public class IdempotencyMonitorTests
             .Returns(Task.CompletedTask);
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -127,7 +127,7 @@ public class IdempotencyMonitorTests
         };
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -192,7 +192,7 @@ public class IdempotencyMonitorTests
         };
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -267,7 +267,7 @@ public class IdempotencyMonitorTests
         };
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
@@ -325,7 +325,8 @@ public class IdempotencyMonitorTests
     [Fact(Timeout = 1000)]
     public async Task RunAsync_WhenDisabled_ReturnsImmediately()
     {
-        var monitor = new IdempotencyMonitor(new Mock<IAppliedExecutionEndArbiter>(MockBehavior.Strict).Object,
+        var monitor = new IdempotencyMonitor(
+            new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict).Object,
             new Mock<IJobRepository>(MockBehavior.Strict).Object,
             new Mock<IIdempotencyExecutionService>(MockBehavior.Strict).Object,
             new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object, CreateSleepService(),
@@ -341,7 +342,7 @@ public class IdempotencyMonitorTests
         var idempotencyLock = CreateLock(false);
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
             .Setup(a => a.MaintainerShouldKeepRunningAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync((CancellationToken _) =>
