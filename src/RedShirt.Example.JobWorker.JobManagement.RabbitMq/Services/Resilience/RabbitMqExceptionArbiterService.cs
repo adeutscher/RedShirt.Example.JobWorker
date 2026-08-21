@@ -1,4 +1,5 @@
 using RabbitMQ.Client.Exceptions;
+using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using System.Net.Sockets;
@@ -64,6 +65,10 @@ internal class RabbitMqExceptionArbiterService : IRabbitMqExceptionArbiterServic
                     true,
                     workerJobSource is {IsHandled: false, CouldBeTransient: true},
                     workerJobSource.CouldBeExternallySolvable),
+            // Secret-manager failures (e.g. credential fetch) — already wrapped; propagate the
+            // secret layer's transient / externally-solvable classification for upstream decisions.
+            WorkerSecretManagerException workerSecretManager =>
+                Handled(true, workerSecretManager.CouldBeTransient, workerSecretManager.CouldBeExternallySolvable),
             // Broker / network / channel lifecycle blips — auto-recovery or ops can clear them.
             BrokerUnreachableException
                 or ConnectFailureException
