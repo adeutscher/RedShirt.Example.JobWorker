@@ -21,7 +21,13 @@ internal class InnerActiveMqConnectionFactory(
         CancellationToken cancellationToken = default)
     {
         var configuration = await configurationSource.GetConfigurationAsync(cancellationToken);
-        var connectionFactory = new ConnectionFactory(configuration.BrokerUri)
+
+        // If we are using a subscription, then enrich the URI to ensure fail-over
+        var brokerUri = activeMqSubscribeConfigurationService.IsSubscription
+            ? EnsureFailoverUri(configuration.BrokerUri)
+            : configuration.BrokerUri;
+
+        var connectionFactory = new ConnectionFactory(brokerUri)
         {
             UserName = configuration.User,
             Password = configuration.Password
@@ -36,5 +42,23 @@ internal class InnerActiveMqConnectionFactory(
         }
 
         return new ActiveMqConnectionWrapper(connectionFactory);
+    }
+
+    /// <summary>
+    ///     Wraps a plain broker URI in the NMS failover transport so the client reconnects
+    ///     after network interruptions (analogous to RabbitMQ AutomaticRecoveryEnabled).
+    ///     URIs that already use <c>failover:</c> are left unchanged.
+    /// </summary>
+    internal static string EnsureFailoverUri(string brokerUri)
+    {
+        // ReSharper disable once ConvertIfStatementToReturnStatement
+        if (brokerUri.StartsWith("failover:", StringComparison.OrdinalIgnoreCase))
+        {
+            return brokerUri;
+        }
+
+        // initialReconnectDelay=1000 mirrors RabbitMQ NetworkRecoveryInterval of 1s.
+        return
+            $"failover:({brokerUri})?transport.initialReconnectDelay=1000&transport.maxReconnectDelay=30000&transport.useExponentialBackOff=true";
     }
 }
