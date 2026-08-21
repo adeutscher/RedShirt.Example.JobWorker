@@ -38,16 +38,17 @@ public class JobSubscriberIntakeQueueTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Load_ThenGetNextAsync_ReturnsLoadedResponse()
+    public async Task GetNextAsync_AfterDrainAndStop_ReturnsNull()
     {
-        var (queue, _) = CreateQueue();
+        var (queue, raiseStop) = CreateQueue();
         var response = CreateResponse();
 
         queue.Load(response);
+        Assert.Same(response, await queue.GetNextAsync(TestContext.Current.CancellationToken));
 
-        var result = await queue.GetNextAsync(TestContext.Current.CancellationToken);
+        raiseStop(null);
 
-        Assert.Same(response, result);
+        Assert.Null(await queue.GetNextAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 2000)]
@@ -83,6 +84,20 @@ public class JobSubscriberIntakeQueueTests
     }
 
     [Fact(Timeout = 2000)]
+    public async Task GetNextAsync_WhenCancelledWhileWaiting_ThrowsOperationCanceledException()
+    {
+        var (queue, _) = CreateQueue();
+        using var cts = new CancellationTokenSource();
+
+        var getTask = queue.GetNextAsync(cts.Token);
+        Assert.False(getTask.IsCompleted);
+
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => getTask);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task GetNextAsync_WhenStoppedAndEmpty_ReturnsNull()
     {
         var (queue, raiseStop) = CreateQueue();
@@ -112,34 +127,6 @@ public class JobSubscriberIntakeQueueTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task GetNextAsync_AfterDrainAndStop_ReturnsNull()
-    {
-        var (queue, raiseStop) = CreateQueue();
-        var response = CreateResponse();
-
-        queue.Load(response);
-        Assert.Same(response, await queue.GetNextAsync(TestContext.Current.CancellationToken));
-
-        raiseStop(null);
-
-        Assert.Null(await queue.GetNextAsync(TestContext.Current.CancellationToken));
-    }
-
-    [Fact(Timeout = 2000)]
-    public async Task GetNextAsync_WhenCancelledWhileWaiting_ThrowsOperationCanceledException()
-    {
-        var (queue, _) = CreateQueue();
-        using var cts = new CancellationTokenSource();
-
-        var getTask = queue.GetNextAsync(cts.Token);
-        Assert.False(getTask.IsCompleted);
-
-        await cts.CancelAsync();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => getTask);
-    }
-
-    [Fact(Timeout = 2000)]
     public async Task Load_AfterStop_StillAllowsQueuedItemToBeRetrievedOnce()
     {
         var (queue, raiseStop) = CreateQueue();
@@ -150,5 +137,18 @@ public class JobSubscriberIntakeQueueTests
 
         Assert.Same(response, await queue.GetNextAsync(TestContext.Current.CancellationToken));
         Assert.Null(await queue.GetNextAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Load_ThenGetNextAsync_ReturnsLoadedResponse()
+    {
+        var (queue, _) = CreateQueue();
+        var response = CreateResponse();
+
+        queue.Load(response);
+
+        var result = await queue.GetNextAsync(TestContext.Current.CancellationToken);
+
+        Assert.Same(response, result);
     }
 }

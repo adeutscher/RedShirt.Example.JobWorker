@@ -15,6 +15,44 @@ public class JobSubscriberManagerTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenGetNextThrows_ReportsStopAndPropagates()
+    {
+        var unexpected = new InvalidOperationException("queue failed");
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
+        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
+
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource.SetupGet(s => s.IsSubscriptionSource).Returns(true);
+        jobSource
+            .Setup(s => s.StartSubscriberAsync(TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
+        var intakeQueue = new Mock<IJobSubscriberIntakeQueue>(MockBehavior.Strict);
+        intakeQueue
+            .Setup(q => q.GetNextAsync(TestContext.Current.CancellationToken))
+            .ThrowsAsync(unexpected);
+
+        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
+
+        var manager = new JobSubscriberManager(
+            jobLoaderStateService.Object,
+            jobSource.Object,
+            intakeQueue.Object,
+            jobIntakeService.Object);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            manager.RunAsync(TestContext.Current.CancellationToken));
+
+        Assert.Same(unexpected, thrown);
+        jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Once);
+        jobIntakeService.Verify(
+            s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task RunAsync_WhenNotSubscriptionSource_ReturnsNotEnabledWithoutSideEffects()
     {
         var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
@@ -36,49 +74,6 @@ public class JobSubscriberManagerTests
         Assert.Empty(intakeQueue.Invocations);
         Assert.Empty(jobIntakeService.Invocations);
         jobSource.Verify(s => s.StartSubscriberAsync(It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task RunAsync_WhenSubscriptionSourceAndQueueEmpty_StartsSubscriberThenFinishes()
-    {
-        var callLog = new List<string>();
-
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
-        jobLoaderStateService
-            .Setup(s => s.ReportLoaderStart())
-            .Callback(() => callLog.Add("ReportLoaderStart"));
-        jobLoaderStateService
-            .Setup(s => s.ReportLoaderStop())
-            .Callback(() => callLog.Add("ReportLoaderStop"));
-
-        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
-        jobSource.SetupGet(s => s.IsSubscriptionSource).Returns(true);
-        jobSource
-            .Setup(s => s.StartSubscriberAsync(TestContext.Current.CancellationToken))
-            .Callback(() => callLog.Add("StartSubscriber"))
-            .Returns(Task.CompletedTask);
-
-        var intakeQueue = new Mock<IJobSubscriberIntakeQueue>(MockBehavior.Strict);
-        intakeQueue
-            .Setup(q => q.GetNextAsync(TestContext.Current.CancellationToken))
-            .Callback(() => callLog.Add("GetNext"))
-            .ReturnsAsync((IJobSourceResponse?) null);
-
-        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
-
-        var manager = new JobSubscriberManager(
-            jobLoaderStateService.Object,
-            jobSource.Object,
-            intakeQueue.Object,
-            jobIntakeService.Object);
-
-        var result = await manager.RunAsync(TestContext.Current.CancellationToken);
-
-        Assert.Equal(HandlerComponentResponse.Finished, result);
-        Assert.Equal(["ReportLoaderStart", "StartSubscriber", "GetNext", "ReportLoaderStop"], callLog);
-        jobIntakeService.Verify(
-            s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
-            Times.Never);
     }
 
     [Fact]
@@ -161,44 +156,6 @@ public class JobSubscriberManagerTests
     }
 
     [Fact]
-    public async Task RunAsync_WhenGetNextThrows_ReportsStopAndPropagates()
-    {
-        var unexpected = new InvalidOperationException("queue failed");
-
-        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
-        jobLoaderStateService.Setup(s => s.ReportLoaderStart());
-        jobLoaderStateService.Setup(s => s.ReportLoaderStop());
-
-        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
-        jobSource.SetupGet(s => s.IsSubscriptionSource).Returns(true);
-        jobSource
-            .Setup(s => s.StartSubscriberAsync(TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
-
-        var intakeQueue = new Mock<IJobSubscriberIntakeQueue>(MockBehavior.Strict);
-        intakeQueue
-            .Setup(q => q.GetNextAsync(TestContext.Current.CancellationToken))
-            .ThrowsAsync(unexpected);
-
-        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
-
-        var manager = new JobSubscriberManager(
-            jobLoaderStateService.Object,
-            jobSource.Object,
-            intakeQueue.Object,
-            jobIntakeService.Object);
-
-        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            manager.RunAsync(TestContext.Current.CancellationToken));
-
-        Assert.Same(unexpected, thrown);
-        jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Once);
-        jobIntakeService.Verify(
-            s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
-
-    [Fact]
     public async Task RunAsync_WhenSubmitThrows_ReportsStopAndPropagates()
     {
         var response = CreateResponse();
@@ -236,5 +193,48 @@ public class JobSubscriberManagerTests
         Assert.Same(unexpected, thrown);
         jobLoaderStateService.Verify(s => s.ReportLoaderStop(), Times.Once);
         intakeQueue.Verify(q => q.GetNextAsync(TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenSubscriptionSourceAndQueueEmpty_StartsSubscriberThenFinishes()
+    {
+        var callLog = new List<string>();
+
+        var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
+        jobLoaderStateService
+            .Setup(s => s.ReportLoaderStart())
+            .Callback(() => callLog.Add("ReportLoaderStart"));
+        jobLoaderStateService
+            .Setup(s => s.ReportLoaderStop())
+            .Callback(() => callLog.Add("ReportLoaderStop"));
+
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource.SetupGet(s => s.IsSubscriptionSource).Returns(true);
+        jobSource
+            .Setup(s => s.StartSubscriberAsync(TestContext.Current.CancellationToken))
+            .Callback(() => callLog.Add("StartSubscriber"))
+            .Returns(Task.CompletedTask);
+
+        var intakeQueue = new Mock<IJobSubscriberIntakeQueue>(MockBehavior.Strict);
+        intakeQueue
+            .Setup(q => q.GetNextAsync(TestContext.Current.CancellationToken))
+            .Callback(() => callLog.Add("GetNext"))
+            .ReturnsAsync((IJobSourceResponse?) null);
+
+        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
+
+        var manager = new JobSubscriberManager(
+            jobLoaderStateService.Object,
+            jobSource.Object,
+            intakeQueue.Object,
+            jobIntakeService.Object);
+
+        var result = await manager.RunAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HandlerComponentResponse.Finished, result);
+        Assert.Equal(["ReportLoaderStart", "StartSubscriber", "GetNext", "ReportLoaderStop"], callLog);
+        jobIntakeService.Verify(
+            s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }
