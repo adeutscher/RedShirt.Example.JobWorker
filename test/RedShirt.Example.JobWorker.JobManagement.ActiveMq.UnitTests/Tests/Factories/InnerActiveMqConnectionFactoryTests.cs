@@ -43,28 +43,19 @@ public class InnerActiveMqConnectionFactoryTests
         return new InnerActiveMqConnectionFactory(configurationSource, subscribeConfiguration, coreConfiguration);
     }
 
-    private static void AssertFailoverUri(Uri brokerUri, string nestedBrokerUri)
-    {
-        var text = brokerUri.ToString();
-        Assert.StartsWith("failover:", text, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(nestedBrokerUri, text, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("initialreconnectdelay=1000", text, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("maxreconnectdelay=30000", text, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("useexponentialbackoff=true", text, StringComparison.OrdinalIgnoreCase);
-    }
-
     [Theory]
-    [InlineData("tcp://localhost:61616",
-        "failover:(tcp://localhost:61616)?transport.initialReconnectDelay=1000&transport.maxReconnectDelay=30000&transport.useExponentialBackOff=true")]
-    [InlineData("tcp://localhost:1234/",
-        "failover:(tcp://localhost:1234/)?transport.initialReconnectDelay=1000&transport.maxReconnectDelay=30000&transport.useExponentialBackOff=true")]
-    [InlineData("failover:(tcp://broker:61616)", "failover:(tcp://broker:61616)")]
+    [InlineData("tcp://localhost:61616", "tcp://localhost:61616")]
+    [InlineData("tcp://localhost:1234/", "tcp://localhost:1234/")]
+    [InlineData("failover:(tcp://broker:61616)", "tcp://broker:61616")]
+    [InlineData(
+        "failover:(tcp://broker:61616)?transport.maxReconnectAttempts=5",
+        "tcp://broker:61616")]
     [InlineData(
         "failover:(tcp://a:61616,tcp://b:61616)?transport.maxReconnectAttempts=5",
-        "failover:(tcp://a:61616,tcp://b:61616)?transport.maxReconnectAttempts=5")]
-    public void EnsureFailoverUri_WrapsPlainUriAndLeavesFailoverUri(string input, string expected)
+        "tcp://a:61616")]
+    public void StripFailoverUri_RemovesFailoverWrapperAndLeavesPlainUri(string input, string expected)
     {
-        Assert.Equal(expected, InnerActiveMqConnectionFactory.EnsureFailoverUri(input));
+        Assert.Equal(expected, InnerActiveMqConnectionFactory.StripFailoverUri(input));
     }
 
     [Theory]
@@ -108,7 +99,7 @@ public class InnerActiveMqConnectionFactoryTests
     }
 
     [Fact]
-    public async Task GetWrapperAsync_WhenSubscriptionAndBrokerUriAlreadyFailover_DoesNotRewrap()
+    public async Task GetWrapperAsync_WhenSubscriptionAndBrokerUriIsFailover_StripsFailover()
     {
         const string failoverUri = "failover:(tcp://broker:61616)?transport.maxReconnectAttempts=5";
         var configSource = CreateConfigSource(failoverUri);
@@ -122,18 +113,16 @@ public class InnerActiveMqConnectionFactoryTests
             await innerFactory.GetConnectionFactoryWrapperAsync(
                 cancellationToken: TestContext.Current.CancellationToken));
 
-        var text = wrapper.InternalConnectionFactory.BrokerUri.ToString();
-        Assert.StartsWith("failover:", text, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("tcp://broker:61616", text, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("maxreconnectattempts=5", text, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("initialreconnectdelay=1000", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("tcp://broker:61616/", wrapper.InternalConnectionFactory.BrokerUri.ToString());
+        Assert.DoesNotContain("failover", wrapper.InternalConnectionFactory.BrokerUri.ToString(),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
     [InlineData(1)]
     [InlineData(5)]
     [InlineData(100)]
-    public async Task GetWrapperAsync_WhenSubscription_SetsCredentialsFailoverUriAndQueuePrefetchFromBacklogSize(
+    public async Task GetWrapperAsync_WhenSubscription_SetsCredentialsPlainUriAndQueuePrefetchFromBacklogSize(
         int backlogSize)
     {
         var valueName = Guid.NewGuid().ToString();
@@ -164,7 +153,7 @@ public class InnerActiveMqConnectionFactoryTests
         var wrapper = Assert.IsType<ActiveMqConnectionWrapper>(rawWrapper);
         Assert.Equal(valueName, wrapper.InternalConnectionFactory.UserName);
         Assert.Equal(valuePassword, wrapper.InternalConnectionFactory.Password);
-        AssertFailoverUri(wrapper.InternalConnectionFactory.BrokerUri, valueHostname);
+        Assert.Equal(valueHostname, wrapper.InternalConnectionFactory.BrokerUri.ToString());
         Assert.Same(wrapper.InternalConnectionFactory, wrapper.ConnectionFactory);
         Assert.Equal(backlogSize, wrapper.InternalConnectionFactory.PrefetchPolicy.QueuePrefetch);
         coreConfiguration.Verify(c => c.GetBacklogSize(), Times.Once);

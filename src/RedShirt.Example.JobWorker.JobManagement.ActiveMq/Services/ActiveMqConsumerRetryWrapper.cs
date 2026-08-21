@@ -13,6 +13,8 @@ internal interface IActiveMqConsumerRetryWrapper
         Action<IConnection>? onNewConnectionCallback = null,
         Action<IMessageConsumer>? onNewMessageConsumerCallback = null,
         CancellationToken cancellationToken = default);
+
+    void ResetConsumer();
 }
 
 internal class ActiveMqConsumerRetryWrapper(
@@ -58,7 +60,7 @@ internal class ActiveMqConsumerRetryWrapper(
             throw;
         }
     }
-
+    
     /// <summary>
     ///     Get a cached consumer or get a new one from the connection factory.
     ///     Confirming that the invocation of this method should be already covered by the retry wrapper service.
@@ -99,7 +101,7 @@ internal class ActiveMqConsumerRetryWrapper(
         return consumer;
     }
 
-    private void ResetConsumer()
+    public void ResetConsumer()
     {
         _messageConsumer = null;
     }

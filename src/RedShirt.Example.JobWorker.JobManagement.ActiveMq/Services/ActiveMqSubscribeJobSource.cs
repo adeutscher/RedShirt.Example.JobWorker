@@ -23,11 +23,22 @@ internal class ActiveMqSubscribeJobSource(
     IJobSubscriberIntakeQueue jobSubscriberIntakeQueue,
     IExecutionEndArbiter executionEndArbiter,
     ISleepService sleepService,
+    IActiveMqSubscribeExceptionArbiter subscribeExceptionArbiter,
     IOptions<ActiveMqConfigurationModel> configuration,
     ILogger<ActiveMqSubscribeJobSource> logger)
     : IJobSource
 #pragma warning restore S107
 {
+    /// <summary>
+    ///     Cancellation token provided when subscription started.
+    /// </summary>
+    private CancellationToken _cancellationToken;
+
+    /// <summary>
+    ///     Whether <see cref="SubscribeWithRetryLoopAsync" /> is currently running.
+    /// </summary>
+    private bool _subscribeLoopRunning;
+
     private Task OnReceivedAsync(IMessage message, CancellationToken cancellationToken)
     {
         try
@@ -82,8 +93,7 @@ internal class ActiveMqSubscribeJobSource(
 
     /// <summary>
     ///     Attempt to start the consumer, retrying according to transient / halt-on-failure configuration.
-    ///     Keeping this in a separate method is a bit unnecessary, as opposed to RabbitMQ with its resubscribes.
-    ///     However, keeping it in because I like the clean declaration in StartSubscriptionAsync.
+    ///     Only one invocation may run at a time; concurrent callers return immediately.
     /// </summary>
     /// <param name="logVerb">
     ///     Verb used in error logs (e.g. "subscribing" or "re-subscribing").
@@ -91,52 +101,65 @@ internal class ActiveMqSubscribeJobSource(
     /// <param name="cancellationToken"></param>
     private async Task SubscribeWithRetryLoopAsync(string logVerb, CancellationToken cancellationToken)
     {
-        var firstIteration = true;
-        while (true)
+        // CompareExchange returns the prior value; true means another caller already holds the lock.
+        if (Interlocked.CompareExchange(ref _subscribeLoopRunning, true, false))
         {
-            if (!firstIteration)
-            {
-                await sleepService.DelayAsync(TimeSpan.FromSeconds(1), cancellationToken);
-            }
+            return;
+        }
 
-            firstIteration = false;
+        try
+        {
+            var firstIteration = true;
+            while (true)
+            {
+                if (!firstIteration)
+                {
+                    await sleepService.DelayAsync(TimeSpan.FromSeconds(1), cancellationToken);
+                }
 
-            try
-            {
-                await GetConsumerAndDoActionWithRetryAsync(StartConsumerAsync, cancellationToken);
-            }
-            catch (OperationCanceledException e) when (e.CancellationToken.IsCancellationRequested)
-            {
-                // Pass
-            }
+                firstIteration = false;
+
+                try
+                {
+                    await GetConsumerAndDoActionWithRetryAsync(StartConsumerAsync, cancellationToken);
+                }
+                catch (OperationCanceledException e) when (e.CancellationToken.IsCancellationRequested)
+                {
+                    // Pass
+                }
 #pragma warning disable S2139
-            // Misguided sonar warning
-            catch (Exception e)
+                // Misguided sonar warning
+                catch (Exception e)
 #pragma warning restore S2139
-            {
-                // Some variety of non-transient failure
-                logger.LogError(e, "Error {LogVerb} to ActiveMQ", logVerb);
-
-                if (e is WorkerJobSourceException {CouldBeTransient: true} &&
-                    !coreConfigurationService.IsTreatingTransientExceptionAsFailure())
                 {
-                    // Transient: Retry and try again
-                    continue;
+                    // Some variety of non-transient failure
+                    logger.LogError(e, "Error {LogVerb} to ActiveMQ", logVerb);
+
+                    if (e is WorkerJobSourceException {CouldBeTransient: true} &&
+                        !coreConfigurationService.IsTreatingTransientExceptionAsFailure())
+                    {
+                        // Transient: Retry and try again
+                        continue;
+                    }
+
+                    if (!coreConfigurationService.IsHaltOnFailure())
+                    {
+                        // Not halting on failure, continue and try again
+                        continue;
+                    }
+
+                    // HaltOnFailure is true.
+                    // Pass the exception up to one of our threads as opposed to an ActiveMQ-managed one
+                    executionEndArbiter.Stop(e);
+                    // Fall through to break out of loop
                 }
 
-                if (!coreConfigurationService.IsHaltOnFailure())
-                {
-                    // Not halting on failure, continue and try again
-                    continue;
-                }
-
-                // HaltOnFailure is true.
-                // Pass the exception up to one of our threads as opposed to an ActiveMQ-managed one
-                executionEndArbiter.Stop(e);
-                // Fall through to break out of loop
+                break;
             }
-
-            break;
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _subscribeLoopRunning, false);
         }
     }
 
@@ -147,21 +170,80 @@ internal class ActiveMqSubscribeJobSource(
             cancellationToken: cancellationToken);
     }
 
-    private void OnConnectionInterrupted()
+    /// <summary>
+    ///     Handle ActiveMQ exceptions.
+    ///     Intended to handle network connection problems and initiate a reconnect.
+    /// </summary>
+    /// <param name="exception"></param>
+    private void OnException(Exception exception)
     {
-        logger.LogWarning("ActiveMQ connection interrupted");
+        /*
+         * ExceptionListener is the reconnect signal when not using NMS failover.
+         * However, ExceptionListener casts a wider net that we need to filter out.
+         *
+         * During development this was originally done using the ActiveMQ library's built-in fail-over settings,
+         * which were enforced on the broker URI in the connection factory. However, this did not cover the niche
+         * case of what might happen if the connection was interrupted AND the credentials changed.
+         * Also explained in the connection factory.
+         */
+
+        if (subscribeExceptionArbiter.IsReasonToReconnect(exception)
+            || subscribeExceptionArbiter.IsReasonToStopIfHaltOnFailure(exception))
+        {
+            /*
+             * Is an explicit reason to reconnect or another serious error. Funnel both through reconnection.
+             *
+             * If it is a known reason to reconnect, then reconnect is exactly what we'll do.
+             * If it is another error, then the reconnect serves a few different purposes:
+             *  * The reconnect is aware of the established retry loop and the main exception arbiter, allowing both to weigh in.
+             *  * If HaltOnFailure is false, then it allows the subscriber a chance to recover
+             *  * If HaltOnFailure is true, then the established retry loop still stops the application
+             */
+
+            // We want to kick off a worker thread to reconnect and resubscribe.
+            // Not doing it here because we are not in an async method.
+
+            // Avoid spawning another reconnect task while a subscribe loop is already in flight.
+            if (Volatile.Read(ref _subscribeLoopRunning))
+            {
+                return;
+            }
+
+            logger.LogWarning(exception, "ActiveMQ ExceptionListener problem, reconnecting");
+
+            consumerRetryWrapper.ResetConsumer();
+
+            _ = Task.Run(() => SubscribeWithRetryLoopAsync("re-subscribing", _cancellationToken), _cancellationToken);
+            return;
+        }
+
+        if (subscribeExceptionArbiter.IsAccountedForAndLikelyTransientError(exception))
+        {
+            // Is an expected transient error, not worth warning about
+            return;
+        }
+
+        logger.LogWarning(exception,
+            "Unaccounted-for exception in {Name}. Classify via {IActiveMqSubscribeExceptionArbiter} methods",
+            nameof(ActiveMqSubscribeJobSource),
+            nameof(IActiveMqSubscribeExceptionArbiter));
     }
 
     private void OnNewConnection(IConnection connection)
     {
-        connection.ConnectionInterruptedListener -= OnConnectionInterrupted;
-        connection.ConnectionInterruptedListener += OnConnectionInterrupted;
+        // Deliberately using ExceptionListener instead of ConnectionInterruptedListener.
+        // ConnectionInterruptedListener is not used when not using fail-over
+        //  (as is enforced in the factory for subscribe mode, see there for justification)
+        connection.ExceptionListener -= OnException;
+        connection.ExceptionListener += OnException;
         connection.ConnectionResumedListener -= OnConnectionResumed;
         connection.ConnectionResumedListener += OnConnectionResumed;
     }
 
     private async Task WaitThenStopSubscriberAsync(CancellationToken cancellationToken = default)
     {
+        _cancellationToken = cancellationToken;
+
         await executionEndArbiter.WaitForFinishedAsync(cancellationToken);
 
         try
@@ -227,7 +309,7 @@ internal class ActiveMqSubscribeJobSource(
 
     public async Task StartSubscriberAsync(CancellationToken cancellationToken = default)
     {
-        // Kick off the task that shall watch for unsubscribes
+        // Kick off the task that shall watch for unsubscribes when the application stops
         _ = Task.Run(() => WaitThenStopSubscriberAsync(cancellationToken), cancellationToken);
 
         await SubscribeWithRetryLoopAsync("subscribing", cancellationToken);

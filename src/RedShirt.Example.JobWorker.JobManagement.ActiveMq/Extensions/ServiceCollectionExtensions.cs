@@ -41,6 +41,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IInnerActiveMqConnectionFactory, InnerActiveMqConnectionFactory>()
             .AddSingleton<IActiveMqConnectionFactory, ActiveMqConnectionFactory>()
             .AddSingleton<IActiveMqExceptionArbiterService, ActiveMqExceptionArbiterService>()
+            .AddSingleton<IActiveMqSubscribeExceptionArbiter, ActiveMqSubscribeExceptionArbiterService>()
             .AddSingleton<IActiveMqRetryWrapperService, ActiveMqRetryWrapperService>()
             .AddSingleton<IActiveMqConsumerRetryWrapper, ActiveMqConsumerRetryWrapper>();
     }

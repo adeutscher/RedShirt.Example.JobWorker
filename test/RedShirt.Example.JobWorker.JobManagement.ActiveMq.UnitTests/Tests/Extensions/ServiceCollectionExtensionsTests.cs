@@ -27,6 +27,7 @@ public class ServiceCollectionExtensionsTests
         Assert.Contains(services, d => d.ServiceType == typeof(IJobFailureHandler)
                                        && d.ImplementationType == typeof(NoReactionFailureHandler));
         Assert.Contains(services, d => d.ServiceType == typeof(IActiveMqExceptionArbiterService));
+        Assert.Contains(services, d => d.ServiceType == typeof(IActiveMqSubscribeExceptionArbiter));
         Assert.Contains(services, d => d.ServiceType == typeof(IActiveMqRetryWrapperService));
         Assert.Contains(services, d => d.ServiceType == typeof(IActiveMqConsumerRetryWrapper)
                                        && d.ImplementationType == typeof(ActiveMqConsumerRetryWrapper));

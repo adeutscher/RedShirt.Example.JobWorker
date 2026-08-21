@@ -26,9 +26,11 @@ internal class InnerActiveMqConnectionFactory(
             forceNewSecretManagerPull,
             cancellationToken);
 
-        // If we are using a subscription, then enrich the URI to ensure fail-over
+        // Subscription mode uses our own reconnect/resubscribe loop (see ActiveMqSubscribeJobSource),
+        // which can force a fresh secret-manager pull when credentials change on top of a connection interruption.
+        // NMS failover transport would reconnect with the original factory credentials and fight that mechanism — strip it.
         var brokerUri = activeMqSubscribeConfigurationService.IsSubscription
-            ? EnsureFailoverUri(configuration.BrokerUri)
+            ? StripFailoverUri(configuration.BrokerUri)
             : configuration.BrokerUri;
 
         var connectionFactory = new ConnectionFactory(brokerUri)
@@ -49,20 +51,25 @@ internal class InnerActiveMqConnectionFactory(
     }
 
     /// <summary>
-    ///     Wraps a plain broker URI in the NMS failover transport so the client reconnects
-    ///     after network interruptions (analogous to RabbitMQ AutomaticRecoveryEnabled).
-    ///     URIs that already use <c>failover:</c> are left unchanged.
+    ///     Removes an NMS <c>failover:</c> wrapper from <paramref name="brokerUri" />, leaving the nested
+    ///     broker address (first composite URI when several are listed). Plain URIs are returned unchanged.
     /// </summary>
-    internal static string EnsureFailoverUri(string brokerUri)
+    internal static string StripFailoverUri(string brokerUri)
     {
-        // ReSharper disable once ConvertIfStatementToReturnStatement
-        if (brokerUri.StartsWith("failover:", StringComparison.OrdinalIgnoreCase))
+        if (!brokerUri.StartsWith("failover:", StringComparison.OrdinalIgnoreCase))
         {
             return brokerUri;
         }
 
-        // initialReconnectDelay=1000 mirrors RabbitMQ NetworkRecoveryInterval of 1s.
-        return
-            $"failover:({brokerUri})?transport.initialReconnectDelay=1000&transport.maxReconnectDelay=30000&transport.useExponentialBackOff=true";
+        var open = brokerUri.IndexOf('(');
+        var close = brokerUri.LastIndexOf(')');
+        if (open < 0 || close <= open)
+        {
+            return brokerUri;
+        }
+
+        var nested = brokerUri[(open + 1)..close];
+        var comma = nested.IndexOf(',');
+        return comma < 0 ? nested : nested[..comma];
     }
 }
