@@ -9,7 +9,7 @@ The scripts described below assume that certain Python modules are installed in 
 
 Run the following to install all of the assumed modules at once:
 
-```
+```bash
 pip install --user boto3 awscli awslocal stomp.py azure-cli azure.servicebus azure-storage-queue azure.identity azure.keyvault kafka-python redis pika google-cloud-pubsub pulsar-client
 ```
 
@@ -34,41 +34,42 @@ To initialize SQS and queue sample messages:
 
 1. Bring up ministack and Redis:
 
-```
+```bash
 docker compose up -d ministack redis
 ```
 
 2. Run the `make-local-aws-resources.sh` script:
 
-```
+```bash
 ./make-local-aws-resources.sh
 ```
 
 3. Use the `send-sqs-message.py` script to send a message into SQS. Specify the number of seconds the worker should sleep for in the first argument:
 
-```
+```bash
 ./send-sqs-message.py 12
 ```
 
 4. Before starting the worker, make sure none of the `USE_` environment variables are set to **1**, and unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
-```
-export USE_ACTIVEMQ=0
-export USE_KINESIS=0
-export USE_KAFKA=0
-export USE_PULSAR=0
-export USE_AZURE_QUEUE_STORAGE=0
-export USE_AZURE_SERVICE_BUS=0
-export USE_NATS=0
-export USE_REDIS_STREAMS=0
-export USE_RABBITMQ=0
-export USE_RABBITMQ_SUBSCRIBE=0
-export USE_GOOGLE_PUB_SUB=0
-unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH```
+    ```bash
+    export USE_ACTIVEMQ=0
+    export USE_KINESIS=0
+    export USE_KAFKA=0
+    export USE_PULSAR=0
+    export USE_AZURE_QUEUE_STORAGE=0
+    export USE_AZURE_SERVICE_BUS=0
+    export USE_NATS=0
+    export USE_REDIS_STREAMS=0
+    export USE_RABBITMQ=0
+    export USE_RABBITMQ_SUBSCRIBE=0
+    export USE_GOOGLE_PUB_SUB=0
+    unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+    ```
 
 5. Bring up the worker:
 
-    ```
+    ```bash
     docker compose up worker
     ```
 
@@ -78,26 +79,26 @@ To initialize Kinesis and queue sample messages:
 
 1. Bring up ministack and Redis:
 
-    ```
+    ```bash
     docker compose up -d ministack redis
     ```
 
 2. Run the `make-local-aws-resources.sh` script:
 
-    ```
+    ```bash
     ./make-local-aws-resources.sh
     ```
 
 3. Use the `send-sqs-message.py` script to send a message into SQS. Specify the number of seconds the worker should sleep for in the first argument:
 
-    ```
+    ```bash
     ./put-kinesis-job.py 12
     ```
 
 4. Before starting the worker, make sure that neither the `USE_KINESIS` is set to `1` and that other `USE_` environment variables are not set to `1`.
    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
-    ```
+    ```bash
     export USE_ACTIVEMQ=0
     export USE_KINESIS=1
     export USE_KAFKA=0
@@ -114,7 +115,7 @@ To initialize Kinesis and queue sample messages:
 
 5. Bring up the worker:
 
-    ```
+    ```bash
     docker compose up worker
     ```
 
@@ -124,26 +125,26 @@ To initialize Kafka and queue sample messages:
 
 1. Bring up ministack, Kafka, and Redis:
 
-    ```
+    ```bash
     docker compose up -d ministack kafka redis
     ```
 
 2. Run the `make-local-aws-resources.sh` script (creates the SQS queue used for Kafka job failures):
 
-    ```
+    ```bash
     ./make-local-aws-resources.sh
     ```
 
 3. Use the `put-kafka-job.py` script (requires the `kafka-python` module) to publish a message to the `jobs` topic. Specify the number of seconds the worker should sleep for in the first argument:
 
-    ```
+    ```bash
     ./put-kafka-job.py 12
     ```
 
 4. Before starting the worker, make sure that `USE_KAFKA` is set to `1` and that other `USE_` environment variables are not set to `1`.
     Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`)::
 
-    ```
+    ```bash
     export USE_KAFKA=1
     export USE_PULSAR=0
     export USE_ACTIVEMQ=0
@@ -160,7 +161,7 @@ To initialize Kafka and queue sample messages:
 
 5. Bring up the worker:
 
-    ```
+    ```bash
     docker compose up worker
     ```
 
@@ -170,32 +171,32 @@ To initialize Apache Pulsar and queue sample messages:
 
 1. Bring up ministack, Pulsar, and Redis:
 
-    ```
+    ```bash
     docker compose up -d ministack pulsar redis
     ```
 
 2. Run the `make-local-aws-resources.sh` script (creates shared local AWS resources such as Redis SSM params):
 
-    ```
+    ```bash
     ./make-local-aws-resources.sh
     ```
 
 3. Wait for Pulsar to become ready, then create the local topic with `make-local-pulsar-resources.py` (uses the admin HTTP API; no extra Python packages):
 
-    ```
+    ```bash
     ./make-local-pulsar-resources.py
     ```
 
 4. Use the `send-pulsar-job.py` script (requires the `pulsar-client` module) to publish a message to `persistent://public/default/jobs`. Specify the number of seconds the worker should sleep for in the first argument:
 
-    ```
+    ```bash
     ./send-pulsar-job.py 12
     ```
 
 5. Before starting the worker, make sure that `USE_PULSAR` is set to `1` and that other `USE_` environment variables are not set to `1`.
     Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
-    ```
+    ```bash
     export USE_PULSAR=1
     export USE_KAFKA=0
     export USE_ACTIVEMQ=0
@@ -212,7 +213,7 @@ To initialize Apache Pulsar and queue sample messages:
 
 6. Bring up the worker:
 
-    ```
+    ```bash
     docker compose up worker
     ```
 
@@ -226,31 +227,31 @@ To initialize RabbitMQ and queue messages:
 
 1. Bring up ministack and Redis:
 
-    ```
+    ```bash
     docker compose up -d ministack redis
     ```
 
 2. Run the `make-local-aws-resources.sh` script:
 
-    ```
+    ```bash
     ./make-local-aws-resources.sh
     ```
 
 3. Bring up RabbitMQ:
 
-    ```
+    ```bash
     docker compose up -d rabbitmq
     ```
 
 4. Create the RabbitMQ queue (safe to re-run if it already exists). This requires the `pika` Python module:
 
-    ```
+    ```bash
     ./make-local-rabbitmq-resources.py
     ```
 
 5. Use the `send-rabbitmq-job.py` script to publish a message to the `RabbitQueue` queue. Specify the number of seconds the worker should sleep for in the first argument. You may optionally provide a second argument to set the AMQP `message_id` property for idempotency testing:
 
-    ```
+    ```bash
     ./send-rabbitmq-job.py 12
     ./send-rabbitmq-job.py 12 example-idempotency-key
     ```
@@ -292,19 +293,19 @@ To initialize RabbitMQ and queue messages:
 
 1. Bring up ministack and Redis:
 
-    ```
+    ```bash
     docker compose up -d ministack redis
     ```
 
 2. Run the `make-local-aws-resources.sh` script:
 
-    ```
+    ```bash
     ./make-local-aws-resources.sh
     ```
 
 3. Bring up ActiveMQ:
 
-    ```
+    ```bash
     docker compose up -d activemq
     ```
 
@@ -330,20 +331,20 @@ To initialize RabbitMQ and queue messages:
 
     * Use the `send-activemq-message.py` script (requires the `stomp.py` Python library)
 
-    ```
+    ```bash
     ./send-activemq-message.py 12
     ```
 
     * In Artemis JMX, select the ActiveQueue address and then select the 'Send Message' tab. Example of a message JSON:
 
-    ```
+    ```json
     {"SleepDurationSeconds": 12}
     ```
 
 14. Before starting the worker, make sure that neither the `USE_ACTIVEMQ` is set to `1` and that other `USE_` environment variables are not set to `1`.
     Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
-    ```
+    ```bash
     export USE_ACTIVEMQ=1
     export USE_KINESIS=0
     export USE_KAFKA=0
@@ -360,7 +361,7 @@ To initialize RabbitMQ and queue messages:
 
 15. Bring up the worker:
 
-    ```
+    ```bash
     docker compose up worker
     ```
 
@@ -382,36 +383,36 @@ To install the `nats` command:
 
 1. Bring up ministack and Redis:
 
-    ```
+    ```bash
     docker compose up -d ministack redis
     ```
 
 2. Run the `make-local-aws-resources.sh` script:
 
-    ```
+    ```bash
     ./make-local-aws-resources.sh
     ```
 3. Bring up NATS:
 
-    ```
+    ```bash
     docker compose up -d nats
     ```
 4. Create your stream:
 
-    ```
+    ```bash
     NATS_URL=nats://admin:admin@localhost:4222 nats stream add TestStream --subjects foo --replicas 1 --defaults
     ```
 
 5. To insert a new sample message to sleep for 5 seconds:
 
-    ```
+    ```bash
     ./send-nats-message.sh 5
     ```
 
 6. Before starting the worker, make sure that the `USE_NATS` is set to `1` and that other `USE_` environment variables are not set to `1`.
    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
-    ```
+    ```bash
     export USE_NATS=1
     export USE_ACTIVEMQ=0
     export USE_KAFKA=0
@@ -428,7 +429,7 @@ To install the `nats` command:
 
 7. Bring up the worker:
 
-    ```
+    ```bash
     docker compose up worker
     ```
 
@@ -440,25 +441,25 @@ Redis Streams testing requires the `redis` Python module to be installed.
 
 1. Bring up ministack and Redis:
 
-    ```
+    ```bash
     docker compose up -d ministack redis
     ```
 
 2. Run the `make-local-aws-resources.sh` script:
 
-    ```
+    ```bash
     ./make-local-aws-resources.sh
     ```
 
 3. Create the Redis stream consumer group (creates the `jobs` stream if needed). This is safe to re-run if the group already exists:
 
-    ```
+    ```bash
     ./make-local-redis-streams-resources.py
     ```
 
 4. Use the `send-redis-streams-job.py` script to publish a message to the `jobs` stream. Specify the number of seconds the worker should sleep for in the first argument. You may optionally provide a second argument to set the `message_id` field for idempotency testing:
 
-    ```
+    ```bash
     ./send-redis-streams-job.py 12
     ./send-redis-streams-job.py 12 example-idempotency-key
     ```
@@ -466,7 +467,7 @@ Redis Streams testing requires the `redis` Python module to be installed.
 5. Before starting the worker, make sure that `USE_REDIS_STREAMS` is set to `1` and that the other `USE_` environment variables are not set to `1`.
    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
-    ```
+    ```bash
     export USE_REDIS_STREAMS=1
     export USE_NATS=0
     export USE_ACTIVEMQ=0
@@ -481,7 +482,7 @@ Redis Streams testing requires the `redis` Python module to be installed.
 
 6. Bring up the worker:
 
-    ```
+    ```bash
     docker compose up worker
     ```
 
@@ -489,7 +490,7 @@ Redis Streams testing requires the `redis` Python module to be installed.
 
 Testing `Azure Queue Storage` with the below instructions will require the various Azure-related python module to be installed:
 
-```
+```bash
 pip install azure-cli azure-storage-queue azure.identity azure.keyvault
 ```
 
@@ -513,31 +514,31 @@ VSCode automatically knows how to point to your local `azurite` server after the
 
 1. Run `generate-azure-key-vault-cert.sh` to generate the certificate files necessary for the Azure Key Vault Emulator to work.
 
-    ```
+    ```bash
     ./generate-azure-key-vault-cert.sh
     ```
 
 2. Bring up `azure-key-vault-emulator` (which shall be holding the connection string for Azure Queue Storage) and Redis:
 
-    ```
+    ```bash
     docker compose up -d azure-key-vault-emulator redis
     ```
 
 3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage, Azure Service Bus, and Redis (`common-distributed-redis`) in the Azure Key Vault emulator:
 
-    ```
+    ```bash
     ./set-azure-key-vault-secrets.py
     ```
 
 4. Bring up `azurite`:
 
-    ```
+    ```bash
     docker compose up -d azurite
     ```
 
 5. Create the `test-azure-queue` queue (if it does not already exist) and send a job that will tell the worker to sleep for the specified number of seconds:
 
-    ```
+    ```bash
     ./send-azure-queue-job.py 12
     ```
 
@@ -546,7 +547,7 @@ VSCode automatically knows how to point to your local `azurite` server after the
 6. Before starting the worker, make sure that the `USE_AZURE_QUEUE_STORAGE` is set to `1` and that other `USE_` environment variables are not set to `1`.
    You will also point Redis at the Key Vault secret name created by `set-azure-key-vault-secrets.py`, as the compose file's default is to use the SSM path (Azure Key Vault key and SSM Parameter Store path formats are entirely incompatible with one another):
 
-    ```
+    ```bash
     export USE_AZURE_QUEUE_STORAGE=1
     export USE_AZURE_SERVICE_BUS=0
     export USE_NATS=0
@@ -563,7 +564,7 @@ VSCode automatically knows how to point to your local `azurite` server after the
 
 7. Bring up the worker:
 
-    ```
+    ```bash
     docker compose up worker
     ```
 
@@ -571,7 +572,7 @@ VSCode automatically knows how to point to your local `azurite` server after the
 
 Testing `Azure Service Bus` will require the various Azure-related python module to be installed:
 
-```
+```bash
 pip install azure.servicebus azure.identity azure.keyvault
 ```
 
@@ -579,43 +580,43 @@ pip install azure.servicebus azure.identity azure.keyvault
 
 1. Run `generate-azure-key-vault-cert.sh` to generate the certificate files necessary for the Azure Key Vault Emulator to work.
 
-    ```
+    ```bash
     ./generate-azure-key-vault-cert.sh
     ```
 
 2. Bring up `azure-key-vault-emulator` (which shall be holding the connection string for Azure Service Bus) and Redis:
 
-    ```
+    ```bash
     docker compose up -d azure-key-vault-emulator redis
     ```
 
 3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage, Azure Service Bus, and Redis (`common-distributed-redis`) in the Azure Key Vault emulator:
 
-    ```
+    ```bash
     ./set-azure-key-vault-secrets.py
     ```
 
 4. Set a value for the `LOCAL_MSSQL_SA_PASSWORD` environment environment variable to be used by the local SQL Server container that we will be spinning up (to set this for long-term, place it in your home directory's `~/.bashrc` file) (password must be at least 8 characters and contain a number and special character):
 
-    ```
+    ```bash
     export LOCAL_MSSQL_SA_PASSWORD="ExamplePassword1@"
     ```
 
 5. Bring up `azure-service-bus-mssql`, the database back-end used by the service bus emulator:
 
-    ```
+    ```bash
     docker compose up -d azure-service-bus-mssql
     ```
 
 6. The service bus emulator depends on a configuration file located at `config/azure-service-bus/service-bus-config.json`. Make sure that the container can read it with `chmod`:
 
-    ```
+    ```bash
     chmod o+r config/azure-service-bus/service-bus-config.json
     ```
 
 7. Bring up `azure-service-bus-emulator`:
 
-    ```
+    ```bash
     docker compose up -d azure-service-bus-emulator
     ```
 
@@ -623,14 +624,14 @@ pip install azure.servicebus azure.identity azure.keyvault
 
 9. The configuration file defined for the service bus emulator defines a queue named `test-queue`. To send to this queue, you can use the provided python script to send a job that will tell the worker to sleep for the specified number of seconds:
 
-    ```
+    ```bash
     ./send-azure-service-bus-job.py 12
     ```
 
 10. Before starting the worker, make sure that the `USE_AZURE_SERVICE_BUS` is set to `1` and that other `USE_` environment variables are not set to `1`.
     You will also point Redis at the Key Vault secret name created by `set-azure-key-vault-secrets.py`, as the compose file's default is to use the SSM path (Azure Key Vault key and SSM Parameter Store path formats are entirely incompatible with one another):
 
-    ```
+    ```bash
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=1
     export USE_NATS=0
@@ -647,7 +648,7 @@ pip install azure.servicebus azure.identity azure.keyvault
 
 11. Bring up the worker:
 
-    ```
+    ```bash
     docker compose up worker
     ```
 
@@ -657,32 +658,32 @@ To initialize Google Pub/Sub and queue sample messages:
 
 1. Bring up the Pub/Sub emulator, ministack, and Redis:
 
-    ```
+    ```bash
     docker compose up -d google-pubsub-emulator ministack redis
     ```
 
 2. Run the `make-local-aws-resources.sh` script (creates the Redis SSM parameter used for idempotency):
 
-    ```
+    ```bash
     ./make-local-aws-resources.sh
     ```
 
 3. Create the local topic and pull subscription (emulator state is in-memory and is lost when the `pubsub` container is recreated):
 
-    ```
+    ```bash
     ./make-local-google-pubsub-resources.py
     ```
 
 4. Use the `send-google-pubsub-job.py` script (requires the `google-cloud-pubsub` module) to publish a message to the `jobs` topic. Specify the number of seconds the worker should sleep for in the first argument:
 
-    ```
+    ```bash
     ./send-google-pubsub-job.py 12
     ```
 
 5. Before starting the worker, make sure that `USE_GOOGLE_PUB_SUB` is set to `1` and that other `USE_` environment variables are not set to `1`.
    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
 
-    ```
+    ```bash
     export USE_GOOGLE_PUB_SUB=1
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
@@ -697,6 +698,6 @@ To initialize Google Pub/Sub and queue sample messages:
 
 6. Bring up the worker:
 
-    ```
+    ```bash
     docker compose up worker
     ```
