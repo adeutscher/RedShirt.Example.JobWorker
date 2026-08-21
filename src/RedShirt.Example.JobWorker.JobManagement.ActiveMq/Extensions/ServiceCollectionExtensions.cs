@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services.Resilience;
@@ -17,7 +18,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobSource, ActiveMqJobSource>()
             .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>()
             // Supporting
-            .Configure<ActiveMqJobSource.ConfigurationModel>(configuration.GetSection("JobSource:ActiveMq"))
+            .Configure<ActiveMqConfigurationModel>(configuration.GetSection("JobSource:ActiveMq"))
             .Configure<ActiveMqServerConfigurationSource.ConfigurationModel>(
                 configuration.GetSection("JobSource:ActiveMq"))
             .AddSingleton<IActiveMqServerConfigurationSource, ActiveMqServerConfigurationSource>()
