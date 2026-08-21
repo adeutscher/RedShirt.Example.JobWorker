@@ -20,6 +20,7 @@ public class DependencyInjectionTests
             ["UseNats"] = "0",
             ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "0",
+            ["UseRabbitMqSubscribe"] = "0",
             ["UseKinesis"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
@@ -43,6 +44,7 @@ public class DependencyInjectionTests
             ["UseNats"] = "0",
             ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "0",
+            ["UseRabbitMqSubscribe"] = "0",
             ["UseKinesis"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
@@ -65,6 +67,7 @@ public class DependencyInjectionTests
             ["UseGooglePubSub"] = "0",
             ["UseNats"] = "0",
             ["UseRabbitMq"] = "0",
+            ["UseRabbitMqSubscribe"] = "0",
             ["UseKinesis"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
@@ -88,6 +91,7 @@ public class DependencyInjectionTests
             ["UseNats"] = "0",
             ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "0",
+            ["UseRabbitMqSubscribe"] = "0",
             ["UseKinesis"] = "0",
             ["UseKafka"] = "0"
         }, () => { Assert.NotNull(Setup.GetHost()); });
@@ -110,6 +114,7 @@ public class DependencyInjectionTests
             ["UseNats"] = "0",
             ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "0",
+            ["UseRabbitMqSubscribe"] = "0",
             ["UseKinesis"] = "0",
             ["UseKafka"] = "1",
             ["UsePulsar"] = "0"
@@ -133,6 +138,7 @@ public class DependencyInjectionTests
             ["UseNats"] = "0",
             ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "0",
+            ["UseRabbitMqSubscribe"] = "0",
             ["UseKinesis"] = "1",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
@@ -157,6 +163,7 @@ public class DependencyInjectionTests
             ["UseNats"] = "1",
             ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "0",
+            ["UseRabbitMqSubscribe"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
         }, () => { Assert.NotNull(Setup.GetHost()); });
@@ -177,6 +184,7 @@ public class DependencyInjectionTests
             ["UseAzureServiceBus"] = "0",
             ["UseNats"] = "0",
             ["UseRabbitMq"] = "0",
+            ["UseRabbitMqSubscribe"] = "0",
             ["UseKinesis"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "1"
@@ -193,6 +201,7 @@ public class DependencyInjectionTests
             ["AWS_SECRET_ACCESS_KEY"] = "bar",
             ["AWS_SESSION_TOKEN"] = "foobar",
             ["HEALTH__ENABLED"] = "false",
+            ["JOB_SOURCE__RABBITMQ__SUBSCRIBE"] = "false",
             ["UseActiveMq"] = "0",
             ["UseAzureQueueStorage"] = "0",
             ["UseAzureServiceBus"] = "0",
@@ -201,6 +210,32 @@ public class DependencyInjectionTests
             ["UseNats"] = "0",
             ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "1",
+            ["UseRabbitMqSubscribe"] = "0",
+            ["UseKafka"] = "0",
+            ["UsePulsar"] = "0"
+        }, () => { Assert.NotNull(Setup.GetHost()); });
+    }
+
+    [Fact]
+    public void Test_Get_Runner_RabbitMqSubscribe()
+    {
+        TestUtilities.WrapEnvironment(new Dictionary<string, string>
+        {
+            ["AWS_SERVICE_URL"] = "http://foo.bar",
+            ["AWS_ACCESS_KEY_ID"] = "foo",
+            ["AWS_SECRET_ACCESS_KEY"] = "bar",
+            ["AWS_SESSION_TOKEN"] = "foobar",
+            ["HEALTH__ENABLED"] = "false",
+            ["JOB_SOURCE__RABBITMQ__SUBSCRIBE"] = "true",
+            ["UseActiveMq"] = "0",
+            ["UseAzureQueueStorage"] = "0",
+            ["UseAzureServiceBus"] = "0",
+            ["UseGooglePubSub"] = "0",
+            ["UseKinesis"] = "0",
+            ["UseNats"] = "0",
+            ["UseRedisStreams"] = "0",
+            ["UseRabbitMq"] = "1",
+            ["UseRabbitMqSubscribe"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
         }, () => { Assert.NotNull(Setup.GetHost()); });
@@ -223,6 +258,7 @@ public class DependencyInjectionTests
             ["UseNats"] = "0",
             ["UseRedisStreams"] = "1",
             ["UseRabbitMq"] = "0",
+            ["UseRabbitMqSubscribe"] = "0",
             ["UseKafka"] = "0"
         }, () => { Assert.NotNull(Setup.GetHost()); });
     }
@@ -246,6 +282,7 @@ public class DependencyInjectionTests
             ["UseNats"] = "0",
             ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "0",
+            ["UseRabbitMqSubscribe"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
         }, () => { Assert.NotNull(Setup.GetHost()); });
@@ -270,6 +307,7 @@ public class DependencyInjectionTests
             ["UseNats"] = "0",
             ["UseRedisStreams"] = "0",
             ["UseRabbitMq"] = "0",
+            ["UseRabbitMqSubscribe"] = "0",
             ["UseKafka"] = "0",
             ["UsePulsar"] = "0"
         }, () => { Assert.NotNull(Setup.GetHost()); });

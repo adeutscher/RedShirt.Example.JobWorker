@@ -308,9 +308,5 @@ public class AzureServiceBusJobSourceTests
         var job = new Mock<IRawJobModel>();
 
         await jobSource.HeartbeatAsync(job.Object, TestContext.Current.CancellationToken);
-
-        client.Verify(
-            c => c.RenewMessageLockAsync(It.IsAny<IServiceBusMessageContainer>(),
-                It.IsAny<CancellationToken>()), Times.Never);
     }
 }

@@ -65,6 +65,77 @@ public class RabbitMqRetryWrapperServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_ForwardsCancellationTokenToFunc()
+    {
+        using var cts = new CancellationTokenSource();
+        CancellationToken? received = null;
+        var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
+        var sleep = CreateSleepService();
+        var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
+            sleep.Object);
+
+        await wrapper.RunAsync(
+            token =>
+            {
+                received = token;
+                return Task.CompletedTask;
+            },
+            cts.Token);
+
+        Assert.Equal(cts.Token, received);
+    }
+
+    [Fact]
+    public async Task RunAsync_NonGenericWithState_WhenFuncSucceeds_PassesState()
+    {
+        var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
+        var sleep = CreateSleepService();
+        var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
+            sleep.Object);
+        string? received = null;
+
+        await wrapper.RunAsync(
+            (value, _) =>
+            {
+                received = value;
+                return Task.CompletedTask;
+            },
+            "payload",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("payload", received);
+        arbiter.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task RunAsync_NonGenericWithState_WhenPermanentFailure_WrapsWithoutRetry()
+    {
+        var attempts = 0;
+        var inner = new InvalidOperationException("permanent");
+        var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetReport(inner)).Returns(PermanentReport());
+
+        var sleep = CreateSleepService();
+        var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
+            sleep.Object);
+
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
+            (_, _) =>
+            {
+                attempts++;
+                throw inner;
+            },
+            "state",
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(1, attempts);
+        Assert.Same(inner, thrown.InnerException);
+        Assert.True(thrown.IsHandled);
+        Assert.False(thrown.CouldBeTransient);
+        Assert.Empty(sleep.Invocations);
+    }
+
+    [Fact]
     public async Task RunAsync_NonGeneric_WhenFuncSucceeds_CompletesWithoutSleeping()
     {
         var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
@@ -81,6 +152,47 @@ public class RabbitMqRetryWrapperServiceTests
 
         Assert.True(ran);
         arbiter.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task RunAsync_NonGeneric_WhenPermanentFailure_WrapsWithoutRetry()
+    {
+        var inner = new InvalidOperationException("permanent");
+        var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetReport(inner)).Returns(PermanentReport());
+
+        var sleep = CreateSleepService();
+        var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
+            sleep.Object);
+
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() => wrapper.RunAsync(
+            _ => throw inner,
+            TestContext.Current.CancellationToken));
+
+        Assert.Same(inner, thrown.InnerException);
+        Assert.True(thrown.IsHandled);
+        Assert.False(thrown.CouldBeTransient);
+        Assert.False(thrown.CouldBeExternallySolvable);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenAlreadyHandledButNotWorkerJobSourceException_WrapsIfExpected()
+    {
+        var inner = new TimeoutException("handled elsewhere");
+        var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport(false));
+
+        var sleep = CreateSleepService();
+        var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
+            sleep.Object);
+
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
+            wrapper.RunAsync<string>(_ => throw inner, TestContext.Current.CancellationToken));
+
+        Assert.Same(inner, thrown.InnerException);
+        Assert.True(thrown.IsHandled);
+        Assert.False(thrown.CouldBeTransient);
+        Assert.Empty(sleep.Invocations);
     }
 
     [Fact]
@@ -101,6 +213,31 @@ public class RabbitMqRetryWrapperServiceTests
 
         Assert.Same(inner, thrown);
         Assert.Empty(sleep.Invocations);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenCancelledDuringRetryBackoff_PropagatesCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        var inner = new TimeoutException("retry then cancel");
+        var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetReport(inner)).Returns(TransientReport());
+
+        var sleep = new Mock<ISleepService>(MockBehavior.Strict);
+        sleep
+            .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .Returns<TimeSpan, CancellationToken>(async (_, token) =>
+            {
+                await cts.CancelAsync();
+                token.ThrowIfCancellationRequested();
+            });
+
+        var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
+            sleep.Object);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wrapper.RunAsync(
+            _ => throw inner,
+            cts.Token));
     }
 
     [Fact]
@@ -241,6 +378,55 @@ public class RabbitMqRetryWrapperServiceTests
 
                 return Task.FromResult("ok");
             },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("ok", result);
+        Assert.Equal(2, attempts);
+        Assert.Equal([TimeSpan.FromSeconds(1)], delays);
+    }
+
+    [Fact]
+    public async Task RunAsync_WithState_WhenFuncSucceeds_PassesStateAndReturnsResult()
+    {
+        var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
+        var sleep = CreateSleepService();
+        var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
+            sleep.Object);
+
+        var result = await wrapper.RunAsync(
+            (value, _) => Task.FromResult(value * 2),
+            21,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(42, result);
+        arbiter.VerifyNoOtherCalls();
+        Assert.Empty(sleep.Invocations);
+    }
+
+    [Fact]
+    public async Task RunAsync_WithState_WhenTransientThenSucceeds_RetriesWithBackoff()
+    {
+        var attempts = 0;
+        var delays = new List<TimeSpan>();
+        var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
+
+        var sleep = CreateSleepService(delays);
+        var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
+            sleep.Object);
+
+        var result = await wrapper.RunAsync(
+            (value, _) =>
+            {
+                attempts++;
+                if (attempts == 1)
+                {
+                    throw new TimeoutException(value);
+                }
+
+                return Task.FromResult(value);
+            },
+            "ok",
             TestContext.Current.CancellationToken);
 
         Assert.Equal("ok", result);

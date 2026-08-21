@@ -3,17 +3,23 @@ using RedShirt.Example.JobWorker.Core.Services;
 
 namespace RedShirt.Example.JobWorker.Services;
 
-public sealed class JobWorkerHostedService(IHandler handler) : BackgroundService
+public sealed class JobWorkerHostedService(IHandler handler, IHostApplicationLifetime hostApplicationLifetime)
+    : BackgroundService
 {
-    protected override async Task ExecuteAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
         {
-            await handler.HandleAsync(cancellationToken);
+            if (!await handler.HandleAsync(stoppingToken))
+            {
+                Environment.ExitCode = 1;
+            }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Expected on host shutdown / Ctrl+C. Other cancellations still propagate.
         }
+
+        hostApplicationLifetime.StopApplication();
     }
 }

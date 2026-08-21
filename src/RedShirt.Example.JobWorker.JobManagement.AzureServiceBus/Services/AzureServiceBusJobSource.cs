@@ -78,6 +78,8 @@ internal class AzureServiceBusJobSource(
     public int RecommendedHeartbeatIntervalSeconds =>
         (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
+    public bool IsSubscriptionSource => false;
+
     public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         if (message is not AzureRawJobModel messageAsAzureJobModel)
@@ -89,5 +91,10 @@ internal class AzureServiceBusJobSource(
         var client = await clientSource.GetQueueClientAsync(cancellationToken);
         await retryWrapperService.RunAsync(
             async ct => { await client.RenewMessageLockAsync(messageAsAzureJobModel.Message, ct); }, cancellationToken);
+    }
+
+    public Task StartSubscriberAsync(CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException();
     }
 }

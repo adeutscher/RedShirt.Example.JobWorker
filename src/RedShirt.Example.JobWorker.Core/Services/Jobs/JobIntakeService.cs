@@ -9,9 +9,9 @@ using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Jobs;
 
-internal interface IJobIntakeService
+public interface IJobIntakeService
 {
-    Task SubmitAsync(IJobSourceResponse jobSourceResponse, CancellationToken cancellationToken);
+    Task SubmitAsync(IJobSourceResponse jobSourceResponse, CancellationToken cancellationToken = default);
 }
 
 internal sealed class JobIntakeService(
@@ -71,7 +71,7 @@ internal sealed class JobIntakeService(
         }
     }
 
-    public async Task SubmitAsync(IJobSourceResponse jobSourceResponse, CancellationToken cancellationToken)
+    public async Task SubmitAsync(IJobSourceResponse jobSourceResponse, CancellationToken cancellationToken = default)
     {
         var convertedMessages = new List<IJobEnvelope>();
         var failedMessages = new List<FailedJobEnvelope>();

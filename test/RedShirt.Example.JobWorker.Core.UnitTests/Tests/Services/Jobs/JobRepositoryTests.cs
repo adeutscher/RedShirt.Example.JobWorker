@@ -12,6 +12,26 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Jobs;
 
 public class JobRepositoryTests
 {
+    private static JobRepository CreateRepository(
+        Mock<IExecutionEndArbiter>? executionEndArbiter = null,
+        Mock<IJobLoaderStateReaderService>? jobLoaderStateService = null,
+        Mock<ISourceMessageSorter>? sorter = null,
+        int backlogSize = 10)
+    {
+        executionEndArbiter ??= new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        jobLoaderStateService ??= new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
+        sorter ??= new Mock<ISourceMessageSorter>();
+        sorter
+            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
+            .Returns((List<IJobRepositoryEntry> input) => input);
+
+        return new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
+            Options.Create(new JobRepository.ConfigurationModel {BacklogSize = backlogSize}));
+    }
+
     [Fact(Timeout = 500)]
     public async Task LoadAsync_WhenResponseHasNoItems_DoesNotTouchWatchedJobs()
     {
@@ -77,11 +97,15 @@ public class JobRepositoryTests
 
         var blockedEntry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         blockedEntry.Setup(e => e.JobModel).Returns(unblockedModel.Object);
+        var blockedState = JobState.BlockedByIdempotency;
+        blockedEntry.Setup(e => e.State).Returns(() => blockedState);
         blockedEntry
             .Setup(e => e.SetStateAsync(JobState.Inactive, TestContext.Current.CancellationToken))
+            .Callback(() => blockedState = JobState.Inactive)
             .Returns(Task.CompletedTask);
         blockedEntry
             .Setup(e => e.SetStateAsync(JobState.Active, TestContext.Current.CancellationToken))
+            .Callback(() => blockedState = JobState.Active)
             .Returns(Task.CompletedTask);
         jobRepository.WatchedJobs.Add(blockedEntry.Object);
 
@@ -93,6 +117,54 @@ public class JobRepositoryTests
         blockedEntry.Verify(e => e.SetStateAsync(JobState.Inactive, TestContext.Current.CancellationToken),
             Times.Once);
         blockedEntry.Verify(e => e.SetStateAsync(JobState.Active, TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task SubscribeToCountUpdates_InvokesImmediatelyAndOnLoadAndRemove()
+    {
+        var jobRepository = CreateRepository();
+        var inactiveCounts = new List<int>();
+        var watchedCounts = new List<int>();
+
+        jobRepository.SubscribeToInactiveCountUpdate(inactiveCounts.Add);
+        jobRepository.SubscribeToWatchedJobsUpdate(watchedCounts.Add);
+
+        Assert.Equal([0], inactiveCounts);
+        Assert.Equal([0], watchedCounts);
+
+        var jobModel = new Mock<IJobModel>(MockBehavior.Strict);
+        jobModel.Setup(j => j.MessageId).Returns("msg-1");
+        var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
+
+        await jobRepository.LoadAsync(
+        [
+            new JobEnvelope {JobModel = jobModel.Object, RawJobModel = rawJobModel.Object}
+        ], TestContext.Current.CancellationToken);
+
+        Assert.Equal([0, 1], inactiveCounts);
+        Assert.Equal([0, 1], watchedCounts);
+
+        var job = Assert.Single(jobRepository.WatchedJobs);
+        await jobRepository.RemoveJobAsync(job, TestContext.Current.CancellationToken);
+
+        Assert.Equal([0, 1, 0], inactiveCounts);
+        Assert.Equal([0, 1, 0], watchedCounts);
+    }
+
+    [Fact]
+    public void SubscribeToInactiveCountUpdate_WhenNull_ThrowsArgumentNullException()
+    {
+        var jobRepository = CreateRepository();
+
+        Assert.Throws<ArgumentNullException>(() => jobRepository.SubscribeToInactiveCountUpdate(null!));
+    }
+
+    [Fact]
+    public void SubscribeToWatchedJobsUpdate_WhenNull_ThrowsArgumentNullException()
+    {
+        var jobRepository = CreateRepository();
+
+        Assert.Throws<ArgumentNullException>(() => jobRepository.SubscribeToWatchedJobsUpdate(null!));
     }
 
     [Fact(Timeout = 500)]

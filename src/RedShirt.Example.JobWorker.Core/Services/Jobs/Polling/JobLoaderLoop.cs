@@ -7,9 +7,10 @@ using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions.MessagePolling;
+using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 
-namespace RedShirt.Example.JobWorker.Core.Services.MessagePolling;
+namespace RedShirt.Example.JobWorker.Core.Services.Jobs.Polling;
 
 /// <summary>
 ///     Common job loader loop.
@@ -22,6 +23,7 @@ internal sealed class JobLoaderLoop(
     IExecutionEndArbiter executionEndArbiter,
     ISleepService sleepService,
     IJobLoader jobLoader,
+    IJobSource jobSource,
     IOptions<LoopOptionsConfigurationModel> loopOptions,
     ILogger<JobLoaderLoop> logger) : IJobLoaderLoop
 {
@@ -71,9 +73,15 @@ internal sealed class JobLoaderLoop(
 
     public async Task<HandlerComponentResponse> RunAsync(CancellationToken cancellationToken = default)
     {
+        if (jobSource.IsSubscriptionSource)
+        {
+            return HandlerComponentResponse.NotEnabled;
+        }
+
         try
         {
             jobLoaderStateService.ReportLoaderStart();
+
             while (executionEndArbiter.ShouldKeepRunning())
             {
                 await GetRetryPipeline().ExecuteAsync(

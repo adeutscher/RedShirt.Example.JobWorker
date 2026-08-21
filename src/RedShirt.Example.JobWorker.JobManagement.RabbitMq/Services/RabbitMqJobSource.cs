@@ -1,19 +1,19 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RabbitMQ.Client;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
-using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
 using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 
 internal class RabbitMqJobSource(
-    IRabbitMqChannelCacheSource channelSource,
-    IRabbitMqRetryWrapperService retryWrapperService,
-    IOptions<RabbitMqJobSource.ConfigurationModel> configuration,
+    IRabbitMqChannelRetryWrapper channelRetryWrapper,
+    IOptions<RabbitMqQueueConfigurationModel> configuration,
     ILogger<RabbitMqJobSource> logger)
     : IJobSource
 {
@@ -26,9 +26,7 @@ internal class RabbitMqJobSource(
             return;
         }
 
-        var channel = await channelSource.GetChannelAsync(cancellationToken);
-
-        await retryWrapperService.RunAsync(async ct =>
+        await channelRetryWrapper.GetChannelAndDoActionWithRetryAsync(async (channel, ct) =>
         {
             if (result.IsSuccessful())
             {
@@ -41,7 +39,7 @@ internal class RabbitMqJobSource(
                 await channel.BasicNackAsync(rabbitMqJobModel.DeliveryTag, false, result.IsRecoverableFailure(),
                     ct);
             }
-        }, cancellationToken);
+        }, cancellationToken: cancellationToken);
     }
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -51,13 +49,14 @@ internal class RabbitMqJobSource(
 
         var getJobsResponseItems = new List<IRawJobModel>();
 
-        var channel = await channelSource.GetChannelAsync(cancellationToken);
-
         while (getJobsResponseItems.Count < batchSize)
         {
-            var result =
-                await retryWrapperService.RunAsync(
-                    ct => channel.BasicGetAsync(configuration.Value.QueueName, false, ct), cancellationToken);
+            BasicGetResult? result = null;
+            await channelRetryWrapper.GetChannelAndDoActionWithRetryAsync(
+                async (channel, ct) =>
+                {
+                    result = await channel.BasicGetAsync(configuration.Value.QueueName, false, ct);
+                }, cancellationToken: cancellationToken);
 
             /*
              * Historical note: Prior to adding Polly support to RabbitMQ, we used to capture AlreadyClosedException instances
@@ -94,6 +93,8 @@ internal class RabbitMqJobSource(
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
+    public bool IsSubscriptionSource => false;
+
     public Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         /*
@@ -105,8 +106,8 @@ internal class RabbitMqJobSource(
         return Task.CompletedTask;
     }
 
-    public sealed class ConfigurationModel
+    public Task StartSubscriberAsync(CancellationToken cancellationToken = default)
     {
-        public required string QueueName { get; init; }
+        throw new NotSupportedException();
     }
 }

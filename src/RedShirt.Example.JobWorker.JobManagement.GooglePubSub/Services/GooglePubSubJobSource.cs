@@ -98,6 +98,8 @@ internal class GooglePubSubJobSource(
     public int RecommendedHeartbeatIntervalSeconds =>
         (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
+    public bool IsSubscriptionSource => false;
+
     public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         if (message is not GooglePubSubJobModel messageAsPubSubJobModel)
@@ -112,5 +114,10 @@ internal class GooglePubSubJobSource(
             await client.ModifyAckDeadlineAsync(messageAsPubSubJobModel.Message,
                 options.Value.EffectiveVisibilityTimeoutSeconds, ct);
         }, cancellationToken);
+    }
+
+    public Task StartSubscriberAsync(CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException();
     }
 }

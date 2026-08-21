@@ -40,6 +40,18 @@ internal interface IJobRepository
 
     Task RemoveJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    ///     Register a callback invoked with the current inactive-job count whenever that count changes
+    ///     via repository operations. Invoked immediately with the current count on subscribe.
+    /// </summary>
+    void SubscribeToInactiveCountUpdate(Action<int> callback);
+
+    /// <summary>
+    ///     Register a callback invoked with the current watched-job count whenever that count changes
+    ///     via repository operations. Invoked immediately with the current count on subscribe.
+    /// </summary>
+    void SubscribeToWatchedJobsUpdate(Action<int> callback);
+
     Task WaitForEmptyRepositoryAsync(CancellationToken cancellationToken = default);
 
     Task<bool> WaitForJobDemandAsync(TimeSpan waitDuration, CancellationToken cancellationToken = default);
@@ -52,6 +64,7 @@ internal sealed class JobRepository(
     IOptions<JobRepository.ConfigurationModel> options)
     : IJobRepository
 {
+    private readonly Lock _callbackLock = new();
     private readonly SemaphoreSlim _inactiveJobsListSemaphore = new(1, 1);
 
     /// <summary>
@@ -79,6 +92,8 @@ internal sealed class JobRepository(
 
     private readonly SemaphoreSlim _watchedJobsListSemaphore = new(1, 1);
 
+    private Action<int>? _inactiveCountCallbacks;
+
     /// <summary>
     ///     Inactive potential jobs
     ///     Reminder: This is currently a list instead of a queue because it needs to be sorted in a manner that is consistent
@@ -86,6 +101,30 @@ internal sealed class JobRepository(
     ///     Similarly, confirming that it is intentional that this list not be marked as readonly.
     /// </summary>
     private List<IJobRepositoryEntry> _inactiveJobsList = [];
+
+    private Action<int>? _watchedJobsCallbacks;
+
+    private void NotifyInactiveCountUpdate(int count)
+    {
+        Action<int>? callbacks;
+        lock (_callbackLock)
+        {
+            callbacks = _inactiveCountCallbacks;
+        }
+
+        callbacks?.Invoke(count);
+    }
+
+    private void NotifyWatchedJobsUpdate(int count)
+    {
+        Action<int>? callbacks;
+        lock (_callbackLock)
+        {
+            callbacks = _watchedJobsCallbacks;
+        }
+
+        callbacks?.Invoke(count);
+    }
 
     private async Task<TryGetJobResponse> TryGetUnblockedJobAsync(CancellationToken cancellationToken)
     {
@@ -250,6 +289,7 @@ internal sealed class JobRepository(
         } while (result is null);
 
         await result.SetStateAsync(JobState.Active, cancellationToken);
+        NotifyInactiveCountUpdate(await GetInactiveJobCountAsync(cancellationToken));
 
         return result;
     }
@@ -310,31 +350,111 @@ internal sealed class JobRepository(
         }
 
         _jobsAvailableEvent.Set();
+
+        NotifyWatchedJobsUpdate(await GetWatchedJobsCountAsync(cancellationToken));
+        NotifyInactiveCountUpdate(await GetInactiveJobCountAsync(cancellationToken));
     }
 
-    public Task ReloadUnblockedJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default)
+    public async Task ReloadUnblockedJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default)
     {
-        job.SetStateAsync(JobState.Inactive, cancellationToken);
+        await job.SetStateAsync(JobState.Inactive, cancellationToken);
         // Shortlist the job for re-execution in memory
         _unblockedJobsQueue.Enqueue(job);
         // Tell any active invocations of GetNextJobAsync that there is something available.
         _jobsAvailableEvent.Set();
-        return Task.CompletedTask;
+        NotifyInactiveCountUpdate(await GetInactiveJobCountAsync(cancellationToken));
     }
 
     public async Task RemoveJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default)
     {
+        int watchedCount;
+        int inactiveCount;
         await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
         try
         {
             WatchedJobs.Remove(job);
+            watchedCount = WatchedJobs.Count;
+            inactiveCount = WatchedJobs.Count(watchedJob => watchedJob.State == JobState.Inactive);
 
-            if (WatchedJobs.Count == 0)
+            if (watchedCount == 0)
             {
                 // Avoid possible race condition in JobLoader
                 _jobsDemandEvent.Set();
                 _repositoryEmptyEvent.Set();
             }
+        }
+        finally
+        {
+            _watchedJobsListSemaphore.Release();
+        }
+
+        NotifyWatchedJobsUpdate(watchedCount);
+        NotifyInactiveCountUpdate(inactiveCount);
+    }
+
+    public void SubscribeToInactiveCountUpdate(Action<int> callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+
+        lock (_callbackLock)
+        {
+            _inactiveCountCallbacks += callback;
+        }
+
+        /*
+         * Putting it on the record that I don't particularly like the below implementation on principle.
+         * It uses a blocking semaphore call, and it duplicates tally logic (especially true for this particular method).
+         *
+         * That said, I think the cure would be worse than the disease:
+         *  * Implementing a check specifically for inactive jobs in this method's sibling
+         *      SubscribeToInactiveCountUpdate would need some sort of tracker on the individual
+         *      items changing state that reports in when an item is inactive/non-inactive.
+         *  * Current subscribers do so at instantiation, before the worker
+         *      threads even have a chance to start adding jobs to the repository.
+         *      This suggests that the blocking will be a tiny one-off.
+         *      While this is also a compelling argument for removing the callback
+         *      call at subscription altogether, I think that running it is more intuitive
+         *      (my issues with it aside).
+         */
+        _watchedJobsListSemaphore.Wait();
+        try
+        {
+            callback(WatchedJobs.Count(job => job.State == JobState.Inactive));
+        }
+        finally
+        {
+            _watchedJobsListSemaphore.Release();
+        }
+    }
+
+    public void SubscribeToWatchedJobsUpdate(Action<int> callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+
+        lock (_callbackLock)
+        {
+            _watchedJobsCallbacks += callback;
+        }
+
+        /*
+         * Putting it on the record that I don't particularly like the below implementation on principle.
+         * It uses a blocking semaphore call, and it duplicates tally logic (especially true for sibling method SubscribeToInactiveCountUpdate).
+         *
+         * That said, I think the cure would be worse than the disease:
+         *  * Implementing a check specifically for inactive jobs in this method's sibling
+         *      SubscribeToInactiveCountUpdate would need some sort of tracker on the individual
+         *      items changing state that reports in when an item is inactive/non-inactive.
+         *  * Current subscribers do so at instantiation, before the worker
+         *      threads even have a chance to start adding jobs to the repository.
+         *      This suggests that the blocking will be a tiny one-off.
+         *      While this is also a compelling argument for removing the callback
+         *      call at subscription altogether, I think that running it is more intuitive
+         *      (my issues with it aside).
+         */
+        _watchedJobsListSemaphore.Wait();
+        try
+        {
+            callback(WatchedJobs.Count);
         }
         finally
         {

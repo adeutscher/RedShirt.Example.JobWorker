@@ -1,4 +1,4 @@
-namespace RedShirt.Example.JobWorker.Core.Services.MessagePolling;
+namespace RedShirt.Example.JobWorker.Core.Services.Jobs.Polling;
 
 /// <summary>
 ///     The implementations of IJobLoader are responsible for running a loop iteration within JobLoaderLoop.

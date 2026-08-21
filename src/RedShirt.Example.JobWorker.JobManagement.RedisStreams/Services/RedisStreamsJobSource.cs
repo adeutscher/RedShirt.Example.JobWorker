@@ -43,6 +43,8 @@ internal class RedisStreamsJobSource(
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
 
+    public bool IsSubscriptionSource => false;
+
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from Redis Stream: {StreamName}",
@@ -77,6 +79,11 @@ internal class RedisStreamsJobSource(
     public Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
+    }
+
+    public Task StartSubscriberAsync(CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException();
     }
 
     public sealed class ConfigurationModel
