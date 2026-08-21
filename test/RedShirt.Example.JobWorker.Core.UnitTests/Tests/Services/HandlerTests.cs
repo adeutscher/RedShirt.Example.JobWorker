@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
@@ -19,6 +20,14 @@ public class HandlerTests
         return new ExecutionEndArbiter(NullLogger<ExecutionEndArbiter>.Instance);
     }
 
+    private static Mock<ILogger<Handler>> CreateLogger()
+    {
+        var logger = new Mock<ILogger<Handler>>();
+        logger.Setup(l => l.IsEnabled(LogLevel.Trace)).Returns(true);
+        logger.Setup(l => l.IsEnabled(LogLevel.Error)).Returns(true);
+        return logger;
+    }
+
     private static void SetupNotEnabledWorkers(
         Mock<IJobExecutor> executor,
         Mock<IHeartbeatMaintainer> maintainer,
@@ -33,6 +42,40 @@ public class HandlerTests
             .ReturnsAsync(HandlerComponentResponse.NotEnabled);
         jobSubscriberManager.Setup(s => s.RunAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(HandlerComponentResponse.NotEnabled);
+    }
+
+    private static void VerifyWorkerResponseLogged(
+        Mock<ILogger<Handler>> logger,
+        HandlerComponentResponse response,
+        Times times)
+    {
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Trace,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) =>
+                    state.ToString()!.Contains($"Response: {response}", StringComparison.Ordinal)),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            times);
+    }
+
+    private static void VerifyWorkerDoneLogged(
+        Mock<ILogger<Handler>> logger,
+        string workerType,
+        HandlerComponentResponse response,
+        Times times)
+    {
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Trace,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) =>
+                    state.ToString()!.Contains($"Worker thread for {workerType} done.", StringComparison.Ordinal)
+                    && state.ToString()!.Contains($"Response: {response}", StringComparison.Ordinal)),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            times);
     }
 
     [Fact]
@@ -85,6 +128,40 @@ public class HandlerTests
         {
             Assert.IsAssignableFrom<OperationCanceledException>(handleTask.Exception!.GetBaseException());
         }
+    }
+
+    [Fact]
+    public async Task HandleAsync_LogsFinishedAndNotEnabledResponses()
+    {
+        using var executionEndArbiter = CreateExecutionEndArbiter();
+        var logger = CreateLogger();
+
+        var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
+        jobLoaderLoop
+            .Setup(l => l.RunAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(HandlerComponentResponse.Finished);
+
+        var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
+        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
+        var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
+        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+            idempotencyMonitor.Object, jobSubscriberManager.Object,
+            Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
+            logger.Object);
+
+        var result = await handler.HandleAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result);
+        VerifyWorkerDoneLogged(logger, "MessagePoller", HandlerComponentResponse.Finished, Times.Once());
+        VerifyWorkerDoneLogged(logger, "JobExecutor", HandlerComponentResponse.NotEnabled, Times.Once());
+        VerifyWorkerDoneLogged(logger, "HeartbeatMaintainer", HandlerComponentResponse.NotEnabled, Times.Once());
+        VerifyWorkerDoneLogged(logger, "IdempotencyMonitor", HandlerComponentResponse.NotEnabled, Times.Once());
+        VerifyWorkerDoneLogged(logger, "JobSubscriberManager", HandlerComponentResponse.NotEnabled, Times.Once());
+        VerifyWorkerResponseLogged(logger, HandlerComponentResponse.Cancelled, Times.Never());
+        VerifyWorkerResponseLogged(logger, HandlerComponentResponse.Exception, Times.Never());
     }
 
     [Fact]
@@ -164,6 +241,55 @@ public class HandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenWorkerThrowsOperationCanceledWhileTokenCanceled_LogsCancelledResponse()
+    {
+        using var executionEndArbiter = CreateExecutionEndArbiter();
+        using var cts = new CancellationTokenSource();
+        var logger = CreateLogger();
+        var messagePollerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
+        jobLoaderLoop
+            .Setup(l => l.RunAsync(It.IsAny<CancellationToken>()))
+            .Returns(async (CancellationToken ct) =>
+            {
+                messagePollerStarted.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                return HandlerComponentResponse.Finished;
+            });
+
+        var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
+        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
+        var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
+        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+            idempotencyMonitor.Object, jobSubscriberManager.Object,
+            Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
+            logger.Object);
+
+        var handleTask = handler.HandleAsync(cts.Token);
+        await messagePollerStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        await cts.CancelAsync();
+
+        try
+        {
+            await handleTask;
+        }
+        catch (OperationCanceledException)
+        {
+            // Direct cancellation of HandleAsync waits is still acceptable.
+        }
+
+        // Give Task.Run workers a moment to finish and emit their completion logs.
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+
+        VerifyWorkerDoneLogged(logger, "MessagePoller", HandlerComponentResponse.Cancelled, Times.Once());
+        VerifyWorkerResponseLogged(logger, HandlerComponentResponse.Exception, Times.Never());
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenWorkerThrowsOperationCanceledWhileTokenNotCanceled_ReturnsFalse()
     {
         using var executionEndArbiter = CreateExecutionEndArbiter();
@@ -188,6 +314,64 @@ public class HandlerTests
         var result = await handler.HandleAsync(CancellationToken.None);
 
         Assert.False(result);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenWorkerThrowsUnexpectedOperationCanceled_LogsCancelledResponse()
+    {
+        using var executionEndArbiter = CreateExecutionEndArbiter();
+        var logger = CreateLogger();
+
+        var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
+        jobLoaderLoop
+            .Setup(l => l.RunAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException("unexpected cancel"));
+
+        var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
+        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
+        var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
+        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+            idempotencyMonitor.Object, jobSubscriberManager.Object,
+            Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
+            logger.Object);
+
+        var result = await handler.HandleAsync(CancellationToken.None);
+
+        Assert.False(result);
+        VerifyWorkerDoneLogged(logger, "MessagePoller", HandlerComponentResponse.Cancelled, Times.Once());
+        VerifyWorkerResponseLogged(logger, HandlerComponentResponse.Exception, Times.Never());
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenWorkerThrows_LogsExceptionResponse()
+    {
+        using var executionEndArbiter = CreateExecutionEndArbiter();
+        var logger = CreateLogger();
+
+        var jobLoaderLoop = new Mock<IJobLoaderLoop>(MockBehavior.Strict);
+        jobLoaderLoop
+            .Setup(l => l.RunAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("worker blew up"));
+
+        var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
+        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
+        var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
+        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+            idempotencyMonitor.Object, jobSubscriberManager.Object,
+            Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
+            logger.Object);
+
+        var result = await handler.HandleAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(result);
+        VerifyWorkerDoneLogged(logger, "MessagePoller", HandlerComponentResponse.Exception, Times.Once());
+        VerifyWorkerResponseLogged(logger, HandlerComponentResponse.Cancelled, Times.Never());
     }
 
     [Theory]

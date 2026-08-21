@@ -65,6 +65,11 @@ internal sealed class Handler(
         }
         catch (Exception e)
         {
+            if (e is OperationCanceledException)
+            {
+                handlerResponse = HandlerComponentResponse.Cancelled;
+            }
+
             // Filter out exception tracking where OperationCanceledException is thrown with a cancelled cancellationToken
             // These are assumed to be intentional ctrl-c's in a local environment
             if (e is not OperationCanceledException
