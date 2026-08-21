@@ -225,6 +225,7 @@ Subscribing is configured on job sources that support it with a `SUBSCRIBE` envi
 
 | Job source | Environment variable              |
 |------------|-----------------------------------|
+| ActiveMQ   | `JOB_SOURCE__ACTIVEMQ__SUBSCRIBE` |
 | RabbitMQ   | `JOB_SOURCE__RABBITMQ__SUBSCRIBE` |
 
 #### Notes on Implementing Other Subscribe Patterns

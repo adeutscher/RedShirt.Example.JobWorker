@@ -45,7 +45,8 @@ public class ActiveMqServerConfigurationSourceTests
                 PasswordPath = passwordPath
             }));
 
-        var configuration = await source.GetConfigurationAsync(TestContext.Current.CancellationToken);
+        var configuration = await source.GetConfigurationAsync(
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(brokerUri, configuration.BrokerUri);
         Assert.Equal(user, configuration.User);
@@ -56,5 +57,47 @@ public class ActiveMqServerConfigurationSourceTests
             false,
             TestContext.Current.CancellationToken), Times.Once);
         secrets.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task GetConfigurationAsync_WhenForceNewSecretManagerPull_PassesForceToCache()
+    {
+        var brokerUri = $"tcp://{Guid.NewGuid():N}:61616";
+        var userPath = $"/activemq/{Guid.NewGuid():N}/user";
+        var passwordPath = $"/activemq/{Guid.NewGuid():N}/password";
+
+        var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
+        secrets
+            .Setup(s => s.GetSecretsAsync(
+                It.IsAny<List<string>>(),
+                null,
+                true,
+                TestContext.Current.CancellationToken))
+            .ReturnsAsync(new SecretManagerCacheSecretsResponse
+            {
+                Values = new Dictionary<string, string>
+                {
+                    [userPath] = "u",
+                    [passwordPath] = "p"
+                },
+                QueriedSecretManager = true
+            });
+
+        var source = new ActiveMqServerConfigurationSource(
+            secrets.Object,
+            Options.Create(new ActiveMqServerConfigurationSource.ConfigurationModel
+            {
+                BrokerUri = brokerUri,
+                UserPath = userPath,
+                PasswordPath = passwordPath
+            }));
+
+        await source.GetConfigurationAsync(true, TestContext.Current.CancellationToken);
+
+        secrets.Verify(s => s.GetSecretsAsync(
+            It.IsAny<List<string>>(),
+            null,
+            true,
+            TestContext.Current.CancellationToken), Times.Once);
     }
 }

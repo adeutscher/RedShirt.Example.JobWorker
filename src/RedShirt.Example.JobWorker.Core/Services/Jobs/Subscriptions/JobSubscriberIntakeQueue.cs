@@ -10,7 +10,9 @@ namespace RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 ///     In-memory handoff queue between a subscription job source and <see cref="JobSubscriberManager" />.
 ///     Subscription sources push batches via <see cref="Load" />; the subscriber manager drains them via
 ///     <see cref="GetNextAsync" /> and submits each batch through job intake.
-///     This interface exists because the implementation of <see cref="IJobIntakeService" /> indirectly uses
+///     This subscriber queue should not be used in a non subscriber context. If the configured <see cref="IJobSource" />
+///     is not a subscriber, then this queue will not be read from.
+///     This interface exists because <see cref="JobIntakeService" /> indirectly uses
 ///     <see cref="IJobSource" /> as a dependency. Creating this queue was the most expedient way to avoid a circular loop.
 /// </summary>
 public interface IJobSubscriberIntakeQueue
@@ -43,7 +45,9 @@ internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
     private readonly ConcurrentQueue<IJobSourceResponse> _jobs = new();
     private bool _done;
 
+#pragma warning disable S2325
     private void Cancel()
+#pragma warning restore S2325
     {
         _done = true;
         _doNotWaitIfSetEvent.Set();
@@ -54,7 +58,9 @@ internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
         executionEndArbiter.AddOnStopCallback(_ => Cancel());
     }
 
+#pragma warning disable S2325
     public void Load(IJobSourceResponse jobSourceResponse)
+#pragma warning disable S2325
     {
         _jobs.Enqueue(jobSourceResponse);
         _doNotWaitIfSetEvent.Set();

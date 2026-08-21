@@ -16,7 +16,7 @@ public class ActiveMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_ArgumentException_IsExpectedAndNotTransient()
     {
-        var report = _sut.GetReport(new ArgumentException("bad queue", "queue"));
+        var report = _sut.GetReport(new ArgumentException("bad queue", "queue"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -27,7 +27,7 @@ public class ActiveMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_ConnectionClosedException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new ConnectionClosedException("connection closed"));
+        var report = _sut.GetReport(new ConnectionClosedException("connection closed"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -38,7 +38,7 @@ public class ActiveMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_CouldNotLoadQueueException_IsExpectedAndNotTransient()
     {
-        var report = _sut.GetReport(new CouldNotLoadQueueException());
+        var report = _sut.GetReport(new CouldNotLoadQueueException(), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -49,7 +49,7 @@ public class ActiveMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_CouldNotRetrieveMessageBodyException_IsExpectedAndNotTransient()
     {
-        var report = _sut.GetReport(new CouldNotRetrieveMessageBodyException());
+        var report = _sut.GetReport(new CouldNotRetrieveMessageBodyException(), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -60,7 +60,7 @@ public class ActiveMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_InvalidDestinationException_IsExpectedAndNotTransient()
     {
-        var report = _sut.GetReport(new InvalidDestinationException("no such queue"));
+        var report = _sut.GetReport(new InvalidDestinationException("no such queue"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -71,7 +71,7 @@ public class ActiveMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_IoException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new ActiveMqIoException("transport failed"));
+        var report = _sut.GetReport(new ActiveMqIoException("transport failed"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -86,7 +86,7 @@ public class ActiveMqExceptionArbiterServiceTests
             new NMSConnectionException("disconnected"),
             new SocketException((int) SocketError.TimedOut));
 
-        var report = _sut.GetReport(exception);
+        var report = _sut.GetReport(exception, 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.False(report.IsExpected);
@@ -97,7 +97,7 @@ public class ActiveMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_NmsConnectionException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new NMSConnectionException("broker unavailable"));
+        var report = _sut.GetReport(new NMSConnectionException("broker unavailable"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -108,7 +108,7 @@ public class ActiveMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_NmsException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new NMSException("generic nms failure"));
+        var report = _sut.GetReport(new NMSException("generic nms failure"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -117,9 +117,31 @@ public class ActiveMqExceptionArbiterServiceTests
     }
 
     [Fact]
+    public void GetReport_NmsSecurityException_InvalidPassword_FirstAttempt_IsTransient()
+    {
+        var report = _sut.GetReport(new NMSSecurityException("User name or password is invalid."), 1);
+
+        Assert.False(report.AlreadyHandled);
+        Assert.True(report.IsExpected);
+        Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
+    }
+
+    [Fact]
+    public void GetReport_NmsSecurityException_InvalidPassword_LaterAttempt_IsNotTransient()
+    {
+        var report = _sut.GetReport(new NMSSecurityException("User name or password is invalid."), 2);
+
+        Assert.False(report.AlreadyHandled);
+        Assert.True(report.IsExpected);
+        Assert.False(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
+    }
+
+    [Fact]
     public void GetReport_NmsSecurityException_IsExpectedAndNotTransient()
     {
-        var report = _sut.GetReport(new NMSSecurityException("bad credentials"));
+        var report = _sut.GetReport(new NMSSecurityException("bad credentials"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -130,13 +152,13 @@ public class ActiveMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_NullException_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() => _sut.GetReport(null!));
+        Assert.Throws<ArgumentNullException>(() => _sut.GetReport(null!, 1));
     }
 
     [Fact]
     public void GetReport_OperationCanceledException_IsExpectedAndNotTransient()
     {
-        var report = _sut.GetReport(new OperationCanceledException("caller cancelled"));
+        var report = _sut.GetReport(new OperationCanceledException("caller cancelled"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -147,7 +169,7 @@ public class ActiveMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_RequestTimedOutException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new RequestTimedOutException(TimeSpan.FromSeconds(1)));
+        var report = _sut.GetReport(new RequestTimedOutException(TimeSpan.FromSeconds(1)), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -160,7 +182,7 @@ public class ActiveMqExceptionArbiterServiceTests
     {
         var exception = new AggregateException(new NMSConnectionException("timeout"));
 
-        var report = _sut.GetReport(exception);
+        var report = _sut.GetReport(exception, 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -171,7 +193,7 @@ public class ActiveMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_SocketException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new SocketException((int) SocketError.TimedOut));
+        var report = _sut.GetReport(new SocketException((int) SocketError.TimedOut), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -182,7 +204,7 @@ public class ActiveMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_TaskCanceledException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new TaskCanceledException());
+        var report = _sut.GetReport(new TaskCanceledException(), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -193,7 +215,7 @@ public class ActiveMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_TimeoutException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new TimeoutException("timed out"));
+        var report = _sut.GetReport(new TimeoutException("timed out"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -204,7 +226,7 @@ public class ActiveMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_UnrecognizedException_IsNotExpected()
     {
-        var report = _sut.GetReport(new InvalidOperationException("boom"));
+        var report = _sut.GetReport(new InvalidOperationException("boom"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.False(report.IsExpected);
@@ -222,7 +244,7 @@ public class ActiveMqExceptionArbiterServiceTests
             CouldBeExternallySolvable = true
         };
 
-        var report = _sut.GetReport(exception);
+        var report = _sut.GetReport(exception, 1);
 
         Assert.True(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -240,7 +262,7 @@ public class ActiveMqExceptionArbiterServiceTests
             CouldBeExternallySolvable = true
         };
 
-        var report = _sut.GetReport(exception);
+        var report = _sut.GetReport(exception, 1);
 
         Assert.True(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -265,7 +287,7 @@ public class ActiveMqExceptionArbiterServiceTests
             CouldBeExternallySolvable = couldBeExternallySolvable
         };
 
-        var report = _sut.GetReport(exception);
+        var report = _sut.GetReport(exception, 1);
 
         Assert.True(report.AlreadyHandled);
         Assert.True(report.IsExpected);

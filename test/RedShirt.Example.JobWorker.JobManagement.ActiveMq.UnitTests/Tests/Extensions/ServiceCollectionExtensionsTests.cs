@@ -27,6 +27,29 @@ public class ServiceCollectionExtensionsTests
         Assert.Contains(services, d => d.ServiceType == typeof(IJobFailureHandler)
                                        && d.ImplementationType == typeof(NoReactionFailureHandler));
         Assert.Contains(services, d => d.ServiceType == typeof(IActiveMqExceptionArbiterService));
+        Assert.Contains(services, d => d.ServiceType == typeof(IActiveMqSubscribeExceptionArbiter));
         Assert.Contains(services, d => d.ServiceType == typeof(IActiveMqRetryWrapperService));
+        Assert.Contains(services, d => d.ServiceType == typeof(IActiveMqConsumerRetryWrapper)
+                                       && d.ImplementationType == typeof(ActiveMqConsumerRetryWrapper));
+    }
+
+    [Fact]
+    public void AddActiveMqJobManagement_WhenSubscribeTrue_RegistersSubscribeJobSource()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["JobSource:ActiveMq:QueueName"] = "jobs",
+                ["JobSource:ActiveMq:Subscribe"] = "true"
+            })
+            .Build();
+
+        services.AddActiveMqJobManagement(configuration);
+
+        Assert.Contains(services, d => d.ServiceType == typeof(IJobSource)
+                                       && d.ImplementationType == typeof(ActiveMqSubscribeJobSource));
+        Assert.DoesNotContain(services, d => d.ServiceType == typeof(IJobSource)
+                                             && d.ImplementationType == typeof(ActiveMqJobSource));
     }
 }

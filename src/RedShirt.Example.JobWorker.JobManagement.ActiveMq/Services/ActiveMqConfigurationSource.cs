@@ -6,7 +6,9 @@ namespace RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services;
 
 internal interface IActiveMqServerConfigurationSource
 {
-    Task<ActiveMqServerConfigurationModel> GetConfigurationAsync(CancellationToken cancellationToken = default);
+    Task<ActiveMqServerConfigurationModel> GetConfigurationAsync(
+        bool forceNewSecretManagerPull = false,
+        CancellationToken cancellationToken = default);
 }
 
 internal class ActiveMqServerConfigurationSource(
@@ -14,10 +16,12 @@ internal class ActiveMqServerConfigurationSource(
     IOptions<ActiveMqServerConfigurationSource.ConfigurationModel> options) : IActiveMqServerConfigurationSource
 {
     public async Task<ActiveMqServerConfigurationModel> GetConfigurationAsync(
+        bool forceNewSecretManagerPull = false,
         CancellationToken cancellationToken = default)
     {
         var secrets = await secretManagerCacheService.GetSecretsAsync(
             [options.Value.UserPath, options.Value.PasswordPath],
+            force: forceNewSecretManagerPull,
             cancellationToken: cancellationToken);
 
         return new ActiveMqServerConfigurationModel

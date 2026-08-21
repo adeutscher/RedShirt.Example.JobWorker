@@ -34,6 +34,9 @@ internal interface IActiveMqRetryWrapperService
     /// </exception>
     Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func, CancellationToken cancellationToken = default);
 
+    Task<TResult> RunAsync<TResult, TState>(Func<TState, CancellationToken, Task<TResult>> func, TState state,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     ///     Executes <paramref name="func" /> with retry for expected transient ActiveMQ failures.
     /// </summary>
@@ -52,6 +55,9 @@ internal interface IActiveMqRetryWrapperService
     ///     <see cref="WorkerJobSourceException.IsHandled" /> is <c>true</c>.
     /// </exception>
     Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default);
+
+    Task RunAsync<TState>(Func<TState, CancellationToken, Task> func, TState state,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -98,7 +104,7 @@ internal class ActiveMqRetryWrapperService(
                         return PredicateResult.False();
                     }
 
-                    var report = exceptionArbiterService.GetReport(exception);
+                    var report = exceptionArbiterService.GetReport(exception, args.AttemptNumber + 1);
                     return report is {IsExpected: true, CouldBeTransient: true}
                         ? PredicateResult.True()
                         : PredicateResult.False();
@@ -131,7 +137,7 @@ internal class ActiveMqRetryWrapperService(
     private bool TryGetWrappedException(Exception exception, out Exception? wrappedException)
     {
         wrappedException = null;
-        var report = exceptionArbiterService.GetReport(exception);
+        var report = exceptionArbiterService.GetReport(exception, ActiveMqRetryCount);
 
         // ReSharper disable once DuplicatedSequentialIfBodies
         if (report.AlreadyHandled && exception is WorkerJobSourceException)
@@ -183,6 +189,30 @@ internal class ActiveMqRetryWrapperService(
         }
     }
 
+    public async Task<TResult> RunAsync<TResult, TState>(Func<TState, CancellationToken, Task<TResult>> func,
+        TState state, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await GetRetryPipeline().ExecuteAsync<TResult, TState>(
+                async (s, token) => await func(s, token), state, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            if (TryGetWrappedException(exception, out var wrappedException) && wrappedException is not null)
+            {
+                throw wrappedException;
+            }
+
+            // Do a flat throw to preserve stack trace
+            throw;
+        }
+    }
+
     /// <inheritdoc />
     public async Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default)
     {
@@ -191,6 +221,30 @@ internal class ActiveMqRetryWrapperService(
             await GetRetryPipeline().ExecuteAsync(
                 async token => await func(token),
                 cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            if (TryGetWrappedException(exception, out var wrappedException) && wrappedException is not null)
+            {
+                throw wrappedException;
+            }
+
+            // Do a flat throw to preserve stack trace
+            throw;
+        }
+    }
+
+    public async Task RunAsync<TState>(Func<TState, CancellationToken, Task> func, TState state,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await GetRetryPipeline().ExecuteAsync(
+                async (s, ct) => await func(s, ct), state, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

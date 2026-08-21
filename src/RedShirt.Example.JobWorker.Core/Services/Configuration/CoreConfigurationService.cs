@@ -9,7 +9,12 @@ namespace RedShirt.Example.JobWorker.Core.Services.Configuration;
 /// </summary>
 public interface ICoreConfigurationService
 {
+    /// <summary>
+    ///     Maximum number of jobs the worker should hold in backlog.
+    ///     Callers may assume the returned value is at least <c>1</c>.
+    /// </summary>
     int GetBacklogSize();
+
     bool IsHaltOnFailure();
 
     /// <summary>
