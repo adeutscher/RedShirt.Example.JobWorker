@@ -401,7 +401,21 @@ internal sealed class JobRepository(
             _inactiveCountCallbacks += callback;
         }
 
-        
+        /*
+         * Putting it on the record that I don't particularly like the below implementation on principle.
+         * It uses a blocking semaphore call, and it duplicates tally logic (especially true for this particular method).
+         *
+         * That said, I think the cure would be worse than the disease:
+         *  * Implementing a check specifically for inactive jobs in this method's sibling
+         *      SubscribeToInactiveCountUpdate would need some sort of tracker on the individual
+         *      items changing state that reports in when an item is inactive/non-inactive.
+         *  * Current subscribers do so at instantiation, before the worker
+         *      threads even have a chance to start adding jobs to the repository.
+         *      This suggests that the blocking will be a tiny one-off.
+         *      While this is also a compelling argument for removing the callback
+         *      call at subscription altogether, I think that running it is more intuitive
+         *      (my issues with it aside).
+         */
         _watchedJobsListSemaphore.Wait();
         try
         {
@@ -422,6 +436,21 @@ internal sealed class JobRepository(
             _watchedJobsCallbacks += callback;
         }
 
+        /*
+         * Putting it on the record that I don't particularly like the below implementation on principle.
+         * It uses a blocking semaphore call, and it duplicates tally logic (especially true for sibling method SubscribeToInactiveCountUpdate).
+         *
+         * That said, I think the cure would be worse than the disease:
+         *  * Implementing a check specifically for inactive jobs in this method's sibling
+         *      SubscribeToInactiveCountUpdate would need some sort of tracker on the individual
+         *      items changing state that reports in when an item is inactive/non-inactive.
+         *  * Current subscribers do so at instantiation, before the worker
+         *      threads even have a chance to start adding jobs to the repository.
+         *      This suggests that the blocking will be a tiny one-off.
+         *      While this is also a compelling argument for removing the callback
+         *      call at subscription altogether, I think that running it is more intuitive
+         *      (my issues with it aside).
+         */
         _watchedJobsListSemaphore.Wait();
         try
         {
