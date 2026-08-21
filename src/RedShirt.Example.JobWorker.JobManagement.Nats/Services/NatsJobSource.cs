@@ -10,7 +10,6 @@ using RedShirt.Example.JobWorker.JobManagement.Nats.Services.Resilience;
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.Services;
 
 internal class NatsJobSource(
-    INatsConsumerSource consumerSource,
     INatsMessageSource messageSource,
     INatsRetryWrapperService retryWrapperService,
     ILogger<NatsJobSource> logger,
