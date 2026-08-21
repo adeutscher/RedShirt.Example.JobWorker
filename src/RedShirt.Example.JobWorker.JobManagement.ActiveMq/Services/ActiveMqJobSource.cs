@@ -7,58 +7,94 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Factories;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Models;
+using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services;
 
-internal class ActiveMqJobSource : IJobSource
+internal class ActiveMqJobSource(
+    IActiveMqConnectionFactory connectionFactory,
+    IActiveMqRetryWrapperService retryWrapperService,
+    IOptions<ActiveMqJobSource.ConfigurationModel> configuration,
+    ILogger<ActiveMqJobSource> logger)
+    : IJobSource
 {
-    private readonly IOptions<ConfigurationModel> _configuration;
+    private IMessageConsumer? _messageConsumer;
 
-    // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
-    private readonly Lazy<Task<IConnection>> _connection;
-    private readonly ILogger<ActiveMqJobSource> _logger;
-
-    // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
-    private readonly Lazy<Task<IMessageConsumer>> _messageConsumer;
-
-    // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
-    private readonly Lazy<Task<IQueue?>> _queue;
-    private readonly Lazy<Task<ISession>> _session;
-
-    public ActiveMqJobSource(IActiveMqConnectionFactory connectionFactory,
-        IOptions<ConfigurationModel> configuration,
-        ILogger<ActiveMqJobSource> logger)
+    private async Task<JobSourceResponse> FetchJobsAsync(int batchSize, CancellationToken cancellationToken)
     {
-        _configuration = configuration;
-        _logger = logger;
-        _connection = new Lazy<Task<IConnection>>(async () =>
+        try
         {
-            var connection = await connectionFactory.GetConnectionAsync();
-            connection.Start();
-            return connection;
-        });
-        _session = new Lazy<Task<ISession>>(async () =>
-        {
-            var connection = await _connection.Value;
-            return await connection.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge);
-        });
-        _queue = new Lazy<Task<IQueue?>>(async () =>
-        {
-            var session = await _session.Value;
-            return await session.GetQueueAsync(_configuration.Value.QueueName);
-        });
-        _messageConsumer = new Lazy<Task<IMessageConsumer>>(async () =>
-        {
-            var queue = await _queue.Value;
+            var consumer = await retryWrapperService.RunAsync(GetConsumerAsync, cancellationToken);
+            var getJobsResponseItems = new List<IRawJobModel>();
 
-            if (queue is null)
+            while (getJobsResponseItems.Count < batchSize)
             {
-                throw new CouldNotLoadQueueException();
+                var result =
+                    await retryWrapperService.RunAsync(_ => consumer.ReceiveAsync(TimeSpan.FromMilliseconds(100)),
+                        cancellationToken);
+
+                if (result is null)
+                    // Nothing more to grab at the moment.
+                {
+                    break;
+                }
+
+                // Got a message, add it to return set.
+                getJobsResponseItems.Add(new ActiveMqRawJobModel
+                {
+                    Message = result,
+                    MessageId = result.NMSMessageId, // Not really used by this framework, but why not
+                    CreatedAtUtc = DateTime.UtcNow
+                });
             }
 
-            var session = await _session.Value;
-            return await session.CreateConsumerAsync(queue);
-        });
+            return new JobSourceResponse
+            {
+                Items = getJobsResponseItems
+            };
+        }
+        catch
+        {
+            ResetConsumer();
+            throw;
+        }
+    }
+
+    /// <summary>
+    ///     Get a cached consumer or get a new one from the connection factory.
+    ///     Confirming that the invocation of this method should be already covered by the retry wrapper service.
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    /// <exception cref="CouldNotLoadQueueException"></exception>
+    private async Task<IMessageConsumer> GetConsumerAsync(CancellationToken cancellationToken)
+    {
+        if (_messageConsumer is not null)
+        {
+            return _messageConsumer;
+        }
+
+        var connection = await connectionFactory.GetConnectionAsync(cancellationToken);
+        await connection.StartAsync();
+        var session = await connection.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge);
+        var queue = await session.GetQueueAsync(configuration.Value.QueueName);
+
+        if (queue is null)
+        {
+            throw new CouldNotLoadQueueException();
+        }
+
+        var consumer = await session.CreateConsumerAsync(queue);
+
+        // Cache for later
+        _messageConsumer = consumer;
+
+        return consumer;
+    }
+
+    private void ResetConsumer()
+    {
+        _messageConsumer = null;
     }
 
     public int RecommendedHeartbeatIntervalSeconds => 0;
@@ -66,14 +102,12 @@ internal class ActiveMqJobSource : IJobSource
     public bool IsSubscriptionSource => false;
 
 #pragma warning disable S2325
-    public Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
+    public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
-#pragma warning restore S2325
     {
-        // ReSharper disable once ConvertIfStatementToReturnStatement
         if (message is not ActiveMqRawJobModel jobModel)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         // Intentionally not using result
@@ -82,43 +116,19 @@ internal class ActiveMqJobSource : IJobSource
 
         // Acknowledge whether successful, recoverable, or unrecoverable
         // (ActiveMQ client API has no direct dead-letter call here).
-        return jobModel.Message.AcknowledgeAsync();
+        await retryWrapperService.RunAsync(
+            _ => jobModel.Message.AcknowledgeAsync(),
+            cancellationToken);
     }
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         batchSize = Math.Max(1, batchSize);
 
-        _logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from ActiveMQ Queue: {QueueName}",
-            batchSize, _configuration.Value.QueueName);
+        logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from ActiveMQ Queue: {QueueName}",
+            batchSize, configuration.Value.QueueName);
 
-        var getJobsResponseItems = new List<IRawJobModel>();
-
-        var consumer = await _messageConsumer.Value;
-
-        while (getJobsResponseItems.Count < batchSize)
-        {
-            var result = await consumer.ReceiveAsync(TimeSpan.FromMilliseconds(100));
-
-            if (result is null)
-                // Nothing more to grab at the moment.
-            {
-                break;
-            }
-
-            // Got a message, add it to return set.
-            getJobsResponseItems.Add(new ActiveMqRawJobModel
-            {
-                Message = result,
-                MessageId = result.NMSMessageId, // Not really used by this framework, but why not
-                CreatedAtUtc = DateTime.UtcNow
-            });
-        }
-
-        return new JobSourceResponse
-        {
-            Items = getJobsResponseItems
-        };
+        return await FetchJobsAsync(batchSize, cancellationToken);
     }
 
     public Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)

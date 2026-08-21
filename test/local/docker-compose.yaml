@@ -19,6 +19,34 @@ services:
     environment:
       ARTEMIS_USER: admin
       ARTEMIS_PASSWORD: admin
+    # Raise max-disk-usage so local publishes still work on nearly-full developer disks
+    # (stock Artemis defaults to 90% and blocks all producers beyond that).
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -euo pipefail
+        cd /var/lib/artemis-instance
+        if [[ "$${ANONYMOUS_LOGIN,,}" == "true" ]]; then
+          LOGIN_OPTION="--allow-anonymous"
+        else
+          LOGIN_OPTION="--require-login"
+        fi
+        if ! [ -f ./etc/broker.xml ]; then
+          /opt/activemq-artemis/bin/artemis create \
+            --user "$${ARTEMIS_USER}" \
+            --password "$${ARTEMIS_PASSWORD}" \
+            --silent \
+            $${LOGIN_OPTION} \
+            $${EXTRA_ARGS:-} \
+            .
+          if [ -d ./etc-override ]; then
+            for file in $$(ls ./etc-override); do
+              cp "./etc-override/$$file" ./etc || true
+            done
+          fi
+        fi
+        sed -i 's#<max-disk-usage>[0-9]*</max-disk-usage>#<max-disk-usage>99</max-disk-usage>#' ./etc/broker.xml
+        exec ./bin/artemis run
 
   nats:
     image: nats

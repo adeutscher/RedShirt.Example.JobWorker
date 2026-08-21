@@ -12,6 +12,17 @@ namespace RedShirt.Example.JobWorker.JobManagement.ActiveMq.UnitTests.Tests.Serv
 
 public class ActiveMqJobSourceTests
 {
+    private static ActiveMqJobSource CreateJobSource(
+        IActiveMqConnectionFactory? factory,
+        ActiveMqJobSource.ConfigurationModel configuration)
+    {
+        return new ActiveMqJobSource(
+            factory!,
+            ActiveMqRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            Options.Create(configuration),
+            new NullLogger<ActiveMqJobSource>());
+    }
+
     [Fact]
     public async Task Test_AcknowledgeAsync()
     {
@@ -22,8 +33,7 @@ public class ActiveMqJobSourceTests
             QueueName = null!
         };
 
-        var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration),
-            new NullLogger<ActiveMqJobSource>());
+        var activeMqJobSource = CreateJobSource(null, configuration);
 
         var jobModel = new ActiveMqRawJobModel
         {
@@ -54,8 +64,7 @@ public class ActiveMqJobSourceTests
             QueueName = null!
         };
 
-        var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration),
-            new NullLogger<ActiveMqJobSource>());
+        var activeMqJobSource = CreateJobSource(null, configuration);
 
         var jobModel = new ActiveMqRawJobModel
         {
@@ -80,8 +89,7 @@ public class ActiveMqJobSourceTests
             QueueName = null!
         };
 
-        var activeMqJobSource = new ActiveMqJobSource(null!, Options.Create(configuration),
-            new NullLogger<ActiveMqJobSource>());
+        var activeMqJobSource = CreateJobSource(null, configuration);
 
         await activeMqJobSource.AcknowledgeAsync(job.Object, CoreJobResult.Success,
             TestContext.Current.CancellationToken);
@@ -108,7 +116,8 @@ public class ActiveMqJobSourceTests
             .ReturnsAsync(consumer.Object);
 
         var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.Start());
+        mockConnection.Setup(c => c.StartAsync())
+            .Returns(Task.CompletedTask);
         mockConnection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
             .ReturnsAsync(mockSession.Object);
 
@@ -120,8 +129,7 @@ public class ActiveMqJobSourceTests
             .Setup(c => c.ReceiveAsync(It.IsAny<TimeSpan>()))
             .ReturnsAsync(() => null);
 
-        var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<ActiveMqJobSource>());
+        var jobSource = CreateJobSource(activeConnectionFactory.Object, configuration);
 
         var jobResponse = await jobSource.GetJobsAsync(10, TestContext.Current.CancellationToken);
 
@@ -130,7 +138,7 @@ public class ActiveMqJobSourceTests
 
         Assert.Single(activeConnectionFactory.Invocations);
         Assert.Equal(2, mockConnection.Invocations.Count);
-        mockConnection.Verify(c => c.Start(), Times.Once);
+        mockConnection.Verify(c => c.StartAsync(), Times.Once);
         mockConnection.Verify(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge), Times.Once);
         Assert.Equal(2, mockSession.Invocations.Count);
         mockSession.Verify(s => s.GetQueueAsync(queueName), Times.Once);
@@ -152,7 +160,8 @@ public class ActiveMqJobSourceTests
             .ReturnsAsync((IQueue?) null);
 
         var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.Start());
+        mockConnection.Setup(c => c.StartAsync())
+            .Returns(Task.CompletedTask);
         mockConnection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
             .ReturnsAsync(mockSession.Object);
 
@@ -160,15 +169,14 @@ public class ActiveMqJobSourceTests
         activeConnectionFactory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(mockConnection.Object);
 
-        var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<ActiveMqJobSource>());
+        var jobSource = CreateJobSource(activeConnectionFactory.Object, configuration);
 
         await Assert.ThrowsAsync<CouldNotLoadQueueException>(() =>
             jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken));
 
         Assert.Single(activeConnectionFactory.Invocations);
         Assert.Equal(2, mockConnection.Invocations.Count);
-        mockConnection.Verify(c => c.Start(), Times.Once);
+        mockConnection.Verify(c => c.StartAsync(), Times.Once);
         mockConnection.Verify(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge), Times.Once);
         Assert.Single(mockSession.Invocations);
         mockSession.Verify(s => s.GetQueueAsync(queueName), Times.Once);
@@ -195,7 +203,8 @@ public class ActiveMqJobSourceTests
             .ReturnsAsync(consumer.Object);
 
         var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.Start());
+        mockConnection.Setup(c => c.StartAsync())
+            .Returns(Task.CompletedTask);
         mockConnection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
             .ReturnsAsync(mockSession.Object);
 
@@ -215,8 +224,7 @@ public class ActiveMqJobSourceTests
             .Setup(c => c.ReceiveAsync(It.IsAny<TimeSpan>()))
             .ReturnsAsync(() => mockChannelQueue.TryDequeue(out var job) ? job : null);
 
-        var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<ActiveMqJobSource>());
+        var jobSource = CreateJobSource(activeConnectionFactory.Object, configuration);
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
@@ -227,7 +235,7 @@ public class ActiveMqJobSourceTests
 
         Assert.Single(activeConnectionFactory.Invocations);
         Assert.Equal(2, mockConnection.Invocations.Count);
-        mockConnection.Verify(c => c.Start(), Times.Once);
+        mockConnection.Verify(c => c.StartAsync(), Times.Once);
         mockConnection.Verify(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge), Times.Once);
         Assert.Equal(2, mockSession.Invocations.Count);
         mockSession.Verify(s => s.GetQueueAsync(queueName), Times.Once);
@@ -255,7 +263,8 @@ public class ActiveMqJobSourceTests
             .ReturnsAsync(consumer.Object);
 
         var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.Start());
+        mockConnection.Setup(c => c.StartAsync())
+            .Returns(Task.CompletedTask);
         mockConnection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
             .ReturnsAsync(mockSession.Object);
 
@@ -275,8 +284,7 @@ public class ActiveMqJobSourceTests
             .Setup(c => c.ReceiveAsync(It.IsAny<TimeSpan>()))
             .ReturnsAsync(() => mockChannelQueue.TryDequeue(out var job) ? job : null);
 
-        var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<ActiveMqJobSource>());
+        var jobSource = CreateJobSource(activeConnectionFactory.Object, configuration);
 
         var jobResponse = await jobSource.GetJobsAsync(0, TestContext.Current.CancellationToken);
 
@@ -310,7 +318,8 @@ public class ActiveMqJobSourceTests
             .ReturnsAsync(consumer.Object);
 
         var mockConnection = new Mock<IConnection>(MockBehavior.Strict);
-        mockConnection.Setup(c => c.Start());
+        mockConnection.Setup(c => c.StartAsync())
+            .Returns(Task.CompletedTask);
         mockConnection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
             .ReturnsAsync(mockSession.Object);
 
@@ -342,8 +351,7 @@ public class ActiveMqJobSourceTests
             .Setup(c => c.ReceiveAsync(It.IsAny<TimeSpan>()))
             .ReturnsAsync(() => mockChannelQueue.TryDequeue(out var job) ? job : null);
 
-        var jobSource = new ActiveMqJobSource(activeConnectionFactory.Object, Options.Create(configuration),
-            new NullLogger<ActiveMqJobSource>());
+        var jobSource = CreateJobSource(activeConnectionFactory.Object, configuration);
 
         var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
@@ -369,8 +377,7 @@ public class ActiveMqJobSourceTests
             QueueName = null!
         };
 
-        var jobSource = new ActiveMqJobSource(null!, Options.Create(configuration),
-            new NullLogger<ActiveMqJobSource>());
+        var jobSource = CreateJobSource(null, configuration);
 
         await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);
     }
