@@ -302,6 +302,49 @@ public class LoaderModeJobLoaderTests
     }
 
     [Fact]
+    public async Task
+        RunAsync_WhenTransientWorkerJobSourceException_AndTreatTransientAsFailure_AndHaltOnFailure_Propagates()
+    {
+        var transient = new WorkerJobSourceException("transient pull")
+            {CouldBeTransient = true, IsHandled = false, CouldBeExternallySolvable = true};
+
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        jobRepository.Setup(r => r.GetBacklogMaxCount()).Returns(1);
+        jobRepository
+            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync(0);
+
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource
+            .Setup(s => s.GetJobsAsync(1, TestContext.Current.CancellationToken))
+            .ThrowsAsync(transient);
+
+        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
+
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+
+        var loader = new LoaderModeJobLoader(
+            jobSource.Object,
+            new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
+            jobRepository.Object,
+            jobIntakeService.Object,
+            health.Object,
+            new NullLogger<LoaderModeJobLoader>(),
+            CreateCoreConfigurationService(true, true),
+            Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
+
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
+            loader.RunAsync(TestContext.Current.CancellationToken));
+
+        Assert.Same(transient, thrown);
+        jobIntakeService.Verify(
+            s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        health.Verify(h => h.NoteIncident(), Times.Once);
+    }
+
+    [Fact]
     public async Task RunAsync_WhenTransientWorkerJobSourceException_ThrowsNoJobException()
     {
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);

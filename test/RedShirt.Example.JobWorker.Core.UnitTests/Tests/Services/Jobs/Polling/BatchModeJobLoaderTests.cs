@@ -176,6 +176,43 @@ public class BatchModeJobLoaderTests
     }
 
     [Fact]
+    public async Task
+        RunAsync_WhenTransientWorkerJobSourceException_AndTreatTransientAsFailure_AndHaltOnFailure_Propagates()
+    {
+        var transient = new WorkerJobSourceException("transient pull")
+            {CouldBeTransient = true, IsHandled = false, CouldBeExternallySolvable = true};
+
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource
+            .Setup(s => s.GetJobsAsync(10, TestContext.Current.CancellationToken))
+            .ThrowsAsync(transient);
+
+        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+        health.Setup(h => h.NoteIncident());
+
+        var loader = new BatchModeJobLoader(
+            jobSource.Object,
+            jobRepository.Object,
+            jobIntakeService.Object,
+            health.Object,
+            new NullLogger<BatchModeJobLoader>(),
+            CreateCoreConfigurationService(true, true),
+            Options.Create(new JobSourceConfigurationModel {BatchSize = 10}));
+
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
+            loader.RunAsync(TestContext.Current.CancellationToken));
+
+        Assert.Same(transient, thrown);
+        jobIntakeService.Verify(
+            s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        health.Verify(h => h.NoteIncident(), Times.Once);
+    }
+
+    [Fact]
     public async Task RunAsync_WhenTransientWorkerJobSourceException_ThrowsNoJobException()
     {
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
