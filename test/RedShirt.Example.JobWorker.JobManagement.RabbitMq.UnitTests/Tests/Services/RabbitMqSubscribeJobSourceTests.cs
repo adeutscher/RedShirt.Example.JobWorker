@@ -218,15 +218,24 @@ public class RabbitMqSubscribeJobSourceTests
         SetupConsume(channel);
 
         var wrapper = CreatePassthroughWrapper(channel.Object);
+        var waitStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        var waitForFinishedExecuted = false;
         executionEndArbiter
             .Setup(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()))
-            .Returns(new TaskCompletionSource().Task);
+            .Returns(() =>
+            {
+                waitStarted.TrySetResult();
+                waitForFinishedExecuted = true;
+                return Task.CompletedTask;
+            });
 
         var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
 
         await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
 
+        await waitStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        Assert.True(waitForFinishedExecuted);
         executionEndArbiter.Verify(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()), Times.Once);
         channel.Verify(c => c.BasicQosAsync(0, ushort.MaxValue, false, TestContext.Current.CancellationToken),
             Times.Once);
