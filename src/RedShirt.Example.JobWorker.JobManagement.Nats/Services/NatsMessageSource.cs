@@ -38,50 +38,51 @@ internal class NatsMessageSource(
         return items;
     }
 
-    public Task<NatsMessageSourceResponse> FetchMessagesAsync(int batchSize,
+    public async Task<NatsMessageSourceResponse> FetchMessagesAsync(int batchSize,
         CancellationToken cancellationToken = default)
     {
-        return retryWrapperService.RunAsync(async ct =>
+        var consumer = await retryWrapperService.RunAsync(consumerSource.GetConsumerAsync, cancellationToken);
+
+        if (options.Value.EffectiveWaitTimeSeconds <= 0)
         {
-            var consumer = await consumerSource.GetConsumerAsync(ct);
-
-            if (options.Value.EffectiveWaitTimeSeconds <= 0)
+            return new NatsMessageSourceResponse
             {
-                return new NatsMessageSourceResponse
-                {
-                    Messages = await FetchBatchWithNoWaitAsync(batchSize, consumer, ct)
-                };
-            }
+                Messages = await retryWrapperService.RunAsync(ct => FetchBatchWithNoWaitAsync(batchSize, consumer, ct),
+                    cancellationToken)
+            };
+        }
 
-            var items = new List<INatsJSMsg<NatsMemoryOwner<byte>>>();
-            var firstResult = await consumer.NextAsync<NatsMemoryOwner<byte>>(opts: new NatsJSNextOpts
+        var items = new List<INatsJSMsg<NatsMemoryOwner<byte>>>();
+        var firstResult = await retryWrapperService.RunAsync<INatsJSMsg<NatsMemoryOwner<byte>>?>(async ct =>
+            await consumer.NextAsync<NatsMemoryOwner<byte>>(opts: new NatsJSNextOpts
             {
                 IdleHeartbeat = HeartbeatTime,
                 Expires = TimeSpan.FromSeconds(options.Value.EffectiveWaitTimeSeconds)
-            }, cancellationToken: ct);
+            }, cancellationToken: ct), cancellationToken);
 
-            if (firstResult is null)
-            {
-                return new NatsMessageSourceResponse
-                {
-                    Messages = items
-                };
-            }
-
-            // Result is not null
-
-            items.Add(firstResult);
-            if (batchSize >= 1)
-            {
-                // Remaining items to follow up on after getting next
-                items.AddRange(await FetchBatchWithNoWaitAsync(batchSize - 1, consumer, ct));
-            }
-
+        if (firstResult is null)
+        {
             return new NatsMessageSourceResponse
             {
                 Messages = items
             };
-        }, cancellationToken);
+        }
+
+        // Result is not null
+
+        items.Add(firstResult);
+        if (batchSize >= 1)
+        {
+            // Remaining items to follow up on after getting next
+            items.AddRange(
+                await retryWrapperService.RunAsync(ct => FetchBatchWithNoWaitAsync(batchSize - 1, consumer, ct),
+                    cancellationToken));
+        }
+
+        return new NatsMessageSourceResponse
+        {
+            Messages = items
+        };
     }
 
     public sealed class ConfigurationModel
