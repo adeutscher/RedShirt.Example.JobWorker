@@ -8,6 +8,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.ActiveMq.Factories;
 internal interface IInnerActiveMqConnectionFactory
 {
     Task<IActiveConnectionWrapper> GetConnectionFactoryWrapperAsync(
+        bool forceNewSecretManagerPull = false,
         CancellationToken cancellationToken = default);
 }
 
@@ -18,9 +19,12 @@ internal class InnerActiveMqConnectionFactory(
     : IInnerActiveMqConnectionFactory
 {
     public async Task<IActiveConnectionWrapper> GetConnectionFactoryWrapperAsync(
+        bool forceNewSecretManagerPull = false,
         CancellationToken cancellationToken = default)
     {
-        var configuration = await configurationSource.GetConfigurationAsync(cancellationToken);
+        var configuration = await configurationSource.GetConfigurationAsync(
+            forceNewSecretManagerPull,
+            cancellationToken);
 
         // If we are using a subscription, then enrich the URI to ensure fail-over
         var brokerUri = activeMqSubscribeConfigurationService.IsSubscription

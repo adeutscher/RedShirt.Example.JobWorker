@@ -264,7 +264,8 @@ public class ActiveMqSubscribeJobSourceTests
             l => l.Log(
                 LogLevel.Information,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("resumed", StringComparison.OrdinalIgnoreCase)),
+                It.Is<It.IsAnyType>((v, _) =>
+                    v.ToString()!.Contains("established", StringComparison.OrdinalIgnoreCase)),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);

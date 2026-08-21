@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Factories;
+using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services.Resilience;
 using System.Runtime.ExceptionServices;
@@ -29,7 +30,7 @@ public class ActiveMqConsumerRetryWrapperTests
             .ReturnsAsync(session.Object);
 
         var factory = new Mock<IActiveMqConnectionFactory>(MockBehavior.Strict);
-        factory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
+        factory.Setup(f => f.GetConnectionAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(connection.Object);
 
         return (factory, connection, session, queue);
@@ -38,11 +39,15 @@ public class ActiveMqConsumerRetryWrapperTests
     private static ActiveMqConsumerRetryWrapper CreateWrapper(
         IActiveMqRetryWrapperService retry,
         IActiveMqConnectionFactory factory,
-        string queueName)
+        string queueName,
+        IActiveMqExceptionArbiterService? exceptionArbiter = null)
     {
+        exceptionArbiter ??= Mock.Of<IActiveMqExceptionArbiterService>();
+
         return new ActiveMqConsumerRetryWrapper(
             factory,
             retry,
+            exceptionArbiter,
             Options.Create(new ActiveMqConfigurationModel
             {
                 QueueName = queueName
@@ -73,7 +78,7 @@ public class ActiveMqConsumerRetryWrapperTests
 
         Assert.Equal(1, newConnectionCalls);
         Assert.Equal(1, newConsumerCalls);
-        factory.Verify(f => f.GetConnectionAsync(TestContext.Current.CancellationToken), Times.Once);
+        factory.Verify(f => f.GetConnectionAsync(false, TestContext.Current.CancellationToken), Times.Once);
         connection.Verify(c => c.StartAsync(), Times.Once);
         session.Verify(s => s.CreateConsumerAsync(It.IsAny<IQueue>()), Times.Once);
     }
@@ -97,7 +102,7 @@ public class ActiveMqConsumerRetryWrapperTests
             .ReturnsAsync(session.Object);
 
         var factory = new Mock<IActiveMqConnectionFactory>(MockBehavior.Strict);
-        factory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
+        factory.Setup(f => f.GetConnectionAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(connection.Object);
 
         var wrapper = CreateWrapper(new ImmediateRetryWrapper(2), factory.Object, queueName);
@@ -124,7 +129,7 @@ public class ActiveMqConsumerRetryWrapperTests
         Assert.Equal(2, attempts);
         Assert.Equal([firstConsumer.Object, secondConsumer.Object], seenConsumers);
         Assert.Equal(2, newConsumerCalls);
-        factory.Verify(f => f.GetConnectionAsync(TestContext.Current.CancellationToken), Times.Exactly(2));
+        factory.Verify(f => f.GetConnectionAsync(false, TestContext.Current.CancellationToken), Times.Exactly(2));
         session.Verify(s => s.CreateConsumerAsync(queue.Object), Times.Exactly(2));
     }
 
@@ -141,7 +146,7 @@ public class ActiveMqConsumerRetryWrapperTests
             .ReturnsAsync(session.Object);
 
         var factory = new Mock<IActiveMqConnectionFactory>(MockBehavior.Strict);
-        factory.Setup(f => f.GetConnectionAsync(It.IsAny<CancellationToken>()))
+        factory.Setup(f => f.GetConnectionAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(connection.Object);
 
         var wrapper = CreateWrapper(new ImmediateRetryWrapper(), factory.Object, queueName);
@@ -151,6 +156,61 @@ public class ActiveMqConsumerRetryWrapperTests
                 cancellationToken: TestContext.Current.CancellationToken));
 
         session.Verify(s => s.CreateConsumerAsync(It.IsAny<IDestination>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetChannelAndDoActionWithRetryAsync_WhenTransientSecurityException_ForcesSecretRefresh()
+    {
+        var queueName = Guid.NewGuid().ToString();
+        var firstConsumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
+        var secondConsumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
+        var queue = new Mock<IQueue>(MockBehavior.Strict);
+        var session = new Mock<ISession>(MockBehavior.Strict);
+        session.Setup(s => s.GetQueueAsync(queueName)).ReturnsAsync(queue.Object);
+        session.SetupSequence(s => s.CreateConsumerAsync(queue.Object))
+            .ReturnsAsync(firstConsumer.Object)
+            .ReturnsAsync(secondConsumer.Object);
+
+        var connection = new Mock<IConnection>(MockBehavior.Strict);
+        connection.Setup(c => c.StartAsync()).Returns(Task.CompletedTask);
+        connection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
+            .ReturnsAsync(session.Object);
+
+        var factory = new Mock<IActiveMqConnectionFactory>(MockBehavior.Strict);
+        factory.Setup(f => f.GetConnectionAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(connection.Object);
+
+        var arbiter = new Mock<IActiveMqExceptionArbiterService>(MockBehavior.Strict);
+        arbiter
+            .Setup(a => a.GetReport(It.IsAny<NMSSecurityException>(), It.IsAny<int>()))
+            .Returns(new ActiveMqExceptionArbiterReport
+            {
+                AlreadyHandled = false,
+                IsExpected = true,
+                CouldBeTransient = true,
+                CouldBeExternallySolvable = true
+            });
+
+        var wrapper = CreateWrapper(new ImmediateRetryWrapper(2), factory.Object, queueName, arbiter.Object);
+
+        var attempts = 0;
+        await wrapper.GetChannelAndDoActionWithRetryAsync(
+            (_, _) =>
+            {
+                attempts++;
+                if (attempts == 1)
+                {
+                    throw new NMSSecurityException("User name or password is invalid.");
+                }
+
+                return Task.CompletedTask;
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, attempts);
+        factory.Verify(f => f.GetConnectionAsync(false, TestContext.Current.CancellationToken), Times.Once);
+        factory.Verify(f => f.GetConnectionAsync(true, TestContext.Current.CancellationToken), Times.Once);
+        arbiter.Verify(a => a.GetReport(It.IsAny<NMSSecurityException>(), 1), Times.Once);
     }
 
     [Fact]
@@ -179,6 +239,7 @@ public class ActiveMqConsumerRetryWrapperTests
         Assert.Same(connection.Object, notifiedConnection);
         Assert.Same(consumer.Object, notifiedConsumer);
         connection.Verify(c => c.StartAsync(), Times.Once);
+        factory.Verify(f => f.GetConnectionAsync(false, TestContext.Current.CancellationToken), Times.Once);
     }
 
     private sealed class ImmediateRetryWrapper(int maxAttempts = 1) : IActiveMqRetryWrapperService

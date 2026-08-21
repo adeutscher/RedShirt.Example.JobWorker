@@ -17,7 +17,8 @@ public class InnerActiveMqConnectionFactoryTests
     private static Mock<IActiveMqServerConfigurationSource> CreateConfigSource(string brokerUri = PlainBrokerUri)
     {
         var configSource = new Mock<IActiveMqServerConfigurationSource>(MockBehavior.Strict);
-        configSource.Setup(cs => cs.GetConfigurationAsync(TestContext.Current.CancellationToken))
+        configSource
+            .Setup(cs => cs.GetConfigurationAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ActiveMqServerConfigurationModel
             {
                 BrokerUri = brokerUri,
@@ -66,6 +67,27 @@ public class InnerActiveMqConnectionFactoryTests
         Assert.Equal(expected, InnerActiveMqConnectionFactory.EnsureFailoverUri(input));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetWrapperAsync_PassesForceNewSecretManagerPullToConfigurationSource(
+        bool forceNewSecretManagerPull)
+    {
+        var configSource = CreateConfigSource();
+        var subscribeConfiguration = CreateSubscribeConfiguration(false);
+        var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
+
+        var innerFactory = CreateFactory(configSource.Object, subscribeConfiguration.Object, coreConfiguration.Object);
+
+        await innerFactory.GetConnectionFactoryWrapperAsync(
+            forceNewSecretManagerPull,
+            TestContext.Current.CancellationToken);
+
+        configSource.Verify(
+            cs => cs.GetConfigurationAsync(forceNewSecretManagerPull, TestContext.Current.CancellationToken),
+            Times.Once);
+    }
+
     [Fact]
     public async Task GetWrapperAsync_WhenNotSubscription_LeavesPlainBrokerUriAndDefaultPrefetch()
     {
@@ -76,11 +98,13 @@ public class InnerActiveMqConnectionFactoryTests
         var innerFactory = CreateFactory(configSource.Object, subscribeConfiguration.Object, coreConfiguration.Object);
 
         var wrapper = Assert.IsType<ActiveMqConnectionWrapper>(
-            await innerFactory.GetConnectionFactoryWrapperAsync(TestContext.Current.CancellationToken));
+            await innerFactory.GetConnectionFactoryWrapperAsync(
+                cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Equal(DefaultQueuePrefetch, wrapper.InternalConnectionFactory.PrefetchPolicy.QueuePrefetch);
         Assert.Equal(PlainBrokerUri, wrapper.InternalConnectionFactory.BrokerUri.ToString());
         coreConfiguration.Verify(c => c.GetBacklogSize(), Times.Never);
+        configSource.Verify(cs => cs.GetConfigurationAsync(false, TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Fact]
@@ -95,7 +119,8 @@ public class InnerActiveMqConnectionFactoryTests
         var innerFactory = CreateFactory(configSource.Object, subscribeConfiguration.Object, coreConfiguration.Object);
 
         var wrapper = Assert.IsType<ActiveMqConnectionWrapper>(
-            await innerFactory.GetConnectionFactoryWrapperAsync(TestContext.Current.CancellationToken));
+            await innerFactory.GetConnectionFactoryWrapperAsync(
+                cancellationToken: TestContext.Current.CancellationToken));
 
         var text = wrapper.InternalConnectionFactory.BrokerUri.ToString();
         Assert.StartsWith("failover:", text, StringComparison.OrdinalIgnoreCase);
@@ -118,7 +143,8 @@ public class InnerActiveMqConnectionFactoryTests
         var valueHostname = PlainBrokerUri;
 
         var configSource = new Mock<IActiveMqServerConfigurationSource>(MockBehavior.Strict);
-        configSource.Setup(cs => cs.GetConfigurationAsync(TestContext.Current.CancellationToken))
+        configSource
+            .Setup(cs => cs.GetConfigurationAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ActiveMqServerConfigurationModel
             {
                 BrokerUri = valueHostname,
@@ -132,7 +158,8 @@ public class InnerActiveMqConnectionFactoryTests
 
         var innerFactory = CreateFactory(configSource.Object, subscribeConfiguration.Object, coreConfiguration.Object);
 
-        var rawWrapper = await innerFactory.GetConnectionFactoryWrapperAsync(TestContext.Current.CancellationToken);
+        var rawWrapper = await innerFactory.GetConnectionFactoryWrapperAsync(
+            cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(rawWrapper);
         var wrapper = Assert.IsType<ActiveMqConnectionWrapper>(rawWrapper);
         Assert.Equal(valueName, wrapper.InternalConnectionFactory.UserName);

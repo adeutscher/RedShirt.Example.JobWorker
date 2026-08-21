@@ -104,7 +104,7 @@ internal class ActiveMqRetryWrapperService(
                         return PredicateResult.False();
                     }
 
-                    var report = exceptionArbiterService.GetReport(exception);
+                    var report = exceptionArbiterService.GetReport(exception, args.AttemptNumber + 1);
                     return report is {IsExpected: true, CouldBeTransient: true}
                         ? PredicateResult.True()
                         : PredicateResult.False();
@@ -137,7 +137,7 @@ internal class ActiveMqRetryWrapperService(
     private bool TryGetWrappedException(Exception exception, out Exception? wrappedException)
     {
         wrappedException = null;
-        var report = exceptionArbiterService.GetReport(exception);
+        var report = exceptionArbiterService.GetReport(exception, ActiveMqRetryCount);
 
         // ReSharper disable once DuplicatedSequentialIfBodies
         if (report.AlreadyHandled && exception is WorkerJobSourceException)

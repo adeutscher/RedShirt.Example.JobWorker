@@ -15,7 +15,16 @@ namespace RedShirt.Example.JobWorker.JobManagement.ActiveMq.Services.Resilience;
 /// </summary>
 internal interface IActiveMqExceptionArbiterService
 {
-    ActiveMqExceptionArbiterReport GetReport(Exception exception);
+    /// <summary>
+    ///     Get a judgement on an exception.
+    /// </summary>
+    /// <param name="exception"></param>
+    /// <param name="attemptNumber">
+    ///     Attempt number. First attempt number starts at 1. This arbiter's partner retry wrapper uses
+    ///     Polly pipelines that are zero-based, but I find using non-zero-based more intuitive.
+    /// </param>
+    /// <returns></returns>
+    ActiveMqExceptionArbiterReport GetReport(Exception exception, int attemptNumber);
 }
 
 /// <summary>
@@ -52,7 +61,22 @@ internal class ActiveMqExceptionArbiterService : IActiveMqExceptionArbiterServic
         };
     }
 
-    public ActiveMqExceptionArbiterReport GetReport(Exception exception)
+    /// <summary>
+    ///     Handle the special case of an NMSSecurityException.
+    /// </summary>
+    /// <param name="exception"></param>
+    /// <param name="attemptNumber"></param>
+    /// <returns></returns>
+    private static ActiveMqExceptionArbiterReport MapSecurityException(NMSSecurityException exception,
+        int attemptNumber)
+    {
+        // Not super-happy about judging off of a message, but Google says that the exit code property is ambiguous.
+        // That's a bit of an understatement, as in practice it's blank.
+        var firstPasswordOffense = exception.Message.EndsWith(" or password is invalid.") && attemptNumber == 1;
+        return Fresh(true, firstPasswordOffense, true);
+    }
+
+    public ActiveMqExceptionArbiterReport GetReport(Exception exception, int attemptNumber)
     {
         ArgumentNullException.ThrowIfNull(exception);
 
@@ -79,7 +103,7 @@ internal class ActiveMqExceptionArbiterService : IActiveMqExceptionArbiterServic
             // Unsupported / unreadable payload — a local data issue, not retryable.
             CouldNotRetrieveMessageBodyException => Fresh(true, false, false),
             // Auth failures — ops can grant credentials / ACLs externally.
-            NMSSecurityException => Fresh(true, false, true),
+            NMSSecurityException securityException => MapSecurityException(securityException, attemptNumber),
             // Missing / invalid destination — ops can create or restore the queue externally.
             InvalidDestinationException => Fresh(true, false, true),
             // Bad local client identity or selector — requires a config change, not an external fix.

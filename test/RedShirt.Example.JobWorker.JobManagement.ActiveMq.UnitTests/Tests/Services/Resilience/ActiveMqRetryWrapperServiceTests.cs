@@ -93,7 +93,7 @@ public class ActiveMqRetryWrapperServiceTests
         var attempts = 0;
         var inner = new InvalidOperationException("permanent");
         var arbiter = new Mock<IActiveMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(inner)).Returns(PermanentReport());
+        arbiter.Setup(a => a.GetReport(inner, It.IsAny<int>())).Returns(PermanentReport());
 
         var sleep = CreateSleepService();
         var wrapper = new ActiveMqRetryWrapperService(arbiter.Object,
@@ -164,7 +164,7 @@ public class ActiveMqRetryWrapperServiceTests
         var inner = new TimeoutException("still failing");
 
         var arbiter = new Mock<IActiveMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>(), It.IsAny<int>())).Returns(TransientReport());
 
         var sleep = CreateSleepService();
         var wrapper = new ActiveMqRetryWrapperService(arbiter.Object,
@@ -192,7 +192,7 @@ public class ActiveMqRetryWrapperServiceTests
             {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = false};
 
         var arbiter = new Mock<IActiveMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport(false));
+        arbiter.Setup(a => a.GetReport(inner, It.IsAny<int>())).Returns(AlreadyHandledReport(false));
 
         var sleep = CreateSleepService();
         var wrapper = new ActiveMqRetryWrapperService(arbiter.Object,
@@ -212,7 +212,7 @@ public class ActiveMqRetryWrapperServiceTests
         var inner = new InvalidOperationException("critical");
 
         var arbiter = new Mock<IActiveMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(inner)).Returns(CriticalReport());
+        arbiter.Setup(a => a.GetReport(inner, It.IsAny<int>())).Returns(CriticalReport());
 
         var sleep = CreateSleepService();
         var wrapper = new ActiveMqRetryWrapperService(arbiter.Object,
@@ -269,7 +269,7 @@ public class ActiveMqRetryWrapperServiceTests
         var inner = new ArgumentException("bad");
 
         var arbiter = new Mock<IActiveMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(inner)).Returns(PermanentReport());
+        arbiter.Setup(a => a.GetReport(inner, It.IsAny<int>())).Returns(PermanentReport());
 
         var sleep = CreateSleepService();
         var wrapper = new ActiveMqRetryWrapperService(arbiter.Object,
@@ -300,7 +300,7 @@ public class ActiveMqRetryWrapperServiceTests
         var inner = new TimeoutException("still failing");
 
         var arbiter = new Mock<IActiveMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>(), It.IsAny<int>())).Returns(TransientReport());
 
         var sleep = CreateSleepService(delays);
         var wrapper = new ActiveMqRetryWrapperService(arbiter.Object,
@@ -332,7 +332,7 @@ public class ActiveMqRetryWrapperServiceTests
         var delays = new List<TimeSpan>();
 
         var arbiter = new Mock<IActiveMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>(), It.IsAny<int>())).Returns(TransientReport());
 
         var sleep = CreateSleepService(delays);
         var wrapper = new ActiveMqRetryWrapperService(arbiter.Object,
@@ -382,7 +382,7 @@ public class ActiveMqRetryWrapperServiceTests
         var attempts = 0;
         var delays = new List<TimeSpan>();
         var arbiter = new Mock<IActiveMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>(), It.IsAny<int>())).Returns(TransientReport());
 
         var sleep = CreateSleepService(delays);
         var wrapper = new ActiveMqRetryWrapperService(arbiter.Object,

@@ -18,6 +18,7 @@ internal interface IActiveMqConsumerRetryWrapper
 internal class ActiveMqConsumerRetryWrapper(
     IActiveMqConnectionFactory connectionFactory,
     IActiveMqRetryWrapperService retryWrapperService,
+    IActiveMqExceptionArbiterService exceptionArbiterService,
     IOptions<ActiveMqConfigurationModel> configuration) : IActiveMqConsumerRetryWrapper
 {
     private IMessageConsumer? _messageConsumer;
@@ -30,14 +31,25 @@ internal class ActiveMqConsumerRetryWrapper(
     {
         if (state.Exception is not null)
         {
-            // Future: Distinguish between exceptions, in the style of RabbitMQ
+            state.RetryNumber++;
             ResetConsumer();
+            // Future: Distinguish between exceptions, in the style of RabbitMQ
+        }
+
+        // ReSharper disable once ReplaceWithSingleAssignment.False
+        var forceNewSecretManagerPull = false;
+
+        // ReSharper disable once ConvertIfToOrExpression
+        if (state.Exception is NMSSecurityException securityException
+            && exceptionArbiterService.GetReport(securityException, state.RetryNumber) is {CouldBeTransient: true})
+        {
+            forceNewSecretManagerPull = true;
         }
 
         try
         {
             var consumer = await GetConsumerAsync(onNewConnectionCallback, onNewMessageConsumerCallback,
-                cancellationToken);
+                forceNewSecretManagerPull, cancellationToken);
             await callback(consumer, cancellationToken);
         }
         catch (Exception e)
@@ -53,18 +65,22 @@ internal class ActiveMqConsumerRetryWrapper(
     /// </summary>
     /// <param name="onNewConnectionCallback"></param>
     /// <param name="onNewMessageConsumerCallback"></param>
+    /// <param name="forceNewSecretManagerPull"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     /// <exception cref="CouldNotLoadQueueException"></exception>
     private async Task<IMessageConsumer> GetConsumerAsync(Action<IConnection>? onNewConnectionCallback,
-        Action<IMessageConsumer>? onNewMessageConsumerCallback, CancellationToken cancellationToken)
+        Action<IMessageConsumer>? onNewMessageConsumerCallback, bool forceNewSecretManagerPull,
+        CancellationToken cancellationToken)
     {
         if (_messageConsumer is not null)
         {
             return _messageConsumer;
         }
 
-        var connection = await connectionFactory.GetConnectionAsync(cancellationToken);
+        var connection = await connectionFactory.GetConnectionAsync(
+            forceNewSecretManagerPull,
+            cancellationToken);
         onNewConnectionCallback?.Invoke(connection);
         await connection.StartAsync();
         var session = await connection.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge);
@@ -97,12 +113,14 @@ internal class ActiveMqConsumerRetryWrapper(
             (state, ct) => CallbackAsync(callback, state, onNewConnectionCallback, onNewMessageConsumerCallback, ct),
             new RetryState
             {
-                Exception = null
+                Exception = null,
+                RetryNumber = 0
             }, cancellationToken);
     }
 
     private sealed class RetryState
     {
         public required Exception? Exception { get; set; }
+        public required int RetryNumber { get; set; }
     }
 }

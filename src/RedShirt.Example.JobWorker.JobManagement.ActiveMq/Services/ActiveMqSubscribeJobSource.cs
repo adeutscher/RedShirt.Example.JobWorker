@@ -76,7 +76,7 @@ internal class ActiveMqSubscribeJobSource(
 
     private void OnConnectionResumed()
     {
-        logger.LogInformation("ActiveMQ connection resumed");
+        logger.LogInformation("ActiveMQ connection established");
         // Unlike RabbitMQ, no need to resubscribe - handled by underlying client library
     }
 
@@ -94,11 +94,12 @@ internal class ActiveMqSubscribeJobSource(
         var firstIteration = true;
         while (true)
         {
-            if (firstIteration)
+            if (!firstIteration)
             {
-                firstIteration = false;
                 await sleepService.DelayAsync(TimeSpan.FromSeconds(1), cancellationToken);
             }
+
+            firstIteration = false;
 
             try
             {
