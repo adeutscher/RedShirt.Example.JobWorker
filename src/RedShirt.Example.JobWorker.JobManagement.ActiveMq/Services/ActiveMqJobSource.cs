@@ -36,6 +36,9 @@ internal class ActiveMqJobSource(
 
         // Acknowledge whether successful, recoverable, or unrecoverable
         // (ActiveMQ client API has no direct dead-letter call here).
+        // Noting that it is very intentional that we use the base IActiveMqRetryWrapperService here.
+        // An exception here is not going to be anything that we could solve with a reconnect.
+        // In fact, it would only cause more problems.
         await retryWrapperService.RunAsync(
             _ => jobModel.Message.AcknowledgeAsync(),
             cancellationToken);

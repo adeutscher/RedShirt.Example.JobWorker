@@ -281,10 +281,15 @@ internal class ActiveMqSubscribeJobSource(
             return;
         }
 
-        // Intentionally not using result for ack/nack branching — NMS ClientAcknowledge has no
-        // direct dead-letter / requeue call here analogous to RabbitMQ BasicNack.
+        // Intentionally not using result
+        // The `_ = result;` phrasing prevents certain code analysis tools from flagging this as a potential issue
         _ = result;
 
+        // Acknowledge whether successful, recoverable, or unrecoverable
+        // (ActiveMQ client API has no direct dead-letter call here).
+        // Noting that it is very intentional that we use the base IActiveMqRetryWrapperService here.
+        // An exception here is not going to be anything that we could solve with a reconnect.
+        // In fact, it would only cause more problems.
         await retryWrapperService.RunAsync(
             _ => jobModel.Message.AcknowledgeAsync(),
             cancellationToken);
