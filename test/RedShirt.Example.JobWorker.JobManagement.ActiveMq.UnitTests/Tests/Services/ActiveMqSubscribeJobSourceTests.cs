@@ -94,25 +94,6 @@ public class ActiveMqSubscribeJobSourceTests
         return (Task) method.Invoke(jobSource, [cancellationToken])!;
     }
 
-    [Fact]
-    public async Task AcknowledgeAsync_WhenIncompatibleMessage_DoesNotAck()
-    {
-        var message = new Mock<IMessage>(MockBehavior.Strict);
-        var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
-        var wrapper = CreatePassthroughWrapper(consumer.Object);
-        var jobSource = CreateJobSource(wrapper);
-
-        await jobSource.AcknowledgeAsync(new Mock<IRawJobModel>().Object, CoreJobResult.Success,
-            TestContext.Current.CancellationToken);
-
-        message.Verify(m => m.AcknowledgeAsync(), Times.Never);
-        wrapper.Verify(w => w.GetChannelAndDoActionWithRetryAsync(
-            It.IsAny<Func<IMessageConsumer, CancellationToken, Task>>(),
-            It.IsAny<Action<IConnection>?>(),
-            It.IsAny<Action<IMessageConsumer>?>(),
-            It.IsAny<CancellationToken>()), Times.Never);
-    }
-
     [Theory]
     [InlineData(CoreJobResult.Success)]
     [InlineData(CoreJobResult.Failure)]
@@ -134,6 +115,25 @@ public class ActiveMqSubscribeJobSourceTests
         }, result, TestContext.Current.CancellationToken);
 
         message.Verify(m => m.AcknowledgeAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task AcknowledgeAsync_WhenIncompatibleMessage_DoesNotAck()
+    {
+        var message = new Mock<IMessage>(MockBehavior.Strict);
+        var consumer = new Mock<IMessageConsumer>(MockBehavior.Strict);
+        var wrapper = CreatePassthroughWrapper(consumer.Object);
+        var jobSource = CreateJobSource(wrapper);
+
+        await jobSource.AcknowledgeAsync(new Mock<IRawJobModel>().Object, CoreJobResult.Success,
+            TestContext.Current.CancellationToken);
+
+        message.Verify(m => m.AcknowledgeAsync(), Times.Never);
+        wrapper.Verify(w => w.GetChannelAndDoActionWithRetryAsync(
+            It.IsAny<Func<IMessageConsumer, CancellationToken, Task>>(),
+            It.IsAny<Action<IConnection>?>(),
+            It.IsAny<Action<IMessageConsumer>?>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
