@@ -7,6 +7,32 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Serv
 public class RabbitMqConnectionCacheSourceTests
 {
     [Fact]
+    public async Task GetConnectionAsync_ConcurrentCallers_ShareSingleCreatedConnection()
+    {
+        var connection = new Mock<IConnection>(MockBehavior.Strict);
+        var factory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
+        factory
+            .Setup(f => f.GetConnectionAsync(TestContext.Current.CancellationToken))
+            .Returns(async (CancellationToken ct) =>
+            {
+                await Task.Delay(25, ct);
+                return connection.Object;
+            });
+
+        var source = new RabbitMqConnectionCacheSource(factory.Object);
+
+        var results = await Task.WhenAll(
+            source.GetConnectionAsync(false, TestContext.Current.CancellationToken),
+            source.GetConnectionAsync(false, TestContext.Current.CancellationToken),
+            source.GetConnectionAsync(false, TestContext.Current.CancellationToken));
+
+        Assert.Single(results, r => !r.CachedConnection);
+        Assert.Equal(2, results.Count(r => r.CachedConnection));
+        Assert.All(results, r => Assert.Same(connection.Object, r.Connection));
+        factory.Verify(f => f.GetConnectionAsync(TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Fact]
     public async Task GetConnectionAsync_FirstCall_CreatesUncachedConnection()
     {
         var connection = new Mock<IConnection>(MockBehavior.Strict);
@@ -64,31 +90,5 @@ public class RabbitMqConnectionCacheSourceTests
         Assert.False(forced.CachedConnection);
         Assert.Same(secondConnection.Object, forced.Connection);
         factory.Verify(f => f.GetConnectionAsync(TestContext.Current.CancellationToken), Times.Exactly(2));
-    }
-
-    [Fact]
-    public async Task GetConnectionAsync_ConcurrentCallers_ShareSingleCreatedConnection()
-    {
-        var connection = new Mock<IConnection>(MockBehavior.Strict);
-        var factory = new Mock<IRabbitMqConnectionFactory>(MockBehavior.Strict);
-        factory
-            .Setup(f => f.GetConnectionAsync(TestContext.Current.CancellationToken))
-            .Returns(async (CancellationToken ct) =>
-            {
-                await Task.Delay(25, ct);
-                return connection.Object;
-            });
-
-        var source = new RabbitMqConnectionCacheSource(factory.Object);
-
-        var results = await Task.WhenAll(
-            source.GetConnectionAsync(false, TestContext.Current.CancellationToken),
-            source.GetConnectionAsync(false, TestContext.Current.CancellationToken),
-            source.GetConnectionAsync(false, TestContext.Current.CancellationToken));
-
-        Assert.Single(results, r => !r.CachedConnection);
-        Assert.Equal(2, results.Count(r => r.CachedConnection));
-        Assert.All(results, r => Assert.Same(connection.Object, r.Connection));
-        factory.Verify(f => f.GetConnectionAsync(TestContext.Current.CancellationToken), Times.Once);
     }
 }

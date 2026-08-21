@@ -92,6 +92,8 @@ internal sealed class JobRepository(
 
     private readonly SemaphoreSlim _watchedJobsListSemaphore = new(1, 1);
 
+    private Action<int>? _inactiveCountCallbacks;
+
     /// <summary>
     ///     Inactive potential jobs
     ///     Reminder: This is currently a list instead of a queue because it needs to be sorted in a manner that is consistent
@@ -100,7 +102,6 @@ internal sealed class JobRepository(
     /// </summary>
     private List<IJobRepositoryEntry> _inactiveJobsList = [];
 
-    private Action<int>? _inactiveCountCallbacks;
     private Action<int>? _watchedJobsCallbacks;
 
     private void NotifyInactiveCountUpdate(int count)

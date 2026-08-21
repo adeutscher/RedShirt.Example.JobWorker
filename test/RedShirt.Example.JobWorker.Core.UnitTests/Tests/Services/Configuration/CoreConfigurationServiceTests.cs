@@ -8,18 +8,6 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Configuration
 public class CoreConfigurationServiceTests
 {
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void IsHaltOnFailure_ReturnsConfiguredValue(bool haltOnFailure)
-    {
-        var service = new CoreConfigurationService(
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = haltOnFailure}),
-            Options.Create(new JobRepository.ConfigurationModel {BacklogSize = 1}));
-
-        Assert.Equal(haltOnFailure, service.IsHaltOnFailure());
-    }
-
-    [Theory]
     [InlineData(-10, 0)]
     [InlineData(-1, 0)]
     [InlineData(0, 0)]
@@ -32,5 +20,17 @@ public class CoreConfigurationServiceTests
             Options.Create(new JobRepository.ConfigurationModel {BacklogSize = configuredBacklogSize}));
 
         Assert.Equal(expectedBacklogSize, service.GetBacklogSize());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void IsHaltOnFailure_ReturnsConfiguredValue(bool haltOnFailure)
+    {
+        var service = new CoreConfigurationService(
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = haltOnFailure}),
+            Options.Create(new JobRepository.ConfigurationModel {BacklogSize = 1}));
+
+        Assert.Equal(haltOnFailure, service.IsHaltOnFailure());
     }
 }

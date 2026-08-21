@@ -9,9 +9,8 @@ namespace RedShirt.Example.JobWorker.Core.Services.Configuration;
 /// </summary>
 public interface ICoreConfigurationService
 {
-    bool IsHaltOnFailure();
-
     int GetBacklogSize();
+    bool IsHaltOnFailure();
 }
 
 internal sealed class CoreConfigurationService(

@@ -8,8 +8,8 @@ using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.Core.Services.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
@@ -113,16 +113,16 @@ internal class RabbitMqSubscribeJobSource(
             {
                 // Pass
             }
-            catch (WorkerJobSourceException e) when (e.CouldBeTransient)
-            {
-                logger.LogWarning(e, "Error re-subscribing to RabbitMQ");
-                // Continue to try again
-                continue;
-            }
             catch (Exception e)
             {
                 // Some variety of non-transient failure
                 logger.LogError(e, "Error re-subscribing to RabbitMQ");
+
+                if (e is WorkerJobSourceException {CouldBeTransient: true})
+                {
+                    // Continue and try again
+                    continue;
+                }
 
                 if (!coreConfigurationService.IsHaltOnFailure())
                 {
@@ -246,12 +246,6 @@ internal class RabbitMqSubscribeJobSource(
             {
                 // Pass
             }
-            catch (WorkerJobSourceException e) when (e.CouldBeTransient)
-            {
-                logger.LogWarning(e, "Error subscribing to RabbitMQ");
-                // Continue to try again
-                continue;
-            }
 #pragma warning disable S2139
             // Misguided sonar warning
             catch (Exception e)
@@ -259,6 +253,13 @@ internal class RabbitMqSubscribeJobSource(
             {
                 // Some variety of non-transient failure
                 logger.LogError(e, "Error subscribing to RabbitMQ");
+
+                if (e is WorkerJobSourceException {CouldBeTransient: true})
+                {
+                    // Transient: Retry and try again
+                    continue;
+                }
+
                 if (!coreConfigurationService.IsHaltOnFailure())
                 {
                     // Not halting on failure, continue and try again
