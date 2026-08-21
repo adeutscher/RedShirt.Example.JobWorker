@@ -151,7 +151,7 @@ public class NatsJobSourceTests
             .Setup(m => m.FetchMessagesAsync(batchSize, TestContext.Current.CancellationToken))
             .ReturnsAsync(new NatsMessageSourceResponse {Messages = [mockMessage.Object]});
 
-        var jobSource = CreateJobSource(mockMessageSource.Object, streamName: queueName);
+        var jobSource = CreateJobSource(mockMessageSource.Object, queueName);
 
         var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
@@ -200,7 +200,7 @@ public class NatsJobSourceTests
             .Setup(m => m.FetchMessagesAsync(batchSize, TestContext.Current.CancellationToken))
             .ReturnsAsync(new NatsMessageSourceResponse {Messages = mockData});
 
-        var jobSource = CreateJobSource(mockMessageSource.Object, streamName: queueName);
+        var jobSource = CreateJobSource(mockMessageSource.Object, queueName);
 
         var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
