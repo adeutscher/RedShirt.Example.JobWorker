@@ -5,7 +5,12 @@ using RedShirt.Example.JobWorker.Core.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 
-internal interface IIdempotencyMonitorExecutionEndArbiter
+/// <summary>
+///     Dictates if the idempotency monitor should continue running.
+///     Extends the functionality of the base IExecutionEndArbiter by accessing the job repository.
+///     Written as a test-friendly alternative to <c>while(true){}</c>
+/// </summary>
+internal interface IIdempotencyMonitorExecutionEndArbiter : IDisposable
 {
     /// <summary>
     ///     Delays for <paramref name="delay" />, honouring both <paramref name="cancellationToken" /> and
@@ -18,10 +23,14 @@ internal interface IIdempotencyMonitorExecutionEndArbiter
     /// <param name="cancellationToken">Caller cancellation.</param>
     Task IdempotencyMonitorDelayWaitAsync(TimeSpan delay, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    ///     Determine whether the idempotency monitor should keep running.
+    /// </summary>
+    /// <returns><c>true</c> if the monitor should keep running, otherwise <c>false</c></returns>
     bool MonitorShouldKeepRunning();
 }
 
-internal class IdempotencyMonitorExecutionEndArbiter : IIdempotencyMonitorExecutionEndArbiter
+internal sealed class IdempotencyMonitorExecutionEndArbiter : IIdempotencyMonitorExecutionEndArbiter
 {
     private const string LogLabel = "Idempotency Monitor";
     private readonly IExecutionEndArbiter _executionEndArbiter;
@@ -80,7 +89,7 @@ internal class IdempotencyMonitorExecutionEndArbiter : IIdempotencyMonitorExecut
 
     private void ConsiderUpdatingEvent()
     {
-        if (_watchedJobsCount == 0)
+        if (_idempotencyBlockedJobs == 0)
         {
             // Set to zero from non-zero
             _relevantJobsToObserveEvent.Reset();
@@ -94,6 +103,11 @@ internal class IdempotencyMonitorExecutionEndArbiter : IIdempotencyMonitorExecut
         }
     }
 
+    /// <summary>
+    ///     Determine whether the monitor should keep running.
+    ///     Assumed to be running in a lock statement.
+    /// </summary>
+    /// <returns><c>true</c> if the monitor should keep running, otherwise <c>false</c></returns>
     private bool ShouldKeepRunningUnsafe()
     {
         return _executionEndArbiter.ShouldKeepRunning()
@@ -109,6 +123,24 @@ internal class IdempotencyMonitorExecutionEndArbiter : IIdempotencyMonitorExecut
         catch (ObjectDisposedException)
         {
             // Dispose may have already run (e.g. host shutdown); interrupt signalling is best-effort.
+        }
+    }
+
+    private void Dispose(bool disposing)
+    {
+        lock (_lock)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+        }
+
+        if (disposing)
+        {
+            _interruptCts.Dispose();
         }
     }
 
@@ -171,16 +203,8 @@ internal class IdempotencyMonitorExecutionEndArbiter : IIdempotencyMonitorExecut
 
     public void Dispose()
     {
-        lock (_lock)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-        }
-
-        _interruptCts.Dispose();
+        Dispose(true);
+        // ReSharper disable once GCSuppressFinalizeForTypeWithoutDestructor
+        GC.SuppressFinalize(this);
     }
 }

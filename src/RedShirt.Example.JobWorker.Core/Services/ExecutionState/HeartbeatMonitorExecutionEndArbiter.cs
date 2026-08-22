@@ -5,7 +5,12 @@ using RedShirt.Example.JobWorker.Core.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 
-internal interface IHeartbeatMonitorExecutionEndArbiter
+/// <summary>
+///     Dictates if the heartbeat monitor should continue running.
+///     Extends the functionality of the base IExecutionEndArbiter by accessing the job repository.
+///     Written as a test-friendly alternative to <c>while(true){}</c>
+/// </summary>
+internal interface IHeartbeatMonitorExecutionEndArbiter : IDisposable
 {
     /// <summary>
     ///     Delays for <paramref name="delay" />, honouring both <paramref name="cancellationToken" /> and
@@ -18,10 +23,14 @@ internal interface IHeartbeatMonitorExecutionEndArbiter
     /// <param name="cancellationToken">Caller cancellation.</param>
     Task HeartbeatMonitorDelayWaitAsync(TimeSpan delay, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    ///     Determine whether the heartbeat monitor should keep running.
+    /// </summary>
+    /// <returns><c>true</c> if the monitor should keep running, otherwise <c>false</c></returns>
     bool MonitorShouldKeepRunning();
 }
 
-internal class HeartbeatMonitorExecutionEndArbiter : IHeartbeatMonitorExecutionEndArbiter
+internal sealed class HeartbeatMonitorExecutionEndArbiter : IHeartbeatMonitorExecutionEndArbiter
 {
     private const string LogLabel = "Heartbeat Monitor";
     private readonly IExecutionEndArbiter _executionEndArbiter;
@@ -72,9 +81,16 @@ internal class HeartbeatMonitorExecutionEndArbiter : IHeartbeatMonitorExecutionE
         }
     }
 
+    /// <summary>
+    ///     Determine whether the monitor should keep running.
+    ///     Assumed to be running in a lock statement.
+    /// </summary>
+    /// <returns><c>true</c> if the monitor should keep running, otherwise <c>false</c></returns>
     private bool ShouldKeepRunningUnsafe()
     {
-        return _executionEndArbiter.ShouldKeepRunning() && _watchedJobsCount > 0;
+        return _executionEndArbiter.ShouldKeepRunning()
+               // All watched jobs need to be under observation for heartbeats
+               && _watchedJobsCount > 0;
     }
 
     private void TryCancelInterrupt()
@@ -89,13 +105,39 @@ internal class HeartbeatMonitorExecutionEndArbiter : IHeartbeatMonitorExecutionE
         }
     }
 
+    private void Dispose(bool disposing)
+    {
+        lock (_lock)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+        }
+
+        if (disposing)
+        {
+            _interruptCts.Dispose();
+        }
+    }
+
     public HeartbeatMonitorExecutionEndArbiter(IJobRepository jobRepository, IExecutionEndArbiter executionEndArbiter,
         ISleepService sleepService, ILogger<HeartbeatMonitorExecutionEndArbiter> logger)
     {
         _executionEndArbiter = executionEndArbiter;
         _logger = logger;
         _sleepService = sleepService;
+        // All watched jobs are candidates for heartbeats
         jobRepository.SubscribeToWatchedJobsUpdate(OnWatchedJobsCountChange);
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        // ReSharper disable once GCSuppressFinalizeForTypeWithoutDestructor
+        GC.SuppressFinalize(this);
     }
 
     public async Task HeartbeatMonitorDelayWaitAsync(TimeSpan delay, CancellationToken cancellationToken = default)
@@ -143,20 +185,5 @@ internal class HeartbeatMonitorExecutionEndArbiter : IHeartbeatMonitorExecutionE
         {
             return ShouldKeepRunningUnsafe();
         }
-    }
-
-    public void Dispose()
-    {
-        lock (_lock)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-        }
-
-        _interruptCts.Dispose();
     }
 }

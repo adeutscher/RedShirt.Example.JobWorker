@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-using RedShirt.Example.JobWorker.Common.Services.Utility;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 
 namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
@@ -11,15 +9,18 @@ namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 /// </summary>
 internal interface IExecutorExecutionEndArbiter
 {
+    /// <summary>
+    ///     Determine whether executor workers should keep running.
+    /// </summary>
+    /// <returns><c>true</c> if executors should keep running, otherwise <c>false</c></returns>
     bool ExecutorsShouldKeepRunning();
 }
 
-internal class ExecutorExecutionEndArbiter : IExecutorExecutionEndArbiter, IDisposable
+internal sealed class ExecutorExecutionEndArbiter : IExecutorExecutionEndArbiter
 {
     private readonly IExecutionEndArbiter _executionEndArbiter;
-    private readonly CancellationTokenSource _interruptCts = new();
     private readonly Lock _lock = new();
-    private bool _disposed;
+    private int _idempotencyBlockedJobsCount;
 
     private int _inactiveJobsCount;
 
@@ -31,31 +32,35 @@ internal class ExecutorExecutionEndArbiter : IExecutorExecutionEndArbiter, IDisp
         }
     }
 
-    private bool ShouldKeepRunningUnsafe()
-    {
-        return _executionEndArbiter.ShouldKeepRunning() && _inactiveJobsCount > 0;
-    }
-
-    public ExecutorExecutionEndArbiter(IJobRepository jobRepository, IExecutionEndArbiter executionEndArbiter,
-        ISleepService sleepService, ILogger<ExecutorExecutionEndArbiter> logger)
-    {
-        _executionEndArbiter = executionEndArbiter;
-        jobRepository.SubscribeToInactiveCountUpdate(OnInactiveJobCountChange);
-    }
-
-    public void Dispose()
+    private void OnIdempotencyBlockedJobsCountChange(int idempotencyBlockedJobsCount)
     {
         lock (_lock)
         {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
+            _idempotencyBlockedJobsCount = idempotencyBlockedJobsCount;
         }
+    }
 
-        _interruptCts.Dispose();
+    /// <summary>
+    ///     Determine whether the monitor should keep running.
+    ///     Assumed to be running in a lock statement.
+    /// </summary>
+    /// <returns><c>true</c> if the monitor should keep running, otherwise <c>false</c></returns>
+    private bool ShouldKeepRunningUnsafe()
+    {
+        return _executionEndArbiter.ShouldKeepRunning()
+               // Tracking inactive jobs
+               && _inactiveJobsCount > 0
+               // Tracking jobs that may become inactive again
+               && _idempotencyBlockedJobsCount > 0;
+    }
+
+    public ExecutorExecutionEndArbiter(IJobRepository jobRepository, IExecutionEndArbiter executionEndArbiter)
+    {
+        _executionEndArbiter = executionEndArbiter;
+        // Track inactive jobs
+        jobRepository.SubscribeToInactiveCountUpdate(OnInactiveJobCountChange);
+        // Track jobs that may become inactive again
+        jobRepository.SubscribeToIdempotencyBlockedCountUpdate(OnIdempotencyBlockedJobsCountChange);
     }
 
     public bool ExecutorsShouldKeepRunning()

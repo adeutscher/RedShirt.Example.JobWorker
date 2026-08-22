@@ -43,7 +43,7 @@ public class IdempotencyMonitorExecutionEndArbiterTests
     {
         var inner = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         inner.Setup(a => a.ShouldKeepRunning()).Returns(true);
-        var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out var notifier, 1, 1).Object);
+        using var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out var notifier, 1, 1).Object);
         Assert.True(arbiter.MonitorShouldKeepRunning());
         arbiter.Dispose();
         notifier.NotifyWatched(0);
@@ -56,8 +56,7 @@ public class IdempotencyMonitorExecutionEndArbiterTests
     {
         var inner = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         inner.Setup(a => a.ShouldKeepRunning()).Returns(true);
-        var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _, 1).Object);
-        arbiter.Dispose();
+        using var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _, 1).Object);
         arbiter.Dispose();
     }
 
@@ -72,10 +71,22 @@ public class IdempotencyMonitorExecutionEndArbiterTests
             .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _, 1).Object, sleepService.Object);
+        using var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _, 1, 1).Object, sleepService.Object);
         await arbiter.IdempotencyMonitorDelayWaitAsync(delay, CancellationToken.None);
         sleepService.Verify(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task IdempotencyMonitorDelayWaitAsync_WhenDisposed_ReturnsWithoutSleeping()
+    {
+        var delay = TimeSpan.FromSeconds(5);
+        var inner = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        inner.Setup(a => a.ShouldKeepRunning()).Returns(true);
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        using var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _, 1).Object, sleepService.Object);
         arbiter.Dispose();
+        await arbiter.IdempotencyMonitorDelayWaitAsync(delay, CancellationToken.None);
+        sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -83,11 +94,10 @@ public class IdempotencyMonitorExecutionEndArbiterTests
     {
         var inner = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         inner.Setup(a => a.ShouldKeepRunning()).Returns(true);
-        var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out var notifier, 1).Object);
+        using var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out var notifier, 1).Object);
         Assert.True(arbiter.MonitorShouldKeepRunning());
         notifier.NotifyWatched(0);
         Assert.False(arbiter.MonitorShouldKeepRunning());
-        arbiter.Dispose();
     }
 
     [Fact]
@@ -95,9 +105,8 @@ public class IdempotencyMonitorExecutionEndArbiterTests
     {
         var inner = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         inner.Setup(a => a.ShouldKeepRunning()).Returns(false);
-        var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _, 1, 1).Object);
+        using var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _, 1, 1).Object);
         Assert.False(arbiter.MonitorShouldKeepRunning());
-        arbiter.Dispose();
     }
 
     private sealed class JobCountNotifier
