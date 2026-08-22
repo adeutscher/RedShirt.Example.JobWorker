@@ -114,7 +114,7 @@ internal sealed class HeartbeatMaintainer(
             await GetRetryPipeline().ExecuteAsync(
                 async token => await jobSource.HeartbeatAsync(jobRepositoryEntry.RawJobModel, token),
                 cancellationToken);
-            await jobRepositoryEntry.SetLastHeartbeatTimeAsync(DateTime.UtcNow, cancellationToken);
+            jobRepositoryEntry.LastHeartbeatTime = DateTime.UtcNow;
         }
         catch (WorkerJobSourceException e)
         {
@@ -124,7 +124,7 @@ internal sealed class HeartbeatMaintainer(
             //  by the time the next loop iteration comes around.
             //
             // The documented recommendation for a heartbeat interval is ~75% of the time until message expiry
-            await jobRepositoryEntry.SetAsCannotHeartbeatAsync(cancellationToken);
+            jobRepositoryEntry.CanHeartbeat = false;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -136,7 +136,7 @@ internal sealed class HeartbeatMaintainer(
                 throw;
             }
 
-            await jobRepositoryEntry.SetAsCannotHeartbeatAsync(cancellationToken);
+            jobRepositoryEntry.CanHeartbeat = false;
         }
 
         return heartbeatCalculator.TimeUntilNextHeartbeat(jobRepositoryEntry);

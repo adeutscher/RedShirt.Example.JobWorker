@@ -11,13 +11,17 @@ internal interface ISortableJobWrapper
 internal interface IJobRepositoryEntry : ISortableJobWrapper
 {
     IRawJobModel RawJobModel { get; }
-    bool CanHeartbeat { get; }
-    DateTime LastHeartbeatTime { get; }
-    JobState State { get; }
 
-    Task SetAsCannotHeartbeatAsync(CancellationToken cancellationToken = default);
-    Task SetLastHeartbeatTimeAsync(DateTime lastHeartbeatTime, CancellationToken cancellationToken = default);
-    Task SetStateAsync(JobState state, CancellationToken cancellationToken = default);
+    /// <summary>
+    ///     Whether this job can still receive heartbeats.
+    ///     May only be set to <c>false</c>.
+    /// </summary>
+    bool CanHeartbeat { get; set; }
+
+    DateTime LastHeartbeatTime { get; set; }
+    JobState State { get; set; }
+
+    void SubscribeToStateChange(Action<JobState> action);
 }
 
 internal sealed class JobRepositoryEntry : IJobRepositoryEntry
@@ -30,6 +34,7 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
     private bool _canHeartbeat = true;
     private DateTime _lastHeartbeatTime;
     private JobState _state = JobState.Inactive;
+    private Action<JobState>? _stateChangeCallbacks;
 
     public required IRawJobModel RawJobModel { get; init; }
     public required IJobModel JobModel { get; init; }
@@ -43,6 +48,18 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
                 return _canHeartbeat;
             }
         }
+        set
+        {
+            if (value)
+            {
+                throw new ArgumentException("CanHeartbeat can only be set to false.", nameof(value));
+            }
+
+            lock (_lock)
+            {
+                _canHeartbeat = false;
+            }
+        }
     }
 
     public DateTime LastHeartbeatTime
@@ -52,6 +69,13 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
             lock (_lock)
             {
                 return _lastHeartbeatTime;
+            }
+        }
+        set
+        {
+            lock (_lock)
+            {
+                _lastHeartbeatTime = value;
             }
         }
     }
@@ -65,39 +89,31 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
                 return _state;
             }
         }
+        set
+        {
+            Action<JobState>? callbacks;
+            lock (_lock)
+            {
+                if (_state == value)
+                {
+                    return;
+                }
+
+                _state = value;
+                callbacks = _stateChangeCallbacks;
+            }
+
+            callbacks?.Invoke(value);
+        }
     }
 
-    public Task SetAsCannotHeartbeatAsync(CancellationToken cancellationToken = default)
+    public void SubscribeToStateChange(Action<JobState> action)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(action);
+
         lock (_lock)
         {
-            _canHeartbeat = false;
+            _stateChangeCallbacks += action;
         }
-
-        return Task.CompletedTask;
-    }
-
-    public Task SetLastHeartbeatTimeAsync(DateTime lastHeartbeatTime,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        lock (_lock)
-        {
-            _lastHeartbeatTime = lastHeartbeatTime;
-        }
-
-        return Task.CompletedTask;
-    }
-
-    public Task SetStateAsync(JobState state, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        lock (_lock)
-        {
-            _state = state;
-        }
-
-        return Task.CompletedTask;
     }
 }

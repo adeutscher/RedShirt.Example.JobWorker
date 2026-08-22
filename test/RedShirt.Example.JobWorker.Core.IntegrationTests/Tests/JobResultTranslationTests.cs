@@ -64,9 +64,7 @@ public class JobResultTranslationTests
         var repositoryEntry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         repositoryEntry.Setup(e => e.JobModel).Returns(job.Object);
         repositoryEntry.Setup(e => e.RawJobModel).Returns(rawJob.Object);
-        repositoryEntry
-            .Setup(e => e.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        repositoryEntry.SetupSet(e => e.State = JobState.Complete);
 
         // Application logic
         var logicRunner = new Mock<IJobLogicRunner>(MockBehavior.Strict);

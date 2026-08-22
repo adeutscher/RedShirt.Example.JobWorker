@@ -288,7 +288,7 @@ internal sealed class JobRepository(
             await _jobsAvailableEvent.WaitAsync(TimeSpan.FromMilliseconds(250), cancellationToken);
         } while (result is null);
 
-        await result.SetStateAsync(JobState.Active, cancellationToken);
+        result.State = JobState.Active;
         NotifyInactiveCountUpdate(await GetInactiveJobCountAsync(cancellationToken));
 
         return result;
@@ -319,7 +319,7 @@ internal sealed class JobRepository(
                         JobModel = envelope.JobModel,
                         RawJobModel = envelope.RawJobModel
                     };
-                    await job.SetLastHeartbeatTimeAsync(DateTime.UtcNow, cancellationToken);
+                    job.LastHeartbeatTime = DateTime.UtcNow;
 
                     _inactiveJobsList.Add(job); // Worry about sorting later, see below
 
@@ -357,7 +357,7 @@ internal sealed class JobRepository(
 
     public async Task ReloadUnblockedJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default)
     {
-        await job.SetStateAsync(JobState.Inactive, cancellationToken);
+        job.State = JobState.Inactive;
         // Shortlist the job for re-execution in memory
         _unblockedJobsQueue.Enqueue(job);
         // Tell any active invocations of GetNextJobAsync that there is something available.

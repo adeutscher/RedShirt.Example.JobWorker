@@ -100,13 +100,11 @@ public class JobRepositoryTests
         var blockedState = JobState.BlockedByIdempotency;
         blockedEntry.Setup(e => e.State).Returns(() => blockedState);
         blockedEntry
-            .Setup(e => e.SetStateAsync(JobState.Inactive, TestContext.Current.CancellationToken))
-            .Callback(() => blockedState = JobState.Inactive)
-            .Returns(Task.CompletedTask);
+            .SetupSet(e => e.State = JobState.Inactive)
+            .Callback(() => blockedState = JobState.Inactive);
         blockedEntry
-            .Setup(e => e.SetStateAsync(JobState.Active, TestContext.Current.CancellationToken))
-            .Callback(() => blockedState = JobState.Active)
-            .Returns(Task.CompletedTask);
+            .SetupSet(e => e.State = JobState.Active)
+            .Callback(() => blockedState = JobState.Active);
         jobRepository.WatchedJobs.Add(blockedEntry.Object);
 
         await jobRepository.ReloadUnblockedJobAsync(blockedEntry.Object, TestContext.Current.CancellationToken);
@@ -114,9 +112,8 @@ public class JobRepositoryTests
         var nextJob = await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken);
 
         Assert.Same(blockedEntry.Object, nextJob);
-        blockedEntry.Verify(e => e.SetStateAsync(JobState.Inactive, TestContext.Current.CancellationToken),
-            Times.Once);
-        blockedEntry.Verify(e => e.SetStateAsync(JobState.Active, TestContext.Current.CancellationToken), Times.Once);
+        blockedEntry.VerifySet(e => e.State = JobState.Inactive, Times.Once);
+        blockedEntry.VerifySet(e => e.State = JobState.Active, Times.Once);
     }
 
     [Fact(Timeout = 2000)]
@@ -646,7 +643,7 @@ public class JobRepositoryTests
         Assert.True(gottenJob.CanHeartbeat);
         // Imitate JobExecutor by marking the task as blocked by idempotency.
         // Not strictly necessary, but it does imitate the logic of JobExecutor to put the job on the radar of the Idempotency Monitor.
-        await gottenJob.SetStateAsync(JobState.BlockedByIdempotency, TestContext.Current.CancellationToken);
+        gottenJob.State = JobState.BlockedByIdempotency;
         // Reload the unblocked job, imitating the Idempotency Monitor (this puts it into the queue)
         await jobRepository.ReloadUnblockedJobAsync(gottenJob, TestContext.Current.CancellationToken);
 
@@ -770,7 +767,7 @@ public class JobRepositoryTests
         Assert.True(gottenJob.CanHeartbeat);
         // Imitate JobExecutor by marking the task as blocked by idempotency.
         // Not strictly necessary, but it does imitate the logic of JobExecutor to put the job on the radar of the Idempotency Monitor.
-        await gottenJob.SetStateAsync(JobState.BlockedByIdempotency, TestContext.Current.CancellationToken);
+        gottenJob.State = JobState.BlockedByIdempotency;
         // Reload the unblocked job, imitating the Idempotency Monitor (this puts it into the queue)
         await jobRepository.ReloadUnblockedJobAsync(gottenJob, TestContext.Current.CancellationToken);
 

@@ -52,8 +52,7 @@ public class JobExecutorTests
             AcknowledgedSuccessfully = true,
             LoggedFailureSuccessfully = null
         };
-        jobRepositoryEntry.Setup(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        jobRepositoryEntry.SetupSet(j => j.State = JobState.Complete);
 
         var runException = safeRunnerResult == CoreJobResult.Success
             ? null
@@ -121,8 +120,7 @@ public class JobExecutorTests
         safeAcknowledgementService.Verify(
             s => s.AcknowledgeSafelyAsync(rawJobModel.Object, safeRunnerResult, runException, null,
                 TestContext.Current.CancellationToken), Times.Once);
-        jobRepositoryEntry.Verify(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken),
-            Times.Once);
+        jobRepositoryEntry.VerifySet(j => j.State = JobState.Complete, Times.Once);
         idempotencyExecutionService.Verify(
             s => s.SetResultInCacheAsync(rawJobModel.Object, safeRunnerResult, ackResult,
                 TestContext.Current.CancellationToken), Times.Once);
@@ -168,8 +166,7 @@ public class JobExecutorTests
     public async Task WhenCachedResultIsSuccessAndAcknowledgeFails_SkipsExecution()
     {
         var (jobRepositoryEntry, jobModel, rawJobModel) = CreateRepositoryEntry();
-        jobRepositoryEntry.Setup(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        jobRepositoryEntry.SetupSet(j => j.State = JobState.Complete);
         var cachedResult = new IdempotencyCacheResult
         {
             JobResult = CoreJobResult.Success,
@@ -230,8 +227,7 @@ public class JobExecutorTests
             s => s.SetResultInCacheAsync(rawJobModel.Object, CoreJobResult.Success, failedAck,
                 TestContext.Current.CancellationToken),
             Times.Once);
-        jobRepositoryEntry.Verify(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken),
-            Times.Once);
+        jobRepositoryEntry.VerifySet(j => j.State = JobState.Complete, Times.Once);
         jobRepository.Verify(r => r.RemoveJobAsync(jobRepositoryEntry.Object, TestContext.Current.CancellationToken),
             Times.Once);
     }
@@ -240,8 +236,7 @@ public class JobExecutorTests
     public async Task WhenCachedResultIsSuccessAndAcknowledgeSucceeds_SkipsExecution()
     {
         var (jobRepositoryEntry, jobModel, rawJobModel) = CreateRepositoryEntry();
-        jobRepositoryEntry.Setup(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        jobRepositoryEntry.SetupSet(j => j.State = JobState.Complete);
         var cachedResult = new IdempotencyCacheResult
         {
             JobResult = CoreJobResult.Success,
@@ -303,8 +298,7 @@ public class JobExecutorTests
             s => s.SetResultInCacheAsync(rawJobModel.Object, CoreJobResult.Success, successAck,
                 TestContext.Current.CancellationToken),
             Times.Once);
-        jobRepositoryEntry.Verify(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken),
-            Times.Once);
+        jobRepositoryEntry.VerifySet(j => j.State = JobState.Complete, Times.Once);
         jobRepository.Verify(r => r.RemoveJobAsync(jobRepositoryEntry.Object, TestContext.Current.CancellationToken),
             Times.Once);
     }
@@ -320,8 +314,7 @@ public class JobExecutorTests
             AcknowledgedSuccessfully = true,
             LoggedFailureSuccessfully = null
         };
-        jobRepositoryEntry.Setup(j => j.SetStateAsync(JobState.Complete, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        jobRepositoryEntry.SetupSet(j => j.State = JobState.Complete);
 
         var runException = safeRunnerResult == CoreJobResult.Success
             ? null
@@ -394,9 +387,7 @@ public class JobExecutorTests
     public async Task WhenIdempotencyLockNotAcquired_MarksJobBlockedAndContinues()
     {
         var (jobRepositoryEntry, jobModel, _) = CreateRepositoryEntry();
-        jobRepositoryEntry
-            .Setup(j => j.SetStateAsync(JobState.BlockedByIdempotency, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        jobRepositoryEntry.SetupSet(j => j.State = JobState.BlockedByIdempotency);
 
         var idempotencyLock = new Mock<IAbstractedLock>(MockBehavior.Strict);
         idempotencyLock.SetupGet(l => l.IsAcquired).Returns(false);
@@ -425,8 +416,7 @@ public class JobExecutorTests
 
         await executor.RunAsync(0, TestContext.Current.CancellationToken);
 
-        jobRepositoryEntry.Verify(
-            j => j.SetStateAsync(JobState.BlockedByIdempotency, TestContext.Current.CancellationToken), Times.Once);
+        jobRepositoryEntry.VerifySet(j => j.State = JobState.BlockedByIdempotency, Times.Once);
         idempotencyExecutionService.Verify(
             s => s.GetCachedResultAsync(It.IsAny<IJobModel>(), It.IsAny<CancellationToken>()), Times.Never);
     }
