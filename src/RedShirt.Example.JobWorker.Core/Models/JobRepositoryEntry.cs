@@ -31,9 +31,6 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
     /// </summary>
     private readonly Lock _lock = new();
 
-    private bool _canHeartbeat = true;
-    private DateTime _lastHeartbeatTime;
-    private JobState _state = JobState.Inactive;
     private Action<JobState>? _stateChangeCallbacks;
 
     public required IRawJobModel RawJobModel { get; init; }
@@ -45,7 +42,7 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
         {
             lock (_lock)
             {
-                return _canHeartbeat;
+                return field;
             }
         }
         set
@@ -57,10 +54,10 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
 
             lock (_lock)
             {
-                _canHeartbeat = false;
+                field = false;
             }
         }
-    }
+    } = true;
 
     public DateTime LastHeartbeatTime
     {
@@ -68,14 +65,14 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
         {
             lock (_lock)
             {
-                return _lastHeartbeatTime;
+                return field;
             }
         }
         set
         {
             lock (_lock)
             {
-                _lastHeartbeatTime = value;
+                field = value;
             }
         }
     }
@@ -86,7 +83,7 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
         {
             lock (_lock)
             {
-                return _state;
+                return field;
             }
         }
         set
@@ -94,18 +91,18 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
             Action<JobState>? callbacks;
             lock (_lock)
             {
-                if (_state == value)
+                if (field == value)
                 {
                     return;
                 }
 
-                _state = value;
+                field = value;
                 callbacks = _stateChangeCallbacks;
             }
 
             callbacks?.Invoke(value);
         }
-    }
+    } = JobState.Inactive;
 
     public void SubscribeToStateChange(Action<JobState> action)
     {
