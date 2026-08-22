@@ -511,6 +511,12 @@ internal sealed class JobRepository : IJobRepository
             NotifyWatchedJobsUpdate(localTallyWatched);
         }
 
+        if ((updatedInactive && localTallyInactive == 0)
+            || (updatedIdempotencyBlocked && localTallyIdempotencyBlocked == 0))
+        {
+            ConsiderInterruptingEventWaits();
+        }
+
         /*
          * Note: Although tallies are updated here, SyncJobsAvailableEvent should not be invoked here.
          * SyncJobsAvailableEvent reads off these tallies that suggest a state, but in practice the events are used
@@ -551,6 +557,7 @@ internal sealed class JobRepository : IJobRepository
         _options = options;
 
         executionEndArbiter.AddOnStopCallback(OnExecutionEndArbiterStop);
+        jobLoaderStateReaderService.AddOnFinishCallback(ConsiderInterruptingEventWaits);
     }
 
     internal List<IJobRepositoryEntry> WatchedJobs { get; } = [];
