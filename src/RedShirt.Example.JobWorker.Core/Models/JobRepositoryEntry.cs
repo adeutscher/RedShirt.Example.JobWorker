@@ -28,10 +28,10 @@ internal interface IJobRepositoryEntry : ISortableJobWrapper
     JobState? State { get; set; }
 
     /// <summary>
-    ///     Register a callback invoked with the current state whenever <see cref="State" /> changes.
-    ///     Invoked immediately with the current state on subscribe when that value is not <c>null</c>.
+    ///     Register a callback invoked with the current <see cref="State" /> and with later values as they are set.
+    ///     Invoked immediately on subscribe when the current state is not <c>null</c>.
     /// </summary>
-    void SubscribeToStateChange(Action<JobState> action);
+    void SubscribeToState(Action<JobState> action);
 }
 
 internal sealed class JobRepositoryEntry : IJobRepositoryEntry
@@ -41,7 +41,7 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
     /// </summary>
     private readonly Lock _lock = new();
 
-    private Action<JobState>? _stateChangeCallbacks;
+    private Action<JobState>? _stateCallbacks;
 
     public required IRawJobModel RawJobModel { get; init; }
     public required IJobModel JobModel { get; init; }
@@ -112,21 +112,21 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
                 }
 
                 field = newState;
-                callbacks = _stateChangeCallbacks;
+                callbacks = _stateCallbacks;
             }
 
             callbacks?.Invoke(newState);
         }
     } = JobState.Inactive;
 
-    public void SubscribeToStateChange(Action<JobState> action)
+    public void SubscribeToState(Action<JobState> action)
     {
         ArgumentNullException.ThrowIfNull(action);
 
         JobState? current;
         lock (_lock)
         {
-            _stateChangeCallbacks += action;
+            _stateCallbacks += action;
             current = State;
         }
 

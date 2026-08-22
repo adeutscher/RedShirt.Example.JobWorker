@@ -70,24 +70,16 @@ public class JobRepositoryEntryTests
     }
 
     [Fact]
-    public void SubscribeToStateChange_WhenNull_ThrowsArgumentNullException()
-    {
-        var jre = CreateEntry();
-
-        Assert.Throws<ArgumentNullException>(() => jre.SubscribeToStateChange(null!));
-    }
-
-    [Fact]
-    public void SubscribeToStateChange_WhenStateChanges_InvokesCallbacks()
+    public void SubscribeToState_InvokesWithCurrentValueThenLaterValues()
     {
         var jre = CreateEntry();
         var first = new List<JobState>();
         var second = new List<JobState>();
 
-        jre.SubscribeToStateChange(first.Add);
+        jre.SubscribeToState(first.Add);
         Assert.Equal([JobState.Inactive], first);
 
-        jre.SubscribeToStateChange(second.Add);
+        jre.SubscribeToState(second.Add);
         Assert.Equal([JobState.Inactive], second);
 
         jre.State = JobState.Active;
@@ -97,6 +89,14 @@ public class JobRepositoryEntryTests
         Assert.Equal([JobState.Inactive, JobState.Active, JobState.Complete], first);
         Assert.Equal([JobState.Inactive, JobState.Active, JobState.Complete], second);
         Assert.Equal(JobState.Complete, jre.State);
+    }
+
+    [Fact]
+    public void SubscribeToState_WhenNull_ThrowsArgumentNullException()
+    {
+        var jre = CreateEntry();
+
+        Assert.Throws<ArgumentNullException>(() => jre.SubscribeToState(null!));
     }
 
     [Fact]
