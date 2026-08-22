@@ -28,24 +28,23 @@ public static class ServiceCollectionExtensions
 
         services = services
             .AddCommon()
+            // Execution end arbiters
+            .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
+            .AddSingleton<IExecutorExecutionEndArbiter, ExecutorExecutionEndArbiter>()
+            .AddSingleton<IHeartbeatMonitorExecutionEndArbiter, HeartbeatMonitorExecutionEndArbiter>()
+            .AddSingleton<IIdempotencyMonitorExecutionEndArbiter, IdempotencyMonitorExecutionEndArbiter>()
             // General
             .AddSingleton<IHandler, Handler>()
             .AddSingleton<IJobLoaderLoop, JobLoaderLoop>()
             .AddSingleton<IJobSubscriberManager, JobSubscriberManager>()
             .AddSingleton<IJobSubscriberIntakeQueue, JobSubscriberIntakeQueue>()
             .AddSingleton<IJobExecutor, JobExecutor>()
-            .AddSingleton<AppliedExecutionEndArbiter>()
-            .AddSingleton<IAppliedMaintainerExecutionEndArbiter>(provider =>
-                provider.GetRequiredService<AppliedExecutionEndArbiter>())
-            .AddSingleton<IAppliedExecutorExecutionEndArbiter>(provider =>
-                provider.GetRequiredService<AppliedExecutionEndArbiter>())
             .AddSingleton<IHeartbeatMaintainer, HeartbeatMaintainer>()
             .AddSingleton<IHeartbeatCalculator, HeartbeatCalculator>()
             .AddSingleton<ISafeJobRunner, SafeJobRunner>()
             .AddSingleton<ITimeBorderWrapperService, TimeBorderWrapperService>()
             .AddSingleton<ISafeJobAcknowledgementService, SafeJobAcknowledgementService>()
             .AddSingleton<IJobIntakeService, JobIntakeService>()
-            .AddSingleton<IExecutionEndArbiter, ExecutionEndArbiter>()
             .AddSingleton<IJobRepository, JobRepository>()
             .AddSingleton<ICoreConfigurationService, CoreConfigurationService>()
             .Configure<JobRepository.ConfigurationModel>(coreSection)

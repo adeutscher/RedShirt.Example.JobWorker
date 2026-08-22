@@ -95,7 +95,7 @@ public class JobResultTranslationTests
 
         // Executor loop control: process one job, then stop
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedExecutorExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IExecutorExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
             .Setup(a => a.ExecutorsShouldKeepRunning())
             .Returns(() =>

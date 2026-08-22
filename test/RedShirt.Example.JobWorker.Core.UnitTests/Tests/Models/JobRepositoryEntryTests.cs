@@ -73,25 +73,33 @@ public class JobRepositoryEntryTests
     public void SubscribeToState_InvokesWithOriginalAndCurrentValues()
     {
         var jre = CreateEntry();
-        var first = new List<(JobState? Original, JobState Current)>();
-        var second = new List<(JobState? Original, JobState Current)>();
+        var first = new List<(IJobRepositoryEntry Entry, JobState? Original, JobState Current)>();
+        var second = new List<(IJobRepositoryEntry Entry, JobState? Original, JobState Current)>();
 
-        jre.SubscribeToState((original, current) => first.Add((original, current)));
-        Assert.Equal([(null, JobState.Inactive)], first);
+        jre.SubscribeToState((entry, original, current) => first.Add((entry, original, current)));
+        Assert.Equal([(jre, null, JobState.Inactive)], first);
 
-        jre.SubscribeToState((original, current) => second.Add((original, current)));
-        Assert.Equal([(null, JobState.Inactive)], second);
+        jre.SubscribeToState((entry, original, current) => second.Add((entry, original, current)));
+        Assert.Equal([(jre, null, JobState.Inactive)], second);
 
         jre.State = JobState.Active;
         jre.State = JobState.Active;
         jre.State = JobState.Complete;
 
         Assert.Equal(
-            [(null, JobState.Inactive), (JobState.Inactive, JobState.Active), (JobState.Active, JobState.Complete)],
+            [
+                (jre, null, JobState.Inactive), (jre, JobState.Inactive, JobState.Active),
+                (jre, JobState.Active, JobState.Complete)
+            ],
             first);
         Assert.Equal(
-            [(null, JobState.Inactive), (JobState.Inactive, JobState.Active), (JobState.Active, JobState.Complete)],
+            [
+                (jre, null, JobState.Inactive), (jre, JobState.Inactive, JobState.Active),
+                (jre, JobState.Active, JobState.Complete)
+            ],
             second);
+        Assert.All(first, item => Assert.Same(jre, item.Entry));
+        Assert.All(second, item => Assert.Same(jre, item.Entry));
         Assert.Equal(JobState.Complete, jre.State);
     }
 

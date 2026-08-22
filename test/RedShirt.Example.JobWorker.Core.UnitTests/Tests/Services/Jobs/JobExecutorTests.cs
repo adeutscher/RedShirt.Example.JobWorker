@@ -70,7 +70,7 @@ public class JobExecutorTests
             .ReturnsAsync(ackResult);
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedExecutorExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IExecutorExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
             .Setup(a => a.ExecutorsShouldKeepRunning())
             .Returns(() =>
@@ -131,7 +131,7 @@ public class JobExecutorTests
     public async Task PrepareToExitOnNull()
     {
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedExecutorExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IExecutorExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
             .Setup(a => a.ExecutorsShouldKeepRunning())
             .Returns(() =>
@@ -183,7 +183,7 @@ public class JobExecutorTests
         };
 
         var calls = 0;
-        var executionEndArbiter = new Mock<IAppliedExecutorExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IExecutorExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
             .Setup(a => a.ExecutorsShouldKeepRunning())
             .Returns(() => ++calls <= 1);
@@ -253,7 +253,7 @@ public class JobExecutorTests
         };
 
         var calls = 0;
-        var executionEndArbiter = new Mock<IAppliedExecutorExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IExecutorExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
             .Setup(a => a.ExecutorsShouldKeepRunning())
             .Returns(() => ++calls <= 1);
@@ -332,7 +332,7 @@ public class JobExecutorTests
             .ReturnsAsync(ackResult);
 
         var calls = 0;
-        var executionEndArbiter = new Mock<IAppliedExecutorExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IExecutorExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
             .Setup(a => a.ExecutorsShouldKeepRunning())
             .Returns(() => ++calls <= 1);
@@ -394,7 +394,7 @@ public class JobExecutorTests
         idempotencyLock.Setup(l => l.UnlockAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var calls = 0;
-        var executionEndArbiter = new Mock<IAppliedExecutorExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IExecutorExecutionEndArbiter>(MockBehavior.Strict);
         executionEndArbiter
             .Setup(a => a.ExecutorsShouldKeepRunning())
             .Returns(() => ++calls <= 1);

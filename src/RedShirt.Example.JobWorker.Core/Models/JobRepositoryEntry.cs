@@ -26,16 +26,6 @@ internal interface IJobRepositoryEntry : ISortableJobWrapper
     /// </summary>
     /// <exception cref="ArgumentNullException">Thrown when the setter is given <c>null</c>.</exception>
     JobState? State { get; set; }
-
-    /// <summary>
-    ///     Register a callback invoked with the original and current <see cref="State" />.
-    ///     Invoked immediately on subscribe when the current state is not <c>null</c>;
-    ///     the original state is <c>null</c> for that first invocation.
-    /// </summary>
-    /// <param name="action">
-    ///     Receives the original state (possibly <c>null</c>) and the current non-null state.
-    /// </param>
-    void SubscribeToState(Action<JobState?, JobState> action);
 }
 
 internal sealed class JobRepositoryEntry : IJobRepositoryEntry
@@ -45,7 +35,7 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
     /// </summary>
     private readonly Lock _lock = new();
 
-    private Action<JobState?, JobState>? _stateCallbacks;
+    private Action<IJobRepositoryEntry, JobState?, JobState>? _stateCallbacks;
 
     public required IRawJobModel RawJobModel { get; init; }
     public required IJobModel JobModel { get; init; }
@@ -107,7 +97,7 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
                 throw new ArgumentNullException(nameof(value));
             }
 
-            Action<JobState?, JobState>? callbacks;
+            Action<IJobRepositoryEntry, JobState?, JobState>? callbacks;
             JobState? original;
             lock (_lock)
             {
@@ -121,11 +111,19 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
                 callbacks = _stateCallbacks;
             }
 
-            callbacks?.Invoke(original, newState);
+            callbacks?.Invoke(this, original, newState);
         }
     } = JobState.Inactive;
 
-    public void SubscribeToState(Action<JobState?, JobState> action)
+    /// <summary>
+    ///     Register a callback invoked with this entry plus the original and current <see cref="State" />.
+    ///     Invoked immediately on subscribe when the current state is not <c>null</c>;
+    ///     the original state is <c>null</c> for that first invocation.
+    /// </summary>
+    /// <param name="action">
+    ///     Receives this entry, the original state (possibly <c>null</c>), and the current non-null state.
+    /// </param>
+    public void SubscribeToState(Action<IJobRepositoryEntry, JobState?, JobState> action)
     {
         ArgumentNullException.ThrowIfNull(action);
 
@@ -138,7 +136,7 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
 
         if (current is { } state)
         {
-            action(null, state);
+            action(this, null, state);
         }
     }
 }

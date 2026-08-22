@@ -19,7 +19,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.Idempotency;
 internal interface IIdempotencyMonitor : IHandlerSubComponent;
 
 internal sealed class IdempotencyMonitor(
-    IAppliedMaintainerExecutionEndArbiter executionEndArbiter,
+    IIdempotencyMonitorExecutionEndArbiter idempotencyMonitorExecutionEndArbiter,
     IJobRepository jobRepository,
     IIdempotencyExecutionService idempotencyExecutionService,
     ISafeJobAcknowledgementService safeJobAcknowledgementService,
@@ -97,7 +97,7 @@ internal sealed class IdempotencyMonitor(
             if (unblockedJob is { } jobToUnblock)
             {
                 /*
-                 * I'm invoking the reload operation in this point in the loop out of fear of an infinite cycle of idempotency monitoring.
+                 * I'm changing the job's state at this point in the loop out of fear of an infinite cycle of idempotency monitoring.
                  *
                  * If the job were reloaded within the idempotency lock, then there would be the potential of a race condition.
                  *  If the JobExecutor thread receives job and attempted to acquire an idempotency lock before
@@ -107,7 +107,7 @@ internal sealed class IdempotencyMonitor(
                  * Instead, we are very deliberately doing this outside of the idempotency lock.
                  */
 
-                await jobRepository.ReloadUnblockedJobAsync(jobToUnblock, cancellationToken);
+                jobToUnblock.State = JobState.Inactive;
             }
         }
     }
@@ -117,8 +117,7 @@ internal sealed class IdempotencyMonitor(
     /// </summary>
     private async Task LogAndWaitAsync(TimeSpan timeToWait, CancellationToken cancellationToken = default)
     {
-        await executionEndArbiter.MaintainerDelayWaitAsync(timeToWait, "Idempotency Monitor", "follow-up check",
-            cancellationToken);
+        await idempotencyMonitorExecutionEndArbiter.IdempotencyMonitorDelayWaitAsync(timeToWait, cancellationToken);
     }
 
     public async Task<HandlerComponentResponse> RunAsync(CancellationToken cancellationToken = default)
@@ -131,7 +130,7 @@ internal sealed class IdempotencyMonitor(
 
         var intervalTimeSpan = TimeSpan.FromSeconds(options.Value.EffectiveMonitorIntervalSeconds);
 
-        while (executionEndArbiter.MaintainerShouldKeepRunning())
+        while (idempotencyMonitorExecutionEndArbiter.MonitorShouldKeepRunning())
         {
             await CheckBlockedJobsAsync(cancellationToken);
             await LogAndWaitAsync(intervalTimeSpan, cancellationToken);

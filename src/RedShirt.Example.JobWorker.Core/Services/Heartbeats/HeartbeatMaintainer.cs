@@ -22,7 +22,7 @@ internal interface IHeartbeatMaintainer : IHandlerSubComponent;
 #pragma warning disable S107
 internal sealed class HeartbeatMaintainer(
     IHeartbeatCalculator heartbeatCalculator,
-    IAppliedMaintainerExecutionEndArbiter appliedExecutionEndArbiter,
+    IHeartbeatMonitorExecutionEndArbiter heartbeatExecutionEndArbiter,
     IJobRepository jobRepository,
     IJobSource jobSource,
     ICoreHealthStateUpdateService healthStateUpdateService,
@@ -56,8 +56,7 @@ internal sealed class HeartbeatMaintainer(
     /// <param name="cancellationToken"></param>
     private async Task LogAndWaitAsync(TimeSpan timeToWait, CancellationToken cancellationToken = default)
     {
-        await appliedExecutionEndArbiter.MaintainerDelayWaitAsync(timeToWait, "Heartbeat Monitor", "heartbeat check",
-            cancellationToken);
+        await heartbeatExecutionEndArbiter.HeartbeatMonitorDelayWaitAsync(timeToWait, cancellationToken);
     }
 
     /// <summary>
@@ -177,7 +176,7 @@ internal sealed class HeartbeatMaintainer(
             return HandlerComponentResponse.NotEnabled;
         }
 
-        while (appliedExecutionEndArbiter.MaintainerShouldKeepRunning())
+        while (heartbeatExecutionEndArbiter.MonitorShouldKeepRunning())
         {
             var jobs = await jobRepository.GetAllInFlightJobsAsync(cancellationToken);
 

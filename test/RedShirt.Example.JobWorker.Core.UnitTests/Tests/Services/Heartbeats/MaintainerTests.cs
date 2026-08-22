@@ -32,11 +32,10 @@ public class HeartbeatMaintainerTests
         return sleepService.Object;
     }
 
-    private static void SetupMaintainerDelay(Mock<IAppliedMaintainerExecutionEndArbiter> arbiter)
+    private static void SetupMaintainerDelay(Mock<IHeartbeatMonitorExecutionEndArbiter> arbiter)
     {
         arbiter
-            .Setup(a => a.MaintainerDelayWaitAsync(It.IsAny<TimeSpan>(), It.IsAny<string>(), It.IsAny<string>(),
-                It.IsAny<CancellationToken>()))
+            .Setup(a => a.HeartbeatMonitorDelayWaitAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
     }
 
@@ -46,7 +45,7 @@ public class HeartbeatMaintainerTests
     public async Task RunAsync_WhenRecommendedHeartbeatIntervalIsNotPositive_ReturnsImmediately(int intervalSeconds)
     {
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>(MockBehavior.Strict);
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(intervalSeconds);
@@ -84,10 +83,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromSeconds(1));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -143,10 +142,10 @@ public class HeartbeatMaintainerTests
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();
         heartbeatCalculator.Setup(c => c.IsReadyForHeartbeat(entry.Object)).Returns(true);
 
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(true);
 
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
@@ -209,10 +208,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromSeconds(1));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -262,10 +261,10 @@ public class HeartbeatMaintainerTests
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -328,10 +327,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromSeconds(1));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -400,10 +399,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromSeconds(1));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -471,10 +470,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromMilliseconds(100));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -530,10 +529,10 @@ public class HeartbeatMaintainerTests
         heartbeatCalculator.Setup(c => c.TimeUntilNextHeartbeat(entry.Object)).Returns(TimeSpan.FromSeconds(1));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -602,10 +601,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromMilliseconds(100));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -670,10 +669,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromMilliseconds(100));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -731,10 +730,10 @@ public class HeartbeatMaintainerTests
         heartbeatCalculator.Setup(c => c.TimeUntilNextHeartbeat(entry.Object)).Returns(TimeSpan.FromSeconds(1));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -837,10 +836,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromMilliseconds(100));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
         SetupMaintainerDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
