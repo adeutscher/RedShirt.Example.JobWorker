@@ -166,25 +166,17 @@ internal sealed class JobRepository(
         lock (_jobsAvailableGate)
         {
             bool isEmptyCondition;
-            int watchTally;
             lock (_tallyLock)
             {
-                isEmptyCondition = _inactiveJobsList.Count == 0 && _unblockedJobsQueue.IsEmpty;
-                watchTally = _watchedJobsTally;
+                isEmptyCondition = _inactiveJobsTally == 0;
             }
+
+            isEmptyCondition &= _unblockedJobsQueue.IsEmpty;
 
             if (isEmptyCondition)
             {
-                if (watchTally > 0)
-                {
-                    // In-flight jobs remain. Do not park GetNextJobAsync waiters: they must
-                    // keep observing ShouldKeepRunning() without a wait timeout.
-                    _jobsAvailableEvent.Set();
-                }
-                else
-                {
-                    _jobsAvailableEvent.Reset();
-                }
+                // Job list is empty
+                _jobsAvailableEvent.Reset();
             }
             else
             {
