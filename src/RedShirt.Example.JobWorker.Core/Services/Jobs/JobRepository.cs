@@ -61,18 +61,16 @@ internal interface IJobRepository : IDisposable
     Task<bool> WaitForJobDemandAsync(TimeSpan waitDuration, CancellationToken cancellationToken = default);
 }
 
-internal sealed class JobRepository(
-    IExecutionEndArbiter executionEndArbiter,
-    IJobLoaderStateReaderService jobLoaderStateService,
-    ISourceMessageSorter sorter,
-    IOptions<JobRepository.ConfigurationModel> options)
-    : IJobRepository
+internal sealed class JobRepository : IJobRepository
 {
     private readonly Lock _callbackLock = new();
 
     private readonly CancellationTokenSource _cancellationTokenSource = new();
+
+    private readonly IExecutionEndArbiter _executionEndArbiter;
     private readonly Lock _generalGate = new();
     private readonly SemaphoreSlim _inactiveJobsListSemaphore = new(1, 1);
+    private readonly IJobLoaderStateReaderService _jobLoaderStateService;
 
     /// <summary>
     ///     Indicates that jobs are available to be pulled by JobExecutor instances via GetNextJobAsync.
@@ -92,6 +90,8 @@ internal sealed class JobRepository(
     /// </summary>
     private readonly AsyncManualResetEvent _jobsDemandEvent = new();
 
+    private readonly IOptions<ConfigurationModel> _options;
+
     /// <summary>
     ///     Signalled when the repository has no watched jobs.
     ///     Starts signalled because the repository begins empty.
@@ -102,6 +102,8 @@ internal sealed class JobRepository(
     ///     Guards Set/Reset of <see cref="_repositoryEmptyEvent" />.
     /// </summary>
     private readonly Lock _repositoryEmptyGate = new();
+
+    private readonly ISourceMessageSorter _sorter;
 
     private readonly Lock _tallyLock = new();
 
@@ -149,6 +151,31 @@ internal sealed class JobRepository(
 
     private Action<int>? _watchedJobsCallbacks;
     private int _watchedJobsTally;
+
+    private void OnExecutionEndArbiterStop(Exception? exception)
+    {
+        ConsiderInterruptingEventWaits();
+    }
+
+    /// <summary>
+    ///     Check to see if we should cancel the local CancellationTokenSource to interrupt method invocations that are waiting
+    ///     on an event.
+    /// </summary>
+    private void ConsiderInterruptingEventWaits()
+    {
+        lock (_generalGate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (!HaveReasonToExpectFutureJobs())
+            {
+                _cancellationTokenSource.Cancel();
+            }
+        }
+    }
 
     private void Dispose(bool disposing)
     {
@@ -498,9 +525,9 @@ internal sealed class JobRepository(
         if (
             // If execution is still running, then we have every reason to believe that there will be more incoming jobs.
             // Note: Using the raw IExecutionEndArbiter because we want to avoid a circular dependency.
-            executionEndArbiter.ShouldKeepRunning()
+            _executionEndArbiter.ShouldKeepRunning()
             // If the job loader is not yet finished, then there may be more incoming jobs.
-            || !jobLoaderStateService.IsLoaderFinished())
+            || !_jobLoaderStateService.IsLoaderFinished())
         {
             return true;
         }
@@ -511,6 +538,19 @@ internal sealed class JobRepository(
             return _inactiveJobsTally > 0
                    || _idempotencyBlockedTally > 0;
         }
+    }
+
+    public JobRepository(IExecutionEndArbiter executionEndArbiter,
+        IJobLoaderStateReaderService jobLoaderStateReaderService,
+        ISourceMessageSorter sourceMessageSorter,
+        IOptions<ConfigurationModel> options)
+    {
+        _executionEndArbiter = executionEndArbiter;
+        _jobLoaderStateService = jobLoaderStateReaderService;
+        _sorter = sourceMessageSorter;
+        _options = options;
+
+        executionEndArbiter.AddOnStopCallback(OnExecutionEndArbiterStop);
     }
 
     internal List<IJobRepositoryEntry> WatchedJobs { get; } = [];
@@ -668,7 +708,7 @@ internal sealed class JobRepository(
              * * Needs to be compatible with Batch mode, at least for the time being.
              * * We're assuming that we're not working with enormous datasets for our backlog size.
              */
-            _inactiveJobsList = sorter.GetSortedListOfJobs(_inactiveJobsList);
+            _inactiveJobsList = _sorter.GetSortedListOfJobs(_inactiveJobsList);
             SyncJobsAvailableEvent();
             SyncRepositoryEmptyEvent();
         }
@@ -805,7 +845,7 @@ internal sealed class JobRepository(
 
     public int GetBacklogMaxCount()
     {
-        return options.Value.EffectiveBacklogSize;
+        return _options.Value.EffectiveBacklogSize;
     }
 
     public async Task<int> GetInactiveJobCountAsync(CancellationToken cancellationToken = default)
