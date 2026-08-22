@@ -496,14 +496,17 @@ internal sealed class JobRepository : IJobRepository
             }
         }
 
+        var consideringToConsiderCancellingWaitEvents = false; // Yes, this variable name is very silly
         if (updatedInactive)
         {
             NotifyInactiveCountUpdate(localTallyInactive);
+            consideringToConsiderCancellingWaitEvents |= localTallyInactive == 0;
         }
 
         if (updatedIdempotencyBlocked)
         {
             NotifyIdempotencyBlockedCountUpdate(localTallyIdempotencyBlocked);
+            consideringToConsiderCancellingWaitEvents |= localTallyIdempotencyBlocked == 0;
         }
 
         if (updatedWatched)
@@ -511,8 +514,7 @@ internal sealed class JobRepository : IJobRepository
             NotifyWatchedJobsUpdate(localTallyWatched);
         }
 
-        if ((updatedInactive && localTallyInactive == 0)
-            || (updatedIdempotencyBlocked && localTallyIdempotencyBlocked == 0))
+        if (consideringToConsiderCancellingWaitEvents)
         {
             ConsiderInterruptingEventWaits();
         }
