@@ -15,7 +15,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.Jobs;
 ///     If you choose to use one polling mode when applying this template by pruning the other one, then you may want to
 ///     prune in this method as well.
 /// </summary>
-internal interface IJobRepository
+internal interface IJobRepository : IDisposable
 {
     Task<List<IJobRepositoryEntry>> GetAllIdempotencyBlockedJobsAsync(CancellationToken cancellationToken = default);
     Task<List<IJobRepositoryEntry>> GetAllInFlightJobsAsync(CancellationToken cancellationToken = default);
@@ -69,6 +69,9 @@ internal sealed class JobRepository(
     : IJobRepository
 {
     private readonly Lock _callbackLock = new();
+
+    private readonly CancellationTokenSource _cancellationTokenSource = new();
+    private readonly Lock _generalGate = new();
     private readonly SemaphoreSlim _inactiveJobsListSemaphore = new(1, 1);
 
     /// <summary>
@@ -110,6 +113,8 @@ internal sealed class JobRepository(
 
     private readonly SemaphoreSlim _watchedJobsListSemaphore = new(1, 1);
 
+    private bool _disposed;
+
     private Action<int>? _idempotencyBlockedJobsCallbacks;
 
     private int _idempotencyBlockedTally;
@@ -144,6 +149,45 @@ internal sealed class JobRepository(
 
     private Action<int>? _watchedJobsCallbacks;
     private int _watchedJobsTally;
+
+    private void Dispose(bool disposing)
+    {
+        if (!disposing)
+        {
+            return;
+        }
+
+        lock (_generalGate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+        }
+
+        _cancellationTokenSource.Cancel();
+        _cancellationTokenSource.Dispose();
+    }
+
+    private CancellationToken GetLinkedToken(CancellationToken cancellationToken)
+    {
+        lock (_generalGate)
+        {
+            if (_disposed)
+            {
+                using var fallbackCts =
+                    CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                fallbackCts.Cancel();
+                return fallbackCts.Token;
+            }
+        }
+
+        using var linkedCts =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cancellationTokenSource.Token);
+        return linkedCts.Token;
+    }
 
     private void NotifyInactiveCountUpdate(int count)
     {
@@ -561,7 +605,16 @@ internal sealed class JobRepository(
             _jobsDemandEvent.Set();
 
             // ReSharper disable once InconsistentlySynchronizedField
-            await _jobsAvailableEvent.WaitAsync(cancellationToken);
+            var linkedToken = GetLinkedToken(cancellationToken);
+            try
+            {
+                await _jobsAvailableEvent.WaitAsync(linkedToken);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Exception from a cancelled internal CTS suggests shutdown
+                // Suppress and let do-while loop continue to drain 
+            }
         } while (result is null);
 
         return result;
@@ -723,14 +776,31 @@ internal sealed class JobRepository(
         }
     }
 
-    public Task<bool> WaitForJobDemandAsync(TimeSpan waitDuration, CancellationToken cancellationToken = default)
+    public async Task<bool> WaitForJobDemandAsync(TimeSpan waitDuration, CancellationToken cancellationToken = default)
     {
-        return _jobsDemandEvent.WaitAsync(waitDuration, cancellationToken);
+        var linkedToken = GetLinkedToken(cancellationToken);
+        try
+        {
+            return await _jobsDemandEvent.WaitAsync(waitDuration, linkedToken);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Suggests exception from a cancelled internal CTS (which suggests shutdown)
+            return false;
+        }
     }
 
-    public Task WaitForEmptyRepositoryAsync(CancellationToken cancellationToken = default)
+    public async Task WaitForEmptyRepositoryAsync(CancellationToken cancellationToken = default)
     {
-        return _repositoryEmptyEvent.WaitAsync(cancellationToken);
+        var linkedToken = GetLinkedToken(cancellationToken);
+        try
+        {
+            await _repositoryEmptyEvent.WaitAsync(linkedToken);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Suppress exception from a cancelled internal CTS (suggests shutdown)
+        }
     }
 
     public int GetBacklogMaxCount()
@@ -752,6 +822,13 @@ internal sealed class JobRepository(
         {
             _watchedJobsListSemaphore.Release();
         }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        // ReSharper disable once GCSuppressFinalizeForTypeWithoutDestructor
+        GC.SuppressFinalize(this);
     }
 
     private sealed class TryGetJobResponse
