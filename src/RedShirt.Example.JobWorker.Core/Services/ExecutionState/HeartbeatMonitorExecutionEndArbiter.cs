@@ -56,7 +56,7 @@ internal sealed class HeartbeatMonitorExecutionEndArbiter : IHeartbeatMonitorExe
 
             _watchedJobsCount = watchedJobCount;
             shouldInterrupt = !ShouldKeepRunningUnsafe();
-            ConsiderUpdatingEvent();
+            ConsiderUpdatingEventUnsafe();
         }
 
         if (shouldInterrupt)
@@ -65,7 +65,7 @@ internal sealed class HeartbeatMonitorExecutionEndArbiter : IHeartbeatMonitorExe
         }
     }
 
-    private void ConsiderUpdatingEvent()
+    private void ConsiderUpdatingEventUnsafe()
     {
         if (_watchedJobsCount == 0)
         {
