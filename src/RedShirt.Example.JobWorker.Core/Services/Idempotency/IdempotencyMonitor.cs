@@ -117,9 +117,8 @@ internal sealed class IdempotencyMonitor(
     /// </summary>
     private async Task LogAndWaitAsync(TimeSpan timeToWait, CancellationToken cancellationToken = default)
     {
-        logger.LogTrace("Idempotency Monitor: {Time} until next follow-up check",
-            timeToWait);
-        await executionEndArbiter.DelayMaintainerWithStopAwarenessAsync(timeToWait, cancellationToken);
+        await executionEndArbiter.MaintainerDelayWaitAsync(timeToWait, "Idempotency Monitor", "follow-up check",
+            cancellationToken);
     }
 
     public async Task<HandlerComponentResponse> RunAsync(CancellationToken cancellationToken = default)

@@ -1,22 +1,31 @@
+using Microsoft.Extensions.Logging;
 using RedShirt.Example.JobWorker.Common.Services.Utility;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
+using RedShirt.Example.JobWorker.Core.Utility;
 
 namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 
 /// <summary>
 ///     Dictates if maintainer workers should continue running.
 ///     Extends the functionality of the base IExecutionEndArbiter by accessing the job repository.
-///     Written as a test-friendly alternative to `while(true){}`
+///     Initially written as a test-friendly alternative to `while(true){}`
 /// </summary>
 internal interface IAppliedMaintainerExecutionEndArbiter
 {
     /// <summary>
     ///     Delays for <paramref name="delay" />, honouring both <paramref name="cancellationToken" /> and
     ///     an internal interrupt signal that triggers when the worker is stopping.
+    ///     If there are no watched jobs to monitor, then also delays until there are watched jobs to monitor before
+    ///     delaying for <paramref name="delay" />.
     ///     Intended for maintainer workers only.
     ///     Cancellation caused by the internal interrupt signal is ignored and treated as a completed delay.
     /// </summary>
-    Task DelayMaintainerWithStopAwarenessAsync(TimeSpan delay, CancellationToken cancellationToken = default);
+    /// <param name="delay">How long to wait when the skip-wait event is not set.</param>
+    /// <param name="loggerLabel">Label for future wait-related log messages (unused for now).</param>
+    /// <param name="loggerDescription">Description for future wait-related log messages (unused for now).</param>
+    /// <param name="cancellationToken">Caller cancellation.</param>
+    Task MaintainerDelayWaitAsync(TimeSpan delay, string loggerLabel, string loggerDescription,
+        CancellationToken cancellationToken = default);
 
     bool MaintainerShouldKeepRunning();
 }
@@ -37,7 +46,9 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
     private readonly IExecutionEndArbiter _executionEndArbiter;
     private readonly CancellationTokenSource _interruptCts = new();
     private readonly Lock _lock = new();
+    private readonly ILogger<AppliedExecutionEndArbiter> _logger;
     private readonly ISleepService _sleepService;
+    private readonly AsyncManualResetEvent _watchedJobsToMaintainEvent = new();
 
     private bool _disposed;
     private int _inactiveJobsCount;
@@ -89,6 +100,8 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
     private void OnWatchedJobChange(int watchedJobCount)
     {
         bool shouldInterrupt;
+        int previousValue;
+
         lock (_lock)
         {
             if (_disposed)
@@ -96,8 +109,23 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
                 return;
             }
 
+            previousValue = _watchedJobsCount;
             _watchedJobsCount = watchedJobCount;
             shouldInterrupt = ShouldSendMaintainerInterruptSignalUnsafe();
+        }
+
+        if (previousValue != watchedJobCount)
+        {
+            // Confirmed a change
+
+            if (watchedJobCount == 0)
+            {
+                _watchedJobsToMaintainEvent.Reset();
+            }
+            else
+            {
+                _watchedJobsToMaintainEvent.Set();
+            }
         }
 
         if (shouldInterrupt)
@@ -109,10 +137,12 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
     public AppliedExecutionEndArbiter(
         IExecutionEndArbiter executionEndArbiter,
         IJobRepository jobRepository,
-        ISleepService sleepService)
+        ISleepService sleepService,
+        ILogger<AppliedExecutionEndArbiter> logger)
     {
         _executionEndArbiter = executionEndArbiter;
         _sleepService = sleepService;
+        _logger = logger;
         jobRepository.SubscribeToInactiveCountUpdate(OnInactiveJobChange);
         jobRepository.SubscribeToWatchedJobsUpdate(OnWatchedJobChange);
     }
@@ -127,7 +157,7 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
         }
     }
 
-    public async Task DelayMaintainerWithStopAwarenessAsync(TimeSpan delay,
+    public async Task MaintainerDelayWaitAsync(TimeSpan delay, string loggerLabel, string loggerDescription,
         CancellationToken cancellationToken = default)
     {
         CancellationToken interruptToken;
@@ -146,6 +176,19 @@ internal sealed class AppliedExecutionEndArbiter : IAppliedMaintainerExecutionEn
 
         try
         {
+            // Immediately check to see if the event is set.
+            if (!await _watchedJobsToMaintainEvent.WaitAsync(TimeSpan.Zero, linkedCts.Token))
+            {
+                // Event is not set, so wait until it is
+                // This wait prevents the maintainer from creating noise (trace-level though it may be)
+                // when there are no watched jobs to maintain.
+                _logger.LogTrace("{Label}: Waiting for watchable events", loggerLabel);
+                await _watchedJobsToMaintainEvent.WaitAsync(linkedCts.Token);
+                return;
+            }
+
+            _logger.LogTrace("{Label}: {Time} until next {Description}", loggerLabel, delay,
+                loggerDescription);
             await _sleepService.DelayAsync(delay, linkedCts.Token);
         }
         catch (OperationCanceledException) when (interruptToken.IsCancellationRequested

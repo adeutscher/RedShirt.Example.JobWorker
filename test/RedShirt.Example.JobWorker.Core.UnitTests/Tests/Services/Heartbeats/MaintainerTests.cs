@@ -35,7 +35,8 @@ public class HeartbeatMaintainerTests
     private static void SetupMaintainerDelay(Mock<IAppliedMaintainerExecutionEndArbiter> arbiter)
     {
         arbiter
-            .Setup(a => a.DelayMaintainerWithStopAwarenessAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .Setup(a => a.MaintainerDelayWaitAsync(It.IsAny<TimeSpan>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
     }
 
