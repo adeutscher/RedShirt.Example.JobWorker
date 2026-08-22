@@ -385,10 +385,13 @@ internal sealed class JobRepository(
             NotifyWatchedJobsUpdate(localTallyWatched);
         }
 
-        // Note: Although tallies are updated here, should not invoke SyncJobsAvailableEvent here.
-        // SyncJobsAvailableEvent reads off these tallies that suggest a state, but in practice the events are used
-        //  for more concrete realities. Therefore, SyncJobsAvailableEvent should only be invoked when these
-        //  sources of truth have been updated.
+        /*
+         * Note: Although tallies are updated here, SyncJobsAvailableEvent should not be invoked here.
+         * SyncJobsAvailableEvent reads off these tallies that suggest a state, but in practice the events are used
+         *  for more concrete realities and tallies are set before these realities are implemented (read: before the
+         *  inactive jobs list or unblocked jobs queue is updated). Therefore, SyncJobsAvailableEvent should only be
+         *  invoked when these sources of truth have been updated.
+         */
     }
 
     private bool HaveReasonToExpectFutureJobs()
