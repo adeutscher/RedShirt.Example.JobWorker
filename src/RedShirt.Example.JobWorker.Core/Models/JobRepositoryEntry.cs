@@ -28,10 +28,14 @@ internal interface IJobRepositoryEntry : ISortableJobWrapper
     JobState? State { get; set; }
 
     /// <summary>
-    ///     Register a callback invoked with the current <see cref="State" /> and with later values as they are set.
-    ///     Invoked immediately on subscribe when the current state is not <c>null</c>.
+    ///     Register a callback invoked with the original and current <see cref="State" />.
+    ///     Invoked immediately on subscribe when the current state is not <c>null</c>;
+    ///     the original state is <c>null</c> for that first invocation.
     /// </summary>
-    void SubscribeToState(Action<JobState> action);
+    /// <param name="action">
+    ///     Receives the original state (possibly <c>null</c>) and the current non-null state.
+    /// </param>
+    void SubscribeToState(Action<JobState?, JobState> action);
 }
 
 internal sealed class JobRepositoryEntry : IJobRepositoryEntry
@@ -41,7 +45,7 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
     /// </summary>
     private readonly Lock _lock = new();
 
-    private Action<JobState>? _stateCallbacks;
+    private Action<JobState?, JobState>? _stateCallbacks;
 
     public required IRawJobModel RawJobModel { get; init; }
     public required IJobModel JobModel { get; init; }
@@ -103,7 +107,8 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
                 throw new ArgumentNullException(nameof(value));
             }
 
-            Action<JobState>? callbacks;
+            Action<JobState?, JobState>? callbacks;
+            JobState? original;
             lock (_lock)
             {
                 if (field == newState)
@@ -111,15 +116,16 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
                     return;
                 }
 
+                original = field;
                 field = newState;
                 callbacks = _stateCallbacks;
             }
 
-            callbacks?.Invoke(newState);
+            callbacks?.Invoke(original, newState);
         }
     } = JobState.Inactive;
 
-    public void SubscribeToState(Action<JobState> action)
+    public void SubscribeToState(Action<JobState?, JobState> action)
     {
         ArgumentNullException.ThrowIfNull(action);
 
@@ -132,7 +138,7 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
 
         if (current is { } state)
         {
-            action(state);
+            action(null, state);
         }
     }
 }

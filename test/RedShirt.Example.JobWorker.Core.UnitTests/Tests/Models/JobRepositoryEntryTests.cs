@@ -70,24 +70,28 @@ public class JobRepositoryEntryTests
     }
 
     [Fact]
-    public void SubscribeToState_InvokesWithCurrentValueThenLaterValues()
+    public void SubscribeToState_InvokesWithOriginalAndCurrentValues()
     {
         var jre = CreateEntry();
-        var first = new List<JobState>();
-        var second = new List<JobState>();
+        var first = new List<(JobState? Original, JobState Current)>();
+        var second = new List<(JobState? Original, JobState Current)>();
 
-        jre.SubscribeToState(first.Add);
-        Assert.Equal([JobState.Inactive], first);
+        jre.SubscribeToState((original, current) => first.Add((original, current)));
+        Assert.Equal([(null, JobState.Inactive)], first);
 
-        jre.SubscribeToState(second.Add);
-        Assert.Equal([JobState.Inactive], second);
+        jre.SubscribeToState((original, current) => second.Add((original, current)));
+        Assert.Equal([(null, JobState.Inactive)], second);
 
         jre.State = JobState.Active;
         jre.State = JobState.Active;
         jre.State = JobState.Complete;
 
-        Assert.Equal([JobState.Inactive, JobState.Active, JobState.Complete], first);
-        Assert.Equal([JobState.Inactive, JobState.Active, JobState.Complete], second);
+        Assert.Equal(
+            [(null, JobState.Inactive), (JobState.Inactive, JobState.Active), (JobState.Active, JobState.Complete)],
+            first);
+        Assert.Equal(
+            [(null, JobState.Inactive), (JobState.Inactive, JobState.Active), (JobState.Active, JobState.Complete)],
+            second);
         Assert.Equal(JobState.Complete, jre.State);
     }
 
