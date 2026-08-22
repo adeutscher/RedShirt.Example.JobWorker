@@ -1,6 +1,8 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using RedShirt.Example.JobWorker.Common.Services.Utility;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
+using System.Reflection;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.ExecutionState;
 
@@ -51,7 +53,7 @@ public class AppliedExecutionEndArbiterTests
         var arbiter = new AppliedExecutionEndArbiter(
             innerArbiter.Object,
             CreateJobRepository(out var notifier, 1, 1).Object,
-            CreateSleepService().Object);
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         Assert.True(arbiter.MaintainerShouldKeepRunning());
         Assert.True(arbiter.ExecutorsShouldKeepRunning());
@@ -75,7 +77,7 @@ public class AppliedExecutionEndArbiterTests
         using var arbiter = new AppliedExecutionEndArbiter(
             innerArbiter.Object,
             CreateJobRepository(out var notifier, 1, 1).Object,
-            CreateSleepService().Object);
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         Assert.True(arbiter.ExecutorsShouldKeepRunning());
         Assert.True(arbiter.MaintainerShouldKeepRunning());
@@ -90,11 +92,36 @@ public class AppliedExecutionEndArbiterTests
     }
 
     [Fact]
-    public async Task DelayMaintainerWithStopAwarenessAsync_CompletesNormallyWhenNeitherTokenCancels()
+    public void Dispose_IsIdempotent()
+    {
+        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+
+        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
+
+        arbiter.Dispose();
+        arbiter.Dispose();
+    }
+
+    [Fact]
+    public void ExecutorsShouldKeepRunning_WhenInnerTrueAndNoInactive_ReturnsTrue()
+    {
+        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+
+        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(0, 5).Object,
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
+
+        Assert.True(arbiter.ExecutorsShouldKeepRunning());
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task MaintainerDelayWaitAsync_CompletesNormallyWhenNeitherTokenCancels()
     {
         var delay = TimeSpan.FromSeconds(5);
         var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        // Keep jobs present so the interrupt signal is not sent.
+        // Keep jobs present so the interrupt signal is not sent and the wait event is set.
         innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
 
         var sleepService = CreateSleepService();
@@ -103,15 +130,47 @@ public class AppliedExecutionEndArbiterTests
             .Returns(Task.CompletedTask);
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
-            sleepService.Object);
+            sleepService.Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
-        await arbiter.DelayMaintainerWithStopAwarenessAsync(delay, TestContext.Current.CancellationToken);
+        await arbiter.MaintainerDelayWaitAsync(delay, "test", "test", TestContext.Current.CancellationToken);
 
         sleepService.Verify(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    [Fact]
-    public async Task DelayMaintainerWithStopAwarenessAsync_WhenCallerCancels_PropagatesCancellation()
+    [Fact(Timeout = 5000)]
+    public async Task MaintainerDelayWaitAsync_WhenCallerCancelsDuringSleep_PropagatesCancellation()
+    {
+        var delay = TimeSpan.FromSeconds(5);
+        using var callerCts = new CancellationTokenSource();
+
+        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+
+        var delayStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sleepService = CreateSleepService();
+        sleepService
+            .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
+            .Returns((TimeSpan _, CancellationToken token) =>
+            {
+                delayStarted.SetResult();
+                return Task.Delay(Timeout.Infinite, token);
+            });
+
+        using var arbiter = new AppliedExecutionEndArbiter(
+            innerArbiter.Object,
+            CreateJobRepository(1, 1).Object,
+            sleepService.Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
+
+        var delayTask = arbiter.MaintainerDelayWaitAsync(delay, "test", "test", callerCts.Token);
+        await delayStarted.Task;
+
+        await callerCts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => delayTask);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task MaintainerDelayWaitAsync_WhenCallerCancels_PropagatesCancellation()
     {
         var delay = TimeSpan.FromSeconds(5);
         using var callerCts = new CancellationTokenSource();
@@ -127,14 +186,14 @@ public class AppliedExecutionEndArbiterTests
             .Returns((TimeSpan _, CancellationToken token) => Task.FromCanceled(token));
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
-            sleepService.Object);
+            sleepService.Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            arbiter.DelayMaintainerWithStopAwarenessAsync(delay, callerCts.Token));
+            arbiter.MaintainerDelayWaitAsync(delay, "test", "test", callerCts.Token));
     }
 
-    [Fact]
-    public async Task DelayMaintainerWithStopAwarenessAsync_WhenCountsDropToEmptyWhileStopping_InterruptsAndCompletes()
+    [Fact(Timeout = 5000)]
+    public async Task MaintainerDelayWaitAsync_WhenCountsDropToEmptyWhileStopping_InterruptsAndCompletes()
     {
         var delay = TimeSpan.FromSeconds(5);
         var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
@@ -157,9 +216,9 @@ public class AppliedExecutionEndArbiterTests
         using var arbiter = new AppliedExecutionEndArbiter(
             innerArbiter.Object,
             CreateJobRepository(out var notifier, 1, 1).Object,
-            sleepService.Object);
+            sleepService.Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
-        var delayTask = arbiter.DelayMaintainerWithStopAwarenessAsync(delay, CancellationToken.None);
+        var delayTask = arbiter.MaintainerDelayWaitAsync(delay, "test", "test", CancellationToken.None);
         await delayStarted.Task;
 
         // Both counts must be empty before the interrupt fires.
@@ -172,8 +231,8 @@ public class AppliedExecutionEndArbiterTests
         await delayTask;
     }
 
-    [Fact]
-    public async Task DelayMaintainerWithStopAwarenessAsync_WhenDisposed_ReturnsWithoutSleeping()
+    [Fact(Timeout = 5000)]
+    public async Task MaintainerDelayWaitAsync_WhenDisposed_ReturnsWithoutSleeping()
     {
         var delay = TimeSpan.FromSeconds(5);
         var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
@@ -181,41 +240,17 @@ public class AppliedExecutionEndArbiterTests
 
         var sleepService = CreateSleepService();
         var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
-            sleepService.Object);
+            sleepService.Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         arbiter.Dispose();
 
-        await arbiter.DelayMaintainerWithStopAwarenessAsync(delay, CancellationToken.None);
+        await arbiter.MaintainerDelayWaitAsync(delay, "test", "test", CancellationToken.None);
 
         sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    [Fact]
-    public async Task DelayMaintainerWithStopAwarenessAsync_WhenEmptyButInnerSaysKeepRunning_DoesNotInterrupt()
-    {
-        var delay = TimeSpan.FromSeconds(5);
-        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
-
-        var sleepService = CreateSleepService();
-        sleepService
-            .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
-            .Returns((TimeSpan _, CancellationToken token) =>
-            {
-                Assert.False(token.IsCancellationRequested);
-                return Task.CompletedTask;
-            });
-
-        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
-            sleepService.Object);
-
-        await arbiter.DelayMaintainerWithStopAwarenessAsync(delay, CancellationToken.None);
-
-        sleepService.Verify(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task DelayMaintainerWithStopAwarenessAsync_WhenInterrupted_IgnoresCancellation()
+    [Fact(Timeout = 5000)]
+    public async Task MaintainerDelayWaitAsync_WhenInterrupted_IgnoresCancellation()
     {
         var delay = TimeSpan.FromSeconds(5);
         var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
@@ -223,39 +258,144 @@ public class AppliedExecutionEndArbiterTests
         innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(false);
 
         var sleepService = CreateSleepService();
-        sleepService
-            .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
-            .Returns((TimeSpan _, CancellationToken token) => Task.FromCanceled(token));
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
-            sleepService.Object);
+            sleepService.Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
-        await arbiter.DelayMaintainerWithStopAwarenessAsync(delay, CancellationToken.None);
+        await arbiter.MaintainerDelayWaitAsync(delay, "test", "test", CancellationToken.None);
+
+        sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    [Fact]
-    public void Dispose_IsIdempotent()
+    [Fact(Timeout = 5000)]
+    public async Task MaintainerDelayWaitAsync_WhenNoWatchedJobsAndKeepRunning_DoesNotInterrupt()
     {
+        var delay = TimeSpan.FromSeconds(5);
         var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
 
-        var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
-            CreateSleepService().Object);
+        var sleepService = CreateSleepService();
 
-        arbiter.Dispose();
-        arbiter.Dispose();
+        using var arbiter = new AppliedExecutionEndArbiter(
+            innerArbiter.Object,
+            CreateJobRepository(out var notifier).Object,
+            sleepService.Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
+
+        var delayTask = arbiter.MaintainerDelayWaitAsync(delay, "test", "test", CancellationToken.None);
+
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.False(delayTask.IsCompleted);
+
+        // Empty counts while keep-running must not fire the interrupt; only watched jobs unblock.
+        notifier.NotifyInactive(0);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.False(delayTask.IsCompleted);
+
+        notifier.NotifyWatched(1);
+        await delayTask;
     }
 
-    [Fact]
-    public void ExecutorsShouldKeepRunning_WhenInnerTrueAndNoInactive_ReturnsTrue()
+    [Fact(Timeout = 5000)]
+    public async Task MaintainerDelayWaitAsync_WhenNoWatchedJobs_WaitsUntilWatchedThenReturnsWithoutSleeping()
     {
+        var delay = TimeSpan.FromSeconds(5);
         var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
 
-        using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(0, 5).Object,
-            CreateSleepService().Object);
+        var sleepService = CreateSleepService();
 
-        Assert.True(arbiter.ExecutorsShouldKeepRunning());
+        using var arbiter = new AppliedExecutionEndArbiter(
+            innerArbiter.Object,
+            CreateJobRepository(out var notifier).Object,
+            sleepService.Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
+
+        var delayTask = arbiter.MaintainerDelayWaitAsync(delay, "test", "test", CancellationToken.None);
+
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.False(delayTask.IsCompleted);
+
+        notifier.NotifyWatched(1);
+        await delayTask;
+
+        sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task MaintainerDelayWaitAsync_WhenWaitingForWatched_CallerCancelPropagates()
+    {
+        var delay = TimeSpan.FromSeconds(5);
+        using var callerCts = new CancellationTokenSource();
+
+        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+
+        var sleepService = CreateSleepService();
+
+        using var arbiter = new AppliedExecutionEndArbiter(
+            innerArbiter.Object,
+            CreateJobRepository().Object,
+            sleepService.Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
+
+        var delayTask = arbiter.MaintainerDelayWaitAsync(delay, "test", "test", callerCts.Token);
+
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.False(delayTask.IsCompleted);
+
+        await callerCts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => delayTask);
+        sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task MaintainerDelayWaitAsync_WhenWaitingForWatched_InterruptCompletesWithoutThrowing()
+    {
+        var delay = TimeSpan.FromSeconds(5);
+        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        // Stopping with inactive work present: interrupt is deferred until counts clear.
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(false);
+
+        var sleepService = CreateSleepService();
+
+        using var arbiter = new AppliedExecutionEndArbiter(
+            innerArbiter.Object,
+            CreateJobRepository(out var notifier, 1).Object,
+            sleepService.Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
+
+        var delayTask = arbiter.MaintainerDelayWaitAsync(delay, "test", "test", CancellationToken.None);
+
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.False(delayTask.IsCompleted);
+
+        notifier.NotifyInactive(0);
+        await delayTask;
+
+        sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task MaintainerDelayWaitAsync_WhenWatchedCountUnchanged_StillTakesSleepPath()
+    {
+        var delay = TimeSpan.FromSeconds(5);
+        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+
+        var sleepService = CreateSleepService();
+        sleepService
+            .Setup(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        using var arbiter = new AppliedExecutionEndArbiter(
+            innerArbiter.Object,
+            CreateJobRepository(out var notifier, 0, 1).Object,
+            sleepService.Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
+
+        // Same count must not Reset the wait event; sleep path should remain available.
+        notifier.NotifyWatched(1);
+
+        await arbiter.MaintainerDelayWaitAsync(delay, "test", "test", CancellationToken.None);
+
+        sleepService.Verify(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -265,7 +405,7 @@ public class AppliedExecutionEndArbiterTests
         innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
-            CreateSleepService().Object);
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         Assert.True(arbiter.MaintainerShouldKeepRunning());
     }
@@ -282,7 +422,7 @@ public class AppliedExecutionEndArbiterTests
             .Returns(false); // Inner arbiter says no
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(-1).Object,
-            CreateSleepService().Object);
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         Assert.False(arbiter.ExecutorsShouldKeepRunning());
     }
@@ -299,7 +439,7 @@ public class AppliedExecutionEndArbiterTests
             .Returns(true);
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
-            CreateSleepService().Object);
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         Assert.True(arbiter.ExecutorsShouldKeepRunning());
     }
@@ -313,7 +453,7 @@ public class AppliedExecutionEndArbiterTests
             .Returns(false); // Inner arbiter says no
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
-            CreateSleepService().Object);
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         Assert.True(arbiter.ExecutorsShouldKeepRunning());
     }
@@ -327,7 +467,7 @@ public class AppliedExecutionEndArbiterTests
             .Returns(false); // Inner arbiter says no
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
-            CreateSleepService().Object);
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         Assert.True(arbiter.ExecutorsShouldKeepRunning());
     }
@@ -341,7 +481,7 @@ public class AppliedExecutionEndArbiterTests
             .Returns(false); // Inner arbiter says no
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(0, 1).Object,
-            CreateSleepService().Object);
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         // Confirming that we're ignoring watched jobs
         Assert.False(arbiter.ExecutorsShouldKeepRunning());
@@ -356,7 +496,7 @@ public class AppliedExecutionEndArbiterTests
             .Returns(false); // Inner arbiter says no
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
-            CreateSleepService().Object);
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         Assert.False(arbiter.ExecutorsShouldKeepRunning());
     }
@@ -373,7 +513,7 @@ public class AppliedExecutionEndArbiterTests
             .Returns(true);
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
-            CreateSleepService().Object);
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         Assert.True(arbiter.MaintainerShouldKeepRunning());
     }
@@ -387,7 +527,7 @@ public class AppliedExecutionEndArbiterTests
             .Returns(false); // Inner arbiter says no
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1).Object,
-            CreateSleepService().Object);
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         Assert.True(arbiter.MaintainerShouldKeepRunning());
     }
@@ -401,7 +541,7 @@ public class AppliedExecutionEndArbiterTests
             .Returns(false); // Inner arbiter says no
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(0, 1).Object,
-            CreateSleepService().Object);
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         Assert.True(arbiter.MaintainerShouldKeepRunning());
     }
@@ -415,7 +555,7 @@ public class AppliedExecutionEndArbiterTests
             .Returns(false); // Inner arbiter says no
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(1, 1).Object,
-            CreateSleepService().Object);
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         Assert.True(arbiter.MaintainerShouldKeepRunning());
     }
@@ -429,7 +569,7 @@ public class AppliedExecutionEndArbiterTests
             .Returns(false); // Inner arbiter says no
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository().Object,
-            CreateSleepService().Object);
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
 
         Assert.False(arbiter.MaintainerShouldKeepRunning());
     }
@@ -446,7 +586,30 @@ public class AppliedExecutionEndArbiterTests
             .Returns(false); // Inner arbiter says no
 
         using var arbiter = new AppliedExecutionEndArbiter(innerArbiter.Object, CreateJobRepository(-1, -1).Object,
-            CreateSleepService().Object);
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
+
+        Assert.False(arbiter.MaintainerShouldKeepRunning());
+    }
+
+    [Fact]
+    public void TryCancelInterrupt_WhenCtsAlreadyDisposed_SwallowsObjectDisposedException()
+    {
+        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(false);
+
+        using var arbiter = new AppliedExecutionEndArbiter(
+            innerArbiter.Object,
+            CreateJobRepository(out var notifier, 1).Object,
+            CreateSleepService().Object, NullLogger<AppliedExecutionEndArbiter>.Instance);
+
+        var field = typeof(AppliedExecutionEndArbiter).GetField("_interruptCts",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        var cts = (CancellationTokenSource) field.GetValue(arbiter)!;
+        cts.Dispose();
+
+        // Clearing the last active count would cancel the interrupt CTS; it is already disposed.
+        notifier.NotifyInactive(0);
 
         Assert.False(arbiter.MaintainerShouldKeepRunning());
     }
