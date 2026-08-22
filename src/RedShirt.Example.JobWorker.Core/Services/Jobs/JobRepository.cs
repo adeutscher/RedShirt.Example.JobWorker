@@ -568,7 +568,7 @@ internal sealed class JobRepository(
             }
 
             // Note that there's a demand.
-            // Only the JobLoader should care about this via the IJobRepository.WaitForJobDemandAsync method
+            // Only the loader mode should care about this via the IJobRepository.WaitForJobDemandAsync method
             _jobsDemandEvent.Set();
 
             // ReSharper disable once InconsistentlySynchronizedField
