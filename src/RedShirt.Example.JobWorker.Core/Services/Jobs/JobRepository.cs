@@ -186,7 +186,9 @@ internal sealed class JobRepository(
             }
         }
 
-        if (result is null)
+        if (result is null
+            // Account for technical race condition, will never happen in practice
+            || result.IsDisposed)
         {
             return new TryGetJobResponse
             {
@@ -517,7 +519,7 @@ internal sealed class JobRepository(
 
     public async Task RemoveJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default)
     {
-        job.Dispose();
+        ArgumentNullException.ThrowIfNull(job);
 
         await _inactiveJobsListSemaphore.WaitAsync(cancellationToken);
         try
@@ -554,6 +556,8 @@ internal sealed class JobRepository(
         {
             _watchedJobsListSemaphore.Release();
         }
+
+        job.Dispose();
     }
 
     public void SubscribeToInactiveCountUpdate(Action<int> callback)
