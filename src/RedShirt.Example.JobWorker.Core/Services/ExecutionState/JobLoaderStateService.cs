@@ -5,7 +5,12 @@ namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 /// </summary>
 internal interface IJobLoaderStateReaderService
 {
-    bool HasLoaderStarted();
+    /// <summary>
+    ///     Thread-safe addition of callback actions invoked once the loader has both started and stopped.
+    ///     If the loader is already finished, the callback is invoked immediately.
+    /// </summary>
+    /// <param name="callback"></param>
+    void AddOnFinishCallback(Action callback);
 
     bool IsLoaderFinished();
 }
@@ -24,8 +29,7 @@ internal interface IJobLoaderStateService : IJobLoaderStateReaderService
 internal sealed class JobLoaderStateService : IJobLoaderStateService
 {
     /// <summary>
-    ///     Multithreading protection.
-    ///     Feels a little silly for a service that only sets booleans to true, but it makes automated audits happy.
+    ///     Multithreading protection for start/stop flags and finish callbacks.
     /// </summary>
     private readonly Lock _lock = new();
 
@@ -33,35 +37,89 @@ internal sealed class JobLoaderStateService : IJobLoaderStateService
 
     private bool _isStarted;
 
-    public void ReportLoaderStart()
+    private Action? _onFinishCallbacks;
+
+    private bool IsFinishedUnsafe()
+    {
+        return _isStarted && _isFinished;
+    }
+
+    /// <summary>
+    ///     Detaches finish callbacks if the loader is finished.
+    ///     Must be safe to call with or without the caller already holding <see cref="_lock" />
+    ///     (<see cref="Lock" /> is reentrant).
+    /// </summary>
+    private Action? TakeCallbacksIfFinished()
     {
         lock (_lock)
         {
-            _isStarted = true;
+            if (!IsFinishedUnsafe())
+            {
+                return null;
+            }
+
+            return Interlocked.Exchange(ref _onFinishCallbacks, null);
         }
+    }
+
+    private static void InvokeCallbacks(Action? callbacks)
+    {
+        if (callbacks is null)
+        {
+            return;
+        }
+
+        foreach (var invocation in callbacks.GetInvocationList())
+        {
+            ((Action) invocation)();
+        }
+    }
+
+    public void ReportLoaderStart()
+    {
+        Action? callbacks;
+        lock (_lock)
+        {
+            _isStarted = true;
+            callbacks = TakeCallbacksIfFinished();
+        }
+
+        InvokeCallbacks(callbacks);
     }
 
     public void ReportLoaderStop()
     {
+        Action? callbacks;
         lock (_lock)
         {
             _isFinished = true;
+            callbacks = TakeCallbacksIfFinished();
         }
-    }
 
-    public bool HasLoaderStarted()
-    {
-        lock (_lock)
-        {
-            return _isStarted;
-        }
+        InvokeCallbacks(callbacks);
     }
 
     public bool IsLoaderFinished()
     {
         lock (_lock)
         {
-            return _isStarted && _isFinished;
+            return IsFinishedUnsafe();
         }
+    }
+
+    public void AddOnFinishCallback(Action callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+
+        lock (_lock)
+        {
+            if (!IsFinishedUnsafe())
+            {
+                _onFinishCallbacks += callback;
+                return;
+            }
+        }
+
+        callback();
     }
 }
