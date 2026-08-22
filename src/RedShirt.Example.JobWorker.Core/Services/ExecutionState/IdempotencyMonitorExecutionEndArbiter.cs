@@ -191,7 +191,7 @@ internal sealed class IdempotencyMonitorExecutionEndArbiter : IIdempotencyMonito
                 return;
             }
 
-            _logger.LogTrace("{LogLabel}: {Time} until next heartbeat check", LogLabel, delay);
+            _logger.LogTrace("{LogLabel}: {Time} until next follow-up check", LogLabel, delay);
             await _sleepService.DelayAsync(delay, linkedCts.Token);
         }
         catch (OperationCanceledException) when (interruptToken.IsCancellationRequested
