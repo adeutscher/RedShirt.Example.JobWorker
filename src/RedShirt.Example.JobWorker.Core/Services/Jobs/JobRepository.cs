@@ -257,13 +257,13 @@ internal sealed class JobRepository(
 
             if (oldState is not null && newState == JobState.Complete)
             {
-                // Moving from watched to unwatched
+                // Moving from watched to unwatched (as opposed to directly to Complete, which would skip watching altogether)
                 updatedWatched = true;
                 _watchedJobsTally--;
             }
             else if (oldState is null && newState != JobState.Complete)
             {
-                // Moving from unwatched to watched
+                // Moving from unwatched to watched (as opposed to directly to Complete)
                 updatedWatched = true;
                 _watchedJobsTally++;
             }
@@ -497,19 +497,22 @@ internal sealed class JobRepository(
 
     public async Task RemoveJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default)
     {
-        int watchedCount;
-        int inactiveCount;
+        // Confirm that the job that we're removing is marked as complete,
+        //   for the sake of subscriber callbacks in the underlying JobRepositoryEntry.
+        job.State = JobState.Complete;
+
         await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
         try
         {
             WatchedJobs.Remove(job);
-            watchedCount = WatchedJobs.Count;
-            inactiveCount = WatchedJobs.Count(watchedJob => watchedJob.State == JobState.Inactive);
 
-            if (watchedCount == 0)
+            if (WatchedJobs.Count == 0)
             {
                 // Avoid possible race condition in JobLoader
+
+                // If there's nothing to grab, then there must be an executor about to demand something. 
                 _jobsDemandEvent.Set();
+                // No watched jobs is the very definition of an empty repository
                 _repositoryEmptyEvent.Set();
             }
         }
@@ -517,9 +520,6 @@ internal sealed class JobRepository(
         {
             _watchedJobsListSemaphore.Release();
         }
-
-        NotifyWatchedJobsUpdate(watchedCount);
-        NotifyInactiveCountUpdate(inactiveCount);
     }
 
     public void SubscribeToInactiveCountUpdate(Action<int> callback)

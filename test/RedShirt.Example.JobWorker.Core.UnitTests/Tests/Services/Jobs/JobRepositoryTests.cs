@@ -81,6 +81,7 @@ public class JobRepositoryTests
 
         var job = Assert.Single(jobRepository.WatchedJobs);
         await jobRepository.RemoveJobAsync(job, TestContext.Current.CancellationToken);
+        Assert.Equal(JobState.Complete, job.State);
 
         Assert.Equal([0, 1, 0], inactiveCounts);
         Assert.Equal([0, 1, 1, 0], watchedCounts);
@@ -1036,7 +1037,7 @@ public class JobRepositoryTests
             Options.Create(options));
 
         var job = new Mock<IJobRepositoryEntry>();
-        job.Setup(j => j.State).Returns(JobState.Complete);
+        job.SetupProperty(j => j.State, JobState.Active);
         jobRepository.WatchedJobs.Add(job.Object);
 
         Assert.Equal(0, await jobRepository.GetInactiveJobCountAsync(TestContext.Current.CancellationToken));
@@ -1044,6 +1045,7 @@ public class JobRepositoryTests
 
         await jobRepository.RemoveJobAsync(job.Object, TestContext.Current.CancellationToken);
 
+        Assert.Equal(JobState.Complete, job.Object.State);
         Assert.Equal(0, await jobRepository.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken));
     }
 
@@ -1071,11 +1073,11 @@ public class JobRepositoryTests
             Options.Create(options));
 
         var job = new Mock<IJobRepositoryEntry>();
-        job.Setup(j => j.State).Returns(JobState.Complete);
+        job.SetupProperty(j => j.State, JobState.Active);
         jobRepository.WatchedJobs.Add(job.Object);
 
         var job2 = new Mock<IJobRepositoryEntry>();
-        job2.Setup(j => j.State).Returns(JobState.Complete);
+        job2.SetupProperty(j => j.State, JobState.Active);
         jobRepository.WatchedJobs.Add(job2.Object);
 
         Assert.Equal(0, await jobRepository.GetInactiveJobCountAsync(TestContext.Current.CancellationToken));
@@ -1083,6 +1085,8 @@ public class JobRepositoryTests
 
         await jobRepository.RemoveJobAsync(job.Object, TestContext.Current.CancellationToken);
 
+        Assert.Equal(JobState.Complete, job.Object.State);
+        Assert.Equal(JobState.Active, job2.Object.State);
         Assert.Equal(1, await jobRepository.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken));
     }
 
