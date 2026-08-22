@@ -78,7 +78,7 @@ internal sealed class JobRepository(
 
     /// <summary>
     ///     Guards Set/Reset of <see cref="_jobsAvailableEvent" /> together with enqueue onto
-    ///     <see cref="_unblockedJobsQueue" />.
+    ///     <see cref="_unblockedJobsQueue" /> and <see cref="_inactiveJobsList" />.
     ///     Lock order: <see cref="_inactiveJobsListSemaphore" /> then this gate.
     /// </summary>
     private readonly Lock _jobsAvailableGate = new();
@@ -94,6 +94,11 @@ internal sealed class JobRepository(
     ///     Starts signalled because the repository begins empty.
     /// </summary>
     private readonly AsyncManualResetEvent _repositoryEmptyEvent = new(true);
+
+    /// <summary>
+    ///     Guards Set/Reset of <see cref="_repositoryEmptyEvent" />.
+    /// </summary>
+    private readonly Lock _repositoryEmptyGate = new();
 
     private readonly Lock _tallyLock = new();
 
@@ -127,6 +132,14 @@ internal sealed class JobRepository(
     ///     Use should be gated behind <see cref="_jobsAvailableGate" />.
     /// </summary>
     private bool _jobsAvailableEventIsSet;
+
+    /// <summary>
+    ///     Notes if <see cref="_repositoryEmptyEvent" /> is set.
+    ///     Created out of optimization paranoia to avoid unnecessary event sets/resets to <see cref="_repositoryEmptyEvent" />
+    ///     .
+    ///     Use should be gated behind <see cref="_repositoryEmptyGate" />.
+    /// </summary>
+    private bool _repositoryEmptyEventIsSet;
 
     private Action<int>? _watchedJobsCallbacks;
     private int _watchedJobsTally;
@@ -167,6 +180,39 @@ internal sealed class JobRepository(
     /// <summary>
     ///     Align <see cref="_jobsAvailableEvent" /> with whether inactive jobs or shortlisted jobs exist.
     ///     Assumed to run while holding <see cref="_inactiveJobsListSemaphore" />.
+    /// </summary>
+    private void SyncRepositoryEmptyEvent()
+    {
+        lock (_repositoryEmptyGate)
+        {
+            bool isEmptyCondition;
+            lock (_tallyLock)
+            {
+                isEmptyCondition = _watchedJobsTally == 0;
+            }
+
+            if (isEmptyCondition)
+            {
+                // Job list is empty
+
+                // ReSharper disable once InvertIf
+                if (_repositoryEmptyEventIsSet)
+                {
+                    _repositoryEmptyEvent.Reset();
+                    _repositoryEmptyEventIsSet = false;
+                }
+            }
+            else if (!_repositoryEmptyEventIsSet)
+            {
+                _repositoryEmptyEvent.Set();
+                _repositoryEmptyEventIsSet = true;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Align <see cref="_jobsAvailableEvent" /> with whether inactive jobs or shortlisted jobs exist.
+    ///     Should be run after state has been updated and a data store has been updated.
     /// </summary>
     private void SyncJobsAvailableEvent()
     {
@@ -217,13 +263,6 @@ internal sealed class JobRepository(
             }
         }
 
-        if (iterated)
-        {
-            // Check to see if we emptied the queue, but only if we actually dequeued something
-            // Assume that the event is up to date and doesn't need a redundant reset.
-            SyncJobsAvailableEvent();
-        }
-
         if (result is null
             // Account for technical race condition, will never happen in practice
             || result.IsDisposed)
@@ -231,6 +270,7 @@ internal sealed class JobRepository(
             return new TryGetJobResponse
             {
                 Success = false,
+                ModifiedSourceStore = iterated,
                 Result = null
             };
         }
@@ -238,6 +278,7 @@ internal sealed class JobRepository(
         return new TryGetJobResponse
         {
             Success = true,
+            ModifiedSourceStore = iterated,
             Result = result
         };
     }
@@ -253,7 +294,6 @@ internal sealed class JobRepository(
             if (result is not null)
             {
                 _inactiveJobsList.RemoveAt(0);
-                SyncJobsAvailableEvent();
             }
         }
         finally
@@ -264,6 +304,7 @@ internal sealed class JobRepository(
         return new TryGetJobResponse
         {
             Success = result is not null,
+            ModifiedSourceStore = result is not null,
             Result = result
         };
     }
@@ -474,21 +515,46 @@ internal sealed class JobRepository(
         IJobRepositoryEntry? result = null;
         do
         {
+            Console.WriteLine("NEXT JOB ITERATION");
             // Try shortlist of unblocked jobs
-            if (TryGetUnblockedJobAsync() is {Success: true, Result: { } unblockedJob})
+            if (TryGetUnblockedJobAsync() is { } unblockedJobAttempt)
             {
-                result = unblockedJob;
+                if (unblockedJobAttempt is {Success: true, Result: { } unblockedJob})
+                {
+                    result = unblockedJob;
+                    result.State = JobState.Active;
+                }
 
-                // Continue out of loop iteration to abort via do-while condition
-                continue;
+                if (unblockedJobAttempt.ModifiedSourceStore)
+                {
+                    SyncJobsAvailableEvent();
+                }
+
+                if (result is not null)
+                {
+                    // Continue out of loop iteration to abort via do-while condition
+                    continue;
+                }
             }
 
-            if (await TryGetInactiveJobAsync(cancellationToken) is {Success: true, Result: { } inactiveAttemptResult})
+            if (await TryGetInactiveJobAsync(cancellationToken) is { } inactiveAttempt)
             {
-                result = inactiveAttemptResult;
+                if (inactiveAttempt is {Success: true, Result: { } inactiveAttemptResult})
+                {
+                    result = inactiveAttemptResult;
+                    result.State = JobState.Active;
+                }
 
-                // Continue out of loop iteration to abort via do-while condition
-                continue;
+                if (inactiveAttempt.ModifiedSourceStore)
+                {
+                    SyncJobsAvailableEvent();
+                }
+
+                if (result is not null)
+                {
+                    // Continue out of loop iteration to abort via do-while condition
+                    continue;
+                }
             }
 
             // If execution has reached here, then there are currently no available jobs to be handed out.
@@ -508,8 +574,6 @@ internal sealed class JobRepository(
             // ReSharper disable once InconsistentlySynchronizedField
             await _jobsAvailableEvent.WaitAsync(cancellationToken);
         } while (result is null);
-
-        result.State = JobState.Active;
 
         return result;
     }
@@ -550,7 +614,7 @@ internal sealed class JobRepository(
 
                     _jobsDemandEvent.Reset();
                     // Once jobs are added, then the repository is either no longer empty or continues to not be empty.
-                    _repositoryEmptyEvent.Reset();
+                    SyncRepositoryEmptyEvent();
                 }
             }
             finally
@@ -603,7 +667,7 @@ internal sealed class JobRepository(
                 // If there's nothing to grab, then there must be an executor about to demand something. 
                 _jobsDemandEvent.Set();
                 // No watched jobs is the very definition of an empty repository
-                _repositoryEmptyEvent.Set();
+                SyncRepositoryEmptyEvent();
             }
         }
         finally
@@ -673,18 +737,10 @@ internal sealed class JobRepository(
         return _jobsDemandEvent.WaitAsync(waitDuration, cancellationToken);
     }
 
-    public async Task WaitForEmptyRepositoryAsync(CancellationToken cancellationToken = default)
+    public Task WaitForEmptyRepositoryAsync(CancellationToken cancellationToken = default)
     {
-        int count;
-        do
-        {
-            // Short timeout mirrors GetNextJobAsync: avoids missing a Set/Reset edge under concurrency
-            await _repositoryEmptyEvent.WaitAsync(TimeSpan.FromMilliseconds(250), cancellationToken);
-            lock (_tallyLock)
-            {
-                count = _watchedJobsTally;
-            }
-        } while (count > 0);
+        Console.WriteLine("WaitForEmptyRepositoryAsync");
+        return _repositoryEmptyEvent.WaitAsync(cancellationToken);
     }
 
     public int GetBacklogMaxCount()
@@ -711,6 +767,7 @@ internal sealed class JobRepository(
     private sealed class TryGetJobResponse
     {
         public required bool Success { get; init; }
+        public required bool ModifiedSourceStore { get; init; }
         public required IJobRepositoryEntry? Result { get; init; }
     }
 
