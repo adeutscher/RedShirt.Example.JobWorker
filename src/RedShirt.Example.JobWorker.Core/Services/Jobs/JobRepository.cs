@@ -165,9 +165,17 @@ internal sealed class JobRepository(
     {
         lock (_jobsAvailableGate)
         {
-            if (_inactiveJobsList.Count == 0 && _unblockedJobsQueue.IsEmpty)
+            bool isEmptyCondition;
+            int watchTally;
+            lock (_tallyLock)
             {
-                if (WatchedJobs.Count > 0)
+                isEmptyCondition = _inactiveJobsList.Count == 0 && _unblockedJobsQueue.IsEmpty;
+                watchTally = _watchedJobsTally;
+            }
+
+            if (isEmptyCondition)
+            {
+                if (watchTally > 0)
                 {
                     // In-flight jobs remain. Do not park GetNextJobAsync waiters: they must
                     // keep observing ShouldKeepRunning() without a wait timeout.
@@ -185,7 +193,7 @@ internal sealed class JobRepository(
         }
     }
 
-    private async Task<TryGetJobResponse> TryGetUnblockedJobAsync(CancellationToken cancellationToken)
+    private TryGetJobResponse TryGetUnblockedJobAsync()
     {
         IJobRepositoryEntry? result;
         var iterated = false;
@@ -207,15 +215,7 @@ internal sealed class JobRepository(
         {
             // Check to see if we emptied the queue, but only if we actually dequeued something
             // Assume that the event is up to date and doesn't need a redundant reset.
-            await _inactiveJobsListSemaphore.WaitAsync(cancellationToken);
-            try
-            {
-                SyncJobsAvailableEvent();
-            }
-            finally
-            {
-                _inactiveJobsListSemaphore.Release();
-            }
+            SyncJobsAvailableEvent();
         }
 
         if (result is null
@@ -378,6 +378,31 @@ internal sealed class JobRepository(
         {
             NotifyWatchedJobsUpdate(localTallyWatched);
         }
+
+        // Note: Although tallies are updated here, should not invoke SyncJobsAvailableEvent here.
+        // SyncJobsAvailableEvent reads off these tallies that suggest a state, but in practice the events are used
+        //  for more concrete realities. Therefore, SyncJobsAvailableEvent should only be invoked when these
+        //  sources of truth have been updated.
+    }
+
+    private bool HaveReasonToExpectFutureJobs()
+    {
+        if (
+            // If execution is still running, then we have every reason to believe that there will be more incoming jobs.
+            // Note: Using the raw IExecutionEndArbiter because we want to avoid a circular dependency.
+            executionEndArbiter.ShouldKeepRunning()
+            // If the job loader is not yet finished, then there may be more incoming jobs.
+            || !jobLoaderStateService.IsLoaderFinished())
+        {
+            return true;
+        }
+
+        lock (_tallyLock)
+        {
+            // Confirm whether there are any inactive jobs, or jobs that may become inactive again. 
+            return _inactiveJobsTally > 0
+                   || _idempotencyBlockedTally > 0;
+        }
     }
 
     internal List<IJobRepositoryEntry> WatchedJobs { get; } = [];
@@ -442,7 +467,7 @@ internal sealed class JobRepository(
         do
         {
             // Try shortlist of unblocked jobs
-            if (await TryGetUnblockedJobAsync(cancellationToken) is {Success: true, Result: { } unblockedJob})
+            if (TryGetUnblockedJobAsync() is {Success: true, Result: { } unblockedJob})
             {
                 result = unblockedJob;
 
@@ -461,7 +486,7 @@ internal sealed class JobRepository(
             // If execution has reached here, then there are currently no available jobs to be handed out.
 
             // Is it because we've been asked to stop running?
-            if (!HaveReasonToContinue())
+            if (!HaveReasonToExpectFutureJobs())
             {
                 // It IS because we've been asked to stop running!
                 // We have also confirmed that the job loader is fully finished, and no more jobs are incoming 
@@ -479,26 +504,6 @@ internal sealed class JobRepository(
         result.State = JobState.Active;
 
         return result;
-    }
-
-    private bool HaveReasonToContinue()
-    {
-        if (
-            // If execution is still running, then we have every reason to believe that there will be more incoming jobs.
-            // Note: Using the raw IExecutionEndArbiter because we want to avoid a circular dependency.
-            executionEndArbiter.ShouldKeepRunning()
-            // If the job loader is not yet finished, then there may be more incoming jobs.
-            || !jobLoaderStateService.IsLoaderFinished())
-        {
-            return true;
-        }
-
-        lock (_tallyLock)
-        {
-            // Confirm whether there are any inactive jobs, or jobs that may become inactive again. 
-            return _inactiveJobsTally > 0
-                   || _idempotencyBlockedTally > 0;
-        }
     }
 
     public async Task LoadAsync(IReadOnlyList<IJobEnvelope> intakeItems,
