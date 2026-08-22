@@ -58,6 +58,16 @@ public class JobRepositoryEntryTests
     }
 
     [Fact]
+    public void State_WhenSetNull_ThrowsArgumentNullException()
+    {
+        var jre = CreateEntry();
+
+        var ex = Assert.Throws<ArgumentNullException>(() => jre.State = null);
+        Assert.Equal("value", ex.ParamName);
+        Assert.Equal(JobState.Inactive, jre.State);
+    }
+
+    [Fact]
     public void SubscribeToStateChange_WhenNull_ThrowsArgumentNullException()
     {
         var jre = CreateEntry();

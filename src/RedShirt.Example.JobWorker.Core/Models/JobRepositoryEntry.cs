@@ -19,7 +19,13 @@ internal interface IJobRepositoryEntry : ISortableJobWrapper
     bool CanHeartbeat { get; set; }
 
     DateTime LastHeartbeatTime { get; set; }
-    JobState State { get; set; }
+
+    /// <summary>
+    ///     Current processing state of this job.
+    ///     May not be set to <c>null</c>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Thrown when the setter is given <c>null</c>.</exception>
+    JobState? State { get; set; }
 
     void SubscribeToStateChange(Action<JobState> action);
 }
@@ -77,7 +83,7 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
         }
     }
 
-    public JobState State
+    public JobState? State
     {
         get
         {
@@ -88,19 +94,24 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
         }
         set
         {
+            if (value is not { } newState)
+            {
+                throw new ArgumentNullException(nameof(value));
+            }
+
             Action<JobState>? callbacks;
             lock (_lock)
             {
-                if (field == value)
+                if (field == newState)
                 {
                     return;
                 }
 
-                field = value;
+                field = newState;
                 callbacks = _stateChangeCallbacks;
             }
 
-            callbacks?.Invoke(value);
+            callbacks?.Invoke(newState);
         }
     } = JobState.Inactive;
 
