@@ -85,14 +85,17 @@ public class JobRepositoryEntryTests
         var second = new List<JobState>();
 
         jre.SubscribeToStateChange(first.Add);
+        Assert.Equal([JobState.Inactive], first);
+
         jre.SubscribeToStateChange(second.Add);
+        Assert.Equal([JobState.Inactive], second);
 
         jre.State = JobState.Active;
         jre.State = JobState.Active;
         jre.State = JobState.Complete;
 
-        Assert.Equal([JobState.Active, JobState.Complete], first);
-        Assert.Equal([JobState.Active, JobState.Complete], second);
+        Assert.Equal([JobState.Inactive, JobState.Active, JobState.Complete], first);
+        Assert.Equal([JobState.Inactive, JobState.Active, JobState.Complete], second);
         Assert.Equal(JobState.Complete, jre.State);
     }
 

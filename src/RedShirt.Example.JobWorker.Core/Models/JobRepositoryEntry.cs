@@ -27,6 +27,10 @@ internal interface IJobRepositoryEntry : ISortableJobWrapper
     /// <exception cref="ArgumentNullException">Thrown when the setter is given <c>null</c>.</exception>
     JobState? State { get; set; }
 
+    /// <summary>
+    ///     Register a callback invoked with the current state whenever <see cref="State" /> changes.
+    ///     Invoked immediately with the current state on subscribe when that value is not <c>null</c>.
+    /// </summary>
     void SubscribeToStateChange(Action<JobState> action);
 }
 
@@ -119,9 +123,16 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
     {
         ArgumentNullException.ThrowIfNull(action);
 
+        JobState? current;
         lock (_lock)
         {
             _stateChangeCallbacks += action;
+            current = State;
+        }
+
+        if (current is { } state)
+        {
+            action(state);
         }
     }
 }
