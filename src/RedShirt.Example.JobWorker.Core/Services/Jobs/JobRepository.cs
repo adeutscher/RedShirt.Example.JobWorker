@@ -628,16 +628,15 @@ internal sealed class JobRepository(
     public async Task WaitForEmptyRepositoryAsync(CancellationToken cancellationToken = default)
     {
         int count;
-        bool waitResult;
         do
         {
             // Short timeout mirrors GetNextJobAsync: avoids missing a Set/Reset edge under concurrency
-            waitResult = await _repositoryEmptyEvent.WaitAsync(TimeSpan.FromMilliseconds(250), cancellationToken);
+            await _repositoryEmptyEvent.WaitAsync(TimeSpan.FromMilliseconds(250), cancellationToken);
             lock (_tallyLock)
             {
                 count = _watchedJobsTally;
             }
-        } while (!waitResult || count > 0);
+        } while (count > 0);
     }
 
     public int GetBacklogMaxCount()
