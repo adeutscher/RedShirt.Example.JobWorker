@@ -14,7 +14,7 @@ using RedShirt.Example.JobWorker.Core.Services.Jobs;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Heartbeats;
 
-public class HeartbeatMaintainerTests
+public class HeartbeatMonitorTests
 {
     private static ICoreHealthStateUpdateService CreateHealthStateUpdateService()
     {
@@ -32,11 +32,10 @@ public class HeartbeatMaintainerTests
         return sleepService.Object;
     }
 
-    private static void SetupMaintainerDelay(Mock<IAppliedMaintainerExecutionEndArbiter> arbiter)
+    private static void SetupMonitorDelay(Mock<IHeartbeatMonitorExecutionEndArbiter> arbiter)
     {
         arbiter
-            .Setup(a => a.MaintainerDelayWaitAsync(It.IsAny<TimeSpan>(), It.IsAny<string>(), It.IsAny<string>(),
-                It.IsAny<CancellationToken>()))
+            .Setup(a => a.HeartbeatMonitorDelayWaitAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
     }
 
@@ -46,18 +45,18 @@ public class HeartbeatMaintainerTests
     public async Task RunAsync_WhenRecommendedHeartbeatIntervalIsNotPositive_ReturnsImmediately(int intervalSeconds)
     {
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>(MockBehavior.Strict);
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource.Setup(s => s.RecommendedHeartbeatIntervalSeconds).Returns(intervalSeconds);
 
-        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
+        var monitor = new HeartbeatMonitor(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
 
-        await maintainer.RunAsync(TestContext.Current.CancellationToken);
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(executionEndArbiter.Invocations);
         Assert.Empty(jobRepository.Invocations);
@@ -75,8 +74,7 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.State).Returns(JobState.Active);
-        entry.Setup(e => e.SetAsCannotHeartbeatAsync(TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        entry.SetupSet(e => e.CanHeartbeat = false);
 
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();
         heartbeatCalculator.Setup(c => c.IsReadyForHeartbeat(entry.Object)).Returns(true);
@@ -85,10 +83,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromSeconds(1));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -114,17 +112,17 @@ public class HeartbeatMaintainerTests
         var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
         health.Setup(h => h.NoteIncident());
 
-        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
+        var monitor = new HeartbeatMonitor(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, health.Object,
             CreateSleepService(),
             Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
-            new NullLogger<HeartbeatMaintainer>());
+            new NullLogger<HeartbeatMonitor>());
 
-        await maintainer.RunAsync(TestContext.Current.CancellationToken);
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
 
         health.Verify(h => h.NoteIncident(), Times.Once);
-        entry.Verify(e => e.SetAsCannotHeartbeatAsync(TestContext.Current.CancellationToken), Times.Once);
+        entry.VerifySet(e => e.CanHeartbeat = false, Times.Once);
     }
 
     [Fact(Timeout = 1500)]
@@ -144,10 +142,10 @@ public class HeartbeatMaintainerTests
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();
         heartbeatCalculator.Setup(c => c.IsReadyForHeartbeat(entry.Object)).Returns(true);
 
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(true);
 
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
@@ -164,19 +162,19 @@ public class HeartbeatMaintainerTests
         var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
         health.Setup(h => h.NoteIncident());
 
-        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
+        var monitor = new HeartbeatMonitor(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, health.Object,
             CreateSleepService(),
             Options.Create(new CoreConfigurationModel {HaltOnFailure = true}),
-            new NullLogger<HeartbeatMaintainer>());
+            new NullLogger<HeartbeatMonitor>());
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            maintainer.RunAsync(TestContext.Current.CancellationToken));
+            monitor.RunAsync(TestContext.Current.CancellationToken));
 
         Assert.Same(unexpected, thrown);
         health.Verify(h => h.NoteIncident(), Times.Once);
-        entry.Verify(e => e.SetAsCannotHeartbeatAsync(It.IsAny<CancellationToken>()), Times.Never);
+        entry.VerifySet(e => e.CanHeartbeat = false, Times.Never);
     }
 
     /// <summary>
@@ -194,10 +192,9 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.CanHeartbeat).Returns(true);
         entry.Setup(e => e.State).Returns(JobState.Active);
-        entry.Setup(e => e.SetLastHeartbeatTimeAsync(It.Is<DateTime>(dt =>
-                dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
-                dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)), TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
+            dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
+            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));
         var redHerringEntry = new Mock<IJobRepositoryEntry>(MockBehavior.Strict);
         redHerringEntry.Setup(e => e.State).Returns(JobState.Active);
         redHerringEntry.Setup(e => e.CanHeartbeat).Returns(false);
@@ -211,10 +208,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromSeconds(1));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -242,13 +239,13 @@ public class HeartbeatMaintainerTests
             .Setup(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
-        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
+        var monitor = new HeartbeatMonitor(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
 
-        await maintainer.RunAsync(TestContext.Current.CancellationToken);
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.Single(jobRepository.Invocations);
 
@@ -264,10 +261,10 @@ public class HeartbeatMaintainerTests
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -289,13 +286,13 @@ public class HeartbeatMaintainerTests
             .Setup(s => s.RecommendedHeartbeatIntervalSeconds)
             .Returns(1);
 
-        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
+        var monitor = new HeartbeatMonitor(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
 
-        await maintainer.RunAsync(TestContext.Current.CancellationToken);
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.Single(jobRepository.Invocations);
 
@@ -317,10 +314,9 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.State).Returns(JobState.Active);
-        entry.Setup(e => e.SetLastHeartbeatTimeAsync(It.Is<DateTime>(dt =>
-                dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
-                dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)), TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
+            dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
+            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));
 
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();
         heartbeatCalculator
@@ -331,10 +327,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromSeconds(1));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -361,13 +357,13 @@ public class HeartbeatMaintainerTests
             .Setup(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
-        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
+        var monitor = new HeartbeatMonitor(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
 
-        await maintainer.RunAsync(TestContext.Current.CancellationToken);
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.Single(jobRepository.Invocations);
 
@@ -388,13 +384,11 @@ public class HeartbeatMaintainerTests
         var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
-        entry.Setup(e => e.SetAsCannotHeartbeatAsync(TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        entry.SetupSet(e => e.CanHeartbeat = false);
         entry.Setup(e => e.State).Returns(JobState.Active);
-        entry.Setup(e => e.SetLastHeartbeatTimeAsync(It.Is<DateTime>(dt =>
-                dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
-                dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)), TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
+            dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
+            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));
 
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();
         heartbeatCalculator
@@ -405,10 +399,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromSeconds(1));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -436,20 +430,19 @@ public class HeartbeatMaintainerTests
             .Returns(() => throw new WorkerJobSourceException("Test")
                 {CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false});
 
-        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
+        var monitor = new HeartbeatMonitor(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
 
-        await maintainer.RunAsync(TestContext.Current.CancellationToken);
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.Single(jobRepository.Invocations);
 
         jobSource.Verify(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken), Times.Once);
 
-        entry.Verify(e => e.SetAsCannotHeartbeatAsync(TestContext.Current.CancellationToken),
-            Times.Once);
+        entry.VerifySet(e => e.CanHeartbeat = false, Times.Once);
     }
 
     /// <summary>
@@ -477,10 +470,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromMilliseconds(100));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -504,13 +497,13 @@ public class HeartbeatMaintainerTests
             .Setup(s => s.RecommendedHeartbeatIntervalSeconds)
             .Returns(1);
 
-        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
+        var monitor = new HeartbeatMonitor(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
 
-        await maintainer.RunAsync(TestContext.Current.CancellationToken);
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.Single(jobRepository.Invocations);
 
@@ -528,8 +521,7 @@ public class HeartbeatMaintainerTests
         var rawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict);
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
-        entry.Setup(e => e.SetAsCannotHeartbeatAsync(TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        entry.SetupSet(e => e.CanHeartbeat = false);
         entry.Setup(e => e.State).Returns(JobState.Active);
 
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>(MockBehavior.Strict);
@@ -537,10 +529,10 @@ public class HeartbeatMaintainerTests
         heartbeatCalculator.Setup(c => c.TimeUntilNextHeartbeat(entry.Object)).Returns(TimeSpan.FromSeconds(1));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -569,18 +561,17 @@ public class HeartbeatMaintainerTests
             .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
+        var monitor = new HeartbeatMonitor(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             sleepService.Object,
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
 
-        await maintainer.RunAsync(TestContext.Current.CancellationToken);
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
 
         jobSource.Verify(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken),
             Times.Exactly(Globals.HeartbeatRetryCount + 1));
-        entry.Verify(e => e.SetAsCannotHeartbeatAsync(TestContext.Current.CancellationToken),
-            Times.Once);
+        entry.VerifySet(e => e.CanHeartbeat = false, Times.Once);
     }
 
     /// <summary>
@@ -597,10 +588,9 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.State).Returns(JobState.Active);
-        entry.Setup(e => e.SetLastHeartbeatTimeAsync(It.Is<DateTime>(dt =>
-                dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
-                dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)), TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
+            dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
+            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));
 
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();
         heartbeatCalculator
@@ -611,10 +601,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromMilliseconds(100));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -638,13 +628,13 @@ public class HeartbeatMaintainerTests
             .Setup(s => s.RecommendedHeartbeatIntervalSeconds)
             .Returns(1);
 
-        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
+        var monitor = new HeartbeatMonitor(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
 
-        await maintainer.RunAsync(TestContext.Current.CancellationToken);
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.Single(jobRepository.Invocations);
 
@@ -666,10 +656,9 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.State).Returns(JobState.Active);
-        entry.Setup(e => e.SetLastHeartbeatTimeAsync(It.Is<DateTime>(dt =>
-                dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
-                dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)), TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        entry.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
+            dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
+            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));
 
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();
         heartbeatCalculator
@@ -680,10 +669,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromMilliseconds(100));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -710,13 +699,13 @@ public class HeartbeatMaintainerTests
             .Setup(s => s.HeartbeatAsync(rawJobModel.Object, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
-        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
+        var monitor = new HeartbeatMonitor(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
 
-        await maintainer.RunAsync(TestContext.Current.CancellationToken);
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.Single(jobRepository.Invocations);
 
@@ -734,18 +723,17 @@ public class HeartbeatMaintainerTests
         entry.Setup(e => e.JobModel).Returns(subject.Object);
         entry.Setup(e => e.RawJobModel).Returns(rawJobModel.Object);
         entry.Setup(e => e.State).Returns(JobState.Active);
-        entry.Setup(e => e.SetLastHeartbeatTimeAsync(It.IsAny<DateTime>(), TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        entry.SetupSet(e => e.LastHeartbeatTime = It.IsAny<DateTime>());
 
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>(MockBehavior.Strict);
         heartbeatCalculator.Setup(c => c.IsReadyForHeartbeat(entry.Object)).Returns(true);
         heartbeatCalculator.Setup(c => c.TimeUntilNextHeartbeat(entry.Object)).Returns(TimeSpan.FromSeconds(1));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -786,18 +774,17 @@ public class HeartbeatMaintainerTests
             .Setup(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
+        var monitor = new HeartbeatMonitor(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             sleepService.Object,
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
 
-        await maintainer.RunAsync(TestContext.Current.CancellationToken);
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(3, attempts);
-        entry.Verify(e => e.SetAsCannotHeartbeatAsync(It.IsAny<CancellationToken>()),
-            Times.Never);
-        entry.Verify(e => e.SetLastHeartbeatTimeAsync(It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
+        entry.VerifySet(e => e.CanHeartbeat = false, Times.Never);
+        entry.VerifySet(e => e.LastHeartbeatTime = It.IsAny<DateTime>(), Times.Once);
     }
 
     /// <summary>
@@ -816,10 +803,9 @@ public class HeartbeatMaintainerTests
         entry1.Setup(e => e.RawJobModel).Returns(rawJobModel1.Object);
         entry1.Setup(e => e.CanHeartbeat).Returns(true);
         entry1.Setup(e => e.State).Returns(JobState.Active);
-        entry1.Setup(e => e.SetLastHeartbeatTimeAsync(It.Is<DateTime>(dt =>
-                dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
-                dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)), TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        entry1.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
+            dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
+            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));
 
         // Second job
         var subject2 = new Mock<IJobModel>(MockBehavior.Strict);
@@ -830,10 +816,9 @@ public class HeartbeatMaintainerTests
         entry2.Setup(e => e.RawJobModel).Returns(rawJobModel2.Object);
         entry2.Setup(e => e.State).Returns(JobState.Active);
         entry2.Setup(e => e.CanHeartbeat).Returns(true);
-        entry2.Setup(e => e.SetLastHeartbeatTimeAsync(It.Is<DateTime>(dt =>
-                dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
-                dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)), TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
+        entry2.SetupSet(e => e.LastHeartbeatTime = It.Is<DateTime>(dt =>
+            dt > DateTime.UtcNow - TimeSpan.FromMilliseconds(250) &&
+            dt < DateTime.UtcNow + TimeSpan.FromMilliseconds(250)));
 
         // Heartbeat
         var heartbeatCalculator = new Mock<IHeartbeatCalculator>();
@@ -851,10 +836,10 @@ public class HeartbeatMaintainerTests
             .Returns(TimeSpan.FromMilliseconds(100));
 
         var doQuit = false;
-        var executionEndArbiter = new Mock<IAppliedMaintainerExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        var executionEndArbiter = new Mock<IHeartbeatMonitorExecutionEndArbiter>(MockBehavior.Strict);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
-            .Setup(a => a.MaintainerShouldKeepRunning())
+            .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
             {
                 if (doQuit)
@@ -885,13 +870,13 @@ public class HeartbeatMaintainerTests
             .Setup(s => s.HeartbeatAsync(rawJobModel2.Object, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
-        var maintainer = new HeartbeatMaintainer(heartbeatCalculator.Object, executionEndArbiter.Object,
+        var monitor = new HeartbeatMonitor(heartbeatCalculator.Object, executionEndArbiter.Object,
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMaintainer>());
+            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
 
-        await maintainer.RunAsync(TestContext.Current.CancellationToken);
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.Single(jobRepository.Invocations);
 

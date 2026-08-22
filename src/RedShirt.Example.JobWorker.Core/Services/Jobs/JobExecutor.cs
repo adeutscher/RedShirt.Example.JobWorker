@@ -25,7 +25,7 @@ internal interface IJobExecutor
 }
 
 internal sealed class JobExecutor(
-    IAppliedExecutorExecutionEndArbiter appliedExecutionEndArbiter,
+    IExecutorExecutionEndArbiter appliedExecutionEndArbiter,
     IJobRepository jobRepository,
     IIdempotencyExecutionService idempotencyExecutionService,
     ISafeJobRunner safeJobRunner,
@@ -127,7 +127,7 @@ internal sealed class JobExecutor(
                     logger.LogTrace(
                         "Executor {Id} was unable to obtain a lock on message {MessageId} , deferring to Idempotency Monitor",
                         executorId, repositoryEntry.JobModel.MessageId);
-                    await repositoryEntry.SetStateAsync(JobState.BlockedByIdempotency, cancellationToken);
+                    repositoryEntry.State = JobState.BlockedByIdempotency;
                     continue;
                 }
 
@@ -136,7 +136,7 @@ internal sealed class JobExecutor(
                 // Mark as complete for all branches of ActOnJobAsync by doing it afterwards
                 // Reminder that JobState does not imply anything about success or acknowledgement success.
                 // It only means that the JobWorker is done with the job.
-                await repositoryEntry.SetStateAsync(JobState.Complete, cancellationToken);
+                repositoryEntry.State = JobState.Complete;
                 await jobRepository.RemoveJobAsync(repositoryEntry, cancellationToken);
             }
             finally

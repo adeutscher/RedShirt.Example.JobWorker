@@ -65,7 +65,7 @@ The general architecture of the core application goes along these lines:
     * For this general template, the job logic runner implementation is currently a stub that shall sleep for the
       requested number of seconds.
 * In the event that the job source implementation requires application-level heartbeats for long-running messages, a
-  heartbeat maintainer (`IHeartbeatMaintainer`) worker thread shall periodically heartbeat messages according to the job
+  heartbeat monitor (`IHeartbeatMonitor`) worker thread shall periodically heartbeat messages according to the job
   source's recommendation.
     * Generally, job sources that require heartbeats are told to recommend a heartbeat interval of 75% of the maximum
       in-flight time for a message without heartbeats. For example, an SQS consumer configured with a visibility timeout

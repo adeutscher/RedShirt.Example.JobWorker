@@ -1,4 +1,5 @@
 using RedShirt.Example.JobWorker.Common.Models;
+using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 
@@ -29,7 +30,9 @@ public class SourceMessageSorterTests
         var output = sorter.GetSortedListOfJobs(items.Select(i => new JobRepositoryEntry
         {
             JobModel = i,
-            RawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict).Object
+            RawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict).Object,
+            LastHeartbeatTime = DateTime.UtcNow,
+            State = JobState.Inactive
         }).ToList());
 
         Assert.Equal(numberOfMessages, output.Count);

@@ -36,9 +36,13 @@ internal interface IJobRepository
     Task LoadAsync(IReadOnlyList<IJobEnvelope> intakeItems,
         CancellationToken cancellationToken = default);
 
-    Task ReloadUnblockedJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default);
-
     Task RemoveJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Register a callback invoked with the current count of jobs blocked by idempotency whenever
+    ///     that count changes via repository operations. Invoked immediately with the current count on subscribe.
+    /// </summary>
+    void SubscribeToIdempotencyBlockedCountUpdate(Action<int> callback);
 
     /// <summary>
     ///     Register a callback invoked with the current inactive-job count whenever that count changes
@@ -84,6 +88,8 @@ internal sealed class JobRepository(
     /// </summary>
     private readonly AsyncManualResetEvent _repositoryEmptyEvent = new(true);
 
+    private readonly Lock _tallyLock = new();
+
     /// <summary>
     ///     Jobs that have recently been unblocked due to an idempotency lock.
     ///     This queue intended as a shortlist that will jump the normal sorted line of the inactive jobs list.
@@ -92,17 +98,24 @@ internal sealed class JobRepository(
 
     private readonly SemaphoreSlim _watchedJobsListSemaphore = new(1, 1);
 
+    private Action<int>? _idempotencyBlockedJobsCallbacks;
+
+    private int _idempotencyBlockedTally;
+
     private Action<int>? _inactiveCountCallbacks;
 
     /// <summary>
-    ///     Inactive potential jobs
+    ///     Inactive potential jobs.
     ///     Reminder: This is currently a list instead of a queue because it needs to be sorted in a manner that is consistent
-    ///     with the Batch approach
+    ///     with the Batch approach.
     ///     Similarly, confirming that it is intentional that this list not be marked as readonly.
     /// </summary>
     private List<IJobRepositoryEntry> _inactiveJobsList = [];
 
+    private int _inactiveJobsTally;
+
     private Action<int>? _watchedJobsCallbacks;
+    private int _watchedJobsTally;
 
     private void NotifyInactiveCountUpdate(int count)
     {
@@ -110,6 +123,17 @@ internal sealed class JobRepository(
         lock (_callbackLock)
         {
             callbacks = _inactiveCountCallbacks;
+        }
+
+        callbacks?.Invoke(count);
+    }
+
+    private void NotifyIdempotencyBlockedCountUpdate(int count)
+    {
+        Action<int>? callbacks;
+        lock (_callbackLock)
+        {
+            callbacks = _idempotencyBlockedJobsCallbacks;
         }
 
         callbacks?.Invoke(count);
@@ -128,27 +152,49 @@ internal sealed class JobRepository(
 
     private async Task<TryGetJobResponse> TryGetUnblockedJobAsync(CancellationToken cancellationToken)
     {
-        if (!_unblockedJobsQueue.TryDequeue(out var result))
+        IJobRepositoryEntry? result;
+        var iterated = false;
+
+        while (_unblockedJobsQueue.TryDequeue(out result))
+        {
+            iterated = true;
+            // Handle potential edge case of something disposing an item that was recently unblocked
+            // This absolutely should not happen, but at least it won't mess things up further if it does.
+
+            if (!result.IsDisposed)
+            {
+                break;
+            }
+        }
+
+        if (iterated)
+        {
+            // Check to see if we emptied the queue, but only if we actually dequeued something
+            // Assume that the event is up to date and doesn't need a redundant reset.
+            await _inactiveJobsListSemaphore.WaitAsync(cancellationToken);
+            try
+            {
+                if (_inactiveJobsList.Count == 0 && _unblockedJobsQueue.IsEmpty)
+                {
+                    // Jobs are no longer available
+                    _jobsAvailableEvent.Reset();
+                }
+            }
+            finally
+            {
+                _inactiveJobsListSemaphore.Release();
+            }
+        }
+
+        if (result is null
+            // Account for technical race condition, will never happen in practice
+            || result.IsDisposed)
         {
             return new TryGetJobResponse
             {
                 Success = false,
                 Result = null
             };
-        }
-
-        await _inactiveJobsListSemaphore.WaitAsync(cancellationToken);
-        try
-        {
-            if (_inactiveJobsList.Count == 0 && _unblockedJobsQueue.IsEmpty)
-            {
-                // Jobs are no longer available
-                _jobsAvailableEvent.Reset();
-            }
-        }
-        finally
-        {
-            _inactiveJobsListSemaphore.Release();
         }
 
         return new TryGetJobResponse
@@ -187,6 +233,121 @@ internal sealed class JobRepository(
             Success = result is not null,
             Result = result
         };
+    }
+
+    /// <summary>
+    ///     Specifically handle transition from idempotency-blocked back to inactive.
+    /// </summary>
+    /// <param name="job"></param>
+    /// <param name="oldState"></param>
+    /// <param name="newState"></param>
+    private void OnEntryStateUpdateUnblocked(IJobRepositoryEntry job, JobState? oldState, JobState newState)
+    {
+        if (oldState != JobState.BlockedByIdempotency || newState != JobState.Inactive)
+        {
+            return;
+        }
+
+        // Identified as a newly-unblocked job.
+        // Shortlist the job for re-execution in memory.
+        _unblockedJobsQueue.Enqueue(job);
+        // Tell any active invocations of GetNextJobAsync that there is something available.
+        _jobsAvailableEvent.Set();
+    }
+
+    /// <summary>
+    ///     Handle tally management when an entry changes state.
+    /// </summary>
+    /// <param name="job"></param>
+    /// <param name="oldState"></param>
+    /// <param name="newState"></param>
+    private void OnEntryStateUpdateTallies(IJobRepositoryEntry job, JobState? oldState, JobState newState)
+    {
+        _ = job;
+
+        var updatedWatched = false;
+        var updatedInactive = false;
+        var updatedIdempotencyBlocked = false;
+
+        var localTallyWatched = 0;
+        var localTallyInactive = 0;
+        var localTallyIdempotencyBlocked = 0;
+
+        lock (_tallyLock)
+        {
+            /* Track watched tally */
+
+            if (oldState is not null && newState == JobState.Complete)
+            {
+                // Moving from watched to unwatched (as opposed to directly to Complete, which would skip watching altogether)
+                updatedWatched = true;
+                _watchedJobsTally--;
+            }
+            else if (oldState is null && newState != JobState.Complete)
+            {
+                // Moving from unwatched to watched (as opposed to directly to Complete)
+                updatedWatched = true;
+                _watchedJobsTally++;
+            }
+
+            /* Track individual tallies */
+
+            // ReSharper disable once SwitchStatementMissingSomeEnumCasesNoDefault
+            switch (oldState)
+            {
+                case JobState.Inactive:
+                    _inactiveJobsTally--;
+                    updatedInactive = true;
+                    break;
+                case JobState.BlockedByIdempotency:
+                    _idempotencyBlockedTally--;
+                    updatedIdempotencyBlocked = true;
+                    break;
+            }
+
+            // ReSharper disable once SwitchStatementMissingSomeEnumCasesNoDefault
+            switch (newState)
+            {
+                case JobState.Inactive:
+                    _inactiveJobsTally++;
+                    updatedInactive = true;
+                    break;
+                case JobState.BlockedByIdempotency:
+                    _idempotencyBlockedTally++;
+                    updatedIdempotencyBlocked = true;
+                    break;
+            }
+
+            if (updatedInactive)
+            {
+                localTallyInactive = _inactiveJobsTally;
+            }
+
+            if (updatedIdempotencyBlocked)
+            {
+                localTallyIdempotencyBlocked = _idempotencyBlockedTally;
+            }
+
+            if (updatedWatched)
+            {
+                localTallyWatched = _watchedJobsTally;
+            }
+        }
+
+        if (updatedInactive)
+        {
+            NotifyInactiveCountUpdate(localTallyInactive);
+        }
+
+        if (updatedIdempotencyBlocked)
+        {
+            NotifyIdempotencyBlockedCountUpdate(localTallyIdempotencyBlocked);
+        }
+
+        if (updatedWatched)
+        {
+            NotifyWatchedJobsUpdate(localTallyWatched);
+        }
     }
 
     internal List<IJobRepositoryEntry> WatchedJobs { get; } = [];
@@ -232,9 +393,15 @@ internal sealed class JobRepository(
     {
         await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
 
-        var count = WatchedJobs.Count;
-
-        _watchedJobsListSemaphore.Release();
+        int count;
+        try
+        {
+            count = WatchedJobs.Count;
+        }
+        finally
+        {
+            _watchedJobsListSemaphore.Release();
+        }
 
         return count;
     }
@@ -288,8 +455,7 @@ internal sealed class JobRepository(
             await _jobsAvailableEvent.WaitAsync(TimeSpan.FromMilliseconds(250), cancellationToken);
         } while (result is null);
 
-        await result.SetStateAsync(JobState.Active, cancellationToken);
-        NotifyInactiveCountUpdate(await GetInactiveJobCountAsync(cancellationToken));
+        result.State = JobState.Active;
 
         return result;
     }
@@ -317,9 +483,12 @@ internal sealed class JobRepository(
                     var job = new JobRepositoryEntry
                     {
                         JobModel = envelope.JobModel,
-                        RawJobModel = envelope.RawJobModel
+                        RawJobModel = envelope.RawJobModel,
+                        LastHeartbeatTime = DateTime.UtcNow,
+                        State = JobState.Inactive
                     };
-                    await job.SetLastHeartbeatTimeAsync(DateTime.UtcNow, cancellationToken);
+                    job.SubscribeToState(OnEntryStateUpdateTallies);
+                    job.SubscribeToState(OnEntryStateUpdateUnblocked);
 
                     _inactiveJobsList.Add(job); // Worry about sorting later, see below
 
@@ -352,34 +521,40 @@ internal sealed class JobRepository(
         _jobsAvailableEvent.Set();
 
         NotifyWatchedJobsUpdate(await GetWatchedJobsCountAsync(cancellationToken));
-        NotifyInactiveCountUpdate(await GetInactiveJobCountAsync(cancellationToken));
-    }
-
-    public async Task ReloadUnblockedJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default)
-    {
-        await job.SetStateAsync(JobState.Inactive, cancellationToken);
-        // Shortlist the job for re-execution in memory
-        _unblockedJobsQueue.Enqueue(job);
-        // Tell any active invocations of GetNextJobAsync that there is something available.
-        _jobsAvailableEvent.Set();
-        NotifyInactiveCountUpdate(await GetInactiveJobCountAsync(cancellationToken));
     }
 
     public async Task RemoveJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default)
     {
-        int watchedCount;
-        int inactiveCount;
+        ArgumentNullException.ThrowIfNull(job);
+
+        await _inactiveJobsListSemaphore.WaitAsync(cancellationToken);
+        try
+        {
+            if (_inactiveJobsList.Remove(job)
+                && _inactiveJobsList.Count == 0
+                && _unblockedJobsQueue.IsEmpty)
+            {
+                // Jobs are no longer available
+                _jobsAvailableEvent.Reset();
+            }
+        }
+        finally
+        {
+            _inactiveJobsListSemaphore.Release();
+        }
+
         await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
         try
         {
             WatchedJobs.Remove(job);
-            watchedCount = WatchedJobs.Count;
-            inactiveCount = WatchedJobs.Count(watchedJob => watchedJob.State == JobState.Inactive);
 
-            if (watchedCount == 0)
+            if (WatchedJobs.Count == 0)
             {
                 // Avoid possible race condition in JobLoader
+
+                // If there's nothing to grab, then there must be an executor about to demand something. 
                 _jobsDemandEvent.Set();
+                // No watched jobs is the very definition of an empty repository
                 _repositoryEmptyEvent.Set();
             }
         }
@@ -388,8 +563,7 @@ internal sealed class JobRepository(
             _watchedJobsListSemaphore.Release();
         }
 
-        NotifyWatchedJobsUpdate(watchedCount);
-        NotifyInactiveCountUpdate(inactiveCount);
+        job.Dispose();
     }
 
     public void SubscribeToInactiveCountUpdate(Action<int> callback)
@@ -401,29 +575,24 @@ internal sealed class JobRepository(
             _inactiveCountCallbacks += callback;
         }
 
-        /*
-         * Putting it on the record that I don't particularly like the below implementation on principle.
-         * It uses a blocking semaphore call, and it duplicates tally logic (especially true for this particular method).
-         *
-         * That said, I think the cure would be worse than the disease:
-         *  * Implementing a check specifically for inactive jobs in this method's sibling
-         *      SubscribeToInactiveCountUpdate would need some sort of tracker on the individual
-         *      items changing state that reports in when an item is inactive/non-inactive.
-         *  * Current subscribers do so at instantiation, before the worker
-         *      threads even have a chance to start adding jobs to the repository.
-         *      This suggests that the blocking will be a tiny one-off.
-         *      While this is also a compelling argument for removing the callback
-         *      call at subscription altogether, I think that running it is more intuitive
-         *      (my issues with it aside).
-         */
-        _watchedJobsListSemaphore.Wait();
-        try
+        lock (_tallyLock)
         {
-            callback(WatchedJobs.Count(job => job.State == JobState.Inactive));
+            callback(_inactiveJobsTally);
         }
-        finally
+    }
+
+    public void SubscribeToIdempotencyBlockedCountUpdate(Action<int> callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+
+        lock (_callbackLock)
         {
-            _watchedJobsListSemaphore.Release();
+            _idempotencyBlockedJobsCallbacks += callback;
+        }
+
+        lock (_tallyLock)
+        {
+            callback(_idempotencyBlockedTally);
         }
     }
 
@@ -438,18 +607,7 @@ internal sealed class JobRepository(
 
         /*
          * Putting it on the record that I don't particularly like the below implementation on principle.
-         * It uses a blocking semaphore call, and it duplicates tally logic (especially true for sibling method SubscribeToInactiveCountUpdate).
-         *
-         * That said, I think the cure would be worse than the disease:
-         *  * Implementing a check specifically for inactive jobs in this method's sibling
-         *      SubscribeToInactiveCountUpdate would need some sort of tracker on the individual
-         *      items changing state that reports in when an item is inactive/non-inactive.
-         *  * Current subscribers do so at instantiation, before the worker
-         *      threads even have a chance to start adding jobs to the repository.
-         *      This suggests that the blocking will be a tiny one-off.
-         *      While this is also a compelling argument for removing the callback
-         *      call at subscription altogether, I think that running it is more intuitive
-         *      (my issues with it aside).
+         * No matter how brief, I'm always twitchy about using a blocking call to a semaphore wait. Probably for no good reason, though.
          */
         _watchedJobsListSemaphore.Wait();
         try
@@ -469,11 +627,16 @@ internal sealed class JobRepository(
 
     public async Task WaitForEmptyRepositoryAsync(CancellationToken cancellationToken = default)
     {
-        while (await GetWatchedJobsCountAsync(cancellationToken) > 0)
+        int count;
+        do
         {
             // Short timeout mirrors GetNextJobAsync: avoids missing a Set/Reset edge under concurrency
             await _repositoryEmptyEvent.WaitAsync(TimeSpan.FromMilliseconds(250), cancellationToken);
-        }
+            lock (_tallyLock)
+            {
+                count = _watchedJobsTally;
+            }
+        } while (count > 0);
     }
 
     public int GetBacklogMaxCount()

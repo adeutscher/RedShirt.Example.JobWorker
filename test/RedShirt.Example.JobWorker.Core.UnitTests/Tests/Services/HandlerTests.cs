@@ -30,13 +30,13 @@ public class HandlerTests
 
     private static void SetupNotEnabledWorkers(
         Mock<IJobExecutor> executor,
-        Mock<IHeartbeatMaintainer> maintainer,
+        Mock<IHeartbeatMonitor> monitor,
         Mock<IIdempotencyMonitor> idempotencyMonitor,
         Mock<IJobSubscriberManager> jobSubscriberManager)
     {
         executor.Setup(e => e.RunAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(HandlerComponentResponse.NotEnabled);
-        maintainer.Setup(m => m.RunAsync(It.IsAny<CancellationToken>()))
+        monitor.Setup(m => m.RunAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(HandlerComponentResponse.NotEnabled);
         idempotencyMonitor.Setup(m => m.RunAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(HandlerComponentResponse.NotEnabled);
@@ -94,12 +94,12 @@ public class HandlerTests
             });
 
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
-        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var monitor = new Mock<IHeartbeatMonitor>(MockBehavior.Strict);
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
         var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
-        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+        SetupNotEnabledWorkers(executor, monitor, idempotencyMonitor, jobSubscriberManager);
 
-        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, monitor.Object, executor.Object,
             idempotencyMonitor.Object, jobSubscriberManager.Object,
             Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
             new NullLogger<Handler>());
@@ -142,12 +142,12 @@ public class HandlerTests
             .ReturnsAsync(HandlerComponentResponse.Finished);
 
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
-        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var monitor = new Mock<IHeartbeatMonitor>(MockBehavior.Strict);
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
         var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
-        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+        SetupNotEnabledWorkers(executor, monitor, idempotencyMonitor, jobSubscriberManager);
 
-        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, monitor.Object, executor.Object,
             idempotencyMonitor.Object, jobSubscriberManager.Object,
             Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
             logger.Object);
@@ -157,7 +157,7 @@ public class HandlerTests
         Assert.True(result);
         VerifyWorkerDoneLogged(logger, "MessagePoller", HandlerComponentResponse.Finished, Times.Once());
         VerifyWorkerDoneLogged(logger, "JobExecutor", HandlerComponentResponse.NotEnabled, Times.Once());
-        VerifyWorkerDoneLogged(logger, "HeartbeatMaintainer", HandlerComponentResponse.NotEnabled, Times.Once());
+        VerifyWorkerDoneLogged(logger, "HeartbeatMonitor", HandlerComponentResponse.NotEnabled, Times.Once());
         VerifyWorkerDoneLogged(logger, "IdempotencyMonitor", HandlerComponentResponse.NotEnabled, Times.Once());
         VerifyWorkerDoneLogged(logger, "JobSubscriberManager", HandlerComponentResponse.NotEnabled, Times.Once());
         VerifyWorkerResponseLogged(logger, HandlerComponentResponse.Cancelled, Times.Never());
@@ -179,12 +179,12 @@ public class HandlerTests
             .ThrowsAsync(expected);
 
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
-        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var monitor = new Mock<IHeartbeatMonitor>(MockBehavior.Strict);
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
         var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
-        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+        SetupNotEnabledWorkers(executor, monitor, idempotencyMonitor, jobSubscriberManager);
 
-        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, monitor.Object, executor.Object,
             idempotencyMonitor.Object, jobSubscriberManager.Object,
             Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
             new NullLogger<Handler>());
@@ -205,12 +205,12 @@ public class HandlerTests
             .ReturnsAsync(HandlerComponentResponse.Finished);
 
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
-        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var monitor = new Mock<IHeartbeatMonitor>(MockBehavior.Strict);
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
         var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
-        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+        SetupNotEnabledWorkers(executor, monitor, idempotencyMonitor, jobSubscriberManager);
 
-        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, monitor.Object, executor.Object,
             idempotencyMonitor.Object, jobSubscriberManager.Object,
             Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
             new NullLogger<Handler>());
@@ -240,12 +240,12 @@ public class HandlerTests
             });
 
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
-        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var monitor = new Mock<IHeartbeatMonitor>(MockBehavior.Strict);
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
         var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
-        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+        SetupNotEnabledWorkers(executor, monitor, idempotencyMonitor, jobSubscriberManager);
 
-        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, monitor.Object, executor.Object,
             idempotencyMonitor.Object, jobSubscriberManager.Object,
             Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
             new NullLogger<Handler>());
@@ -289,12 +289,12 @@ public class HandlerTests
             });
 
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
-        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var monitor = new Mock<IHeartbeatMonitor>(MockBehavior.Strict);
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
         var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
-        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+        SetupNotEnabledWorkers(executor, monitor, idempotencyMonitor, jobSubscriberManager);
 
-        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, monitor.Object, executor.Object,
             idempotencyMonitor.Object, jobSubscriberManager.Object,
             Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
             logger.Object);
@@ -331,12 +331,12 @@ public class HandlerTests
             .ThrowsAsync(expected);
 
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
-        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var monitor = new Mock<IHeartbeatMonitor>(MockBehavior.Strict);
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
         var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
-        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+        SetupNotEnabledWorkers(executor, monitor, idempotencyMonitor, jobSubscriberManager);
 
-        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, monitor.Object, executor.Object,
             idempotencyMonitor.Object, jobSubscriberManager.Object,
             Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
             new NullLogger<Handler>());
@@ -358,12 +358,12 @@ public class HandlerTests
             .ThrowsAsync(new OperationCanceledException("unexpected cancel"));
 
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
-        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var monitor = new Mock<IHeartbeatMonitor>(MockBehavior.Strict);
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
         var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
-        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+        SetupNotEnabledWorkers(executor, monitor, idempotencyMonitor, jobSubscriberManager);
 
-        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, monitor.Object, executor.Object,
             idempotencyMonitor.Object, jobSubscriberManager.Object,
             Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
             logger.Object);
@@ -387,12 +387,12 @@ public class HandlerTests
             .ThrowsAsync(new InvalidOperationException("worker blew up"));
 
         var executor = new Mock<IJobExecutor>(MockBehavior.Strict);
-        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
+        var monitor = new Mock<IHeartbeatMonitor>(MockBehavior.Strict);
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
         var jobSubscriberManager = new Mock<IJobSubscriberManager>(MockBehavior.Strict);
-        SetupNotEnabledWorkers(executor, maintainer, idempotencyMonitor, jobSubscriberManager);
+        SetupNotEnabledWorkers(executor, monitor, idempotencyMonitor, jobSubscriberManager);
 
-        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, monitor.Object, executor.Object,
             idempotencyMonitor.Object, jobSubscriberManager.Object,
             Options.Create(new ThreadConfigurationModel {WorkerThreadCount = 1}),
             logger.Object);
@@ -420,8 +420,8 @@ public class HandlerTests
         executor.Setup(e => e.RunAsync(It.IsAny<int>(), TestContext.Current.CancellationToken))
             .ReturnsAsync(HandlerComponentResponse.Finished);
 
-        var maintainer = new Mock<IHeartbeatMaintainer>(MockBehavior.Strict);
-        maintainer.Setup(m => m.RunAsync(TestContext.Current.CancellationToken))
+        var monitor = new Mock<IHeartbeatMonitor>(MockBehavior.Strict);
+        monitor.Setup(m => m.RunAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(HandlerComponentResponse.NotEnabled);
 
         var idempotencyMonitor = new Mock<IIdempotencyMonitor>(MockBehavior.Strict);
@@ -438,7 +438,7 @@ public class HandlerTests
         };
         Assert.Equal(expectedNumberOfThreads, options.EffectiveWorkerThreadCount);
 
-        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, maintainer.Object, executor.Object,
+        var handler = new Handler(executionEndArbiter, jobLoaderLoop.Object, monitor.Object, executor.Object,
             idempotencyMonitor.Object, jobSubscriberManager.Object,
             Options.Create(new ThreadConfigurationModel {WorkerThreadCount = numberOfExecutorThreads}),
             new NullLogger<Handler>());
@@ -454,7 +454,7 @@ public class HandlerTests
             executor.Verify(e => e.RunAsync(i1, TestContext.Current.CancellationToken));
         }
 
-        Assert.Single(maintainer.Invocations);
+        Assert.Single(monitor.Invocations);
         Assert.Single(idempotencyMonitor.Invocations);
         Assert.Single(jobSubscriberManager.Invocations);
     }
