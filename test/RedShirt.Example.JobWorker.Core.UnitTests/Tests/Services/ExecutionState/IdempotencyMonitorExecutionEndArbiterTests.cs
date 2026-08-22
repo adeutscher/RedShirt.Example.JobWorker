@@ -90,10 +90,19 @@ public class IdempotencyMonitorExecutionEndArbiterTests
     }
 
     [Fact]
-    public void MonitorShouldKeepRunning_RequiresInnerTrueAndWatchedJobs()
+    public void MonitorShouldKeepRunning_WhenInnerFalseAndNoWatchedJobs_ReturnsFalse()
     {
         var inner = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        inner.Setup(a => a.ShouldKeepRunning()).Returns(true);
+        inner.Setup(a => a.ShouldKeepRunning()).Returns(false);
+        using var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _).Object);
+        Assert.False(arbiter.MonitorShouldKeepRunning());
+    }
+
+    [Fact]
+    public void MonitorShouldKeepRunning_WhenInnerFalseAndWatchedJobs_ReturnsTrue()
+    {
+        var inner = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        inner.Setup(a => a.ShouldKeepRunning()).Returns(false);
         using var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out var notifier, 1).Object);
         Assert.True(arbiter.MonitorShouldKeepRunning());
         notifier.NotifyWatched(0);
@@ -101,12 +110,12 @@ public class IdempotencyMonitorExecutionEndArbiterTests
     }
 
     [Fact]
-    public void MonitorShouldKeepRunning_WhenInnerFalse_ReturnsFalse()
+    public void MonitorShouldKeepRunning_WhenInnerTrueAndNoWatchedJobs_ReturnsTrue()
     {
         var inner = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        inner.Setup(a => a.ShouldKeepRunning()).Returns(false);
-        using var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _, 1, 1).Object);
-        Assert.False(arbiter.MonitorShouldKeepRunning());
+        inner.Setup(a => a.ShouldKeepRunning()).Returns(true);
+        using var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _).Object);
+        Assert.True(arbiter.MonitorShouldKeepRunning());
     }
 
     private sealed class JobCountNotifier

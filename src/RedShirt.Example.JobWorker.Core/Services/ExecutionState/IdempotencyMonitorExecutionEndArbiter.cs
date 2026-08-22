@@ -111,7 +111,7 @@ internal sealed class IdempotencyMonitorExecutionEndArbiter : IIdempotencyMonito
     private bool ShouldKeepRunningUnsafe()
     {
         return _executionEndArbiter.ShouldKeepRunning()
-               && _watchedJobsCount > 0;
+               || _watchedJobsCount > 0;
     }
 
     private void TryCancelInterrupt()

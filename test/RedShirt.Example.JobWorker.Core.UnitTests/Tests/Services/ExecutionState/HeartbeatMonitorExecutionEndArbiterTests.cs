@@ -62,7 +62,7 @@ public class HeartbeatMonitorExecutionEndArbiterTests
     public void CountCallbacks_UpdateKeepRunningDecisions()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(false);
 
         using var arbiter = CreateArbiter(innerArbiter.Object, CreateJobRepository(out var notifier, 1).Object,
             CreateSleepService().Object);
@@ -177,7 +177,7 @@ public class HeartbeatMonitorExecutionEndArbiterTests
     {
         var delay = TimeSpan.FromSeconds(5);
         var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(false);
 
         var delayStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken linkedToken = default;
@@ -220,23 +220,33 @@ public class HeartbeatMonitorExecutionEndArbiterTests
     }
 
     [Fact]
-    public void MonitorShouldKeepRunning_WhenInnerFalseAndWatchedJobs_ReturnsFalse()
+    public void MonitorShouldKeepRunning_WhenInnerFalseAndNoWatchedJobs_ReturnsFalse()
+    {
+        var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(false);
+        using var arbiter =
+            CreateArbiter(innerArbiter.Object, CreateJobRepository().Object, CreateSleepService().Object);
+        Assert.False(arbiter.MonitorShouldKeepRunning());
+    }
+
+    [Fact]
+    public void MonitorShouldKeepRunning_WhenInnerFalseAndWatchedJobs_ReturnsTrue()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(false);
         using var arbiter =
             CreateArbiter(innerArbiter.Object, CreateJobRepository(1).Object, CreateSleepService().Object);
-        Assert.False(arbiter.MonitorShouldKeepRunning());
+        Assert.True(arbiter.MonitorShouldKeepRunning());
     }
 
     [Fact]
-    public void MonitorShouldKeepRunning_WhenInnerTrueAndNoWatchedJobs_ReturnsFalse()
+    public void MonitorShouldKeepRunning_WhenInnerTrueAndNoWatchedJobs_ReturnsTrue()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
         using var arbiter =
             CreateArbiter(innerArbiter.Object, CreateJobRepository().Object, CreateSleepService().Object);
-        Assert.False(arbiter.MonitorShouldKeepRunning());
+        Assert.True(arbiter.MonitorShouldKeepRunning());
     }
 
     [Fact]
@@ -253,7 +263,7 @@ public class HeartbeatMonitorExecutionEndArbiterTests
     public void TryCancelInterrupt_WhenCtsAlreadyDisposed_SwallowsObjectDisposedException()
     {
         var innerArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
+        innerArbiter.Setup(a => a.ShouldKeepRunning()).Returns(false);
         using var arbiter = CreateArbiter(innerArbiter.Object, CreateJobRepository(out var notifier, 1).Object,
             CreateSleepService().Object);
 

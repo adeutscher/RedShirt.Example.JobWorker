@@ -39,23 +39,32 @@ public class ExecutorExecutionEndArbiterTests
     public void CountCallbacks_UpdateKeepRunningDecisions()
     {
         var inner = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        inner.Setup(a => a.ShouldKeepRunning()).Returns(true);
+        inner.Setup(a => a.ShouldKeepRunning()).Returns(false);
         var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out var notifier, 1, 1).Object);
         Assert.True(arbiter.ExecutorsShouldKeepRunning());
         notifier.NotifyInactive(0);
-        Assert.False(arbiter.ExecutorsShouldKeepRunning());
-        notifier.NotifyInactive(2);
         Assert.True(arbiter.ExecutorsShouldKeepRunning());
         notifier.NotifyBlocked(0);
         Assert.False(arbiter.ExecutorsShouldKeepRunning());
+        notifier.NotifyInactive(2);
+        Assert.True(arbiter.ExecutorsShouldKeepRunning());
     }
 
     [Fact]
-    public void ExecutorsShouldKeepRunning_WhenInnerFalseAndJobsPresent_ReturnsFalse()
+    public void ExecutorsShouldKeepRunning_WhenInnerFalseAndJobsPresent_ReturnsTrue()
     {
         var inner = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         inner.Setup(a => a.ShouldKeepRunning()).Returns(false);
         var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _, 1, 1).Object);
+        Assert.True(arbiter.ExecutorsShouldKeepRunning());
+    }
+
+    [Fact]
+    public void ExecutorsShouldKeepRunning_WhenInnerFalseAndNoJobs_ReturnsFalse()
+    {
+        var inner = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        inner.Setup(a => a.ShouldKeepRunning()).Returns(false);
+        var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _).Object);
         Assert.False(arbiter.ExecutorsShouldKeepRunning());
     }
 
@@ -69,21 +78,30 @@ public class ExecutorExecutionEndArbiterTests
     }
 
     [Fact]
-    public void ExecutorsShouldKeepRunning_WhenInnerTrueAndNoBlockedJobs_ReturnsFalse()
+    public void ExecutorsShouldKeepRunning_WhenInnerTrueAndNoBlockedJobs_ReturnsTrue()
     {
         var inner = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         inner.Setup(a => a.ShouldKeepRunning()).Returns(true);
         var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _, 1).Object);
-        Assert.False(arbiter.ExecutorsShouldKeepRunning());
+        Assert.True(arbiter.ExecutorsShouldKeepRunning());
     }
 
     [Fact]
-    public void ExecutorsShouldKeepRunning_WhenInnerTrueAndNoInactive_ReturnsFalse()
+    public void ExecutorsShouldKeepRunning_WhenInnerTrueAndNoInactive_ReturnsTrue()
     {
         var inner = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         inner.Setup(a => a.ShouldKeepRunning()).Returns(true);
         var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _, 0, 1).Object);
-        Assert.False(arbiter.ExecutorsShouldKeepRunning());
+        Assert.True(arbiter.ExecutorsShouldKeepRunning());
+    }
+
+    [Fact]
+    public void ExecutorsShouldKeepRunning_WhenInnerTrueAndNoJobs_ReturnsTrue()
+    {
+        var inner = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        inner.Setup(a => a.ShouldKeepRunning()).Returns(true);
+        var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _).Object);
+        Assert.True(arbiter.ExecutorsShouldKeepRunning());
     }
 
     private sealed class JobCountNotifier

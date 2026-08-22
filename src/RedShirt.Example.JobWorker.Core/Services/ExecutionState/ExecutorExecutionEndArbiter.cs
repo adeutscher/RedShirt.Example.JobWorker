@@ -49,9 +49,9 @@ internal sealed class ExecutorExecutionEndArbiter : IExecutorExecutionEndArbiter
     {
         return _executionEndArbiter.ShouldKeepRunning()
                // Tracking inactive jobs
-               && _inactiveJobsCount > 0
+               || _inactiveJobsCount > 0
                // Tracking jobs that may become inactive again
-               && _idempotencyBlockedJobsCount > 0;
+               || _idempotencyBlockedJobsCount > 0;
     }
 
     public ExecutorExecutionEndArbiter(IJobRepository jobRepository, IExecutionEndArbiter executionEndArbiter)

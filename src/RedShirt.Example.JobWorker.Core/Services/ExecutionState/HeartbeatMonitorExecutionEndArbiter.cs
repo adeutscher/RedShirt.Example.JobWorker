@@ -90,7 +90,7 @@ internal sealed class HeartbeatMonitorExecutionEndArbiter : IHeartbeatMonitorExe
     {
         return _executionEndArbiter.ShouldKeepRunning()
                // All watched jobs need to be under observation for heartbeats
-               && _watchedJobsCount > 0;
+               || _watchedJobsCount > 0;
     }
 
     private void TryCancelInterrupt()
