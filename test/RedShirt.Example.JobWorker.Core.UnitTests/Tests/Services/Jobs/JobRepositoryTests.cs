@@ -12,6 +12,22 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Jobs;
 
 public class JobRepositoryTests
 {
+    private static void SetupConstructionCallbacks(
+        Mock<IExecutionEndArbiter> executionEndArbiter,
+        Mock<IJobLoaderStateReaderService> jobLoaderStateService)
+    {
+        executionEndArbiter.Setup(a => a.AddOnStopCallback(It.IsAny<Action<Exception?>>()));
+        jobLoaderStateService.Setup(s => s.AddOnFinishCallback(It.IsAny<Action>()));
+    }
+
+    private static void VerifyConstructionCallbacks(
+        Mock<IExecutionEndArbiter> executionEndArbiter,
+        Mock<IJobLoaderStateReaderService> jobLoaderStateService)
+    {
+        executionEndArbiter.Verify(a => a.AddOnStopCallback(It.IsAny<Action<Exception?>>()), Times.Once);
+        jobLoaderStateService.Verify(s => s.AddOnFinishCallback(It.IsAny<Action>()), Times.Once);
+    }
+
     private static JobRepository CreateRepository(
         Mock<IExecutionEndArbiter>? executionEndArbiter = null,
         Mock<IJobLoaderStateReaderService>? jobLoaderStateService = null,
@@ -25,11 +41,17 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
-        return new JobRepository(
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
+
+        var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(new JobRepository.ConfigurationModel {BacklogSize = backlogSize}));
+
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
+
+        return jobRepository;
     }
 
     private static Mock<IJobModel> CreateJobModel(string messageId)
@@ -37,6 +59,26 @@ public class JobRepositoryTests
         var jobModel = new Mock<IJobModel>(MockBehavior.Strict);
         jobModel.Setup(m => m.MessageId).Returns(messageId);
         return jobModel;
+    }
+
+    [Fact]
+    public void Constructor_RegistersStopAndFinishCallbacks()
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
+        var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
+
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
+
+        _ = new JobRepository(
+            executionEndArbiter.Object,
+            jobLoaderStateService.Object,
+            sorter.Object,
+            Options.Create(new JobRepository.ConfigurationModel {BacklogSize = 0}));
+
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
+        executionEndArbiter.VerifyNoOtherCalls();
+        jobLoaderStateService.VerifyNoOtherCalls();
     }
 
     [Fact(Timeout = 2000)]
@@ -130,6 +172,7 @@ public class JobRepositoryTests
         var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
         var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
@@ -138,6 +181,7 @@ public class JobRepositoryTests
             {
                 BacklogSize = 0
             }));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         await jobRepository.LoadAsync([], TestContext.Current.CancellationToken);
 
@@ -213,11 +257,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         var expectedBlockedJobs = new List<Mock<IJobModel>>();
 
@@ -287,11 +333,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         var expectedJobs = new List<Mock<IJobModel>>();
 
@@ -366,11 +414,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         Assert.Equal(expectedEffectiveBatchSize, jobRepository.GetBacklogMaxCount());
     }
@@ -392,10 +442,12 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object, sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         Mock<IJobRepositoryEntry> job;
 
@@ -451,11 +503,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         Assert.Null(await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken));
 
@@ -482,11 +536,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         var envelopes = new List<IJobEnvelope>();
 
@@ -550,11 +606,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         var envelopes = new List<IJobEnvelope>();
 
@@ -623,11 +681,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         var envelopes = new List<IJobEnvelope>();
 
@@ -720,11 +780,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         var envelopes = new List<IJobEnvelope>();
 
@@ -849,11 +911,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         var envelopes = new List<IJobEnvelope>();
 
@@ -947,11 +1011,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         var envelopes = new List<IJobEnvelope>();
 
@@ -1056,11 +1122,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         var envelopes = new List<IJobEnvelope>();
 
@@ -1123,11 +1191,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         var job = new Mock<IJobRepositoryEntry>();
         job.SetupProperty(j => j.State, JobState.Active);
@@ -1161,11 +1231,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         var job = new Mock<IJobRepositoryEntry>();
         job.SetupProperty(j => j.State, JobState.Active);
@@ -1209,11 +1281,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         // Start waiting for there to be a job demand
         var stopwatch = Stopwatch.StartNew();
@@ -1247,11 +1321,13 @@ public class JobRepositoryTests
 
         var sorter = new Mock<ISourceMessageSorter>(MockBehavior.Strict);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         // Start waiting for there to be a job demand
         var demandTask = Task.Run(
@@ -1280,6 +1356,7 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
@@ -1288,6 +1365,7 @@ public class JobRepositoryTests
             {
                 BacklogSize = 0
             }));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         var unblockedModel = new Mock<IJobModel>(MockBehavior.Strict);
         unblockedModel.Setup(m => m.MessageId).Returns("unblocked");
@@ -1343,11 +1421,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         var jobModel1 = new Mock<IJobModel>(MockBehavior.Strict);
         jobModel1.Setup(m => m.MessageId).Returns(Guid.NewGuid().ToString());
@@ -1412,11 +1492,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         var jobModel = new Mock<IJobModel>(MockBehavior.Strict);
         jobModel.Setup(m => m.MessageId).Returns(Guid.NewGuid().ToString());
@@ -1458,11 +1540,13 @@ public class JobRepositoryTests
             .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
             .Returns((List<IJobRepositoryEntry> input) => input);
 
+        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
         var jobRepository = new JobRepository(
             executionEndArbiter.Object,
             jobLoaderStateService.Object,
             sorter.Object,
             Options.Create(options));
+        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
         var stopwatch = Stopwatch.StartNew();
         await jobRepository.WaitForEmptyRepositoryAsync(TestContext.Current.CancellationToken);
