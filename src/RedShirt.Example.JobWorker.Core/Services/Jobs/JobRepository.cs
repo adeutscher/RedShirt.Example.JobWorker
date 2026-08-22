@@ -152,27 +152,47 @@ internal sealed class JobRepository(
 
     private async Task<TryGetJobResponse> TryGetUnblockedJobAsync(CancellationToken cancellationToken)
     {
-        if (!_unblockedJobsQueue.TryDequeue(out var result))
+        IJobRepositoryEntry? result;
+        var iterated = false;
+
+        while (_unblockedJobsQueue.TryDequeue(out result))
+        {
+            iterated = true;
+            // Handle potential edge case of something disposing an item that was recently unblocked
+            // This absolutely should not happen, but at least it won't mess things up further if it does.
+
+            if (!result.IsDisposed)
+            {
+                break;
+            }
+        }
+
+        if (iterated)
+        {
+            // Check to see if we emptied the queue, but only if we actually dequeued something
+            // Assume that the event is up to date and doesn't need a redundant reset.
+            await _inactiveJobsListSemaphore.WaitAsync(cancellationToken);
+            try
+            {
+                if (_inactiveJobsList.Count == 0 && _unblockedJobsQueue.IsEmpty)
+                {
+                    // Jobs are no longer available
+                    _jobsAvailableEvent.Reset();
+                }
+            }
+            finally
+            {
+                _inactiveJobsListSemaphore.Release();
+            }
+        }
+
+        if (result is null)
         {
             return new TryGetJobResponse
             {
                 Success = false,
                 Result = null
             };
-        }
-
-        await _inactiveJobsListSemaphore.WaitAsync(cancellationToken);
-        try
-        {
-            if (_inactiveJobsList.Count == 0 && _unblockedJobsQueue.IsEmpty)
-            {
-                // Jobs are no longer available
-                _jobsAvailableEvent.Reset();
-            }
-        }
-        finally
-        {
-            _inactiveJobsListSemaphore.Release();
         }
 
         return new TryGetJobResponse
@@ -497,9 +517,23 @@ internal sealed class JobRepository(
 
     public async Task RemoveJobAsync(IJobRepositoryEntry job, CancellationToken cancellationToken = default)
     {
-        // Confirm that the job that we're removing is marked as complete,
-        //   for the sake of subscriber callbacks in the underlying JobRepositoryEntry.
-        job.State = JobState.Complete;
+        job.Dispose();
+
+        await _inactiveJobsListSemaphore.WaitAsync(cancellationToken);
+        try
+        {
+            if (_inactiveJobsList.Remove(job)
+                && _inactiveJobsList.Count == 0
+                && _unblockedJobsQueue.IsEmpty)
+            {
+                // Jobs are no longer available
+                _jobsAvailableEvent.Reset();
+            }
+        }
+        finally
+        {
+            _inactiveJobsListSemaphore.Release();
+        }
 
         await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
         try

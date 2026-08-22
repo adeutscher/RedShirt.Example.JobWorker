@@ -32,6 +32,97 @@ public class JobRepositoryTests
             Options.Create(new JobRepository.ConfigurationModel {BacklogSize = backlogSize}));
     }
 
+    private static Mock<IJobModel> CreateJobModel(string messageId)
+    {
+        var jobModel = new Mock<IJobModel>(MockBehavior.Strict);
+        jobModel.Setup(m => m.MessageId).Returns(messageId);
+        return jobModel;
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task GetNextJobAsync_WhenOnlyUnblockedJobIsDisposed_FallsBackToInactiveQueue()
+    {
+        var jobRepository = CreateRepository();
+
+        await jobRepository.LoadAsync(
+            [
+                new JobEnvelope
+                {
+                    JobModel = CreateJobModel("unblocked-then-disposed").Object,
+                    RawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict).Object
+                },
+                new JobEnvelope
+                {
+                    JobModel = CreateJobModel("still-inactive").Object,
+                    RawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict).Object
+                }
+            ],
+            TestContext.Current.CancellationToken);
+
+        var unblockedEntry = await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken);
+        Assert.NotNull(unblockedEntry);
+        unblockedEntry.State = JobState.BlockedByIdempotency;
+        unblockedEntry.State = JobState.Inactive;
+
+        await jobRepository.RemoveJobAsync(unblockedEntry, TestContext.Current.CancellationToken);
+        Assert.True(unblockedEntry.IsDisposed);
+
+        var nextJob = await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken);
+
+        Assert.NotSame(unblockedEntry, nextJob);
+        Assert.NotNull(nextJob);
+        Assert.False(nextJob.IsDisposed);
+        Assert.Equal("still-inactive", nextJob.JobModel.MessageId);
+        Assert.Equal(JobState.Active, nextJob.State);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task GetNextJobAsync_WhenUnblockedJobIsDisposed_SkipsToNextUnblockedJob()
+    {
+        var jobRepository = CreateRepository();
+
+        await jobRepository.LoadAsync(
+            [
+                new JobEnvelope
+                {
+                    JobModel = CreateJobModel("first-unblocked").Object,
+                    RawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict).Object
+                },
+                new JobEnvelope
+                {
+                    JobModel = CreateJobModel("second-unblocked").Object,
+                    RawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict).Object
+                },
+                new JobEnvelope
+                {
+                    JobModel = CreateJobModel("inactive").Object,
+                    RawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict).Object
+                }
+            ],
+            TestContext.Current.CancellationToken);
+
+        var firstUnblocked = await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken);
+        var secondUnblocked = await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken);
+        Assert.NotNull(firstUnblocked);
+        Assert.NotNull(secondUnblocked);
+
+        firstUnblocked.State = JobState.BlockedByIdempotency;
+        firstUnblocked.State = JobState.Inactive;
+        secondUnblocked.State = JobState.BlockedByIdempotency;
+        secondUnblocked.State = JobState.Inactive;
+
+        await jobRepository.RemoveJobAsync(firstUnblocked, TestContext.Current.CancellationToken);
+        Assert.True(firstUnblocked.IsDisposed);
+
+        var nextJob = await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken);
+
+        Assert.NotNull(nextJob);
+        Assert.Same(secondUnblocked, nextJob);
+        Assert.False(nextJob.IsDisposed);
+        Assert.Equal(JobState.Active, nextJob.State);
+        Assert.Equal("second-unblocked", nextJob.JobModel.MessageId);
+    }
+
     [Fact(Timeout = 500)]
     public async Task LoadAsync_WhenResponseHasNoItems_DoesNotTouchWatchedJobs()
     {
@@ -80,8 +171,10 @@ public class JobRepositoryTests
         Assert.Equal([0, 1, 1], watchedCounts);
 
         var job = Assert.Single(jobRepository.WatchedJobs);
+        Assert.False(job.IsDisposed);
         await jobRepository.RemoveJobAsync(job, TestContext.Current.CancellationToken);
         Assert.Equal(JobState.Complete, job.State);
+        Assert.True(job.IsDisposed);
 
         Assert.Equal([0, 1, 0], inactiveCounts);
         Assert.Equal([0, 1, 1, 0], watchedCounts);
@@ -1038,6 +1131,7 @@ public class JobRepositoryTests
 
         var job = new Mock<IJobRepositoryEntry>();
         job.SetupProperty(j => j.State, JobState.Active);
+        job.Setup(j => j.Dispose()).Callback(() => job.Object.State = JobState.Complete);
         jobRepository.WatchedJobs.Add(job.Object);
 
         Assert.Equal(0, await jobRepository.GetInactiveJobCountAsync(TestContext.Current.CancellationToken));
@@ -1045,6 +1139,7 @@ public class JobRepositoryTests
 
         await jobRepository.RemoveJobAsync(job.Object, TestContext.Current.CancellationToken);
 
+        job.Verify(j => j.Dispose(), Times.Once);
         Assert.Equal(JobState.Complete, job.Object.State);
         Assert.Equal(0, await jobRepository.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken));
     }
@@ -1074,10 +1169,12 @@ public class JobRepositoryTests
 
         var job = new Mock<IJobRepositoryEntry>();
         job.SetupProperty(j => j.State, JobState.Active);
+        job.Setup(j => j.Dispose()).Callback(() => job.Object.State = JobState.Complete);
         jobRepository.WatchedJobs.Add(job.Object);
 
         var job2 = new Mock<IJobRepositoryEntry>();
         job2.SetupProperty(j => j.State, JobState.Active);
+        job2.Setup(j => j.Dispose()).Callback(() => job2.Object.State = JobState.Complete);
         jobRepository.WatchedJobs.Add(job2.Object);
 
         Assert.Equal(0, await jobRepository.GetInactiveJobCountAsync(TestContext.Current.CancellationToken));
@@ -1085,6 +1182,8 @@ public class JobRepositoryTests
 
         await jobRepository.RemoveJobAsync(job.Object, TestContext.Current.CancellationToken);
 
+        job.Verify(j => j.Dispose(), Times.Once);
+        job2.Verify(j => j.Dispose(), Times.Never);
         Assert.Equal(JobState.Complete, job.Object.State);
         Assert.Equal(JobState.Active, job2.Object.State);
         Assert.Equal(1, await jobRepository.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken));

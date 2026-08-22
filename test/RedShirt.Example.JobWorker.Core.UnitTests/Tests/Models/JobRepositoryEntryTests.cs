@@ -60,6 +60,25 @@ public class JobRepositoryEntryTests
     }
 
     [Fact]
+    public void Dispose_SetsStateToCompleteAndClearsFurtherSubscriptions()
+    {
+        var jre = CreateEntry();
+        var transitions = new List<(JobState? Original, JobState Current)>();
+        jre.SubscribeToState((_, original, current) => transitions.Add((original, current)));
+        transitions.Clear();
+
+        jre.Dispose();
+        jre.Dispose();
+
+        Assert.True(jre.IsDisposed);
+        Assert.Equal(JobState.Complete, jre.State);
+        Assert.Equal([(JobState.Inactive, JobState.Complete)], transitions);
+
+        var ex = Assert.Throws<ObjectDisposedException>(() => jre.SubscribeToState((_, _, _) => { }));
+        Assert.Equal(nameof(JobRepositoryEntry), ex.ObjectName);
+    }
+
+    [Fact]
     public void State_WhenSetNull_ThrowsArgumentNullException()
     {
         var jre = CreateEntry();
@@ -141,5 +160,6 @@ public class JobRepositoryEntryTests
         // Set/Get CanHeartbeat (false only)
         jre.CanHeartbeat = false;
         Assert.False(jre.CanHeartbeat);
+        Assert.False(jre.IsDisposed);
     }
 }
