@@ -516,7 +516,6 @@ internal sealed class JobRepository(
         IJobRepositoryEntry? result = null;
         do
         {
-            Console.WriteLine("NEXT JOB ITERATION");
             // Try shortlist of unblocked jobs
             if (TryGetUnblockedJobAsync() is { } unblockedJobAttempt)
             {
@@ -742,7 +741,6 @@ internal sealed class JobRepository(
 
     public Task WaitForEmptyRepositoryAsync(CancellationToken cancellationToken = default)
     {
-        Console.WriteLine("WaitForEmptyRepositoryAsync");
         return _repositoryEmptyEvent.WaitAsync(cancellationToken);
     }
 
