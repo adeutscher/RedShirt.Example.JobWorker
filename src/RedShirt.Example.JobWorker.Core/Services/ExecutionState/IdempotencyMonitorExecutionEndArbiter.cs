@@ -8,7 +8,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 /// <summary>
 ///     Dictates if the idempotency monitor should continue running.
 ///     Extends the functionality of the base IExecutionEndArbiter by accessing the job repository.
-///     Written as a test-friendly alternative to <c>while(true){}</c>
+///     Originally written as a test-friendly alternative to <c>while(true){}</c>
 /// </summary>
 internal interface IIdempotencyMonitorExecutionEndArbiter : IDisposable
 {

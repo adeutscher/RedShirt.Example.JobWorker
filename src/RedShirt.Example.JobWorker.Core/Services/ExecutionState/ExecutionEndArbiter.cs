@@ -5,7 +5,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 
 /// <summary>
 ///     Dictates if the app should continue running.
-///     Originally written as a test-friendly alternative to `while(true){}`
+///     Originally written as a test-friendly alternative to <c>while(true){}</c>
 /// </summary>
 public interface IExecutionEndArbiter : IDisposable
 {

@@ -5,7 +5,7 @@ namespace RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 /// <summary>
 ///     Dictates if executor workers should continue running.
 ///     Extends the functionality of the base IExecutionEndArbiter by accessing the job repository.
-///     Written as a test-friendly alternative to `while(true){}`
+///     Originally written as a test-friendly alternative to <c>while(true){}</c>
 /// </summary>
 internal interface IExecutorExecutionEndArbiter
 {
