@@ -419,7 +419,6 @@ internal sealed class JobRepository(
     public async Task<List<IJobRepositoryEntry>> GetAllInFlightJobsAsync(CancellationToken cancellationToken = default)
     {
         await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
-
         try
         {
             var items = WatchedJobs
