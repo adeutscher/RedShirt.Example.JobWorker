@@ -128,18 +128,19 @@ internal sealed class JobRepository(
 
     /// <summary>
     ///     Notes if <see cref="_jobsAvailableEvent" /> is set.
-    ///     Created out of optimization paranoia to avoid unnecessary event sets/resets to <see cref="_jobsAvailableEvent" />.
+    ///     Created because of optimization paranoia to avoid unnecessary event sets/resets to
+    ///     <see cref="_jobsAvailableEvent" />.
     ///     Use should be gated behind <see cref="_jobsAvailableGate" />.
     /// </summary>
     private bool _jobsAvailableEventIsSet;
 
     /// <summary>
     ///     Notes if <see cref="_repositoryEmptyEvent" /> is set.
-    ///     Created out of optimization paranoia to avoid unnecessary event sets/resets to <see cref="_repositoryEmptyEvent" />
-    ///     .
+    ///     Created because of optimization paranoia to avoid unnecessary event sets/resets to
+    ///     <see cref="_repositoryEmptyEvent" />.
     ///     Use should be gated behind <see cref="_repositoryEmptyGate" />.
     /// </summary>
-    private bool _repositoryEmptyEventIsSet;
+    private bool _repositoryEmptyEventIsSet = true;
 
     private Action<int>? _watchedJobsCallbacks;
     private int _watchedJobsTally;
@@ -196,16 +197,16 @@ internal sealed class JobRepository(
                 // Job list is empty
 
                 // ReSharper disable once InvertIf
-                if (_repositoryEmptyEventIsSet)
+                if (!_repositoryEmptyEventIsSet)
                 {
-                    _repositoryEmptyEvent.Reset();
-                    _repositoryEmptyEventIsSet = false;
+                    _repositoryEmptyEvent.Set();
+                    _repositoryEmptyEventIsSet = true;
                 }
             }
-            else if (!_repositoryEmptyEventIsSet)
+            else if (_repositoryEmptyEventIsSet)
             {
-                _repositoryEmptyEvent.Set();
-                _repositoryEmptyEventIsSet = true;
+                _repositoryEmptyEvent.Reset();
+                _repositoryEmptyEventIsSet = false;
             }
         }
     }
@@ -592,7 +593,6 @@ internal sealed class JobRepository(
         try
         {
             await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
-
             try
             {
                 // ReSharper disable once ForeachCanBePartlyConvertedToQueryUsingAnotherGetEnumerator
@@ -613,8 +613,6 @@ internal sealed class JobRepository(
                     WatchedJobs.Add(job);
 
                     _jobsDemandEvent.Reset();
-                    // Once jobs are added, then the repository is either no longer empty or continues to not be empty.
-                    SyncRepositoryEmptyEvent();
                 }
             }
             finally
@@ -631,6 +629,7 @@ internal sealed class JobRepository(
              */
             _inactiveJobsList = sorter.GetSortedListOfJobs(_inactiveJobsList);
             SyncJobsAvailableEvent();
+            SyncRepositoryEmptyEvent();
         }
         finally
         {
@@ -655,19 +654,19 @@ internal sealed class JobRepository(
             _inactiveJobsListSemaphore.Release();
         }
 
+        var watchedIsNowEmpty = false;
         await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
         try
         {
-            WatchedJobs.Remove(job);
-
-            if (WatchedJobs.Count == 0)
+            if (WatchedJobs.Remove(job) && WatchedJobs.Count == 0)
             {
+                // Just reached zero.
                 // Avoid possible race condition in JobLoader
 
                 // If there's nothing to grab, then there must be an executor about to demand something. 
                 _jobsDemandEvent.Set();
                 // No watched jobs is the very definition of an empty repository
-                SyncRepositoryEmptyEvent();
+                watchedIsNowEmpty = true;
             }
         }
         finally
@@ -676,6 +675,10 @@ internal sealed class JobRepository(
         }
 
         job.Dispose();
+        if (watchedIsNowEmpty)
+        {
+            SyncRepositoryEmptyEvent();
+        }
     }
 
     public void SubscribeToInactiveCountUpdate(Action<int> callback)
