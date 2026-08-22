@@ -393,9 +393,15 @@ internal sealed class JobRepository(
     {
         await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
 
-        var count = WatchedJobs.Count;
-
-        _watchedJobsListSemaphore.Release();
+        int count;
+        try
+        {
+            count = WatchedJobs.Count;
+        }
+        finally
+        {
+            _watchedJobsListSemaphore.Release();
+        }
 
         return count;
     }
@@ -621,11 +627,17 @@ internal sealed class JobRepository(
 
     public async Task WaitForEmptyRepositoryAsync(CancellationToken cancellationToken = default)
     {
-        while (await GetWatchedJobsCountAsync(cancellationToken) > 0)
+        int count;
+        bool waitResult;
+        do
         {
             // Short timeout mirrors GetNextJobAsync: avoids missing a Set/Reset edge under concurrency
-            await _repositoryEmptyEvent.WaitAsync(TimeSpan.FromMilliseconds(250), cancellationToken);
-        }
+            waitResult = await _repositoryEmptyEvent.WaitAsync(TimeSpan.FromMilliseconds(250), cancellationToken);
+            lock (_tallyLock)
+            {
+                count = _watchedJobsTally;
+            }
+        } while (!waitResult || count > 0);
     }
 
     public int GetBacklogMaxCount()
