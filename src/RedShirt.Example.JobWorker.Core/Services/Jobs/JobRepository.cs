@@ -121,6 +121,13 @@ internal sealed class JobRepository(
 
     private int _inactiveJobsTally;
 
+    /// <summary>
+    ///     Notes if <see cref="_jobsAvailableEvent" /> is set.
+    ///     Created out of optimization paranoia to avoid unnecessary event sets/resets to <see cref="_jobsAvailableEvent" />.
+    ///     Use should be gated behind <see cref="_jobsAvailableGate" />.
+    /// </summary>
+    private bool _jobsAvailableEventIsSet;
+
     private Action<int>? _watchedJobsCallbacks;
     private int _watchedJobsTally;
 
@@ -176,11 +183,18 @@ internal sealed class JobRepository(
             if (isEmptyCondition)
             {
                 // Job list is empty
-                _jobsAvailableEvent.Reset();
+
+                // ReSharper disable once InvertIf
+                if (_jobsAvailableEventIsSet)
+                {
+                    _jobsAvailableEvent.Reset();
+                    _jobsAvailableEventIsSet = false;
+                }
             }
-            else
+            else if (!_jobsAvailableEventIsSet)
             {
                 _jobsAvailableEvent.Set();
+                _jobsAvailableEventIsSet = true;
             }
         }
     }
