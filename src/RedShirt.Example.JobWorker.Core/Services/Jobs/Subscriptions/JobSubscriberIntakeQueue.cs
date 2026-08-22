@@ -57,7 +57,6 @@ internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
     {
         executionEndArbiter.AddOnStopCallback(_ => Cancel());
     }
-
 #pragma warning disable S2325
     public void Load(IJobSourceResponse jobSourceResponse)
 #pragma warning disable S2325
