@@ -39,7 +39,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobSubscriberManager, JobSubscriberManager>()
             .AddSingleton<IJobSubscriberIntakeQueue, JobSubscriberIntakeQueue>()
             .AddSingleton<IJobExecutor, JobExecutor>()
-            .AddSingleton<IHeartbeatMaintainer, HeartbeatMaintainer>()
+            .AddSingleton<IHeartbeatMonitor, HeartbeatMonitor>()
             .AddSingleton<IHeartbeatCalculator, HeartbeatCalculator>()
             .AddSingleton<ISafeJobRunner, SafeJobRunner>()
             .AddSingleton<ITimeBorderWrapperService, TimeBorderWrapperService>()

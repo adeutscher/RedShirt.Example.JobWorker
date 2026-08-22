@@ -55,7 +55,7 @@ public class IdempotencyMonitorTests
         return (entry, jobModel, rawJobModel);
     }
 
-    private static void SetupMaintainerDelay(Mock<IIdempotencyMonitorExecutionEndArbiter> arbiter)
+    private static void SetupMonitorDelay(Mock<IIdempotencyMonitorExecutionEndArbiter> arbiter)
     {
         arbiter
             .Setup(a => a.IdempotencyMonitorDelayWaitAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
@@ -165,7 +165,7 @@ public class IdempotencyMonitorTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IIdempotencyMonitorExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
@@ -228,7 +228,7 @@ public class IdempotencyMonitorTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IIdempotencyMonitorExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
@@ -304,7 +304,7 @@ public class IdempotencyMonitorTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IIdempotencyMonitorExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>
@@ -380,7 +380,7 @@ public class IdempotencyMonitorTests
 
         var doQuit = false;
         var executionEndArbiter = new Mock<IIdempotencyMonitorExecutionEndArbiter>(MockBehavior.Strict);
-        SetupMaintainerDelay(executionEndArbiter);
+        SetupMonitorDelay(executionEndArbiter);
         executionEndArbiter
             .Setup(a => a.MonitorShouldKeepRunning())
             .Returns(() =>

@@ -162,7 +162,7 @@ internal sealed class HeartbeatMonitorExecutionEndArbiter : IHeartbeatMonitorExe
             if (!await _relevantJobsToObserveEvent.WaitAsync(TimeSpan.Zero, linkedCts.Token))
             {
                 // Event is not set, so wait until it is
-                // This wait prevents the maintainer from creating noise (trace-level though it may be)
+                // This wait prevents the monitor from creating noise (trace-level though it may be)
                 // when there are no watched jobs to maintain.
                 _logger.LogTrace("{LogLabel}: Waiting for watchable events", LogLabel);
                 await _relevantJobsToObserveEvent.WaitAsync(linkedCts.Token);

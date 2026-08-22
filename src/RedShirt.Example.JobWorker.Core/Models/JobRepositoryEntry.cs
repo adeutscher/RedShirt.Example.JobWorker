@@ -31,7 +31,7 @@ internal interface IJobRepositoryEntry : ISortableJobWrapper
 internal sealed class JobRepositoryEntry : IJobRepositoryEntry
 {
     /// <summary>
-    ///     Thread-safety for mutable field access from maintainer, executor, and repository threads.
+    ///     Thread-safety for mutable field access from executor, monitor, and repository threads.
     /// </summary>
     private readonly Lock _lock = new();
 

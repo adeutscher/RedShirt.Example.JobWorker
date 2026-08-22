@@ -113,7 +113,7 @@ internal sealed class IdempotencyMonitor(
     }
 
     /// <summary>
-    ///     Minor centralization of a log message, mirroring <c>HeartbeatMaintainer</c>.
+    ///     Minor centralization of a log message, mirroring <c>HeartbeatMonitor</c>.
     /// </summary>
     private async Task LogAndWaitAsync(TimeSpan timeToWait, CancellationToken cancellationToken = default)
     {

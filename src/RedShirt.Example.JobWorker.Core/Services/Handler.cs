@@ -31,7 +31,7 @@ public interface IHandler
 /// </summary>
 /// <param name="executionEndArbiter"></param>
 /// <param name="jobLoaderLoop"></param>
-/// <param name="heartbeatMaintainer"></param>
+/// <param name="heartbeatMonitor"></param>
 /// <param name="jobExecutor"></param>
 /// <param name="idempotencyMonitor"></param>
 /// <param name="threadOptions"></param>
@@ -39,7 +39,7 @@ public interface IHandler
 internal sealed class Handler(
     IExecutionEndArbiter executionEndArbiter,
     IJobLoaderLoop jobLoaderLoop,
-    IHeartbeatMaintainer heartbeatMaintainer,
+    IHeartbeatMonitor heartbeatMonitor,
     IJobExecutor jobExecutor,
     IIdempotencyMonitor idempotencyMonitor,
     IJobSubscriberManager jobSubscriberManager,
@@ -162,13 +162,13 @@ internal sealed class Handler(
         }
 
         /*
-         * Note: The Maintainer and Idempotency Monitor tasks are intended to abort immediately if configuration or choice of job source doesn't require them.
+         * Note: The Heartbeat Monitor and Idempotency Monitor tasks are intended to abort immediately if configuration or choice of job source doesn't require them.
          * It made for simpler execution in Handler to just run them and add them to the list.
          */
 
-        // Maintainer thread
-        await addToTaskFuncAsync(WorkerThreadType.HeartbeatMaintainer,
-            () => heartbeatMaintainer.RunAsync(cancellationToken));
+        // Heartbeat monitor thread
+        await addToTaskFuncAsync(WorkerThreadType.HeartbeatMonitor,
+            () => heartbeatMonitor.RunAsync(cancellationToken));
 
         // Idempotency monitor thread
         await addToTaskFuncAsync(WorkerThreadType.IdempotencyMonitor,
@@ -205,7 +205,7 @@ internal sealed class Handler(
     private enum WorkerThreadType
     {
         JobExecutor,
-        HeartbeatMaintainer,
+        HeartbeatMonitor,
         IdempotencyMonitor,
         JobSubscriberManager,
         MessagePoller
