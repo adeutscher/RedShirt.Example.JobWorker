@@ -264,6 +264,14 @@ internal sealed class JobRepository(
             }
         }
 
+        // Need to set state before thinking about syncing events
+        result?.State = JobState.Active;
+
+        if (iterated)
+        {
+            SyncJobsAvailableEvent();
+        }
+
         if (result is null
             // Account for technical race condition, will never happen in practice
             || result.IsDisposed)
@@ -271,7 +279,6 @@ internal sealed class JobRepository(
             return new TryGetJobResponse
             {
                 Success = false,
-                ModifiedSourceStore = iterated,
                 Result = null
             };
         }
@@ -279,7 +286,6 @@ internal sealed class JobRepository(
         return new TryGetJobResponse
         {
             Success = true,
-            ModifiedSourceStore = iterated,
             Result = result
         };
     }
@@ -302,10 +308,17 @@ internal sealed class JobRepository(
             _inactiveJobsListSemaphore.Release();
         }
 
+        // Need to set state before thinking about syncing events
+        result?.State = JobState.Active;
+
+        if (result is not null)
+        {
+            SyncJobsAvailableEvent();
+        }
+
         return new TryGetJobResponse
         {
             Success = result is not null,
-            ModifiedSourceStore = result is not null,
             Result = result
         };
     }
@@ -517,44 +530,20 @@ internal sealed class JobRepository(
         do
         {
             // Try shortlist of unblocked jobs
-            if (TryGetUnblockedJobAsync() is { } unblockedJobAttempt)
+            if (TryGetUnblockedJobAsync() is {Success: true, Result: { } formerlyUnblockedJobResult})
             {
-                if (unblockedJobAttempt is {Success: true, Result: { } unblockedJob})
-                {
-                    result = unblockedJob;
-                    result.State = JobState.Active;
-                }
+                result = formerlyUnblockedJobResult;
 
-                if (unblockedJobAttempt.ModifiedSourceStore)
-                {
-                    SyncJobsAvailableEvent();
-                }
-
-                if (result is not null)
-                {
-                    // Continue out of loop iteration to abort via do-while condition
-                    continue;
-                }
+                // Continue out of loop iteration to abort via do-while condition
+                continue;
             }
 
-            if (await TryGetInactiveJobAsync(cancellationToken) is { } inactiveAttempt)
+            if (await TryGetInactiveJobAsync(cancellationToken) is
+                {Success: true, Result: { } formerlyInactiveJobResult})
             {
-                if (inactiveAttempt is {Success: true, Result: { } inactiveAttemptResult})
-                {
-                    result = inactiveAttemptResult;
-                    result.State = JobState.Active;
-                }
-
-                if (inactiveAttempt.ModifiedSourceStore)
-                {
-                    SyncJobsAvailableEvent();
-                }
-
-                if (result is not null)
-                {
-                    // Continue out of loop iteration to abort via do-while condition
-                    continue;
-                }
+                result = formerlyInactiveJobResult;
+                // Continue out of loop iteration to abort via do-while condition
+                continue;
             }
 
             // If execution has reached here, then there are currently no available jobs to be handed out.
@@ -768,7 +757,6 @@ internal sealed class JobRepository(
     private sealed class TryGetJobResponse
     {
         public required bool Success { get; init; }
-        public required bool ModifiedSourceStore { get; init; }
         public required IJobRepositoryEntry? Result { get; init; }
     }
 
