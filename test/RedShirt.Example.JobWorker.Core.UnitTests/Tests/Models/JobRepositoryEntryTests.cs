@@ -11,7 +11,9 @@ public class JobRepositoryEntryTests
         return new JobRepositoryEntry
         {
             JobModel = new Mock<IJobModel>(MockBehavior.Strict).Object,
-            RawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict).Object
+            RawJobModel = new Mock<IRawJobModel>(MockBehavior.Strict).Object,
+            LastHeartbeatTime = default,
+            State = JobState.Inactive
         };
     }
 
@@ -103,7 +105,9 @@ public class JobRepositoryEntryTests
         var jre = new JobRepositoryEntry
         {
             JobModel = jobModel,
-            RawJobModel = rawJobModel
+            RawJobModel = rawJobModel,
+            LastHeartbeatTime = default,
+            State = JobState.Inactive
         };
 
         Assert.True(jre.CanHeartbeat);

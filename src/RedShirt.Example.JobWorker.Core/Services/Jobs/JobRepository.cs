@@ -318,7 +318,8 @@ internal sealed class JobRepository(
                     {
                         JobModel = envelope.JobModel,
                         RawJobModel = envelope.RawJobModel,
-                        LastHeartbeatTime = DateTime.UtcNow
+                        LastHeartbeatTime = DateTime.UtcNow,
+                        State = JobState.Inactive
                     };
 
                     _inactiveJobsList.Add(job); // Worry about sorting later, see below

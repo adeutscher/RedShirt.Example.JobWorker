@@ -65,7 +65,7 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
         }
     } = true;
 
-    public DateTime LastHeartbeatTime
+    public required DateTime LastHeartbeatTime
     {
         get
         {
@@ -83,7 +83,7 @@ internal sealed class JobRepositoryEntry : IJobRepositoryEntry
         }
     }
 
-    public JobState? State
+    public required JobState? State
     {
         get
         {
