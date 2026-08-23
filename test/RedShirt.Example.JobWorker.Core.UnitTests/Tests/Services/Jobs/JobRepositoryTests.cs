@@ -7,6 +7,7 @@ using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 using RedShirt.Example.JobWorker.Core.Utility;
 using System.Diagnostics;
+using Range = Moq.Range;
 
 namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Jobs;
 
@@ -35,6 +36,7 @@ public class JobRepositoryTests
         int backlogSize = 10)
     {
         executionEndArbiter ??= new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
         jobLoaderStateService ??= new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
         sorter ??= new Mock<ISourceMessageSorter>();
         sorter
@@ -999,7 +1001,8 @@ public class JobRepositoryTests
         var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
         jobLoaderStateService
             .Setup(s => s.IsLoaderFinished())
-            .Returns(true);
+            // ReSharper disable once AccessToModifiedClosure
+            .Returns(() => readyToEnd);
 
         var options = new JobRepository.ConfigurationModel
         {
@@ -1073,9 +1076,27 @@ public class JobRepositoryTests
                 DateTime.UtcNow + TimeSpan.FromMilliseconds(250));
         }
 
-        await Task.Delay(TimeSpan.FromMilliseconds(250), TestContext.Current.CancellationToken);
+        await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
+        // Confirm that the task hasn't yet finished after that delay
+        Assert.False(retrievedJobsTask.IsCompleted);
+        // Mark things as ready to finish
         readyToEnd = true;
+        var jobLoaderStateServiceCallbackInvocation = Assert.Single(jobLoaderStateService.Invocations,
+            i => i.Method.Name == nameof(jobLoaderStateService.Object.AddOnFinishCallback));
+        // At this point I'm just having fun with the ridiculous variable names in this test method.
+        var jobLoaderStateServiceCallbackInvocationArgumentAsCallback =
+            jobLoaderStateServiceCallbackInvocation.Arguments[0] as Action;
+        Assert.NotNull(jobLoaderStateServiceCallbackInvocationArgumentAsCallback);
+        jobLoaderStateServiceCallbackInvocationArgumentAsCallback();
+
+        /*
+         * Now that we've cancelled the mock-application, the task should be finishable through the callbacks.
+         */
+        await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
         var retrievedJobs = await retrievedJobsTask;
+
+        /* Verify Results */
+
         Assert.NotNull(retrievedJobs);
         Assert.NotEmpty(retrievedJobs);
 
@@ -1091,7 +1112,10 @@ public class JobRepositoryTests
             Assert.Same(expectedEnvelope.RawJobModel, currentJob.RawJobModel);
         }
 
-        jobLoaderStateService.Verify(s => s.IsLoaderFinished(), Times.Once);
+        // Verify that state service was called a reasonable number of times (1-4).
+        // It's going to be at least once, during some debugging with some extra statements it was 4.
+        // At this point in the test, we're happy as long as it wasn't invoked a million times
+        jobLoaderStateService.Verify(s => s.IsLoaderFinished(), Times.Between(1, 4, Range.Inclusive));
     }
 
     /// <summary>
@@ -1411,6 +1435,7 @@ public class JobRepositoryTests
     public async Task WaitForEmptyRepositoryAsync_CompletesWhenLastJobRemoved()
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
         var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
         var options = new JobRepository.ConfigurationModel
         {

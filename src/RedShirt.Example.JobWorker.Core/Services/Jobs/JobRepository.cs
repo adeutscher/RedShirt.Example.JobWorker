@@ -198,24 +198,6 @@ internal sealed class JobRepository : IJobRepository
         _cancellationTokenSource.Dispose();
     }
 
-    private CancellationToken GetLinkedToken(CancellationToken cancellationToken)
-    {
-        lock (_generalGate)
-        {
-            if (_disposed)
-            {
-                using var fallbackCts =
-                    CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                fallbackCts.Cancel();
-                return fallbackCts.Token;
-            }
-        }
-
-        using var linkedCts =
-            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cancellationTokenSource.Token);
-        return linkedCts.Token;
-    }
-
     private void NotifyInactiveCountUpdate(int count)
     {
         Action<int>? callbacks;
@@ -548,6 +530,51 @@ internal sealed class JobRepository : IJobRepository
         }
     }
 
+    /// <summary>
+    ///     Wait for available jobs.
+    ///     This separate method isn't strictly necessary, even for Sonar complexity warnings,
+    ///     but it makes <see cref="GetNextJobAsync" /> much more readable.
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <exception cref="OperationCanceledException"></exception>
+    private async Task WaitForAvailableJobsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        /*
+         * Construct a linked CTS to tie it to _cancellationTokenSource.
+         *
+         * Note: During development, I experimented with a GetLinkedToken method in order
+         *  to centralize some of this, but that ended up being invalid. The reason for
+         *  that is that disposing a linked source unregisters it from _cancellationTokenSource.
+         *  The CancellationToken that was being returned was no longer hooked to that source,
+         *  making the end result just the baseline cancellation token with extra steps.
+         */
+
+        CancellationTokenSource? linkedCts = null;
+        try
+        {
+            CancellationToken linkedToken;
+            lock (_generalGate)
+            {
+                if (_disposed)
+                {
+                    throw new OperationCanceledException();
+                }
+
+                linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken, _cancellationTokenSource.Token);
+                linkedToken = linkedCts.Token;
+            }
+
+            await _jobsAvailableEvent.WaitAsync(linkedToken);
+        }
+        finally
+        {
+            linkedCts?.Dispose();
+        }
+    }
+
     public JobRepository(IExecutionEndArbiter executionEndArbiter,
         IJobLoaderStateReaderService jobLoaderStateReaderService,
         ISourceMessageSorter sourceMessageSorter,
@@ -653,16 +680,15 @@ internal sealed class JobRepository : IJobRepository
             // Only the loader mode should care about this via the IJobRepository.WaitForJobDemandAsync method
             _jobsDemandEvent.Set();
 
-            // ReSharper disable once InconsistentlySynchronizedField
-            var linkedToken = GetLinkedToken(cancellationToken);
             try
             {
-                await _jobsAvailableEvent.WaitAsync(linkedToken);
+                await WaitForAvailableJobsAsync(cancellationToken);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 // Exception from a cancelled internal CTS suggests shutdown
-                // Suppress and let do-while loop continue to drain 
+                // Manually break from loop so that invoking executors can abort
+                break;
             }
         } while (result is null);
 
@@ -827,28 +853,87 @@ internal sealed class JobRepository : IJobRepository
 
     public async Task<bool> WaitForJobDemandAsync(TimeSpan waitDuration, CancellationToken cancellationToken = default)
     {
-        var linkedToken = GetLinkedToken(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        /*
+         * Construct a linked CTS to tie it to _cancellationTokenSource.
+         *
+         * Note: During development, I experimented with a GetLinkedToken method in order
+         *  to centralize some of this, but that ended up being invalid. The reason for
+         *  that is that disposing a linked source unregisters it from _cancellationTokenSource.
+         *  The CancellationToken that was being returned was no longer hooked to that source,
+         *  making the end result just the baseline cancellation token with extra steps.
+         */
+
         try
         {
-            return await _jobsDemandEvent.WaitAsync(waitDuration, linkedToken);
+            CancellationTokenSource? linkedCts = null;
+            try
+            {
+                CancellationToken linkedToken;
+                lock (_generalGate)
+                {
+                    if (_disposed)
+                    {
+                        throw new OperationCanceledException();
+                    }
+
+                    linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                        cancellationToken, _cancellationTokenSource.Token);
+                    linkedToken = linkedCts.Token;
+                }
+
+                return await _jobsDemandEvent.WaitAsync(waitDuration, linkedToken);
+            }
+            finally
+            {
+                linkedCts?.Dispose();
+            }
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             // Suggests exception from a cancelled internal CTS (which suggests shutdown)
-            return false;
+            // Pass
         }
+
+        return false;
     }
 
     public async Task WaitForEmptyRepositoryAsync(CancellationToken cancellationToken = default)
     {
-        var linkedToken = GetLinkedToken(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        /*
+         * Construct a linked CTS to tie it to _cancellationTokenSource.
+         *
+         * Note: During development, I experimented with a GetLinkedToken method in order
+         *  to centralize some of this, but that ended up being invalid. The reason for
+         *  that is that disposing a linked source unregisters it from _cancellationTokenSource.
+         *  The CancellationToken that was being returned was no longer hooked to that source,
+         *  making the end result just the baseline cancellation token with extra steps.
+         */
+
+        CancellationTokenSource? linkedCts = null;
         try
         {
+            CancellationToken linkedToken;
+            lock (_generalGate)
+            {
+                if (_disposed)
+                {
+                    throw new OperationCanceledException();
+                }
+
+                linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken, _cancellationTokenSource.Token);
+                linkedToken = linkedCts.Token;
+            }
+
             await _repositoryEmptyEvent.WaitAsync(linkedToken);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        finally
         {
-            // Suppress exception from a cancelled internal CTS (suggests shutdown)
+            linkedCts?.Dispose();
         }
     }
 
