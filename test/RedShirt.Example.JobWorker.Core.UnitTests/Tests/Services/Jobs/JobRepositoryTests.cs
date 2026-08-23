@@ -1427,6 +1427,7 @@ public class JobRepositoryTests
 
         var nextJob = await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken);
 
+        Assert.NotNull(nextJob);
         Assert.Same(unblockedEntry, nextJob);
         Assert.Equal(JobState.Active, nextJob.State);
     }
