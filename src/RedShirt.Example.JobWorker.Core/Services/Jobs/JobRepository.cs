@@ -530,23 +530,17 @@ internal sealed class JobRepository : IJobRepository
         }
     }
 
-    /// <summary>
-    ///     Wait for available jobs.
-    ///     This separate method isn't strictly necessary, even for Sonar complexity warnings,
-    ///     but it makes <see cref="GetNextJobAsync" /> much more readable.
-    /// </summary>
-    /// <param name="cancellationToken"></param>
-    /// <exception cref="OperationCanceledException"></exception>
-    private async Task WaitForAvailableJobsAsync(CancellationToken cancellationToken)
+    private async Task DoOperationWithLinkedToken(Func<CancellationToken, Task> operation,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         /*
          * Construct a linked CTS to tie it to _cancellationTokenSource.
          *
-         * Note: During development, I experimented with a GetLinkedToken method in order
-         *  to centralize some of this, but that ended up being invalid. The reason for
-         *  that is that disposing a linked source unregisters it from _cancellationTokenSource.
+         * Note: During development, I experimented with a GetLinkedToken method,
+         * but that ended up being invalid. The reason it was invalid is that
+         *  disposing a linked source unregisters it from _cancellationTokenSource.
          *  The CancellationToken that was being returned was no longer hooked to that source,
          *  making the end result just the baseline cancellation token with extra steps.
          */
@@ -567,12 +561,22 @@ internal sealed class JobRepository : IJobRepository
                 linkedToken = linkedCts.Token;
             }
 
-            await _jobsAvailableEvent.WaitAsync(linkedToken);
+            await operation(linkedToken);
         }
         finally
         {
             linkedCts?.Dispose();
         }
+    }
+
+    private Task DoWaitForAvailableJobsAsync(CancellationToken cancellationToken)
+    {
+        return _jobsAvailableEvent.WaitAsync(cancellationToken);
+    }
+
+    private Task DoWaitForEmptyRepositoryAsync(CancellationToken cancellationToken)
+    {
+        return _repositoryEmptyEvent.WaitAsync(cancellationToken);
     }
 
     public JobRepository(IExecutionEndArbiter executionEndArbiter,
@@ -682,7 +686,7 @@ internal sealed class JobRepository : IJobRepository
 
             try
             {
-                await WaitForAvailableJobsAsync(cancellationToken);
+                await DoOperationWithLinkedToken(DoWaitForAvailableJobsAsync, cancellationToken);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -853,87 +857,31 @@ internal sealed class JobRepository : IJobRepository
 
     public async Task<bool> WaitForJobDemandAsync(TimeSpan waitDuration, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        /*
-         * Construct a linked CTS to tie it to _cancellationTokenSource.
-         *
-         * Note: During development, I experimented with a GetLinkedToken method in order
-         *  to centralize some of this, but that ended up being invalid. The reason for
-         *  that is that disposing a linked source unregisters it from _cancellationTokenSource.
-         *  The CancellationToken that was being returned was no longer hooked to that source,
-         *  making the end result just the baseline cancellation token with extra steps.
-         */
+        var result = false;
 
         try
         {
-            CancellationTokenSource? linkedCts = null;
-            try
-            {
-                CancellationToken linkedToken;
-                lock (_generalGate)
-                {
-                    if (_disposed)
-                    {
-                        throw new OperationCanceledException();
-                    }
-
-                    linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                        cancellationToken, _cancellationTokenSource.Token);
-                    linkedToken = linkedCts.Token;
-                }
-
-                return await _jobsDemandEvent.WaitAsync(waitDuration, linkedToken);
-            }
-            finally
-            {
-                linkedCts?.Dispose();
-            }
+            await DoOperationWithLinkedToken(
+                async linkedToken => { result = await _jobsDemandEvent.WaitAsync(waitDuration, linkedToken); },
+                cancellationToken);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            // Suggests exception from a cancelled internal CTS (which suggests shutdown)
-            // Pass
+            // Pass, use default false
         }
 
-        return false;
+        return result;
     }
 
     public async Task WaitForEmptyRepositoryAsync(CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        /*
-         * Construct a linked CTS to tie it to _cancellationTokenSource.
-         *
-         * Note: During development, I experimented with a GetLinkedToken method in order
-         *  to centralize some of this, but that ended up being invalid. The reason for
-         *  that is that disposing a linked source unregisters it from _cancellationTokenSource.
-         *  The CancellationToken that was being returned was no longer hooked to that source,
-         *  making the end result just the baseline cancellation token with extra steps.
-         */
-
-        CancellationTokenSource? linkedCts = null;
         try
         {
-            CancellationToken linkedToken;
-            lock (_generalGate)
-            {
-                if (_disposed)
-                {
-                    throw new OperationCanceledException();
-                }
-
-                linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                    cancellationToken, _cancellationTokenSource.Token);
-                linkedToken = linkedCts.Token;
-            }
-
-            await _repositoryEmptyEvent.WaitAsync(linkedToken);
+            await DoOperationWithLinkedToken(DoWaitForEmptyRepositoryAsync, cancellationToken);
         }
-        finally
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            linkedCts?.Dispose();
+            // Pass
         }
     }
 
