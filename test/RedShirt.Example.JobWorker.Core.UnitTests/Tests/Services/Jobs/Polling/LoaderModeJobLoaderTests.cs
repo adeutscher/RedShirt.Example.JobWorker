@@ -15,6 +15,13 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Jobs.Polling;
 
 public class LoaderModeJobLoaderTests
 {
+    private static Mock<IExecutionEndArbiter> CreateExecutionEndArbiter()
+    {
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter.Setup(a => a.AddOnStopCallback(It.IsAny<Action<Exception?>>()));
+        return executionEndArbiter;
+    }
+
     private static ICoreConfigurationService CreateCoreConfigurationService(
         bool haltOnFailure = false,
         bool treatTransientExceptionAsFailure = false)
@@ -64,7 +71,7 @@ public class LoaderModeJobLoaderTests
 
         var loader = new LoaderModeJobLoader(
             jobSource.Object,
-            new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
+            CreateExecutionEndArbiter().Object,
             jobRepository.Object,
             jobIntakeService.Object,
             CreateHealthStateUpdateService(),
@@ -92,7 +99,7 @@ public class LoaderModeJobLoaderTests
 
         var loader = new LoaderModeJobLoader(
             jobSource.Object,
-            new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
+            CreateExecutionEndArbiter().Object,
             jobRepository.Object,
             jobIntakeService.Object,
             CreateHealthStateUpdateService(),
@@ -110,7 +117,7 @@ public class LoaderModeJobLoaderTests
     }
 
     [Fact]
-    public async Task RunAsync_WhenDemandWaitTimesOutAndStopping_ThrowsAbortJobLoaderLoopException()
+    public async Task RunAsync_WhenDemandWaitIsCancelledByExecutionEnd_ThrowsAbortJobLoaderLoopException()
     {
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         jobRepository.Setup(r => r.GetBacklogMaxCount()).Returns(0);
@@ -118,11 +125,15 @@ public class LoaderModeJobLoaderTests
             .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(1);
         jobRepository
-            .Setup(r => r.WaitForJobDemandAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken))
-            .ReturnsAsync(false);
+            .Setup(r => r.WaitForJobDemandAsync(It.IsAny<CancellationToken>()))
+            .Returns((CancellationToken cancellationToken) =>
+                Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken));
 
+        Action<Exception?>? onStop = null;
         var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(false);
+        executionEndArbiter
+            .Setup(a => a.AddOnStopCallback(It.IsAny<Action<Exception?>>()))
+            .Callback<Action<Exception?>>(callback => onStop = callback);
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
@@ -137,8 +148,11 @@ public class LoaderModeJobLoaderTests
             CreateCoreConfigurationService(),
             Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
 
-        await Assert.ThrowsAsync<AbortJobLoaderLoopException>(() =>
-            loader.RunAsync(TestContext.Current.CancellationToken));
+        var runTask = loader.RunAsync(TestContext.Current.CancellationToken);
+        Assert.NotNull(onStop);
+        onStop(null);
+
+        await Assert.ThrowsAsync<AbortJobLoaderLoopException>(() => runTask);
 
         jobSource.Verify(s => s.GetJobsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
         jobIntakeService.Verify(
@@ -169,7 +183,7 @@ public class LoaderModeJobLoaderTests
 
         var loader = new LoaderModeJobLoader(
             jobSource.Object,
-            new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
+            CreateExecutionEndArbiter().Object,
             jobRepository.Object,
             jobIntakeService.Object,
             CreateHealthStateUpdateService(),
@@ -181,7 +195,7 @@ public class LoaderModeJobLoaderTests
 
         jobSource.Verify(s => s.GetJobsAsync(2, TestContext.Current.CancellationToken), Times.Once);
         jobRepository.Verify(
-            r => r.WaitForJobDemandAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),
+            r => r.WaitForJobDemandAsync(It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -190,15 +204,14 @@ public class LoaderModeJobLoaderTests
     {
         var response = CreateJobSourceResponse([new Mock<IRawJobModel>(MockBehavior.Strict).Object]);
 
-        var demandAttempts = 0;
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
         jobRepository.Setup(r => r.GetBacklogMaxCount()).Returns(0);
         jobRepository
             .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(2);
         jobRepository
-            .Setup(r => r.WaitForJobDemandAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken))
-            .ReturnsAsync(() => ++demandAttempts >= 2);
+            .Setup(r => r.WaitForJobDemandAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
@@ -210,12 +223,9 @@ public class LoaderModeJobLoaderTests
             .Setup(s => s.SubmitAsync(response, TestContext.Current.CancellationToken))
             .Returns(Task.CompletedTask);
 
-        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        executionEndArbiter.Setup(a => a.ShouldKeepRunning()).Returns(true);
-
         var loader = new LoaderModeJobLoader(
             jobSource.Object,
-            executionEndArbiter.Object,
+            CreateExecutionEndArbiter().Object,
             jobRepository.Object,
             jobIntakeService.Object,
             CreateHealthStateUpdateService(),
@@ -225,7 +235,7 @@ public class LoaderModeJobLoaderTests
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, demandAttempts);
+        jobRepository.Verify(r => r.WaitForJobDemandAsync(It.IsAny<CancellationToken>()), Times.Once);
         jobIntakeService.Verify(s => s.SubmitAsync(response, TestContext.Current.CancellationToken), Times.Once);
         jobSource.Verify(s => s.GetJobsAsync(3, TestContext.Current.CancellationToken), Times.Once);
     }
@@ -251,7 +261,7 @@ public class LoaderModeJobLoaderTests
 
         var loader = new LoaderModeJobLoader(
             jobSource.Object,
-            new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
+            CreateExecutionEndArbiter().Object,
             jobRepository.Object,
             jobIntakeService.Object,
             CreateHealthStateUpdateService(),
@@ -286,7 +296,7 @@ public class LoaderModeJobLoaderTests
 
         var loader = new LoaderModeJobLoader(
             jobSource.Object,
-            new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
+            CreateExecutionEndArbiter().Object,
             jobRepository.Object,
             jobIntakeService.Object,
             CreateHealthStateUpdateService(),
@@ -326,7 +336,7 @@ public class LoaderModeJobLoaderTests
 
         var loader = new LoaderModeJobLoader(
             jobSource.Object,
-            new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
+            CreateExecutionEndArbiter().Object,
             jobRepository.Object,
             jobIntakeService.Object,
             health.Object,
@@ -366,7 +376,7 @@ public class LoaderModeJobLoaderTests
 
         var loader = new LoaderModeJobLoader(
             jobSource.Object,
-            new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
+            CreateExecutionEndArbiter().Object,
             jobRepository.Object,
             jobIntakeService.Object,
             health.Object,
@@ -403,7 +413,7 @@ public class LoaderModeJobLoaderTests
 
         var loader = new LoaderModeJobLoader(
             jobSource.Object,
-            new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
+            CreateExecutionEndArbiter().Object,
             jobRepository.Object,
             new Mock<IJobIntakeService>(MockBehavior.Strict).Object,
             health.Object,
@@ -438,7 +448,7 @@ public class LoaderModeJobLoaderTests
 
         var loader = new LoaderModeJobLoader(
             jobSource.Object,
-            new Mock<IExecutionEndArbiter>(MockBehavior.Strict).Object,
+            CreateExecutionEndArbiter().Object,
             jobRepository.Object,
             new Mock<IJobIntakeService>(MockBehavior.Strict).Object,
             health.Object,

@@ -58,7 +58,7 @@ internal interface IJobRepository : IDisposable
 
     Task WaitForEmptyRepositoryAsync(CancellationToken cancellationToken = default);
 
-    Task<bool> WaitForJobDemandAsync(TimeSpan waitDuration, CancellationToken cancellationToken = default);
+    Task WaitForJobDemandAsync(CancellationToken cancellationToken = default);
 }
 
 internal sealed class JobRepository : IJobRepository
@@ -855,22 +855,11 @@ internal sealed class JobRepository : IJobRepository
         }
     }
 
-    public async Task<bool> WaitForJobDemandAsync(TimeSpan waitDuration, CancellationToken cancellationToken = default)
+    public Task WaitForJobDemandAsync(CancellationToken cancellationToken = default)
     {
-        var result = false;
-
-        try
-        {
-            await DoOperationWithLinkedToken(
-                async linkedToken => { result = await _jobsDemandEvent.WaitAsync(waitDuration, linkedToken); },
-                cancellationToken);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            // Pass, use default false
-        }
-
-        return result;
+        return DoOperationWithLinkedToken(
+            linkedToken => _jobsDemandEvent.WaitAsync(linkedToken),
+            cancellationToken);
     }
 
     public async Task WaitForEmptyRepositoryAsync(CancellationToken cancellationToken = default)

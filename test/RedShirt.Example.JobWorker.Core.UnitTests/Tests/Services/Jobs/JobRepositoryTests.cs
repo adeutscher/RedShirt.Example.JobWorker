@@ -1286,7 +1286,7 @@ public class JobRepositoryTests
     }
 
     [Fact(Timeout = 1000)]
-    public async Task TestWaitForDemand_False()
+    public async Task TestWaitForDemand_Cancelled()
     {
         var executionEndArbiter = new Mock<IExecutionEndArbiter>();
         executionEndArbiter
@@ -1313,19 +1313,14 @@ public class JobRepositoryTests
             Options.Create(options));
         VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
 
-        // Start waiting for there to be a job demand
-        var stopwatch = Stopwatch.StartNew();
-        // The Task.Run wrapper is a bit silly for this particular test, but it keeps things more consistent with similar tests
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var demandTask = Task.Run(
-            () => jobRepository.WaitForJobDemandAsync(TimeSpan.FromMilliseconds(250),
-                TestContext.Current.CancellationToken),
+            () => jobRepository.WaitForJobDemandAsync(cts.Token),
             TestContext.Current.CancellationToken);
-        var demandResult = await demandTask;
-        stopwatch.Stop();
-        Assert.False(demandResult);
 
-        // Confirm that things took a moment to run
-        Assert.True(stopwatch.ElapsedMilliseconds > 150);
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => demandTask);
     }
 
     [Fact]
@@ -1355,14 +1350,13 @@ public class JobRepositoryTests
 
         // Start waiting for there to be a job demand
         var demandTask = Task.Run(
-            () => jobRepository.WaitForJobDemandAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken),
+            () => jobRepository.WaitForJobDemandAsync(TestContext.Current.CancellationToken),
             TestContext.Current.CancellationToken);
 
         // Demand a job. We don't care about this one finishing
         _ = Task.Run(() => jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken));
 
-        var demandResult = await demandTask;
-        Assert.True(demandResult);
+        await demandTask;
 
         // Sorter should not be invoked by GetNextJob
         Assert.Empty(sorter.Invocations);
