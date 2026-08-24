@@ -18,7 +18,7 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
 {
     private readonly CancellationTokenSource _cancellationTokenSource = new();
     private readonly ICoreConfigurationService _coreConfigurationService;
-    private readonly Lock _generalGate = new();
+    private readonly Lock _generalLock = new();
     private readonly ICoreHealthStateUpdateService _healthStateUpdateService;
     private readonly IJobIntakeService _jobIntakeService;
     private readonly IJobRepository _jobRepository;
@@ -35,7 +35,7 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
             return;
         }
 
-        lock (_generalGate)
+        lock (_generalLock)
         {
             if (_disposed)
             {
@@ -51,7 +51,7 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
 
     private void OnExecutionEndArbiterStop(Exception? exception)
     {
-        lock (_generalGate)
+        lock (_generalLock)
         {
             _cancellationTokenSource.Cancel();
         }
@@ -73,7 +73,7 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
         try
         {
             CancellationToken linkedToken;
-            lock (_generalGate)
+            lock (_generalLock)
             {
                 if (_disposed)
                 {
