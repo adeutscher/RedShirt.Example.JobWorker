@@ -13,31 +13,99 @@ using System.Diagnostics;
 namespace RedShirt.Example.JobWorker.Core.Services.Jobs.Polling;
 
 #pragma warning disable S107
-internal sealed class LoaderModeJobLoader(
-    IJobSource jobSource,
-    IExecutionEndArbiter executionEndArbiter,
-    IJobRepository jobRepository,
-    IJobIntakeService jobIntakeService,
-    ICoreHealthStateUpdateService healthStateUpdateService,
-    ILogger<LoaderModeJobLoader> logger,
-    ICoreConfigurationService coreConfigurationService,
-    IOptions<JobSourceConfigurationModel> jobSourceOptions) : IJobLoader
+internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
 #pragma warning restore S107
 {
+    private readonly CancellationTokenSource _cancellationTokenSource = new();
+    private readonly ICoreConfigurationService _coreConfigurationService;
+    private readonly Lock _generalLock = new();
+    private readonly ICoreHealthStateUpdateService _healthStateUpdateService;
+    private readonly IJobIntakeService _jobIntakeService;
+    private readonly IJobRepository _jobRepository;
+    private readonly IJobSource _jobSource;
+    private readonly IOptions<JobSourceConfigurationModel> _jobSourceOptions;
+    private readonly ILogger<LoaderModeJobLoader> _logger;
+
+    private bool _disposed;
+
+    private void Dispose(bool disposing)
+    {
+        if (!disposing)
+        {
+            return;
+        }
+
+        lock (_generalLock)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+        }
+
+        _cancellationTokenSource.Cancel();
+        _cancellationTokenSource.Dispose();
+    }
+
+    private void OnExecutionEndArbiterStop(Exception? exception)
+    {
+        lock (_generalLock)
+        {
+            _cancellationTokenSource.Cancel();
+        }
+    }
+
+    private async Task DoOperationWithLinkedToken(Func<CancellationToken, Task> operation,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        /*
+         * Construct a linked CTS to tie it to _cancellationTokenSource.
+         *
+         * Wrapping this like so instead of returning a token because otherwise
+         * the cancellation token source will be prematurely disposed.
+         */
+
+        CancellationTokenSource? linkedCts = null;
+        try
+        {
+            CancellationToken linkedToken;
+            lock (_generalLock)
+            {
+                if (_disposed)
+                {
+                    throw new OperationCanceledException();
+                }
+
+                linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken, _cancellationTokenSource.Token);
+                linkedToken = linkedCts.Token;
+            }
+
+            await operation(linkedToken);
+        }
+        finally
+        {
+            linkedCts?.Dispose();
+        }
+    }
+
     private async Task WaitForDemandAsync(CancellationToken cancellationToken)
     {
         // No configured backlog, so wait until the next worker needs something to do.
-        var totalWatchedJobs = await jobRepository.GetWatchedJobsCountAsync(cancellationToken);
+        var totalWatchedJobs = await _jobRepository.GetWatchedJobsCountAsync(cancellationToken);
         if (totalWatchedJobs > 0)
         {
-            // Need to periodically check to make sure that the overall worker is still running.
-            while (!await jobRepository.WaitForJobDemandAsync(TimeSpan.FromSeconds(5),
-                       cancellationToken))
+            try
             {
-                if (!executionEndArbiter.ShouldKeepRunning())
-                {
-                    throw new AbortJobLoaderLoopException();
-                }
+                await DoOperationWithLinkedToken(_jobRepository.WaitForJobDemandAsync, cancellationToken);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new AbortJobLoaderLoopException();
             }
         }
     }
@@ -49,25 +117,25 @@ internal sealed class LoaderModeJobLoader(
 
         try
         {
-            jobResponse = await jobSource.GetJobsAsync(
-                Math.Min(sizeToGet, jobSourceOptions.Value.EffectiveBatchSize),
+            jobResponse = await _jobSource.GetJobsAsync(
+                Math.Min(sizeToGet, _jobSourceOptions.Value.EffectiveBatchSize),
                 cancellationToken);
         }
 #pragma warning disable S2139
         catch (Exception e) when (e is not OperationCanceledException)
 #pragma warning restore S2139
         {
-            logger.LogError(e, "Unexpected error getting jobs from source");
-            healthStateUpdateService.NoteIncident();
+            _logger.LogError(e, "Unexpected error getting jobs from source");
+            _healthStateUpdateService.NoteIncident();
 
             if (e is WorkerJobSourceException {CouldBeTransient: true} &&
-                !coreConfigurationService.IsTreatingTransientExceptionAsFailure())
+                !_coreConfigurationService.IsTreatingTransientExceptionAsFailure())
             {
                 // Treat an anticipated transient error as a delay reason
                 throw new NoJobException();
             }
 
-            if (!coreConfigurationService.IsHaltOnFailure())
+            if (!_coreConfigurationService.IsHaltOnFailure())
             {
                 // Soft-fail: treat like an empty poll so the loader loop can back off and retry.
                 throw new NoJobException();
@@ -78,15 +146,45 @@ internal sealed class LoaderModeJobLoader(
         }
 
         stopwatch.Stop();
-        logger.LogTrace("Fetched {JobResponseItemsCount} jobs in {Elapsed}",
+        _logger.LogTrace("Fetched {JobResponseItemsCount} jobs in {Elapsed}",
             jobResponse.Items.Count,
             stopwatch);
         return jobResponse;
     }
 
+#pragma warning disable S107
+    public LoaderModeJobLoader(
+        IJobSource jobSource,
+        IExecutionEndArbiter executionEndArbiter,
+        IJobRepository jobRepository,
+        IJobIntakeService jobIntakeService,
+        ICoreHealthStateUpdateService healthStateUpdateService,
+        ILogger<LoaderModeJobLoader> logger,
+        ICoreConfigurationService coreConfigurationService,
+        IOptions<JobSourceConfigurationModel> jobSourceOptions)
+#pragma warning restore S107
+    {
+        _jobSource = jobSource;
+        _jobRepository = jobRepository;
+        _jobIntakeService = jobIntakeService;
+        _healthStateUpdateService = healthStateUpdateService;
+        _logger = logger;
+        _coreConfigurationService = coreConfigurationService;
+        _jobSourceOptions = jobSourceOptions;
+
+        executionEndArbiter.AddOnStopCallback(OnExecutionEndArbiterStop);
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        // ReSharper disable once GCSuppressFinalizeForTypeWithoutDestructor
+        GC.SuppressFinalize(this);
+    }
+
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        var backlogMaxCount = jobRepository.GetBacklogMaxCount();
+        var backlogMaxCount = _jobRepository.GetBacklogMaxCount();
         int sizeToGet;
 
         if (backlogMaxCount == 0)
@@ -97,11 +195,11 @@ internal sealed class LoaderModeJobLoader(
              * Using EffectiveBatchSize rather than the number of free workers is considered working
              * as intended for now. It is equivalent to the current logic of the default Batch mode.
              */
-            sizeToGet = jobSourceOptions.Value.EffectiveBatchSize;
+            sizeToGet = _jobSourceOptions.Value.EffectiveBatchSize;
         }
         else
         {
-            var inactiveJobCount = await jobRepository.GetInactiveJobCountAsync(cancellationToken);
+            var inactiveJobCount = await _jobRepository.GetInactiveJobCountAsync(cancellationToken);
             sizeToGet = backlogMaxCount - inactiveJobCount;
             if (sizeToGet <= 0)
             {
@@ -118,6 +216,6 @@ internal sealed class LoaderModeJobLoader(
             throw new NoJobException();
         }
 
-        await jobIntakeService.SubmitAsync(jobResponse, cancellationToken);
+        await _jobIntakeService.SubmitAsync(jobResponse, cancellationToken);
     }
 }
