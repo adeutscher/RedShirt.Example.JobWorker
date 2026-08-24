@@ -31,7 +31,7 @@ public interface ICoreStatisticsService
 public sealed class CoreStatisticsService : ICoreStatisticsService
 {
     private readonly DateTime _startedAtUtc = DateTime.UtcNow;
-    private readonly Lock _timingsGate = new();
+    private readonly Lock _timingsLock = new();
 
     private long _cancelledLifetimeTally;
     private long _failedLifetimeTally;
@@ -48,7 +48,7 @@ public sealed class CoreStatisticsService : ICoreStatisticsService
     {
         var ticks = Math.Max(0, duration.Ticks);
 
-        lock (_timingsGate)
+        lock (_timingsLock)
         {
             // Either the ulong duration sum (~1.84e19 ticks ≈ 58,000 years of
             // aggregated successful work) or the long success tally (~9.22e18) would need to overflow.
@@ -119,7 +119,7 @@ public sealed class CoreStatisticsService : ICoreStatisticsService
         TimeSpan min;
         TimeSpan max;
 
-        lock (_timingsGate)
+        lock (_timingsLock)
         {
             successful = _successfulLifetimeTally;
             if (successful == 0)
