@@ -13,7 +13,7 @@ using System.Diagnostics;
 namespace RedShirt.Example.JobWorker.Core.Services.Jobs.Polling;
 
 #pragma warning disable S107
-internal sealed class LoaderModeJobLoader : IJobLoader
+internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
 #pragma warning restore S107
 {
     private readonly CancellationTokenSource _cancellationTokenSource = new();
@@ -25,6 +25,29 @@ internal sealed class LoaderModeJobLoader : IJobLoader
     private readonly IJobSource _jobSource;
     private readonly IOptions<JobSourceConfigurationModel> _jobSourceOptions;
     private readonly ILogger<LoaderModeJobLoader> _logger;
+
+    private bool _disposed;
+
+    private void Dispose(bool disposing)
+    {
+        if (!disposing)
+        {
+            return;
+        }
+
+        lock (_generalGate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+        }
+
+        _cancellationTokenSource.Cancel();
+        _cancellationTokenSource.Dispose();
+    }
 
     private void OnExecutionEndArbiterStop(Exception? exception)
     {
@@ -52,6 +75,11 @@ internal sealed class LoaderModeJobLoader : IJobLoader
             CancellationToken linkedToken;
             lock (_generalGate)
             {
+                if (_disposed)
+                {
+                    throw new OperationCanceledException();
+                }
+
                 linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
                     cancellationToken, _cancellationTokenSource.Token);
                 linkedToken = linkedCts.Token;
@@ -145,6 +173,13 @@ internal sealed class LoaderModeJobLoader : IJobLoader
         _jobSourceOptions = jobSourceOptions;
 
         executionEndArbiter.AddOnStopCallback(OnExecutionEndArbiterStop);
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        // ReSharper disable once GCSuppressFinalizeForTypeWithoutDestructor
+        GC.SuppressFinalize(this);
     }
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
