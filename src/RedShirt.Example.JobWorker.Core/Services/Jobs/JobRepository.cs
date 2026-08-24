@@ -68,7 +68,7 @@ internal sealed class JobRepository : IJobRepository
     private readonly CancellationTokenSource _cancellationTokenSource = new();
 
     private readonly IExecutionEndArbiter _executionEndArbiter;
-    private readonly Lock _generalGate = new();
+    private readonly Lock _generalLock = new();
     private readonly SemaphoreSlim _inactiveJobsListSemaphore = new(1, 1);
     private readonly IJobLoaderStateReaderService _jobLoaderStateService;
 
@@ -82,7 +82,7 @@ internal sealed class JobRepository : IJobRepository
     ///     <see cref="_unblockedJobsQueue" /> and <see cref="_inactiveJobsList" />.
     ///     Lock order: <see cref="_inactiveJobsListSemaphore" /> then this gate.
     /// </summary>
-    private readonly Lock _jobsAvailableGate = new();
+    private readonly Lock _jobsAvailableLock = new();
 
     /// <summary>
     ///     Signalled when the repository has no watched jobs OR the repository was unable to produce an inactive job for a
@@ -101,7 +101,7 @@ internal sealed class JobRepository : IJobRepository
     /// <summary>
     ///     Guards Set/Reset of <see cref="_repositoryEmptyEvent" />.
     /// </summary>
-    private readonly Lock _repositoryEmptyGate = new();
+    private readonly Lock _repositoryEmptyLock = new();
 
     private readonly ISourceMessageSorter _sorter;
 
@@ -137,7 +137,7 @@ internal sealed class JobRepository : IJobRepository
     ///     Notes if <see cref="_jobsAvailableEvent" /> is set.
     ///     Created because of optimization paranoia to avoid unnecessary event sets/resets to
     ///     <see cref="_jobsAvailableEvent" />.
-    ///     Use should be gated behind <see cref="_jobsAvailableGate" />.
+    ///     Use should be gated behind <see cref="_jobsAvailableLock" />.
     /// </summary>
     private bool _jobsAvailableEventIsSet;
 
@@ -145,7 +145,7 @@ internal sealed class JobRepository : IJobRepository
     ///     Notes if <see cref="_repositoryEmptyEvent" /> is set.
     ///     Created because of optimization paranoia to avoid unnecessary event sets/resets to
     ///     <see cref="_repositoryEmptyEvent" />.
-    ///     Use should be gated behind <see cref="_repositoryEmptyGate" />.
+    ///     Use should be gated behind <see cref="_repositoryEmptyLock" />.
     /// </summary>
     private bool _repositoryEmptyEventIsSet = true;
 
@@ -163,7 +163,7 @@ internal sealed class JobRepository : IJobRepository
     /// </summary>
     private void ConsiderInterruptingEventWaits()
     {
-        lock (_generalGate)
+        lock (_generalLock)
         {
             if (_disposed)
             {
@@ -184,7 +184,7 @@ internal sealed class JobRepository : IJobRepository
             return;
         }
 
-        lock (_generalGate)
+        lock (_generalLock)
         {
             if (_disposed)
             {
@@ -237,7 +237,7 @@ internal sealed class JobRepository : IJobRepository
     /// </summary>
     private void SyncRepositoryEmptyEvent()
     {
-        lock (_repositoryEmptyGate)
+        lock (_repositoryEmptyLock)
         {
             bool isEmptyCondition;
             lock (_tallyLock)
@@ -270,7 +270,7 @@ internal sealed class JobRepository : IJobRepository
     /// </summary>
     private void SyncJobsAvailableEvent()
     {
-        lock (_jobsAvailableGate)
+        lock (_jobsAvailableLock)
         {
             bool isEmptyCondition;
             lock (_tallyLock)
@@ -389,7 +389,7 @@ internal sealed class JobRepository : IJobRepository
             return;
         }
 
-        lock (_jobsAvailableGate)
+        lock (_jobsAvailableLock)
         {
             // Identified as a newly-unblocked job.
             // Shortlist the job for re-execution in memory.
@@ -549,7 +549,7 @@ internal sealed class JobRepository : IJobRepository
         try
         {
             CancellationToken linkedToken;
-            lock (_generalGate)
+            lock (_generalLock)
             {
                 if (_disposed)
                 {
