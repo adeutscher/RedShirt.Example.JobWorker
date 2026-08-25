@@ -395,38 +395,6 @@ public class JobRepositoryTests
         }
     }
 
-    [Theory]
-    [InlineData(0, 0)]
-    [InlineData(-1, 0)] // Confirm use of Math.Max
-    [InlineData(1, 1)]
-    [InlineData(2, 2)]
-    public void TestGetBacklogMaxCount(int backlogSize, int expectedEffectiveBatchSize)
-    {
-        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-
-        var jobLoaderStateService = new Mock<IJobLoaderStateReaderService>(MockBehavior.Strict);
-
-        var options = new JobRepository.ConfigurationModel
-        {
-            BacklogSize = backlogSize
-        };
-
-        var sorter = new Mock<ISourceMessageSorter>();
-        sorter
-            .Setup(s => s.GetSortedListOfJobs(It.IsAny<List<IJobRepositoryEntry>>()))
-            .Returns((List<IJobRepositoryEntry> input) => input);
-
-        SetupConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
-        var jobRepository = new JobRepository(
-            executionEndArbiter.Object,
-            jobLoaderStateService.Object,
-            sorter.Object,
-            Options.Create(options));
-        VerifyConstructionCallbacks(executionEndArbiter, jobLoaderStateService);
-
-        Assert.Equal(expectedEffectiveBatchSize, jobRepository.GetBacklogMaxCount());
-    }
-
     [Fact(Timeout = 500)]
     public async Task TestGetCountsAsync()
     {

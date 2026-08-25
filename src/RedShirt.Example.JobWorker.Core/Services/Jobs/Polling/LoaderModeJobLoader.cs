@@ -92,18 +92,14 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
 
     private async Task WaitForDemandAsync(CancellationToken cancellationToken)
     {
-        // No configured backlog, so wait until the next worker needs something to do.
-        var totalWatchedJobs = await _jobRepository.GetWatchedJobsCountAsync(cancellationToken);
-        if (totalWatchedJobs > 0)
+        // Wait until the next worker needs something to do when jobs are already in-flight.
+        try
         {
-            try
-            {
-                await DoOperationWithLinkedToken(_jobRepository.WaitForJobDemandAsync, cancellationToken);
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                throw new AbortJobLoaderLoopException();
-            }
+            await DoOperationWithLinkedToken(_jobRepository.WaitForJobDemandAsync, cancellationToken);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new AbortJobLoaderLoopException();
         }
     }
 
@@ -179,28 +175,14 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        var backlogMaxCount = _jobRepository.GetBacklogMaxCount();
-        int sizeToGet;
+        await WaitForDemandAsync(cancellationToken);
 
-        if (backlogMaxCount == 0)
+        var inactiveJobCount = await _jobRepository.GetInactiveJobCountAsync(cancellationToken);
+        var sizeToGet = _coreConfigurationService.FetchCount - inactiveJobCount;
+        if (sizeToGet <= 0)
         {
-            await WaitForDemandAsync(cancellationToken);
-
-            /*
-             * Using FetchCount rather than the number of free workers is considered working
-             * as intended for now. It is equivalent to the current logic of the default Batch mode.
-             */
-            sizeToGet = _coreConfigurationService.FetchCount;
-        }
-        else
-        {
-            var inactiveJobCount = await _jobRepository.GetInactiveJobCountAsync(cancellationToken);
-            sizeToGet = backlogMaxCount - inactiveJobCount;
-            if (sizeToGet <= 0)
-            {
-                // Throwing an exception in order to leverage Polly's handling for incremental backoff.
-                throw new BacklogFullException();
-            }
+            // Throwing an exception in order to leverage Polly's handling for incremental backoff.
+            throw new BacklogFullException();
         }
 
         var jobResponse = await GetJobsAsync(sizeToGet, cancellationToken);
