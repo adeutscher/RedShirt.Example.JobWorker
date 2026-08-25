@@ -117,7 +117,7 @@ public class ServiceCollectionExtensionTests
     {
         var configuration = CreateConfiguration(new Dictionary<string, string?>
         {
-            ["JobSource:BatchSize"] = batchSize.ToString()
+            ["JobSource:FetchCount"] = batchSize.ToString()
         });
 
         var services = new ServiceCollection()
@@ -126,7 +126,7 @@ public class ServiceCollectionExtensionTests
         using var provider = services.BuildServiceProvider();
 
         var options = provider.GetRequiredService<IOptions<JobSourceConfigurationModel>>().Value;
-        Assert.Equal(batchSize, options.BatchSize);
+        Assert.Equal(batchSize, options.FetchCount);
     }
 
     [Theory]

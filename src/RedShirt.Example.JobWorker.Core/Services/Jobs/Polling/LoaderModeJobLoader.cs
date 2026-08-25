@@ -118,7 +118,7 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
         try
         {
             jobResponse = await _jobSource.GetJobsAsync(
-                Math.Min(sizeToGet, _jobSourceOptions.Value.EffectiveBatchSize),
+                Math.Min(sizeToGet, _jobSourceOptions.Value.EffectiveFetchCount),
                 cancellationToken);
         }
 #pragma warning disable S2139
@@ -192,10 +192,10 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
             await WaitForDemandAsync(cancellationToken);
 
             /*
-             * Using EffectiveBatchSize rather than the number of free workers is considered working
+             * Using EffectiveFetchCount rather than the number of free workers is considered working
              * as intended for now. It is equivalent to the current logic of the default Batch mode.
              */
-            sizeToGet = _jobSourceOptions.Value.EffectiveBatchSize;
+            sizeToGet = _jobSourceOptions.Value.EffectiveFetchCount;
         }
         else
         {

@@ -30,7 +30,7 @@ internal sealed class BatchModeJobLoader(
 
         try
         {
-            jobResponse = await jobSource.GetJobsAsync(jobSourceOptions.Value.EffectiveBatchSize, cancellationToken);
+            jobResponse = await jobSource.GetJobsAsync(jobSourceOptions.Value.EffectiveFetchCount, cancellationToken);
         }
 #pragma warning disable S2139
         catch (Exception e) when (e is not OperationCanceledException)

@@ -19,7 +19,7 @@ public class CoreConfigurationServiceTests
             Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
             Options.Create(new JobRepository.ConfigurationModel {BacklogSize = configuredBacklogSize}));
 
-        Assert.Equal(expectedBacklogSize, service.GetBacklogSize());
+        Assert.Equal(expectedBacklogSize, service.GetFetchCount());
     }
 
     [Theory]

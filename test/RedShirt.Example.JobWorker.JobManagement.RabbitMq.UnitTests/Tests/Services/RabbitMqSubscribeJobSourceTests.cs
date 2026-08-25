@@ -32,7 +32,7 @@ public class RabbitMqSubscribeJobSourceTests
         bool treatTransientExceptionAsFailure = false)
     {
         var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
-        coreConfiguration.Setup(c => c.GetBacklogSize()).Returns(backlogSize);
+        coreConfiguration.Setup(c => c.GetFetchCount()).Returns(backlogSize);
         coreConfiguration.Setup(c => c.IsHaltOnFailure()).Returns(haltOnFailure);
         coreConfiguration.Setup(c => c.IsTreatingTransientExceptionAsFailure())
             .Returns(treatTransientExceptionAsFailure);

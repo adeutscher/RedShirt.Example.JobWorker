@@ -10,10 +10,10 @@ namespace RedShirt.Example.JobWorker.Core.Services.Configuration;
 public interface ICoreConfigurationService
 {
     /// <summary>
-    ///     Maximum number of jobs the worker should hold in backlog.
+    ///     Maximum number of jobs the worker should fetch and hold in-flight.
     ///     Callers may assume the returned value is at least <c>1</c>.
     /// </summary>
-    int GetBacklogSize();
+    int GetFetchCount();
 
     bool IsHaltOnFailure();
 
@@ -38,7 +38,7 @@ internal sealed class CoreConfigurationService(
         return coreOptions.Value.TreatTransientExceptionAsFailure;
     }
 
-    public int GetBacklogSize()
+    public int GetFetchCount()
     {
         return jobRepositoryOptions.Value.EffectiveBacklogSize;
     }

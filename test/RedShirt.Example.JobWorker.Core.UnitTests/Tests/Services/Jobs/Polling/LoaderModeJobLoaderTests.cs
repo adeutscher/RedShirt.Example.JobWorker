@@ -77,7 +77,7 @@ public class LoaderModeJobLoaderTests
             CreateHealthStateUpdateService(),
             new NullLogger<LoaderModeJobLoader>(),
             CreateCoreConfigurationService(),
-            Options.Create(new JobSourceConfigurationModel {BatchSize = 3}));
+            Options.Create(new JobSourceConfigurationModel {FetchCount = 3}));
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
@@ -105,7 +105,7 @@ public class LoaderModeJobLoaderTests
             CreateHealthStateUpdateService(),
             new NullLogger<LoaderModeJobLoader>(),
             CreateCoreConfigurationService(),
-            Options.Create(new JobSourceConfigurationModel {BatchSize = 5}));
+            Options.Create(new JobSourceConfigurationModel {FetchCount = 5}));
 
         await Assert.ThrowsAsync<BacklogFullException>(() =>
             loader.RunAsync(TestContext.Current.CancellationToken));
@@ -146,7 +146,7 @@ public class LoaderModeJobLoaderTests
             CreateHealthStateUpdateService(),
             new NullLogger<LoaderModeJobLoader>(),
             CreateCoreConfigurationService(),
-            Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
+            Options.Create(new JobSourceConfigurationModel {FetchCount = 1}));
 
         var runTask = loader.RunAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(onStop);
@@ -189,7 +189,7 @@ public class LoaderModeJobLoaderTests
             CreateHealthStateUpdateService(),
             new NullLogger<LoaderModeJobLoader>(),
             CreateCoreConfigurationService(),
-            Options.Create(new JobSourceConfigurationModel {BatchSize = 2}));
+            Options.Create(new JobSourceConfigurationModel {FetchCount = 2}));
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
@@ -231,7 +231,7 @@ public class LoaderModeJobLoaderTests
             CreateHealthStateUpdateService(),
             new NullLogger<LoaderModeJobLoader>(),
             CreateCoreConfigurationService(),
-            Options.Create(new JobSourceConfigurationModel {BatchSize = 3}));
+            Options.Create(new JobSourceConfigurationModel {FetchCount = 3}));
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
@@ -267,7 +267,7 @@ public class LoaderModeJobLoaderTests
             CreateHealthStateUpdateService(),
             new NullLogger<LoaderModeJobLoader>(),
             CreateCoreConfigurationService(true),
-            Options.Create(new JobSourceConfigurationModel {BatchSize = 2}));
+            Options.Create(new JobSourceConfigurationModel {FetchCount = 2}));
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             loader.RunAsync(TestContext.Current.CancellationToken));
@@ -302,7 +302,7 @@ public class LoaderModeJobLoaderTests
             CreateHealthStateUpdateService(),
             new NullLogger<LoaderModeJobLoader>(),
             CreateCoreConfigurationService(),
-            Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
+            Options.Create(new JobSourceConfigurationModel {FetchCount = 1}));
 
         await Assert.ThrowsAsync<NoJobException>(() => loader.RunAsync(TestContext.Current.CancellationToken));
 
@@ -342,7 +342,7 @@ public class LoaderModeJobLoaderTests
             health.Object,
             new NullLogger<LoaderModeJobLoader>(),
             CreateCoreConfigurationService(true, true),
-            Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
+            Options.Create(new JobSourceConfigurationModel {FetchCount = 1}));
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             loader.RunAsync(TestContext.Current.CancellationToken));
@@ -382,7 +382,7 @@ public class LoaderModeJobLoaderTests
             health.Object,
             new NullLogger<LoaderModeJobLoader>(),
             CreateCoreConfigurationService(),
-            Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
+            Options.Create(new JobSourceConfigurationModel {FetchCount = 1}));
 
         await Assert.ThrowsAsync<NoJobException>(() => loader.RunAsync(TestContext.Current.CancellationToken));
 
@@ -419,7 +419,7 @@ public class LoaderModeJobLoaderTests
             health.Object,
             new NullLogger<LoaderModeJobLoader>(),
             CreateCoreConfigurationService(),
-            Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
+            Options.Create(new JobSourceConfigurationModel {FetchCount = 1}));
 
         await Assert.ThrowsAsync<NoJobException>(() =>
             loader.RunAsync(TestContext.Current.CancellationToken));
@@ -454,7 +454,7 @@ public class LoaderModeJobLoaderTests
             health.Object,
             new NullLogger<LoaderModeJobLoader>(),
             CreateCoreConfigurationService(true),
-            Options.Create(new JobSourceConfigurationModel {BatchSize = 1}));
+            Options.Create(new JobSourceConfigurationModel {FetchCount = 1}));
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             loader.RunAsync(TestContext.Current.CancellationToken));
