@@ -40,6 +40,18 @@ public class LoaderModeJobLoaderTests
         return health.Object;
     }
 
+    private static Mock<IJobRepository> CreateJobRepository(int watchedJobCount = 0)
+    {
+        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
+        jobRepository
+            .Setup(r => r.WaitForJobDemandAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        jobRepository
+            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
+            .ReturnsAsync(watchedJobCount);
+        return jobRepository;
+    }
+
     private static IJobSourceResponse CreateJobSourceResponse(List<IRawJobModel> items)
     {
         var response = new Mock<IJobSourceResponse>(MockBehavior.Strict);
@@ -48,19 +60,13 @@ public class LoaderModeJobLoaderTests
     }
 
     [Fact]
-    public async Task RunAsync_WhenBacklogHasCapacity_FetchesMinOfFreeSlotsAndBatchSizeThenSubmits()
+    public async Task RunAsync_WhenBacklogHasCapacity_FetchesMinOfFreeSlotsAndFetchCountThenSubmits()
     {
         var response = CreateJobSourceResponse([new Mock<IRawJobModel>(MockBehavior.Strict).Object]);
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(1);
+        var jobRepository = CreateJobRepository(1);
 
-        // free slots = FetchCount 3 - inactive 1 → request 2
+        // free slots = FetchCount 3 - watched 1 → request 2
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
             .Setup(s => s.GetJobsAsync(2, TestContext.Current.CancellationToken))
@@ -82,6 +88,7 @@ public class LoaderModeJobLoaderTests
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
+        jobRepository.Verify(r => r.WaitForJobDemandAsync(It.IsAny<CancellationToken>()), Times.Once);
         jobSource.Verify(s => s.GetJobsAsync(2, TestContext.Current.CancellationToken), Times.Once);
         jobIntakeService.Verify(s => s.SubmitAsync(response, TestContext.Current.CancellationToken), Times.Once);
     }
@@ -89,14 +96,7 @@ public class LoaderModeJobLoaderTests
     [Fact]
     public async Task RunAsync_WhenBacklogIsFull_ThrowsBacklogFullException()
     {
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(2);
-
+        var jobRepository = CreateJobRepository(2);
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
 
@@ -112,6 +112,7 @@ public class LoaderModeJobLoaderTests
         await Assert.ThrowsAsync<BacklogFullException>(() =>
             loader.RunAsync(TestContext.Current.CancellationToken));
 
+        jobRepository.Verify(r => r.WaitForJobDemandAsync(It.IsAny<CancellationToken>()), Times.Once);
         jobSource.Verify(s => s.GetJobsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
         jobIntakeService.Verify(
             s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
@@ -122,9 +123,6 @@ public class LoaderModeJobLoaderTests
     public async Task RunAsync_WhenDemandWaitIsCancelledByExecutionEnd_ThrowsAbortJobLoaderLoopException()
     {
         var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(1);
         jobRepository
             .Setup(r => r.WaitForJobDemandAsync(It.IsAny<CancellationToken>()))
             .Returns((CancellationToken cancellationToken) =>
@@ -161,17 +159,11 @@ public class LoaderModeJobLoaderTests
     }
 
     [Fact]
-    public async Task RunAsync_WhenInactiveCountIsZero_FetchesFullFetchCountThenSubmits()
+    public async Task RunAsync_WhenWatchedCountIsZero_WaitsForDemandThenFetchesFullFetchCount()
     {
         var response = CreateJobSourceResponse([new Mock<IRawJobModel>(MockBehavior.Strict).Object]);
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
+        var jobRepository = CreateJobRepository();
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
@@ -194,48 +186,9 @@ public class LoaderModeJobLoaderTests
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
+        jobRepository.Verify(r => r.WaitForJobDemandAsync(It.IsAny<CancellationToken>()), Times.Once);
         jobIntakeService.Verify(s => s.SubmitAsync(response, TestContext.Current.CancellationToken), Times.Once);
         jobSource.Verify(s => s.GetJobsAsync(3, TestContext.Current.CancellationToken), Times.Once);
-    }
-
-    [Fact]
-    public async Task RunAsync_WhenNoBacklogAndNoWatchedJobs_FetchesEffectiveBatchSize()
-    {
-        var response = CreateJobSourceResponse([new Mock<IRawJobModel>(MockBehavior.Strict).Object]);
-
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
-
-        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
-        jobSource
-            .Setup(s => s.GetJobsAsync(2, TestContext.Current.CancellationToken))
-            .ReturnsAsync(response);
-
-        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
-        jobIntakeService
-            .Setup(s => s.SubmitAsync(response, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
-
-        var loader = new LoaderModeJobLoader(
-            jobSource.Object,
-            CreateExecutionEndArbiter().Object,
-            jobRepository.Object,
-            jobIntakeService.Object,
-            CreateHealthStateUpdateService(),
-            CreateCoreConfigurationService(fetchCount: 2),
-            new NullLogger<LoaderModeJobLoader>());
-
-        await loader.RunAsync(TestContext.Current.CancellationToken);
-
-        jobSource.Verify(s => s.GetJobsAsync(2, TestContext.Current.CancellationToken), Times.Once);
-        jobRepository.Verify(
-            r => r.WaitForJobDemandAsync(It.IsAny<CancellationToken>()),
-            Times.Never);
     }
 
     [Fact]
@@ -244,13 +197,7 @@ public class LoaderModeJobLoaderTests
         var permanent = new WorkerJobSourceException("unknown topic")
             {CouldBeTransient = false, IsHandled = false, CouldBeExternallySolvable = false};
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
+        var jobRepository = CreateJobRepository();
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
@@ -280,13 +227,7 @@ public class LoaderModeJobLoaderTests
     [Fact]
     public async Task RunAsync_WhenSourceReturnsNoJobs_ThrowsNoJobException()
     {
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
+        var jobRepository = CreateJobRepository();
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
@@ -318,13 +259,7 @@ public class LoaderModeJobLoaderTests
         var transient = new WorkerJobSourceException("transient pull")
             {CouldBeTransient = true, IsHandled = false, CouldBeExternallySolvable = true};
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
+        var jobRepository = CreateJobRepository();
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
@@ -358,13 +293,7 @@ public class LoaderModeJobLoaderTests
     [Fact]
     public async Task RunAsync_WhenTransientWorkerJobSourceException_ThrowsNoJobException()
     {
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
+        var jobRepository = CreateJobRepository();
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
@@ -399,13 +328,7 @@ public class LoaderModeJobLoaderTests
     {
         var unexpected = new InvalidOperationException("auth failed");
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
+        var jobRepository = CreateJobRepository();
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
@@ -435,13 +358,7 @@ public class LoaderModeJobLoaderTests
     {
         var unexpected = new InvalidOperationException("auth failed");
 
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
+        var jobRepository = CreateJobRepository();
 
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         jobSource
@@ -465,47 +382,5 @@ public class LoaderModeJobLoaderTests
 
         Assert.Same(unexpected, thrown);
         health.Verify(h => h.NoteIncident(), Times.Once);
-    }
-
-    [Fact]
-    public async Task RunAsync_WhenWatchedJobsExist_WaitsForDemandThenSubmits()
-    {
-        var response = CreateJobSourceResponse([new Mock<IRawJobModel>(MockBehavior.Strict).Object]);
-
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetWatchedJobsCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(2);
-        jobRepository
-            .Setup(r => r.WaitForJobDemandAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        jobRepository
-            .Setup(r => r.GetInactiveJobCountAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(0);
-
-        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
-        jobSource
-            .Setup(s => s.GetJobsAsync(3, TestContext.Current.CancellationToken))
-            .ReturnsAsync(response);
-
-        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
-        jobIntakeService
-            .Setup(s => s.SubmitAsync(response, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
-
-        var loader = new LoaderModeJobLoader(
-            jobSource.Object,
-            CreateExecutionEndArbiter().Object,
-            jobRepository.Object,
-            jobIntakeService.Object,
-            CreateHealthStateUpdateService(),
-            CreateCoreConfigurationService(fetchCount: 3),
-            new NullLogger<LoaderModeJobLoader>());
-
-        await loader.RunAsync(TestContext.Current.CancellationToken);
-
-        jobRepository.Verify(r => r.WaitForJobDemandAsync(It.IsAny<CancellationToken>()), Times.Once);
-        jobIntakeService.Verify(s => s.SubmitAsync(response, TestContext.Current.CancellationToken), Times.Once);
-        jobSource.Verify(s => s.GetJobsAsync(3, TestContext.Current.CancellationToken), Times.Once);
     }
 }

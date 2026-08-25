@@ -177,8 +177,8 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
     {
         await WaitForDemandAsync(cancellationToken);
 
-        var inactiveJobCount = await _jobRepository.GetInactiveJobCountAsync(cancellationToken);
-        var sizeToGet = _coreConfigurationService.FetchCount - inactiveJobCount;
+        var watchedJobCount = await _jobRepository.GetWatchedJobsCountAsync(cancellationToken);
+        var sizeToGet = _coreConfigurationService.FetchCount - watchedJobCount;
         if (sizeToGet <= 0)
         {
             // Throwing an exception in order to leverage Polly's handling for incremental backoff.
