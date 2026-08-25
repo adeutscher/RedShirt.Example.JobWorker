@@ -1,6 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions.MessagePolling;
 using RedShirt.Example.JobWorker.Core.Models;
@@ -23,7 +21,6 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
     private readonly IJobIntakeService _jobIntakeService;
     private readonly IJobRepository _jobRepository;
     private readonly IJobSource _jobSource;
-    private readonly IOptions<JobSourceConfigurationModel> _jobSourceOptions;
     private readonly ILogger<LoaderModeJobLoader> _logger;
 
     private bool _disposed;
@@ -118,7 +115,7 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
         try
         {
             jobResponse = await _jobSource.GetJobsAsync(
-                Math.Min(sizeToGet, _jobSourceOptions.Value.EffectiveFetchCount),
+                Math.Min(sizeToGet, _coreConfigurationService.FetchCount),
                 cancellationToken);
         }
 #pragma warning disable S2139
@@ -159,18 +156,16 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
         IJobRepository jobRepository,
         IJobIntakeService jobIntakeService,
         ICoreHealthStateUpdateService healthStateUpdateService,
-        ILogger<LoaderModeJobLoader> logger,
         ICoreConfigurationService coreConfigurationService,
-        IOptions<JobSourceConfigurationModel> jobSourceOptions)
+        ILogger<LoaderModeJobLoader> logger)
 #pragma warning restore S107
     {
         _jobSource = jobSource;
         _jobRepository = jobRepository;
         _jobIntakeService = jobIntakeService;
         _healthStateUpdateService = healthStateUpdateService;
-        _logger = logger;
         _coreConfigurationService = coreConfigurationService;
-        _jobSourceOptions = jobSourceOptions;
+        _logger = logger;
 
         executionEndArbiter.AddOnStopCallback(OnExecutionEndArbiterStop);
     }
@@ -192,10 +187,10 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
             await WaitForDemandAsync(cancellationToken);
 
             /*
-             * Using EffectiveFetchCount rather than the number of free workers is considered working
+             * Using FetchCount rather than the number of free workers is considered working
              * as intended for now. It is equivalent to the current logic of the default Batch mode.
              */
-            sizeToGet = _jobSourceOptions.Value.EffectiveFetchCount;
+            sizeToGet = _coreConfigurationService.FetchCount;
         }
         else
         {
