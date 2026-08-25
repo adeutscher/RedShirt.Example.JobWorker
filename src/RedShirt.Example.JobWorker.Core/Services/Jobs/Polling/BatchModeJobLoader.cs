@@ -1,6 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -19,9 +17,8 @@ internal sealed class BatchModeJobLoader(
     IJobRepository jobRepository,
     IJobIntakeService jobIntakeService,
     ICoreHealthStateUpdateService healthStateUpdateService,
-    ILogger<BatchModeJobLoader> logger,
     ICoreConfigurationService coreConfigurationService,
-    IOptions<JobSourceConfigurationModel> jobSourceOptions) : IJobLoader
+    ILogger<BatchModeJobLoader> logger) : IJobLoader
 {
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
@@ -30,7 +27,7 @@ internal sealed class BatchModeJobLoader(
 
         try
         {
-            jobResponse = await jobSource.GetJobsAsync(jobSourceOptions.Value.EffectiveFetchCount, cancellationToken);
+            jobResponse = await jobSource.GetJobsAsync(coreConfigurationService.FetchCount, cancellationToken);
         }
 #pragma warning disable S2139
         catch (Exception e) when (e is not OperationCanceledException)

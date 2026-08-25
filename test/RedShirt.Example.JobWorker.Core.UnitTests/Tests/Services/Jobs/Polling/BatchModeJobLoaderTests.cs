@@ -1,6 +1,4 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
@@ -15,9 +13,11 @@ public class BatchModeJobLoaderTests
 {
     private static ICoreConfigurationService CreateCoreConfigurationService(
         bool haltOnFailure = false,
-        bool treatTransientExceptionAsFailure = false)
+        bool treatTransientExceptionAsFailure = false,
+        int fetchCount = 10)
     {
         var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
+        coreConfiguration.SetupGet(c => c.FetchCount).Returns(fetchCount);
         coreConfiguration.SetupGet(c => c.IsHaltOnFailure).Returns(haltOnFailure);
         coreConfiguration.SetupGet(c => c.IsTreatingTransientExceptionAsFailure)
             .Returns(treatTransientExceptionAsFailure);
@@ -63,9 +63,8 @@ public class BatchModeJobLoaderTests
             jobRepository.Object,
             jobIntakeService.Object,
             CreateHealthStateUpdateService(),
-            new NullLogger<BatchModeJobLoader>(),
-            CreateCoreConfigurationService(),
-            Options.Create(new JobSourceConfigurationModel {FetchCount = 0}));
+            CreateCoreConfigurationService(fetchCount: 1),
+            new NullLogger<BatchModeJobLoader>());
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
@@ -105,9 +104,8 @@ public class BatchModeJobLoaderTests
             jobRepository.Object,
             jobIntakeService.Object,
             CreateHealthStateUpdateService(),
-            new NullLogger<BatchModeJobLoader>(),
             CreateCoreConfigurationService(),
-            Options.Create(new JobSourceConfigurationModel {FetchCount = 10}));
+            new NullLogger<BatchModeJobLoader>());
 
         await loader.RunAsync(TestContext.Current.CancellationToken);
 
@@ -133,9 +131,8 @@ public class BatchModeJobLoaderTests
             jobRepository.Object,
             jobIntakeService.Object,
             CreateHealthStateUpdateService(),
-            new NullLogger<BatchModeJobLoader>(),
             CreateCoreConfigurationService(true),
-            Options.Create(new JobSourceConfigurationModel {FetchCount = 10}));
+            new NullLogger<BatchModeJobLoader>());
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             loader.RunAsync(TestContext.Current.CancellationToken));
@@ -163,9 +160,8 @@ public class BatchModeJobLoaderTests
             jobRepository.Object,
             jobIntakeService.Object,
             CreateHealthStateUpdateService(),
-            new NullLogger<BatchModeJobLoader>(),
-            CreateCoreConfigurationService(),
-            Options.Create(new JobSourceConfigurationModel {FetchCount = 5}));
+            CreateCoreConfigurationService(fetchCount: 5),
+            new NullLogger<BatchModeJobLoader>());
 
         await Assert.ThrowsAsync<NoJobException>(() => loader.RunAsync(TestContext.Current.CancellationToken));
 
@@ -198,9 +194,8 @@ public class BatchModeJobLoaderTests
             jobRepository.Object,
             jobIntakeService.Object,
             health.Object,
-            new NullLogger<BatchModeJobLoader>(),
             CreateCoreConfigurationService(true, true),
-            Options.Create(new JobSourceConfigurationModel {FetchCount = 10}));
+            new NullLogger<BatchModeJobLoader>());
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             loader.RunAsync(TestContext.Current.CancellationToken));
@@ -232,9 +227,8 @@ public class BatchModeJobLoaderTests
             jobRepository.Object,
             jobIntakeService.Object,
             health.Object,
-            new NullLogger<BatchModeJobLoader>(),
             CreateCoreConfigurationService(),
-            Options.Create(new JobSourceConfigurationModel {FetchCount = 10}));
+            new NullLogger<BatchModeJobLoader>());
 
         await Assert.ThrowsAsync<NoJobException>(() => loader.RunAsync(TestContext.Current.CancellationToken));
 
@@ -262,9 +256,8 @@ public class BatchModeJobLoaderTests
             new Mock<IJobRepository>(MockBehavior.Strict).Object,
             new Mock<IJobIntakeService>(MockBehavior.Strict).Object,
             health.Object,
-            new NullLogger<BatchModeJobLoader>(),
             CreateCoreConfigurationService(),
-            Options.Create(new JobSourceConfigurationModel {FetchCount = 10}));
+            new NullLogger<BatchModeJobLoader>());
 
         await Assert.ThrowsAsync<NoJobException>(() =>
             loader.RunAsync(TestContext.Current.CancellationToken));
@@ -290,9 +283,8 @@ public class BatchModeJobLoaderTests
             new Mock<IJobRepository>(MockBehavior.Strict).Object,
             new Mock<IJobIntakeService>(MockBehavior.Strict).Object,
             health.Object,
-            new NullLogger<BatchModeJobLoader>(),
             CreateCoreConfigurationService(true),
-            Options.Create(new JobSourceConfigurationModel {FetchCount = 10}));
+            new NullLogger<BatchModeJobLoader>());
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             loader.RunAsync(TestContext.Current.CancellationToken));
