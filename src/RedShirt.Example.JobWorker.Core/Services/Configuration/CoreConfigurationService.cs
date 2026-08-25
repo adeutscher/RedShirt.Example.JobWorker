@@ -1,11 +1,11 @@
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Configuration;
-using RedShirt.Example.JobWorker.Core.Services.Jobs;
+using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Configuration;
 
 /// <summary>
-///     Provides access to core runtime configuration values.
+///     Provides centralized access to core runtime configuration values to be available in Core and job source projects.
 /// </summary>
 public interface ICoreConfigurationService
 {
@@ -13,33 +13,28 @@ public interface ICoreConfigurationService
     ///     Maximum number of jobs the worker should fetch and hold in-flight.
     ///     Callers may assume the returned value is at least <c>1</c>.
     /// </summary>
-    int GetFetchCount();
-
-    bool IsHaltOnFailure();
+    int FetchCount { get; }
 
     /// <summary>
-    ///     When true, transient exceptions are escalated and treated as unexpected errors.
+    ///     Indicates that the application should be stopped in the event of a serious unhandled exception.
+    ///     A graceful stop should be initiated by feeding the caught exception into <see cref="IExecutionEndArbiter" />.
+    /// </summary>
+    bool IsHaltOnFailure { get; }
+
+    /// <summary>
+    ///     When <c>true</c>, transient exceptions are escalated and treated as unexpected errors.
     ///     Largely intended for debugging some cases without having to temporarily break exception handling in code.
     /// </summary>
-    bool IsTreatingTransientExceptionAsFailure();
+    bool IsTreatingTransientExceptionAsFailure { get; }
 }
 
 internal sealed class CoreConfigurationService(
     IOptions<CoreConfigurationModel> coreOptions,
-    IOptions<JobRepository.ConfigurationModel> jobRepositoryOptions) : ICoreConfigurationService
+    IOptions<JobSourceConfigurationModel> jobSourceOptions) : ICoreConfigurationService
 {
-    public bool IsHaltOnFailure()
-    {
-        return coreOptions.Value.HaltOnFailure;
-    }
+    public int FetchCount => jobSourceOptions.Value.EffectiveFetchCount;
 
-    public bool IsTreatingTransientExceptionAsFailure()
-    {
-        return coreOptions.Value.TreatTransientExceptionAsFailure;
-    }
+    public bool IsHaltOnFailure => coreOptions.Value.HaltOnFailure;
 
-    public int GetFetchCount()
-    {
-        return jobRepositoryOptions.Value.EffectiveBacklogSize;
-    }
+    public bool IsTreatingTransientExceptionAsFailure => coreOptions.Value.TreatTransientExceptionAsFailure;
 }

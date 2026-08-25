@@ -18,8 +18,8 @@ public class BatchModeJobLoaderTests
         bool treatTransientExceptionAsFailure = false)
     {
         var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
-        coreConfiguration.Setup(c => c.IsHaltOnFailure()).Returns(haltOnFailure);
-        coreConfiguration.Setup(c => c.IsTreatingTransientExceptionAsFailure())
+        coreConfiguration.SetupGet(c => c.IsHaltOnFailure).Returns(haltOnFailure);
+        coreConfiguration.SetupGet(c => c.IsTreatingTransientExceptionAsFailure)
             .Returns(treatTransientExceptionAsFailure);
         return coreConfiguration.Object;
     }

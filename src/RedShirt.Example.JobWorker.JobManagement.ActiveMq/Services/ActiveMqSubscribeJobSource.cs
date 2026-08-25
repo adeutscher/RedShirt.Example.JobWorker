@@ -136,13 +136,13 @@ internal class ActiveMqSubscribeJobSource(
                     logger.LogError(e, "Error {LogVerb} to ActiveMQ", logVerb);
 
                     if (e is WorkerJobSourceException {CouldBeTransient: true} &&
-                        !coreConfigurationService.IsTreatingTransientExceptionAsFailure())
+                        !coreConfigurationService.IsTreatingTransientExceptionAsFailure)
                     {
                         // Transient: Retry and try again
                         continue;
                     }
 
-                    if (!coreConfigurationService.IsHaltOnFailure())
+                    if (!coreConfigurationService.IsHaltOnFailure)
                     {
                         // Not halting on failure, continue and try again
                         continue;

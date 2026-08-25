@@ -129,13 +129,13 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
             _healthStateUpdateService.NoteIncident();
 
             if (e is WorkerJobSourceException {CouldBeTransient: true} &&
-                !_coreConfigurationService.IsTreatingTransientExceptionAsFailure())
+                !_coreConfigurationService.IsTreatingTransientExceptionAsFailure)
             {
                 // Treat an anticipated transient error as a delay reason
                 throw new NoJobException();
             }
 
-            if (!_coreConfigurationService.IsHaltOnFailure())
+            if (!_coreConfigurationService.IsHaltOnFailure)
             {
                 // Soft-fail: treat like an empty poll so the loader loop can back off and retry.
                 throw new NoJobException();
