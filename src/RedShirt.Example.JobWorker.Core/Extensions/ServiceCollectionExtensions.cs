@@ -47,7 +47,6 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IJobIntakeService, JobIntakeService>()
             .AddSingleton<IJobRepository, JobRepository>()
             .AddSingleton<ICoreConfigurationService, CoreConfigurationService>()
-            .Configure<JobRepository.ConfigurationModel>(coreSection)
             .AddSingleton<IJobLoaderStateService, JobLoaderStateService>()
             .AddSingleton<IJobLoaderStateReaderService>(provider =>
                 provider.GetRequiredService<IJobLoaderStateService>())

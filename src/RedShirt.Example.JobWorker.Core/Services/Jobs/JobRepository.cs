@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
@@ -19,7 +18,6 @@ internal interface IJobRepository : IDisposable
 {
     Task<List<IJobRepositoryEntry>> GetAllIdempotencyBlockedJobsAsync(CancellationToken cancellationToken = default);
     Task<List<IJobRepositoryEntry>> GetAllInFlightJobsAsync(CancellationToken cancellationToken = default);
-    Task<int> GetInactiveJobCountAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Wait until the next job is available for execution.
@@ -578,8 +576,7 @@ internal sealed class JobRepository : IJobRepository
 
     public JobRepository(IExecutionEndArbiter executionEndArbiter,
         IJobLoaderStateReaderService jobLoaderStateReaderService,
-        ISourceMessageSorter sourceMessageSorter,
-        IOptions<ConfigurationModel> _)
+        ISourceMessageSorter sourceMessageSorter)
     {
         _executionEndArbiter = executionEndArbiter;
         _jobLoaderStateService = jobLoaderStateReaderService;
@@ -870,22 +867,6 @@ internal sealed class JobRepository : IJobRepository
         }
     }
 
-    public async Task<int> GetInactiveJobCountAsync(CancellationToken cancellationToken = default)
-    {
-        await _watchedJobsListSemaphore.WaitAsync(cancellationToken);
-
-        try
-        {
-            var count = WatchedJobs.Count(job => job.State == JobState.Inactive);
-
-            return count;
-        }
-        finally
-        {
-            _watchedJobsListSemaphore.Release();
-        }
-    }
-
     public void Dispose()
     {
         Dispose(true);
@@ -897,10 +878,5 @@ internal sealed class JobRepository : IJobRepository
     {
         public required bool Success { get; init; }
         public required IJobRepositoryEntry? Result { get; init; }
-    }
-
-    internal sealed class ConfigurationModel
-    {
-        public required int BacklogSize { get; init; }
     }
 }
