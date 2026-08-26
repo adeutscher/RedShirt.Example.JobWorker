@@ -268,7 +268,7 @@ To initialize RabbitMQ and queue messages:
 
     ```bash
     export USE_RABBITMQ=1
-    export USE_RABBITMQ_SUBSCRIBE=0
+    export USE_RABBITMQ_SUBSCRIBE=false
     export USE_KINESIS=0
     export USE_KAFKA=0
     export USE_PULSAR=0
@@ -281,7 +281,7 @@ To initialize RabbitMQ and queue messages:
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
-7. By default, RabbitMQ implements a short polling strategy. If you want to have RabbitMQ instead subscribe to a queue, then set `JOB_SOURCE__RABBITMQ__SUBSCRIBE`:
+7. By default, RabbitMQ uses a short polling strategy. If you want to have RabbitMQ instead subscribe to a queue, then set `JOB_SOURCE__RABBITMQ__SUBSCRIBE`:
 
     ```bash
     export JOB_SOURCE__RABBITMQ__SUBSCRIBE=true
@@ -291,6 +291,14 @@ To initialize RabbitMQ and queue messages:
     ```bash
     docker compose up worker
     ```
+
+#### Credential Rotation
+
+The following chain of commands might be useful if you are testing credential rotation combined with connection problems:
+
+```bash
+export RABBITMQ_DEFAULT_PASS=$(uuidgen); docker compose down rabbitmq; docker compose up -d rabbitmq ; sleep 4; ./make-local-rabbitmq-resources.py; awslocal ssm put-parameter --overwrite --type String --name /rabbitmq/password --value "${RABBITMQ_DEFAULT_PASS}"
+```
 
 ### ActiveMQ
 
@@ -345,7 +353,6 @@ To initialize ActiveMQ and queue messages:
     export USE_NATS=0
     export USE_REDIS_STREAMS=0
     export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
     export USE_GOOGLE_PUB_SUB=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```

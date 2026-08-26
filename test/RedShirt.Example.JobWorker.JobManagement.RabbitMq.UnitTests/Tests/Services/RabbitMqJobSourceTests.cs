@@ -4,6 +4,7 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
@@ -17,6 +18,36 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Serv
 /// </summary>
 public class RabbitMqJobSourceTests
 {
+    private static WorkerJobSourceException CredentialWorkerException()
+    {
+        return new WorkerJobSourceException(new AuthenticationFailureException("ACCESS_REFUSED"))
+        {
+            IsHandled = true,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = true
+        };
+    }
+
+    private static WorkerJobSourceException NonCredentialWorkerException()
+    {
+        return new WorkerJobSourceException(new AlreadyClosedException(
+            new ShutdownEventArgs(ShutdownInitiator.Peer, 320, "CONNECTION_FORCED")))
+        {
+            IsHandled = true,
+            CouldBeTransient = true,
+            CouldBeExternallySolvable = true
+        };
+    }
+
+    private static BasicGetResult CreateGetResult(ulong deliveryTag, string messageId, string body = "{}")
+    {
+        var basicProperties = new Mock<IReadOnlyBasicProperties>();
+        basicProperties.Setup(p => p.MessageId).Returns(messageId);
+        return new BasicGetResult(deliveryTag, false, "foo", "bar", 1,
+            basicProperties.Object,
+            new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(body)));
+    }
+
     private static (RabbitMqJobSource JobSource, Mock<IRabbitMqChannelRetryWrapper> ChannelRetryWrapper)
         CreateJobSource(IChannel channel, string? queueName = null)
     {
@@ -39,6 +70,46 @@ public class RabbitMqJobSourceTests
             NullLogger<RabbitMqJobSource>.Instance);
 
         return (jobSource, channelRetryWrapper);
+    }
+
+    /// <summary>
+    ///     Wrapper mock that invokes the callback until <paramref name="throwOnCallNumber" />, then throws
+    ///     <paramref name="exceptionToThrow" />. Captures force-new-connection flags passed by the job source.
+    /// </summary>
+    private static (Mock<IRabbitMqChannelRetryWrapper> Wrapper, List<bool> ForceFlags) CreateThrowingWrapper(
+        IChannel channel, int throwOnCallNumber, Exception exceptionToThrow)
+    {
+        var forceFlags = new List<bool>();
+        var calls = 0;
+        var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
+        wrapper
+            .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
+                It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+                It.IsAny<bool>(),
+                It.IsAny<Action<IConnection>?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((Func<IChannel, CancellationToken, Task> callback, bool force, Action<IConnection>? _,
+                CancellationToken token) =>
+            {
+                forceFlags.Add(force);
+                calls++;
+                return calls == throwOnCallNumber
+                    ? Task.FromException(exceptionToThrow)
+                    : callback(channel, token);
+            });
+        return (wrapper, forceFlags);
+    }
+
+    private static RabbitMqJobSource CreateJobSourceWithWrapper(IRabbitMqChannelRetryWrapper wrapper,
+        string? queueName = null)
+    {
+        return new RabbitMqJobSource(
+            wrapper,
+            Options.Create(new RabbitMqQueueConfigurationModel
+            {
+                QueueName = queueName!
+            }),
+            NullLogger<RabbitMqJobSource>.Instance);
     }
 
     private static void VerifyWrapperCalled(Mock<IRabbitMqChannelRetryWrapper> channelRetryWrapper, Times times)
@@ -218,60 +289,55 @@ public class RabbitMqJobSourceTests
     }
 
     [Fact]
-    public async Task Test_GetJobs_AlreadyClosedException_AfterPartialBatch_Propagates()
+    public async Task Test_GetJobs_CredentialFailure_AfterPartialBatch_ReturnsPartialAndForcesNextConnection()
     {
         var queueName = Guid.NewGuid().ToString();
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-
-        ulong deliveryTag = 77;
         var messageId = Guid.NewGuid().ToString();
-        var bodyString = "{}";
 
-        var basicProperties = new Mock<IReadOnlyBasicProperties>();
-        basicProperties.Setup(p => p.MessageId).Returns(messageId);
-
-        var getCalls = 0;
         mockChannel
             .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
-            .ReturnsAsync(() =>
-            {
-                getCalls++;
-                if (getCalls == 1)
-                {
-                    return new BasicGetResult(deliveryTag, false, "foo", "bar", 1,
-                        basicProperties.Object,
-                        new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(bodyString)));
-                }
+            .ReturnsAsync(CreateGetResult(77, messageId));
 
-                throw new AlreadyClosedException(
-                    new ShutdownEventArgs(ShutdownInitiator.Peer, 320, "CONNECTION_FORCED"));
-            });
+        var (wrapper, forceFlags) = CreateThrowingWrapper(mockChannel.Object, 2, CredentialWorkerException());
+        var jobSource = CreateJobSourceWithWrapper(wrapper.Object, queueName);
 
-        var (jobSource, _) = CreateJobSource(mockChannel.Object, queueName);
+        var response = await jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken);
 
-        await Assert.ThrowsAsync<AlreadyClosedException>(() =>
-            jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken));
+        var item = Assert.Single(response.Items);
+        Assert.Equal(messageId, item.MessageId);
+        Assert.Equal([false, false], forceFlags);
 
-        Assert.Equal(2, getCalls);
+        // Next fetch should force a new connection after the absorbed credential failure.
+        mockChannel
+            .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
+            .ReturnsAsync((BasicGetResult?) null);
+
+        await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
+
+        Assert.Equal([false, false, true], forceFlags);
     }
 
     [Fact]
-    public async Task Test_GetJobs_AlreadyClosedException_Propagates()
+    public async Task Test_GetJobs_CredentialFailure_OnEmptyBatch_PropagatesAndForcesNextConnection()
     {
         var queueName = Guid.NewGuid().ToString();
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-        mockChannel
-            .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
-            .ThrowsAsync(new AlreadyClosedException(
-                new ShutdownEventArgs(ShutdownInitiator.Application, 0, "closed")));
+        var (wrapper, forceFlags) = CreateThrowingWrapper(mockChannel.Object, 1, CredentialWorkerException());
+        var jobSource = CreateJobSourceWithWrapper(wrapper.Object, queueName);
 
-        var (jobSource, channelRetryWrapper) = CreateJobSource(mockChannel.Object, queueName);
-
-        await Assert.ThrowsAsync<AlreadyClosedException>(() =>
+        await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken));
 
-        VerifyWrapperCalled(channelRetryWrapper, Times.Once());
-        mockChannel.Verify(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken), Times.Once);
+        Assert.Equal([false], forceFlags);
+
+        mockChannel
+            .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
+            .ReturnsAsync((BasicGetResult?) null);
+
+        await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
+
+        Assert.Equal([false, true], forceFlags);
     }
 
     [Fact]
@@ -306,13 +372,8 @@ public class RabbitMqJobSourceTests
         var messageId = Guid.NewGuid().ToString();
         var bodyString = "{}";
 
-        var basicProperties = new Mock<IReadOnlyBasicProperties>();
-        basicProperties.Setup(p => p.MessageId).Returns(messageId);
-
         var mockChannelQueue = new Queue<BasicGetResult>();
-        mockChannelQueue.Enqueue(new BasicGetResult(deliveryTag, false, "foo", "bar", 1,
-            basicProperties.Object,
-            new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(bodyString))));
+        mockChannelQueue.Enqueue(CreateGetResult(deliveryTag, messageId, bodyString));
 
         mockChannel
             .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
@@ -359,12 +420,7 @@ public class RabbitMqJobSourceTests
             var bodyString = $"_{deliveryTag}_";
             bodyStrings.Add(bodyString);
 
-            var basicProperties = new Mock<IReadOnlyBasicProperties>();
-            basicProperties.Setup(p => p.MessageId).Returns(messageId);
-
-            mockChannelQueue.Enqueue(new BasicGetResult(deliveryTag, false, "foo", "bar", 1,
-                basicProperties.Object,
-                new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes(bodyString))));
+            mockChannelQueue.Enqueue(CreateGetResult(deliveryTag, messageId, bodyString));
         }
 
         mockChannel
@@ -427,6 +483,45 @@ public class RabbitMqJobSourceTests
         Assert.Null(returnedJobItem.IdempotencyId);
         Assert.Equal(bodyString, returnedJobItem.Body);
         Assert.Equal(deliveryTag, Assert.IsType<RabbitMqRawJobModel>(returnedJobItem).DeliveryTag);
+    }
+
+    [Fact]
+    public async Task Test_GetJobs_NonCredentialWorkerException_AfterPartialBatch_Propagates()
+    {
+        var queueName = Guid.NewGuid().ToString();
+        var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
+
+        mockChannel
+            .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
+            .ReturnsAsync(CreateGetResult(77, Guid.NewGuid().ToString()));
+
+        var (wrapper, _) = CreateThrowingWrapper(mockChannel.Object, 2, NonCredentialWorkerException());
+        var jobSource = CreateJobSourceWithWrapper(wrapper.Object, queueName);
+
+        await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
+            jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Test_GetJobs_NonCredentialWorkerException_PropagatesWithoutForcingNextConnection()
+    {
+        var queueName = Guid.NewGuid().ToString();
+        var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
+        var (wrapper, forceFlags) = CreateThrowingWrapper(mockChannel.Object, 1, NonCredentialWorkerException());
+        var jobSource = CreateJobSourceWithWrapper(wrapper.Object, queueName);
+
+        await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
+            jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken));
+
+        Assert.Equal([false], forceFlags);
+
+        mockChannel
+            .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
+            .ReturnsAsync((BasicGetResult?) null);
+
+        await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
+
+        Assert.Equal([false, false], forceFlags);
     }
 
     [Fact]

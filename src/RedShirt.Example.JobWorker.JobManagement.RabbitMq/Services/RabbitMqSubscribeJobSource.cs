@@ -248,7 +248,7 @@ internal class RabbitMqSubscribeJobSource(
 
     private void OnNewConnection(IConnection connection)
     {
-        // Subscription mode disables AutomaticRecovery; ConnectionShutdownAsync drives our reconnect loop
+        // Subscription mode disables AutomaticRecovery. ConnectionShutdownAsync drives our reconnect loop
         // (including credential rotation after a drop). Do not hook RecoverySucceededAsync.
         connection.ConnectionShutdownAsync -= OnConnectionShutdownAsync;
         connection.ConnectionShutdownAsync += OnConnectionShutdownAsync;

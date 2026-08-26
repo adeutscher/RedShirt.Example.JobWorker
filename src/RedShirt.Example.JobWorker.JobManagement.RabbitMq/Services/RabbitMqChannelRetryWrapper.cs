@@ -1,6 +1,7 @@
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Constants;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
@@ -39,11 +40,9 @@ internal class RabbitMqChannelRetryWrapper(
         var forceNewSecretManagerPull = false;
 
         // ReSharper disable once ConvertIfStatementToSwitchStatement
-        if (state.Exception is AuthenticationFailureException
-                or BrokerUnreachableException {InnerException: AuthenticationFailureException}
-                or PossibleAuthenticationFailureException
-                or BrokerUnreachableException {InnerException: PossibleAuthenticationFailureException}
-            && exceptionArbiterService.GetReport(state.Exception, state.RetryNumber) is {CouldBeTransient: true})
+        if (state.Exception is { } exception
+            && exception.IsPotentialCredentialProblem()
+            && exceptionArbiterService.GetReport(exception, state.RetryNumber) is {CouldBeTransient: true})
         {
             forceNewSecretManagerPull = true;
             regenerateConnection = true;
