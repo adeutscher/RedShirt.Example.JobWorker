@@ -22,6 +22,7 @@ public class ActiveMqSubscribeJobSourceTests
 {
     private const string QueueName = "jobs";
 
+#pragma warning disable S107
     private static ActiveMqSubscribeJobSource CreateJobSource(
         Mock<IActiveMqConsumerRetryWrapper> consumerRetryWrapper,
         Mock<IJobSubscriberIntakeQueue>? intakeQueue = null,
@@ -31,6 +32,7 @@ public class ActiveMqSubscribeJobSourceTests
         IActiveMqSubscribeExceptionArbiter? subscribeExceptionArbiter = null,
         bool haltOnFailure = true,
         bool treatTransientExceptionAsFailure = false)
+#pragma warning restore S107
     {
         var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
         coreConfiguration.SetupGet(c => c.IsHaltOnFailure).Returns(haltOnFailure);

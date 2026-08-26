@@ -30,6 +30,7 @@ public class DockerSecretManagerServiceTests
             }
             catch (DirectoryNotFoundException)
             {
+                // Pass
             }
         }
 
@@ -138,7 +139,7 @@ public class DockerSecretManagerServiceTests
             secrets.Write(key, "value");
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-            cts.Cancel();
+            await cts.CancelAsync();
 
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
                 secrets.Service.GetSecretAsync(key, cts.Token));

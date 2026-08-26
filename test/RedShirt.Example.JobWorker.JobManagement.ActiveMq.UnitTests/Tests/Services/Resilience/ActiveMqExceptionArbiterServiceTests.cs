@@ -16,8 +16,10 @@ public class ActiveMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_ArgumentException_IsExpectedAndNotTransient()
     {
+#pragma warning disable S3928
+        // ReSharper disable once NotResolvedInText
         var report = _sut.GetReport(new ArgumentException("bad queue", "queue"), 1);
-
+#pragma warning restore S3928
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);

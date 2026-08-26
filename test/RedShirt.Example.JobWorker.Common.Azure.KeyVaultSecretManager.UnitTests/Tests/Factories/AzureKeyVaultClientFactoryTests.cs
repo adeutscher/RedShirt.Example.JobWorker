@@ -8,31 +8,31 @@ namespace RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.UnitTest
 
 public class AzureKeyVaultClientFactoryTests
 {
-    private static TokenCredential CreateFakeLocalTestingTokenCredential()
-    {
-        var credentialType = typeof(AzureKeyVaultClientFactory)
-            .GetNestedType("FakeLocalTestingTokenCredential", BindingFlags.NonPublic);
-        Assert.NotNull(credentialType);
-
-        var credential = Activator.CreateInstance(credentialType) as TokenCredential;
-        Assert.NotNull(credential);
-        return credential;
-    }
-
-    private static void AssertAccessToken(AccessToken token, DateTimeOffset before)
-    {
-        Assert.False(string.IsNullOrWhiteSpace(token.Token));
-
-        var parts = token.Token.Split('.');
-        Assert.Equal(3, parts.Length);
-        Assert.All(parts, part => Assert.False(string.IsNullOrWhiteSpace(part)));
-
-        Assert.True(token.ExpiresOn > before);
-        Assert.True(token.ExpiresOn <= before.AddDays(1).AddMinutes(1));
-    }
-
     public class FakeLocalTestingTokenCredentialTests
     {
+        private static TokenCredential CreateFakeLocalTestingTokenCredential()
+        {
+            var credentialType = typeof(AzureKeyVaultClientFactory)
+                .GetNestedType("FakeLocalTestingTokenCredential", BindingFlags.NonPublic);
+            Assert.NotNull(credentialType);
+
+            var credential = Activator.CreateInstance(credentialType) as TokenCredential;
+            Assert.NotNull(credential);
+            return credential;
+        }
+
+        private static void AssertAccessToken(AccessToken token, DateTimeOffset before)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(token.Token));
+
+            var parts = token.Token.Split('.');
+            Assert.Equal(3, parts.Length);
+            Assert.All(parts, part => Assert.False(string.IsNullOrWhiteSpace(part)));
+
+            Assert.True(token.ExpiresOn > before);
+            Assert.True(token.ExpiresOn <= before.AddDays(1).AddMinutes(1));
+        }
+
         [Fact]
         public async Task GetTokenAsync_ReturnsJwtShapedAccessToken()
         {

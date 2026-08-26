@@ -58,12 +58,12 @@ internal sealed class AzureKeyVaultClientFactory(IOptions<AzureKeyVaultClientFac
     {
         private readonly string _jwtValue;
 
-        private string Base64Encode(string plainText)
+        private static string Base64Encode(string plainText)
         {
             return Convert.ToBase64String(Encoding.UTF8.GetBytes(plainText));
         }
 
-        private string MakeBase64EncodedJson()
+        private static string MakeBase64EncodedJson()
         {
             return Base64Encode(JsonSerializer.Serialize(new {A = "b"}));
         }
