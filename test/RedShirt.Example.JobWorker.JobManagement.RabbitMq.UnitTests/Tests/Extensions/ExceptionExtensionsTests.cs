@@ -59,12 +59,6 @@ public class ExceptionExtensionsTests
         }
     ];
 
-    [Fact]
-    public void IsPotentialCredentialProblem_WhenNull_ReturnsFalse()
-    {
-        Assert.False(((Exception?) null).IsPotentialCredentialProblem());
-    }
-
     [Theory]
     [MemberData(nameof(CredentialProblemCases))]
     public void IsPotentialCredentialProblem_WhenAuthRelated_ReturnsTrue(Exception exception)
@@ -77,5 +71,11 @@ public class ExceptionExtensionsTests
     public void IsPotentialCredentialProblem_WhenNotAuthRelated_ReturnsFalse(Exception exception)
     {
         Assert.False(exception.IsPotentialCredentialProblem());
+    }
+
+    [Fact]
+    public void IsPotentialCredentialProblem_WhenNull_ReturnsFalse()
+    {
+        Assert.False(((Exception?) null).IsPotentialCredentialProblem());
     }
 }
