@@ -74,7 +74,10 @@ public class AwsExceptionArbiterServiceTests
     [Fact]
     public void GetReport_ArgumentException_IsNotTransient()
     {
+#pragma warning disable S3928
+        // ReSharper disable once NotResolvedInText
         var report = _sut.GetReport(new ArgumentException("bad arg", "name"));
+#pragma warning restore S3928
 
         Assert.True(report.IsExpected);
         Assert.False(report.CouldBeTransient);

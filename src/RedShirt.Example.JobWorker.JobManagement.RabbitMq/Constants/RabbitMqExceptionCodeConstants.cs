@@ -3,7 +3,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Constants;
 /// <summary>
 ///     Reference: https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md
 /// </summary>
-public class RabbitMqExceptionCodeConstants
+public static class RabbitMqExceptionCodeConstants
 {
     /// <summary>
     ///     Bottom range of channel error codes. These are "soft" errors. They immediately terminate the specific channel where

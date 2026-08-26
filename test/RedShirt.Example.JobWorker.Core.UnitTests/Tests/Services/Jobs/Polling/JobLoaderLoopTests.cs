@@ -266,7 +266,7 @@ public class JobLoaderLoopTests
     public async Task RunAsync_WhenNoJobExceptionAndStopping_ReturnsFinishedWithoutSleep()
     {
         // Handle predicate re-checks ShouldKeepRunning; when false, NoJobException escapes Polly
-        // and is swallowed by the outer catch (SIGTERM path).
+        // and is swallowed by the outer catch.
         var jobLoaderStateService = new Mock<IJobLoaderStateService>(MockBehavior.Strict);
         jobLoaderStateService.Setup(s => s.ReportLoaderStart());
         jobLoaderStateService.Setup(s => s.ReportLoaderStop());

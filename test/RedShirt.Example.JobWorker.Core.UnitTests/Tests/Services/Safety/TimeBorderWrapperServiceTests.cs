@@ -157,7 +157,9 @@ public class TimeBorderWrapperServiceTests
             }),
             NullLogger<TimeBorderWrapperService>.Instance);
 
-        using var callerCts = new CancellationTokenSource();
+        using var callerCts = CancellationTokenSource.CreateLinkedTokenSource(
+            // ReSharper disable once PreferConcreteValueOverDefault
+            TestContext.Current.CancellationToken, default);
         var originalCancellationToken = callerCts.Token;
 
         if (expectTimeoutCancellation)
@@ -209,7 +211,8 @@ public class TimeBorderWrapperServiceTests
             }),
             NullLogger<TimeBorderWrapperService>.Instance);
 
-        using var callerCts = new CancellationTokenSource();
+        using var callerCts = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken, default);
         var exception = await Assert.ThrowsAsync<TimeoutException>(() =>
             service.RunAsync(
                 job.Object,
@@ -269,7 +272,8 @@ public class TimeBorderWrapperServiceTests
             Options.Create(configuration),
             logger.Object);
 
-        using var callerCts = new CancellationTokenSource();
+        using var callerCts = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken, default);
         var result = await service.RunAsync(
             job.Object,
             TimeSpan.FromSeconds(maxTimeSeconds),
@@ -329,7 +333,8 @@ public class TimeBorderWrapperServiceTests
             Options.Create(configuration),
             logger.Object);
 
-        using var callerCts = new CancellationTokenSource();
+        using var callerCts = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken, default);
         var result = await service.RunAsync(
             job.Object,
             TimeSpan.FromSeconds(maxTimeSeconds),

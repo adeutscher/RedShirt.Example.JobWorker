@@ -177,11 +177,19 @@ public class PulsarMessageSourceTests
             Assert.Same(queuedMessages[i], response.Messages[i]);
         }
 
-        var expectedConsumes = batchSize == 0
-            ? 0
-            : availableMessages >= batchSize
-                ? batchSize
-                : availableMessages + 1;
+        int expectedConsumes;
+        if (batchSize == 0)
+        {
+            expectedConsumes = 0;
+        }
+        else if (availableMessages >= batchSize)
+        {
+            expectedConsumes = batchSize;
+        }
+        else
+        {
+            expectedConsumes = availableMessages + 1;
+        }
 
         AssertConsumeTimeouts(consumeTimeouts, expectedConsumes);
         consumer.Verify(c => c.ConsumeAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()),

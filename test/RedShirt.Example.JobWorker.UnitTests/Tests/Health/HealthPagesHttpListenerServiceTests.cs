@@ -14,7 +14,7 @@ namespace RedShirt.Example.JobWorker.UnitTests.Tests.Health;
 ///     Serialize HTTP listener tests so parallel runs do not race on ephemeral ports.
 /// </summary>
 [CollectionDefinition(Name)]
-public class HealthPagesHttpListenerCollection
+public static class HealthPagesHttpListenerCollection
 {
     public const string Name = "HealthPagesHttpListener";
 }

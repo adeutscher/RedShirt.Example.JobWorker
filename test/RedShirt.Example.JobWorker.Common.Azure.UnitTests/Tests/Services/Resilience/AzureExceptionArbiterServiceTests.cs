@@ -13,8 +13,10 @@ public class AzureExceptionArbiterServiceTests
     [Fact]
     public void GetReport_ArgumentException_IsExpectedAndNotTransient()
     {
+#pragma warning disable S3928
+        // ReSharper disable once NotResolvedInText
         var exception = new ArgumentException("secret name is empty", "name");
-
+#pragma warning restore S3928
         var report = _sut.GetReport(exception);
 
         Assert.True(report.IsExpected);
@@ -25,7 +27,10 @@ public class AzureExceptionArbiterServiceTests
     [Fact]
     public void GetReport_ArgumentNullException_IsExpectedAndNotTransient()
     {
+#pragma warning disable S3928
+        // ReSharper disable once NotResolvedInText
         var exception = new ArgumentNullException("name");
+#pragma warning disable S3928
 
         var report = _sut.GetReport(exception);
 

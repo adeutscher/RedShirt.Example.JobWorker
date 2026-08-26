@@ -49,7 +49,7 @@ public class AsyncAutoResetEventTests
     public async Task Test_WaitAsync_CancelOneWaiter_DoesNotAffectOthers()
     {
         var evt = new AsyncAutoResetEvent();
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
         var cancelledWait = evt.WaitAsync(TimeSpan.FromSeconds(5), cts.Token);
         var survivingWait = evt.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
@@ -68,7 +68,7 @@ public class AsyncAutoResetEventTests
     public async Task Test_WaitAsync_CancelRemovesWaiter_SoLaterSetIsStored()
     {
         var evt = new AsyncAutoResetEvent();
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
         var waitTask = evt.WaitAsync(TimeSpan.FromSeconds(5), cts.Token);
 
@@ -85,7 +85,7 @@ public class AsyncAutoResetEventTests
     public async Task Test_WaitAsync_CancelledToken_Throws()
     {
         var evt = new AsyncAutoResetEvent();
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await cts.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
@@ -96,7 +96,7 @@ public class AsyncAutoResetEventTests
     public async Task Test_WaitAsync_CancelledToken_WhenAlreadySet_ThrowsAndConsumesSignal()
     {
         var evt = new AsyncAutoResetEvent(true);
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await cts.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
@@ -110,7 +110,7 @@ public class AsyncAutoResetEventTests
     public async Task Test_WaitAsync_CancelledWhileWaiting_Throws()
     {
         var evt = new AsyncAutoResetEvent();
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
         var waitTask = evt.WaitAsync(TimeSpan.FromSeconds(5), cts.Token);
 
@@ -346,7 +346,7 @@ public class AsyncAutoResetEventTests
     public async Task Test_WaitAsync_ZeroTimeout_CancelledToken_WhenUnset_Throws()
     {
         var evt = new AsyncAutoResetEvent();
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await cts.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>

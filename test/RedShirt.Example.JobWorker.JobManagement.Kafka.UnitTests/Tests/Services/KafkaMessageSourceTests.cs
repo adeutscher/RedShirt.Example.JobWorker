@@ -82,11 +82,19 @@ public class KafkaMessageSourceTests
             Assert.Same(queuedMessages[i], response.Messages[i]);
         }
 
-        var expectedConsumes = batchSize == 0
-            ? 0
-            : availableMessages >= batchSize
-                ? batchSize
-                : availableMessages + 1;
+        int expectedConsumes;
+        if (batchSize == 0)
+        {
+            expectedConsumes = 0;
+        }
+        else if (availableMessages >= batchSize)
+        {
+            expectedConsumes = batchSize;
+        }
+        else
+        {
+            expectedConsumes = availableMessages + 1;
+        }
 
         consumer.Verify(c => c.Consume(ExpectedConsumeTimeout), Times.Exactly(expectedConsumes));
         consumerSource.Verify(s => s.GetConsumer(), Times.Once);
