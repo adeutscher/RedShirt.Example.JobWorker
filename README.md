@@ -55,8 +55,9 @@ The general architecture of the core application goes along these lines:
   an in-memory repository. The job loader has two configurable strategy options (described in more detail
   in [Batch Mode vs. Loader Mode](#batch-mode-vs-loader-mode)):
     * Batch Mode (default): Messages are processed in batches, with the next batch being pulled only after the previous
-      one has completed.
-    * Loader Mode: Messages are continually pulled to maintain an in-memory buffer of messages.
+      one has completed. The size of the batches is determined by the `JOBS__FETCH_COUNT` environment variable.
+    * Loader Mode: Messages are continually pulled to maintain an in-memory buffer of messages. The size of the backlog
+      is determined by the `JOBS__FETCH_COUNT` environment variable.
 * Messages in the in-memory repository can be prioritized by the implementation of the message sorter
   `ISourceMessageSorter`).
 * Executor (`IJobExecutor`) worker threads pulls a message at a time from the in-memory repository. When it receives a
@@ -196,8 +197,9 @@ If you choose to configure your job worker for long polling, please consider the
 
 Long polling is configured on job sources that support it with a `WAIT_TIME_SECONDS` environment variable. A value of
 `0` (the local compose default) is short-polling. A positive value is the number of seconds to wait on the **first**
-request of a message-source fetch. Follow-up requests that attempt to fulfill the overall batch size request omit the
-wait to avoid delaying the delivery of already-received messages.
+request of a message-source fetch. If a job source implementation relies on multiple fetch calls within one call of
+`IJobSource.GetJobsAsync`, then follow-up requests that attempt to fulfill the overall batch size count specified in the
+request omit the long polling wait. This avoids a stacking delay to the delivery of already-received messages.
 
 | Job source        | Environment variable                               | Effective range              |
 |-------------------|----------------------------------------------------|------------------------------|
