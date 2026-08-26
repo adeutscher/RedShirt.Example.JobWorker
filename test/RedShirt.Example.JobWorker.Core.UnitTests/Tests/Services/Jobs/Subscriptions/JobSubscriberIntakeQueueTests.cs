@@ -87,7 +87,7 @@ public class JobSubscriberIntakeQueueTests
     public async Task GetNextAsync_WhenCancelledWhileWaiting_ThrowsOperationCanceledException()
     {
         var (queue, _) = CreateQueue();
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
         var getTask = queue.GetNextAsync(cts.Token);
         Assert.False(getTask.IsCompleted);

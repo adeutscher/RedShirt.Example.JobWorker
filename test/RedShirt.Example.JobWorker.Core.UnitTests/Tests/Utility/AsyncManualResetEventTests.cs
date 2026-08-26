@@ -163,9 +163,10 @@ public class AsyncManualResetEventTests
     {
         var evt = new AsyncManualResetEvent(true);
 
-#pragma warning disable xUnit1051 // Intentionally uses default token to exercise the parameterless overload
-        Assert.True(await evt.WaitAsync());
-#pragma warning restore xUnit1051
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(
+            // ReSharper disable once PreferConcreteValueOverDefault
+            TestContext.Current.CancellationToken, default);
+        Assert.True(await evt.WaitAsync(cts.Token));
     }
 
     [Fact(Timeout = 2000)]

@@ -72,7 +72,7 @@ public class IdempotencyMonitorExecutionEndArbiterTests
             .Returns(Task.CompletedTask);
 
         using var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _, 1, 1).Object, sleepService.Object);
-        await arbiter.IdempotencyMonitorDelayWaitAsync(delay, CancellationToken.None);
+        await arbiter.IdempotencyMonitorDelayWaitAsync(delay, TestContext.Current.CancellationToken);
         sleepService.Verify(s => s.DelayAsync(delay, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -83,9 +83,9 @@ public class IdempotencyMonitorExecutionEndArbiterTests
         var inner = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
         inner.Setup(a => a.ShouldKeepRunning()).Returns(true);
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
-        using var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _, 1).Object, sleepService.Object);
-        arbiter.Dispose();
-        await arbiter.IdempotencyMonitorDelayWaitAsync(delay, CancellationToken.None);
+        var arbiter = CreateArbiter(inner.Object, CreateJobRepository(out _, 1).Object, sleepService.Object);
+        arbiter.Dispose(); // Dispose prematurely
+        await arbiter.IdempotencyMonitorDelayWaitAsync(delay, TestContext.Current.CancellationToken);
         sleepService.Verify(s => s.DelayAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
