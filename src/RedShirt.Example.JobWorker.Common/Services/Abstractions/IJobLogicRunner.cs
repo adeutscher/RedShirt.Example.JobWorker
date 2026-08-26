@@ -5,7 +5,7 @@ using RedShirt.Example.JobWorker.Common.Models;
 namespace RedShirt.Example.JobWorker.Common.Services.Abstractions;
 
 /// <summary>
-///     BatchHandler of actual job logic. Used by Core.Logic project to implement consumer-specific logic.
+///     Handler of actual job logic. Used by Core.Logic project to implement consumer-specific logic.
 /// </summary>
 public interface IJobLogicRunner
 {

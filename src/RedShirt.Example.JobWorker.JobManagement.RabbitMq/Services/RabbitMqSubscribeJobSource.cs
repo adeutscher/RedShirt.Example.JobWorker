@@ -79,7 +79,7 @@ internal class RabbitMqSubscribeJobSource(
             0, // no byte-size cap
             // Set backlog size according to Core's configured buffer (within the limits of usage of ushort in RabbitMQ)
             Math.Max(ushort.MaxValue,
-                (ushort) Math.Min(ushort.MaxValue, coreConfigurationService.GetBacklogSize())), // max unacked messages
+                (ushort) Math.Min(ushort.MaxValue, coreConfigurationService.FetchCount)), // max unacked messages
             false, // per consumer, not the whole channel
             cancellationToken);
         _subscriberTag =
@@ -132,13 +132,13 @@ internal class RabbitMqSubscribeJobSource(
                 logger.LogError(e, "Error {LogVerb} to RabbitMQ", logVerb);
 
                 if (e is WorkerJobSourceException {CouldBeTransient: true} &&
-                    !coreConfigurationService.IsTreatingTransientExceptionAsFailure())
+                    !coreConfigurationService.IsTreatingTransientExceptionAsFailure)
                 {
                     // Transient: Retry and try again
                     continue;
                 }
 
-                if (!coreConfigurationService.IsHaltOnFailure())
+                if (!coreConfigurationService.IsHaltOnFailure)
                 {
                     // Not halting on failure, continue and try again
                     continue;

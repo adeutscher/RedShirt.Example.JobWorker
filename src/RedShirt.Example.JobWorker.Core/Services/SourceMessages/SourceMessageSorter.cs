@@ -5,6 +5,9 @@ namespace RedShirt.Example.JobWorker.Core.Services.SourceMessages;
 
 /// <summary>
 ///     Sorts received messages internally to optimize processing per batch.
+///     If the messages have a variable workload that can be inferred from the message payload,
+///     then it is encouraged to prioritize the messages that will take longer.
+///     The term for this is longest-processing-time-first scheduling.
 /// </summary>
 internal interface ISourceMessageSorter
 {

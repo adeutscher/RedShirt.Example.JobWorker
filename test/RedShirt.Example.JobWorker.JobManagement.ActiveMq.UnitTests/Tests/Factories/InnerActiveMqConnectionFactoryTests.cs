@@ -79,7 +79,7 @@ public class InnerActiveMqConnectionFactoryTests
 
         Assert.Equal(DefaultQueuePrefetch, wrapper.InternalConnectionFactory.PrefetchPolicy.QueuePrefetch);
         Assert.Equal(PlainBrokerUri, wrapper.InternalConnectionFactory.BrokerUri.ToString());
-        coreConfiguration.Verify(c => c.GetBacklogSize(), Times.Never);
+        coreConfiguration.VerifyGet(c => c.FetchCount, Times.Never);
         configSource.Verify(cs => cs.GetConfigurationAsync(false, TestContext.Current.CancellationToken), Times.Once);
     }
 
@@ -90,7 +90,7 @@ public class InnerActiveMqConnectionFactoryTests
         var configSource = CreateConfigSource(failoverUri);
         var subscribeConfiguration = CreateSubscribeConfiguration(true);
         var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
-        coreConfiguration.Setup(c => c.GetBacklogSize()).Returns(1);
+        coreConfiguration.SetupGet(c => c.FetchCount).Returns(1);
 
         var innerFactory = CreateFactory(configSource.Object, subscribeConfiguration.Object, coreConfiguration.Object);
 
@@ -128,7 +128,7 @@ public class InnerActiveMqConnectionFactoryTests
 
         var subscribeConfiguration = CreateSubscribeConfiguration(true);
         var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
-        coreConfiguration.Setup(c => c.GetBacklogSize()).Returns(backlogSize);
+        coreConfiguration.SetupGet(c => c.FetchCount).Returns(backlogSize);
 
         var innerFactory = CreateFactory(configSource.Object, subscribeConfiguration.Object, coreConfiguration.Object);
 
@@ -141,7 +141,7 @@ public class InnerActiveMqConnectionFactoryTests
         Assert.Equal(valueHostname, wrapper.InternalConnectionFactory.BrokerUri.ToString());
         Assert.Same(wrapper.InternalConnectionFactory, wrapper.ConnectionFactory);
         Assert.Equal(backlogSize, wrapper.InternalConnectionFactory.PrefetchPolicy.QueuePrefetch);
-        coreConfiguration.Verify(c => c.GetBacklogSize(), Times.Once);
+        coreConfiguration.VerifyGet(c => c.FetchCount, Times.Once);
     }
 
     [Theory]

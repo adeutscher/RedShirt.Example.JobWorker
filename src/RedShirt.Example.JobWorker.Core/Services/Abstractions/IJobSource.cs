@@ -46,6 +46,12 @@ public interface IJobSource
     Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    ///     Fetch a batch of messages from a job source.
+    /// </summary>
+    /// <param name="batchSize">The size of the batch to fetch.</param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
     Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default);
 
     /// <summary>

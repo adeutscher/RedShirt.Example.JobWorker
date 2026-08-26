@@ -6,10 +6,10 @@ using RedShirt.Example.JobWorker.Common.Enums;
 using RedShirt.Example.JobWorker.Common.Models;
 using RedShirt.Example.JobWorker.Common.Services.Abstractions;
 using RedShirt.Example.JobWorker.Common.Services.Utility;
-using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Idempotency;
@@ -151,12 +151,14 @@ public class JobResultTranslationTests
                 InternalRetryCount = 0,
                 MaxJobTimeSeconds = null
             }));
+        var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
+        coreConfiguration.SetupGet(c => c.IsHaltOnFailure).Returns(false);
         var acknowledgementService = new SafeJobAcknowledgementService(
             jobSource.Object,
             failureHandler.Object,
             sleepService,
             Mock.Of<ICoreHealthStateUpdateService>(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
+            coreConfiguration.Object,
             new NullLogger<SafeJobAcknowledgementService>());
         var executor = new JobExecutor(
             executionEndArbiter.Object,

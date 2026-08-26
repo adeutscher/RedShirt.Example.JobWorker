@@ -1,13 +1,12 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Retry;
 using RedShirt.Example.JobWorker.Common.Services.Utility;
-using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
@@ -27,7 +26,7 @@ internal sealed class HeartbeatMonitor(
     IJobSource jobSource,
     ICoreHealthStateUpdateService healthStateUpdateService,
     ISleepService sleepService,
-    IOptions<CoreConfigurationModel> coreOptions,
+    ICoreConfigurationService coreConfigurationService,
     ILogger<HeartbeatMonitor> logger) : IHeartbeatMonitor
 #pragma warning restore S107
 {
@@ -130,7 +129,7 @@ internal sealed class HeartbeatMonitor(
             logger.LogError(ex, "Unexpected error sending heartbeat for message: {MessageId}",
                 jobRepositoryEntry.JobModel.MessageId);
             healthStateUpdateService.NoteIncident();
-            if (coreOptions.Value.HaltOnFailure)
+            if (coreConfigurationService.IsHaltOnFailure)
             {
                 throw;
             }

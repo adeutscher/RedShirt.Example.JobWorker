@@ -1,12 +1,11 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Models;
 using RedShirt.Example.JobWorker.Common.Services.Utility;
-using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Health;
 using RedShirt.Example.JobWorker.Core.Services.Heartbeats;
@@ -16,6 +15,13 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Services.Heartbeats;
 
 public class HeartbeatMonitorTests
 {
+    private static ICoreConfigurationService CreateCoreConfigurationService(bool haltOnFailure = false)
+    {
+        var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
+        coreConfiguration.SetupGet(c => c.IsHaltOnFailure).Returns(haltOnFailure);
+        return coreConfiguration.Object;
+    }
+
     private static ICoreHealthStateUpdateService CreateHealthStateUpdateService()
     {
         var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
@@ -54,7 +60,7 @@ public class HeartbeatMonitorTests
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
+            CreateCoreConfigurationService(), new NullLogger<HeartbeatMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
@@ -116,7 +122,7 @@ public class HeartbeatMonitorTests
             jobRepository.Object,
             jobSource.Object, health.Object,
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}),
+            CreateCoreConfigurationService(),
             new NullLogger<HeartbeatMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
@@ -166,7 +172,7 @@ public class HeartbeatMonitorTests
             jobRepository.Object,
             jobSource.Object, health.Object,
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = true}),
+            CreateCoreConfigurationService(true),
             new NullLogger<HeartbeatMonitor>());
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -243,7 +249,7 @@ public class HeartbeatMonitorTests
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
+            CreateCoreConfigurationService(), new NullLogger<HeartbeatMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
@@ -290,7 +296,7 @@ public class HeartbeatMonitorTests
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
+            CreateCoreConfigurationService(), new NullLogger<HeartbeatMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
@@ -361,7 +367,7 @@ public class HeartbeatMonitorTests
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
+            CreateCoreConfigurationService(), new NullLogger<HeartbeatMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
@@ -434,7 +440,7 @@ public class HeartbeatMonitorTests
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
+            CreateCoreConfigurationService(), new NullLogger<HeartbeatMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
@@ -501,7 +507,7 @@ public class HeartbeatMonitorTests
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
+            CreateCoreConfigurationService(), new NullLogger<HeartbeatMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
@@ -565,7 +571,7 @@ public class HeartbeatMonitorTests
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             sleepService.Object,
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
+            CreateCoreConfigurationService(), new NullLogger<HeartbeatMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
@@ -632,7 +638,7 @@ public class HeartbeatMonitorTests
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
+            CreateCoreConfigurationService(), new NullLogger<HeartbeatMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
@@ -703,7 +709,7 @@ public class HeartbeatMonitorTests
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
+            CreateCoreConfigurationService(), new NullLogger<HeartbeatMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
@@ -778,7 +784,7 @@ public class HeartbeatMonitorTests
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             sleepService.Object,
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
+            CreateCoreConfigurationService(), new NullLogger<HeartbeatMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 
@@ -874,7 +880,7 @@ public class HeartbeatMonitorTests
             jobRepository.Object,
             jobSource.Object, CreateHealthStateUpdateService(),
             CreateSleepService(),
-            Options.Create(new CoreConfigurationModel {HaltOnFailure = false}), new NullLogger<HeartbeatMonitor>());
+            CreateCoreConfigurationService(), new NullLogger<HeartbeatMonitor>());
 
         await monitor.RunAsync(TestContext.Current.CancellationToken);
 

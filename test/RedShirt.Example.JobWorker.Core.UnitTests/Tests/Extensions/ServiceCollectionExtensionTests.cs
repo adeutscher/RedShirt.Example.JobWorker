@@ -5,7 +5,6 @@ using RedShirt.Example.JobWorker.Common.Health.Configuration;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Services.Health;
-using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.Jobs.Polling;
 using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 using RedShirt.Example.JobWorker.Core.Services.Safety;
@@ -90,26 +89,6 @@ public class ServiceCollectionExtensionTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(10)]
-    public void AddCoreJobManagement_ConfiguresJobRepository(int backlogSize)
-    {
-        var configuration = CreateConfiguration(new Dictionary<string, string?>
-        {
-            ["Jobs:BacklogSize"] = backlogSize.ToString()
-        });
-
-        var services = new ServiceCollection()
-            .AddCoreJobManagement(configuration);
-
-        using var provider = services.BuildServiceProvider();
-
-        var options = provider.GetRequiredService<IOptions<JobRepository.ConfigurationModel>>().Value;
-        Assert.Equal(backlogSize, options.BacklogSize);
-    }
-
-    [Theory]
     [InlineData(1)]
     [InlineData(5)]
     [InlineData(10)]
@@ -117,7 +96,7 @@ public class ServiceCollectionExtensionTests
     {
         var configuration = CreateConfiguration(new Dictionary<string, string?>
         {
-            ["JobSource:BatchSize"] = batchSize.ToString()
+            ["JobSource:FetchCount"] = batchSize.ToString()
         });
 
         var services = new ServiceCollection()
@@ -126,7 +105,7 @@ public class ServiceCollectionExtensionTests
         using var provider = services.BuildServiceProvider();
 
         var options = provider.GetRequiredService<IOptions<JobSourceConfigurationModel>>().Value;
-        Assert.Equal(batchSize, options.BatchSize);
+        Assert.Equal(batchSize, options.FetchCount);
     }
 
     [Theory]

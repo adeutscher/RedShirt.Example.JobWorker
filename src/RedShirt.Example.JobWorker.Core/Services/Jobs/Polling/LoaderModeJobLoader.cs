@@ -1,6 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions.MessagePolling;
 using RedShirt.Example.JobWorker.Core.Models;
@@ -23,7 +21,6 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
     private readonly IJobIntakeService _jobIntakeService;
     private readonly IJobRepository _jobRepository;
     private readonly IJobSource _jobSource;
-    private readonly IOptions<JobSourceConfigurationModel> _jobSourceOptions;
     private readonly ILogger<LoaderModeJobLoader> _logger;
 
     private bool _disposed;
@@ -95,18 +92,14 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
 
     private async Task WaitForDemandAsync(CancellationToken cancellationToken)
     {
-        // No configured backlog, so wait until the next worker needs something to do.
-        var totalWatchedJobs = await _jobRepository.GetWatchedJobsCountAsync(cancellationToken);
-        if (totalWatchedJobs > 0)
+        // Wait until the next worker needs something to do when jobs are already in-flight.
+        try
         {
-            try
-            {
-                await DoOperationWithLinkedToken(_jobRepository.WaitForJobDemandAsync, cancellationToken);
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                throw new AbortJobLoaderLoopException();
-            }
+            await DoOperationWithLinkedToken(_jobRepository.WaitForJobDemandAsync, cancellationToken);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new AbortJobLoaderLoopException();
         }
     }
 
@@ -118,7 +111,7 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
         try
         {
             jobResponse = await _jobSource.GetJobsAsync(
-                Math.Min(sizeToGet, _jobSourceOptions.Value.EffectiveBatchSize),
+                Math.Min(sizeToGet, _coreConfigurationService.FetchCount),
                 cancellationToken);
         }
 #pragma warning disable S2139
@@ -129,13 +122,13 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
             _healthStateUpdateService.NoteIncident();
 
             if (e is WorkerJobSourceException {CouldBeTransient: true} &&
-                !_coreConfigurationService.IsTreatingTransientExceptionAsFailure())
+                !_coreConfigurationService.IsTreatingTransientExceptionAsFailure)
             {
                 // Treat an anticipated transient error as a delay reason
                 throw new NoJobException();
             }
 
-            if (!_coreConfigurationService.IsHaltOnFailure())
+            if (!_coreConfigurationService.IsHaltOnFailure)
             {
                 // Soft-fail: treat like an empty poll so the loader loop can back off and retry.
                 throw new NoJobException();
@@ -159,18 +152,16 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
         IJobRepository jobRepository,
         IJobIntakeService jobIntakeService,
         ICoreHealthStateUpdateService healthStateUpdateService,
-        ILogger<LoaderModeJobLoader> logger,
         ICoreConfigurationService coreConfigurationService,
-        IOptions<JobSourceConfigurationModel> jobSourceOptions)
+        ILogger<LoaderModeJobLoader> logger)
 #pragma warning restore S107
     {
         _jobSource = jobSource;
         _jobRepository = jobRepository;
         _jobIntakeService = jobIntakeService;
         _healthStateUpdateService = healthStateUpdateService;
-        _logger = logger;
         _coreConfigurationService = coreConfigurationService;
-        _jobSourceOptions = jobSourceOptions;
+        _logger = logger;
 
         executionEndArbiter.AddOnStopCallback(OnExecutionEndArbiterStop);
     }
@@ -184,28 +175,15 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        var backlogMaxCount = _jobRepository.GetBacklogMaxCount();
-        int sizeToGet;
+        await WaitForDemandAsync(cancellationToken);
 
-        if (backlogMaxCount == 0)
-        {
-            await WaitForDemandAsync(cancellationToken);
+        var watchedJobCount = await _jobRepository.GetWatchedJobsCountAsync(cancellationToken);
+        var sizeToGet = _coreConfigurationService.FetchCount - watchedJobCount;
 
-            /*
-             * Using EffectiveBatchSize rather than the number of free workers is considered working
-             * as intended for now. It is equivalent to the current logic of the default Batch mode.
-             */
-            sizeToGet = _jobSourceOptions.Value.EffectiveBatchSize;
-        }
-        else
+        if (sizeToGet <= 0)
         {
-            var inactiveJobCount = await _jobRepository.GetInactiveJobCountAsync(cancellationToken);
-            sizeToGet = backlogMaxCount - inactiveJobCount;
-            if (sizeToGet <= 0)
-            {
-                // Throwing an exception in order to leverage Polly's handling for incremental backoff.
-                throw new BacklogFullException();
-            }
+            // Throwing an exception in order to leverage Polly's handling for incremental backoff.
+            throw new BacklogFullException();
         }
 
         var jobResponse = await GetJobsAsync(sizeToGet, cancellationToken);
