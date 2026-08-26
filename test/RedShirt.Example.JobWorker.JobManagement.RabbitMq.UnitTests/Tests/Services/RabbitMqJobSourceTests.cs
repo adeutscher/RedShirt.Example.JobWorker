@@ -9,6 +9,7 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
 using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Services;
@@ -28,7 +29,7 @@ public class RabbitMqJobSourceTests
         };
     }
 
-    private static WorkerJobSourceException NonCredentialWorkerException()
+    private static WorkerJobSourceException ReconnectReasonWorkerException()
     {
         return new WorkerJobSourceException(new AlreadyClosedException(
             new ShutdownEventArgs(ShutdownInitiator.Peer, 320, "CONNECTION_FORCED")))
@@ -37,6 +38,21 @@ public class RabbitMqJobSourceTests
             CouldBeTransient = true,
             CouldBeExternallySolvable = true
         };
+    }
+
+    private static WorkerJobSourceException UnrelatedWorkerException()
+    {
+        return new WorkerJobSourceException(new InvalidOperationException("not reconnect-worthy"))
+        {
+            IsHandled = true,
+            CouldBeTransient = false,
+            CouldBeExternallySolvable = false
+        };
+    }
+
+    private static IRabbitMqDetailedExceptionArbiter CreateDetailedExceptionArbiter()
+    {
+        return new RabbitMqDetailedExceptionArbiterService();
     }
 
     private static BasicGetResult CreateGetResult(ulong deliveryTag, string messageId, string body = "{}")
@@ -63,6 +79,7 @@ public class RabbitMqJobSourceTests
 
         var jobSource = new RabbitMqJobSource(
             channelRetryWrapper.Object,
+            CreateDetailedExceptionArbiter(),
             Options.Create(new RabbitMqQueueConfigurationModel
             {
                 QueueName = queueName!
@@ -105,6 +122,7 @@ public class RabbitMqJobSourceTests
     {
         return new RabbitMqJobSource(
             wrapper,
+            CreateDetailedExceptionArbiter(),
             Options.Create(new RabbitMqQueueConfigurationModel
             {
                 QueueName = queueName!
@@ -155,6 +173,7 @@ public class RabbitMqJobSourceTests
 
         var jobSource = new RabbitMqJobSource(
             channelRetryWrapper.Object,
+            CreateDetailedExceptionArbiter(),
             Options.Create(new RabbitMqQueueConfigurationModel
             {
                 QueueName = null!
@@ -338,6 +357,11 @@ public class RabbitMqJobSourceTests
         await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
         Assert.Equal([false, true], forceFlags);
+
+        // Successful forced reconnect clears the flag for later fetches.
+        await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
+
+        Assert.Equal([false, true, false], forceFlags);
     }
 
     [Fact]
@@ -486,7 +510,60 @@ public class RabbitMqJobSourceTests
     }
 
     [Fact]
-    public async Task Test_GetJobs_NonCredentialWorkerException_AfterPartialBatch_Propagates()
+    public async Task Test_GetJobs_ReconnectReason_AfterPartialBatch_ReturnsPartialAndForcesNextConnection()
+    {
+        var queueName = Guid.NewGuid().ToString();
+        var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
+        var messageId = Guid.NewGuid().ToString();
+
+        mockChannel
+            .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
+            .ReturnsAsync(CreateGetResult(77, messageId));
+
+        var (wrapper, forceFlags) =
+            CreateThrowingWrapper(mockChannel.Object, 2, ReconnectReasonWorkerException());
+        var jobSource = CreateJobSourceWithWrapper(wrapper.Object, queueName);
+
+        var response = await jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken);
+
+        var item = Assert.Single(response.Items);
+        Assert.Equal(messageId, item.MessageId);
+        Assert.Equal([false, false], forceFlags);
+
+        mockChannel
+            .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
+            .ReturnsAsync((BasicGetResult?) null);
+
+        await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
+
+        Assert.Equal([false, false, true], forceFlags);
+    }
+
+    [Fact]
+    public async Task Test_GetJobs_ReconnectReason_OnEmptyBatch_PropagatesAndForcesNextConnection()
+    {
+        var queueName = Guid.NewGuid().ToString();
+        var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
+        var (wrapper, forceFlags) =
+            CreateThrowingWrapper(mockChannel.Object, 1, ReconnectReasonWorkerException());
+        var jobSource = CreateJobSourceWithWrapper(wrapper.Object, queueName);
+
+        await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
+            jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken));
+
+        Assert.Equal([false], forceFlags);
+
+        mockChannel
+            .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
+            .ReturnsAsync((BasicGetResult?) null);
+
+        await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
+
+        Assert.Equal([false, true], forceFlags);
+    }
+
+    [Fact]
+    public async Task Test_GetJobs_UnrelatedWorkerException_AfterPartialBatch_Propagates()
     {
         var queueName = Guid.NewGuid().ToString();
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
@@ -495,7 +572,7 @@ public class RabbitMqJobSourceTests
             .Setup(c => c.BasicGetAsync(queueName, false, TestContext.Current.CancellationToken))
             .ReturnsAsync(CreateGetResult(77, Guid.NewGuid().ToString()));
 
-        var (wrapper, _) = CreateThrowingWrapper(mockChannel.Object, 2, NonCredentialWorkerException());
+        var (wrapper, _) = CreateThrowingWrapper(mockChannel.Object, 2, UnrelatedWorkerException());
         var jobSource = CreateJobSourceWithWrapper(wrapper.Object, queueName);
 
         await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
@@ -503,11 +580,11 @@ public class RabbitMqJobSourceTests
     }
 
     [Fact]
-    public async Task Test_GetJobs_NonCredentialWorkerException_PropagatesWithoutForcingNextConnection()
+    public async Task Test_GetJobs_UnrelatedWorkerException_PropagatesWithoutForcingNextConnection()
     {
         var queueName = Guid.NewGuid().ToString();
         var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-        var (wrapper, forceFlags) = CreateThrowingWrapper(mockChannel.Object, 1, NonCredentialWorkerException());
+        var (wrapper, forceFlags) = CreateThrowingWrapper(mockChannel.Object, 1, UnrelatedWorkerException());
         var jobSource = CreateJobSourceWithWrapper(wrapper.Object, queueName);
 
         await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
@@ -529,6 +606,7 @@ public class RabbitMqJobSourceTests
     {
         var jobSource = new RabbitMqJobSource(
             null!,
+            CreateDetailedExceptionArbiter(),
             Options.Create(new RabbitMqQueueConfigurationModel
             {
                 QueueName = null!

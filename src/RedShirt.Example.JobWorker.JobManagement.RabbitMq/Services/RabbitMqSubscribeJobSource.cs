@@ -26,7 +26,7 @@ internal class RabbitMqSubscribeJobSource(
     IJobSubscriberIntakeQueue jobSubscriberIntakeQueue,
     IExecutionEndArbiter executionEndArbiter,
     ISleepService sleepService,
-    IRabbitMqSubscribeExceptionArbiter subscribeExceptionArbiter,
+    IRabbitMqDetailedExceptionArbiter detailedExceptionArbiter,
     IOptions<RabbitMqQueueConfigurationModel> rabbitMqConfiguration,
     ILogger<RabbitMqSubscribeJobSource> logger)
     : IJobSource
@@ -205,8 +205,8 @@ internal class RabbitMqSubscribeJobSource(
 
         var exception = args.Exception ?? new AlreadyClosedException(args);
 
-        if (subscribeExceptionArbiter.IsReasonToReconnect(exception)
-            || subscribeExceptionArbiter.IsReasonToStopIfHaltOnFailure(exception))
+        if (detailedExceptionArbiter.IsReasonToReconnect(exception)
+            || detailedExceptionArbiter.IsReasonToStopIfHaltOnFailure(exception))
         {
             /*
              * Is an explicit reason to reconnect or another serious error. Funnel both through reconnection.
@@ -233,16 +233,16 @@ internal class RabbitMqSubscribeJobSource(
             return Task.CompletedTask;
         }
 
-        if (subscribeExceptionArbiter.IsAccountedForAndLikelyTransientError(exception))
+        if (detailedExceptionArbiter.IsAccountedForAndLikelyTransientError(exception))
         {
             // Is an expected transient error, not worth warning about
             return Task.CompletedTask;
         }
 
         logger.LogWarning(exception,
-            "Unaccounted-for exception in {Name}. Classify via {IRabbitMqSubscribeExceptionArbiter} methods",
+            "Unaccounted-for exception in {Name}. Classify via {IRabbitMqDetailedExceptionArbiter} methods",
             nameof(RabbitMqSubscribeJobSource),
-            nameof(IRabbitMqSubscribeExceptionArbiter));
+            nameof(IRabbitMqDetailedExceptionArbiter));
         return Task.CompletedTask;
     }
 

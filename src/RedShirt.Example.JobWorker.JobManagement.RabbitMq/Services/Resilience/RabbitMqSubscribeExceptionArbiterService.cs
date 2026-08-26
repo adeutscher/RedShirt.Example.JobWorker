@@ -8,7 +8,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
 ///     Classifies connection-shutdown / callback exceptions for the RabbitMQ subscribe job source:
 ///     reconnect, halt-on-failure stop, or accounted-for transient noise.
 /// </summary>
-internal interface IRabbitMqSubscribeExceptionArbiter
+internal interface IRabbitMqDetailedExceptionArbiter
 {
     /// <summary>
     ///     Whether <paramref name="exception" /> (or any inner exception) looks like expected
@@ -34,9 +34,9 @@ internal interface IRabbitMqSubscribeExceptionArbiter
 }
 
 /// <summary>
-///     Default <see cref="IRabbitMqSubscribeExceptionArbiter" /> implementation.
+///     Default <see cref="IRabbitMqDetailedExceptionArbiter" /> implementation.
 /// </summary>
-internal class RabbitMqSubscribeExceptionArbiterService : IRabbitMqSubscribeExceptionArbiter
+internal class RabbitMqDetailedExceptionArbiterService : IRabbitMqDetailedExceptionArbiter
 {
     /// <inheritdoc />
     public bool IsAccountedForAndLikelyTransientError(Exception exception)

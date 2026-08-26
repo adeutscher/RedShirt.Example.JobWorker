@@ -9,12 +9,14 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
 using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 
 internal class RabbitMqJobSource(
     IRabbitMqChannelRetryWrapper channelRetryWrapper,
+    IRabbitMqDetailedExceptionArbiter detailedExceptionArbiter,
     IOptions<RabbitMqQueueConfigurationModel> configuration,
     ILogger<RabbitMqJobSource> logger)
     : IJobSource
@@ -44,7 +46,9 @@ internal class RabbitMqJobSource(
                     }, _nextConnectionAttemptShouldForceNewConnection, cancellationToken: cancellationToken);
                 _nextConnectionAttemptShouldForceNewConnection = false;
             }
-            catch (WorkerJobSourceException e) when (results.Count > 0 && e.IsPotentialCredentialProblem())
+            catch (WorkerJobSourceException e) when (results.Count > 0 &&
+                                                     (e.IsPotentialCredentialProblem() ||
+                                                      detailedExceptionArbiter.IsReasonToReconnect(e)))
             {
                 // If we already have some results, then absorb the exception and deal with what we've got
                 _nextConnectionAttemptShouldForceNewConnection = true;
@@ -108,10 +112,12 @@ internal class RabbitMqJobSource(
         {
             results = await GetResultsAsync(batchSize, cancellationToken);
         }
-        catch (WorkerJobSourceException e)
+        catch (WorkerJobSourceException e) when (e.IsPotentialCredentialProblem() ||
+                                                 detailedExceptionArbiter.IsReasonToReconnect(e))
         {
             // Store more context for later
-            _nextConnectionAttemptShouldForceNewConnection = e.IsPotentialCredentialProblem();
+            _nextConnectionAttemptShouldForceNewConnection = true;
+            // Continue throwing
             throw;
         }
 

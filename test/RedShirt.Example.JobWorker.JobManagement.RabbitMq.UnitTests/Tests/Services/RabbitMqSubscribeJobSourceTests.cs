@@ -52,7 +52,7 @@ public class RabbitMqSubscribeJobSourceTests
                 .Returns(new TaskCompletionSource().Task);
         }
 
-        var subscribeExceptionArbiter = new Mock<IRabbitMqSubscribeExceptionArbiter>(MockBehavior.Strict);
+        var subscribeExceptionArbiter = new Mock<IRabbitMqDetailedExceptionArbiter>(MockBehavior.Strict);
         subscribeExceptionArbiter
             .Setup(a => a.IsReasonToReconnect(It.IsAny<Exception>()))
             .Returns(true);

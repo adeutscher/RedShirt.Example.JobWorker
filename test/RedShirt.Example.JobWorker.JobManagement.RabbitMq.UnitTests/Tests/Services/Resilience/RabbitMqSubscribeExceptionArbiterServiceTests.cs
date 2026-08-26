@@ -7,9 +7,9 @@ using IOException = System.IO.IOException;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Services.Resilience;
 
-public class RabbitMqSubscribeExceptionArbiterServiceTests
+public class RabbitMqDetailedExceptionArbiterServiceTests
 {
-    private readonly RabbitMqSubscribeExceptionArbiterService _sut = new();
+    private readonly RabbitMqDetailedExceptionArbiterService _sut = new();
 
     public static TheoryData<Exception> AccountedTransientExceptions()
     {
