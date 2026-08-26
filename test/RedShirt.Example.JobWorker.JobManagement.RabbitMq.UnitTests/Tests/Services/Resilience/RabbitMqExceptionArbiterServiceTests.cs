@@ -16,7 +16,7 @@ public class RabbitMqExceptionArbiterServiceTests
     public void GetReport_AlreadyClosedException_IsExpectedAndTransient()
     {
         var report = _sut.GetReport(new AlreadyClosedException(
-            new ShutdownEventArgs(ShutdownInitiator.Peer, 320, "CONNECTION_FORCED")));
+            new ShutdownEventArgs(ShutdownInitiator.Peer, 320, "CONNECTION_FORCED")), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -29,7 +29,7 @@ public class RabbitMqExceptionArbiterServiceTests
     {
 #pragma warning disable S3928
         // ReSharper disable once NotResolvedInText
-        var report = _sut.GetReport(new ArgumentException("bad queue", "queueName"));
+        var report = _sut.GetReport(new ArgumentException("bad queue", "queueName"), 1);
 #pragma warning restore S3928
 
         Assert.False(report.AlreadyHandled);
@@ -39,9 +39,20 @@ public class RabbitMqExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_AuthenticationFailureException_IsExpectedAndNotTransient()
+    public void GetReport_AuthenticationFailureException_FirstAttempt_IsTransient()
     {
-        var report = _sut.GetReport(new AuthenticationFailureException("ACCESS_REFUSED"));
+        var report = _sut.GetReport(new AuthenticationFailureException("ACCESS_REFUSED"), 1);
+
+        Assert.False(report.AlreadyHandled);
+        Assert.True(report.IsExpected);
+        Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
+    }
+
+    [Fact]
+    public void GetReport_AuthenticationFailureException_LaterAttempt_IsNotTransient()
+    {
+        var report = _sut.GetReport(new AuthenticationFailureException("ACCESS_REFUSED"), 2);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -52,7 +63,7 @@ public class RabbitMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_BrokerUnreachableException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new BrokerUnreachableException(new IOException("no broker")));
+        var report = _sut.GetReport(new BrokerUnreachableException(new IOException("no broker")), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -63,7 +74,7 @@ public class RabbitMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_ChannelAllocationException_IsExpectedAndNotTransient()
     {
-        var report = _sut.GetReport(new ChannelAllocationException());
+        var report = _sut.GetReport(new ChannelAllocationException(), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -74,7 +85,7 @@ public class RabbitMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_ConnectFailureException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new ConnectFailureException("connect failed", new IOException("refused")));
+        var report = _sut.GetReport(new ConnectFailureException("connect failed", new IOException("refused")), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -85,7 +96,7 @@ public class RabbitMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_IOException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new IOException("connection reset"));
+        var report = _sut.GetReport(new IOException("connection reset"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -100,7 +111,7 @@ public class RabbitMqExceptionArbiterServiceTests
             new BrokerUnreachableException(new IOException("a")),
             new SocketException((int) SocketError.TimedOut));
 
-        var report = _sut.GetReport(exception);
+        var report = _sut.GetReport(exception, 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.False(report.IsExpected);
@@ -111,13 +122,13 @@ public class RabbitMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_NullException_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() => _sut.GetReport(null!));
+        Assert.Throws<ArgumentNullException>(() => _sut.GetReport(null!, 1));
     }
 
     [Fact]
     public void GetReport_ObjectDisposedException_IsExpectedAndNotTransient()
     {
-        var report = _sut.GetReport(new ObjectDisposedException("channel"));
+        var report = _sut.GetReport(new ObjectDisposedException("channel"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -128,7 +139,7 @@ public class RabbitMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_OperationCanceledException_IsExpectedAndNotTransient()
     {
-        var report = _sut.GetReport(new OperationCanceledException("caller cancelled"));
+        var report = _sut.GetReport(new OperationCanceledException("caller cancelled"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -139,7 +150,7 @@ public class RabbitMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_OperationInterruptedException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new OperationInterruptedException());
+        var report = _sut.GetReport(new OperationInterruptedException(), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -150,7 +161,7 @@ public class RabbitMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_PacketNotRecognizedException_IsExpectedAndNotTransient()
     {
-        var report = _sut.GetReport(new PacketNotRecognizedException(1, 2, 3, 4));
+        var report = _sut.GetReport(new PacketNotRecognizedException(1, 2, 3, 4), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -159,9 +170,20 @@ public class RabbitMqExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_PossibleAuthenticationFailureException_IsExpectedAndNotTransient()
+    public void GetReport_PossibleAuthenticationFailureException_FirstAttempt_IsTransient()
     {
-        var report = _sut.GetReport(new PossibleAuthenticationFailureException("likely ACCESS_REFUSED"));
+        var report = _sut.GetReport(new PossibleAuthenticationFailureException("likely ACCESS_REFUSED"), 1);
+
+        Assert.False(report.AlreadyHandled);
+        Assert.True(report.IsExpected);
+        Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
+    }
+
+    [Fact]
+    public void GetReport_PossibleAuthenticationFailureException_LaterAttempt_IsNotTransient()
+    {
+        var report = _sut.GetReport(new PossibleAuthenticationFailureException("likely ACCESS_REFUSED"), 2);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -172,7 +194,7 @@ public class RabbitMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_ProtocolVersionMismatchException_IsExpectedAndNotTransient()
     {
-        var report = _sut.GetReport(new ProtocolVersionMismatchException(0, 9, 1, 0));
+        var report = _sut.GetReport(new ProtocolVersionMismatchException(0, 9, 1, 0), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -184,7 +206,7 @@ public class RabbitMqExceptionArbiterServiceTests
     public void GetReport_SingleInnerAggregateException_JudgesUnwrappedInner()
     {
         var inner = new BrokerUnreachableException(new IOException("down"));
-        var report = _sut.GetReport(new AggregateException(inner));
+        var report = _sut.GetReport(new AggregateException(inner), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -195,7 +217,7 @@ public class RabbitMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_SocketException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new SocketException((int) SocketError.TimedOut));
+        var report = _sut.GetReport(new SocketException((int) SocketError.TimedOut), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -206,7 +228,7 @@ public class RabbitMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_TaskCanceledException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new TaskCanceledException("request timed out"));
+        var report = _sut.GetReport(new TaskCanceledException("request timed out"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -217,7 +239,7 @@ public class RabbitMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_TimeoutException_IsExpectedAndTransient()
     {
-        var report = _sut.GetReport(new TimeoutException("timed out"));
+        var report = _sut.GetReport(new TimeoutException("timed out"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -228,7 +250,7 @@ public class RabbitMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_UnrecognizedException_IsNotExpectedAndNotTransient()
     {
-        var report = _sut.GetReport(new InvalidOperationException("unexpected failure"));
+        var report = _sut.GetReport(new InvalidOperationException("unexpected failure"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.False(report.IsExpected);
@@ -239,7 +261,7 @@ public class RabbitMqExceptionArbiterServiceTests
     [Fact]
     public void GetReport_WireFormattingException_IsExpectedAndNotTransient()
     {
-        var report = _sut.GetReport(new WireFormattingException("bad frame"));
+        var report = _sut.GetReport(new WireFormattingException("bad frame"), 1);
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -257,7 +279,7 @@ public class RabbitMqExceptionArbiterServiceTests
             CouldBeExternallySolvable = true
         };
 
-        var report = _sut.GetReport(exception);
+        var report = _sut.GetReport(exception, 1);
 
         Assert.True(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -275,7 +297,7 @@ public class RabbitMqExceptionArbiterServiceTests
             CouldBeExternallySolvable = true
         };
 
-        var report = _sut.GetReport(exception);
+        var report = _sut.GetReport(exception, 1);
 
         Assert.True(report.AlreadyHandled);
         Assert.True(report.IsExpected);
@@ -300,7 +322,7 @@ public class RabbitMqExceptionArbiterServiceTests
             CouldBeExternallySolvable = couldBeExternallySolvable
         };
 
-        var report = _sut.GetReport(exception);
+        var report = _sut.GetReport(exception, 1);
 
         Assert.True(report.AlreadyHandled);
         Assert.True(report.IsExpected);

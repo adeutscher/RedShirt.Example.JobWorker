@@ -13,6 +13,7 @@ using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
 using System.Reflection;
 using System.Text;
 
@@ -51,12 +52,24 @@ public class RabbitMqSubscribeJobSourceTests
                 .Returns(new TaskCompletionSource().Task);
         }
 
+        var subscribeExceptionArbiter = new Mock<IRabbitMqSubscribeExceptionArbiter>(MockBehavior.Strict);
+        subscribeExceptionArbiter
+            .Setup(a => a.IsReasonToReconnect(It.IsAny<Exception>()))
+            .Returns(true);
+        subscribeExceptionArbiter
+            .Setup(a => a.IsReasonToStopIfHaltOnFailure(It.IsAny<Exception>()))
+            .Returns(false);
+        subscribeExceptionArbiter
+            .Setup(a => a.IsAccountedForAndLikelyTransientError(It.IsAny<Exception>()))
+            .Returns(false);
+
         return new RabbitMqSubscribeJobSource(
             channelRetryWrapper.Object,
             coreConfiguration.Object,
             (intakeQueue ?? new Mock<IJobSubscriberIntakeQueue>(MockBehavior.Strict)).Object,
             executionEndArbiter.Object,
             sleepService.Object,
+            subscribeExceptionArbiter.Object,
             Options.Create(new RabbitMqQueueConfigurationModel {QueueName = QueueName}),
             NullLogger<RabbitMqSubscribeJobSource>.Instance);
     }
@@ -65,6 +78,7 @@ public class RabbitMqSubscribeJobSourceTests
         Action<Action<IConnection>?>? captureOnNewConnection = null)
     {
         var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
+        wrapper.Setup(w => w.ResetChannel());
         wrapper
             .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
                 It.IsAny<Func<IChannel, CancellationToken, Task>>(),
@@ -255,26 +269,33 @@ public class RabbitMqSubscribeJobSourceTests
     }
 
     [Fact]
-    public async Task StartSubscriberAsync_WhenConnectionRecovers_Resubscribes()
+    public async Task StartSubscriberAsync_WhenConnectionShutsDown_Resubscribes()
     {
         var channel = new Mock<IChannel>(MockBehavior.Strict);
         SetupConsume(channel);
 
         var connection = new Mock<IConnection>();
-        AsyncEventHandler<AsyncEventArgs>? recoveryHandler = null;
+        AsyncEventHandler<ShutdownEventArgs>? shutdownHandler = null;
         connection
-            .SetupAdd(c => c.RecoverySucceededAsync += It.IsAny<AsyncEventHandler<AsyncEventArgs>>())
-            .Callback<AsyncEventHandler<AsyncEventArgs>>(handler => recoveryHandler += handler);
-        connection.SetupRemove(c => c.RecoverySucceededAsync -= It.IsAny<AsyncEventHandler<AsyncEventArgs>>());
+            .SetupAdd(c => c.ConnectionShutdownAsync += It.IsAny<AsyncEventHandler<ShutdownEventArgs>>())
+            .Callback<AsyncEventHandler<ShutdownEventArgs>>(handler => shutdownHandler += handler);
+        connection.SetupRemove(c => c.ConnectionShutdownAsync -= It.IsAny<AsyncEventHandler<ShutdownEventArgs>>());
 
         var wrapper = CreatePassthroughWrapper(channel.Object, onNew => onNew?.Invoke(connection.Object));
         var jobSource = CreateJobSource(wrapper);
 
         await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
 
-        Assert.NotNull(recoveryHandler);
-        await recoveryHandler!(connection.Object, new AsyncEventArgs(TestContext.Current.CancellationToken));
+        Assert.NotNull(shutdownHandler);
+        await shutdownHandler!(connection.Object,
+            new ShutdownEventArgs(ShutdownInitiator.Peer, 320, "CONNECTION_FORCED",
+                new AlreadyClosedException(new ShutdownEventArgs(ShutdownInitiator.Peer, 320, "CONNECTION_FORCED")),
+                TestContext.Current.CancellationToken));
 
+        // Allow background reconnect Task.Run to finish
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+
+        wrapper.Verify(w => w.ResetChannel(), Times.AtLeastOnce);
         channel.Verify(c => c.BasicConsumeAsync(
             QueueName,
             false,
@@ -373,20 +394,21 @@ public class RabbitMqSubscribeJobSourceTests
     }
 
     [Fact]
-    public async Task StartSubscriberAsync_WhenRecoveryFailsPermanentlyAndHaltOnFailure_StopsArbiter()
+    public async Task StartSubscriberAsync_WhenShutdownReconnectFailsPermanentlyAndHaltOnFailure_StopsArbiter()
     {
         var channel = new Mock<IChannel>(MockBehavior.Strict);
         SetupConsume(channel);
 
         var connection = new Mock<IConnection>();
-        AsyncEventHandler<AsyncEventArgs>? recoveryHandler = null;
+        AsyncEventHandler<ShutdownEventArgs>? shutdownHandler = null;
         connection
-            .SetupAdd(c => c.RecoverySucceededAsync += It.IsAny<AsyncEventHandler<AsyncEventArgs>>())
-            .Callback<AsyncEventHandler<AsyncEventArgs>>(handler => recoveryHandler += handler);
-        connection.SetupRemove(c => c.RecoverySucceededAsync -= It.IsAny<AsyncEventHandler<AsyncEventArgs>>());
+            .SetupAdd(c => c.ConnectionShutdownAsync += It.IsAny<AsyncEventHandler<ShutdownEventArgs>>())
+            .Callback<AsyncEventHandler<ShutdownEventArgs>>(handler => shutdownHandler += handler);
+        connection.SetupRemove(c => c.ConnectionShutdownAsync -= It.IsAny<AsyncEventHandler<ShutdownEventArgs>>());
 
         var attempts = 0;
         var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
+        wrapper.Setup(w => w.ResetChannel());
         wrapper
             .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
                 It.IsAny<Func<IChannel, CancellationToken, Task>>(),
@@ -414,7 +436,12 @@ public class RabbitMqSubscribeJobSourceTests
         var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
 
         await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
-        await recoveryHandler!(connection.Object, new AsyncEventArgs(TestContext.Current.CancellationToken));
+        await shutdownHandler!(connection.Object,
+            new ShutdownEventArgs(ShutdownInitiator.Peer, 320, "CONNECTION_FORCED",
+                new AlreadyClosedException(new ShutdownEventArgs(ShutdownInitiator.Peer, 320, "CONNECTION_FORCED")),
+                TestContext.Current.CancellationToken));
+
+        await Task.Delay(300, TestContext.Current.CancellationToken);
 
         executionEndArbiter.Verify(
             a => a.Stop(It.Is<InvalidOperationException>(e => e.Message == "recovery failed")), Times.Once);

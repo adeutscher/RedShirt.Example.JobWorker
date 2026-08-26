@@ -33,6 +33,8 @@ public static class ServiceCollectionExtensions
             // Required
             .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>()
             // Supporting
+            .AddSingleton<IRabbitMqSubscribeConfigurationService>(
+                new RabbitMqSubscribeConfigurationService(useSubscribe))
             .Configure<RabbitMqQueueConfigurationModel>(section)
             .Configure<RabbitMqServerConfigurationSource.ConfigurationModel>(section)
             .AddSingleton<IRabbitMqServerConfigurationSource, RabbitMqServerConfigurationSource>()
@@ -40,6 +42,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>()
             .AddSingleton<IRabbitMqConnectionCacheSource, RabbitMqConnectionCacheSource>()
             .AddSingleton<IRabbitMqExceptionArbiterService, RabbitMqExceptionArbiterService>()
+            .AddSingleton<IRabbitMqSubscribeExceptionArbiter, RabbitMqSubscribeExceptionArbiterService>()
             .AddSingleton<IRabbitMqRetryWrapperService, RabbitMqRetryWrapperService>()
             .AddSingleton<IRabbitMqChannelRetryWrapper, RabbitMqChannelRetryWrapper>();
     }

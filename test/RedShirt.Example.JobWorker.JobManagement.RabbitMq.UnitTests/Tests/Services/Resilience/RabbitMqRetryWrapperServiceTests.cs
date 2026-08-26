@@ -113,7 +113,7 @@ public class RabbitMqRetryWrapperServiceTests
         var attempts = 0;
         var inner = new InvalidOperationException("permanent");
         var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(inner)).Returns(PermanentReport());
+        arbiter.Setup(a => a.GetReport(inner, It.IsAny<int>())).Returns(PermanentReport());
 
         var sleep = CreateSleepService();
         var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
@@ -159,7 +159,7 @@ public class RabbitMqRetryWrapperServiceTests
     {
         var inner = new InvalidOperationException("permanent");
         var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(inner)).Returns(PermanentReport());
+        arbiter.Setup(a => a.GetReport(inner, It.IsAny<int>())).Returns(PermanentReport());
 
         var sleep = CreateSleepService();
         var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
@@ -180,7 +180,7 @@ public class RabbitMqRetryWrapperServiceTests
     {
         var inner = new TimeoutException("handled elsewhere");
         var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport(false));
+        arbiter.Setup(a => a.GetReport(inner, It.IsAny<int>())).Returns(AlreadyHandledReport(false));
 
         var sleep = CreateSleepService();
         var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
@@ -202,7 +202,7 @@ public class RabbitMqRetryWrapperServiceTests
             {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = false};
 
         var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(inner)).Returns(AlreadyHandledReport(false));
+        arbiter.Setup(a => a.GetReport(inner, It.IsAny<int>())).Returns(AlreadyHandledReport(false));
 
         var sleep = CreateSleepService();
         var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
@@ -221,7 +221,7 @@ public class RabbitMqRetryWrapperServiceTests
         using var cts = new CancellationTokenSource();
         var inner = new TimeoutException("retry then cancel");
         var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(inner)).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(inner, It.IsAny<int>())).Returns(TransientReport());
 
         var sleep = new Mock<ISleepService>(MockBehavior.Strict);
         sleep
@@ -246,7 +246,7 @@ public class RabbitMqRetryWrapperServiceTests
         var inner = new InvalidOperationException("critical");
 
         var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(inner)).Returns(CriticalReport());
+        arbiter.Setup(a => a.GetReport(inner, It.IsAny<int>())).Returns(CriticalReport());
 
         var sleep = CreateSleepService();
         var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
@@ -300,7 +300,7 @@ public class RabbitMqRetryWrapperServiceTests
         var inner = new InvalidOperationException("permanent");
 
         var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(inner)).Returns(PermanentReport());
+        arbiter.Setup(a => a.GetReport(inner, It.IsAny<int>())).Returns(PermanentReport());
 
         var sleep = CreateSleepService();
         var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
@@ -330,7 +330,7 @@ public class RabbitMqRetryWrapperServiceTests
         var inner = new TimeoutException("still failing");
 
         var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>(), It.IsAny<int>())).Returns(TransientReport());
 
         var sleep = CreateSleepService(delays);
         var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
@@ -361,7 +361,7 @@ public class RabbitMqRetryWrapperServiceTests
         var delays = new List<TimeSpan>();
 
         var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>(), It.IsAny<int>())).Returns(TransientReport());
 
         var sleep = CreateSleepService(delays);
         var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,
@@ -409,7 +409,7 @@ public class RabbitMqRetryWrapperServiceTests
         var attempts = 0;
         var delays = new List<TimeSpan>();
         var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
-        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>())).Returns(TransientReport());
+        arbiter.Setup(a => a.GetReport(It.IsAny<Exception>(), It.IsAny<int>())).Returns(TransientReport());
 
         var sleep = CreateSleepService(delays);
         var wrapper = new RabbitMqRetryWrapperService(arbiter.Object, NullLogger<RabbitMqRetryWrapperService>.Instance,

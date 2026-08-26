@@ -12,8 +12,12 @@ internal interface IRabbitMqConnectionCacheSource
     /// <param name="forceNewConnection">
     ///     When <c>true</c>, discard any cached connection and create a new one.
     /// </param>
+    /// <param name="forceNewSecretManagerPull">
+    ///     When <c>true</c>, force the configuration source to refresh secrets (implies a new connection).
+    /// </param>
     /// <param name="cancellationToken"></param>
     Task<IConnectionCacheResponse> GetConnectionAsync(bool forceNewConnection = false,
+        bool forceNewSecretManagerPull = false,
         CancellationToken cancellationToken = default);
 }
 
@@ -24,6 +28,7 @@ internal class RabbitMqConnectionCacheSource(IRabbitMqConnectionFactory connecti
     private IConnection? _connection;
 
     public async Task<IConnectionCacheResponse> GetConnectionAsync(bool forceNewConnection = false,
+        bool forceNewSecretManagerPull = false,
         CancellationToken cancellationToken = default)
     {
         // Deliberately not returning the cached wrapper outside the semaphore lock
@@ -32,7 +37,7 @@ internal class RabbitMqConnectionCacheSource(IRabbitMqConnectionFactory connecti
         await _semaphoreSlim.WaitAsync(cancellationToken);
         try
         {
-            if (!forceNewConnection && _connection is not null)
+            if (!forceNewConnection && !forceNewSecretManagerPull && _connection is not null)
             {
                 return new ConnectionCacheResponse
                 {
@@ -41,7 +46,7 @@ internal class RabbitMqConnectionCacheSource(IRabbitMqConnectionFactory connecti
                 };
             }
 
-            _connection = await connectionFactory.GetConnectionAsync(cancellationToken);
+            _connection = await connectionFactory.GetConnectionAsync(forceNewSecretManagerPull, cancellationToken);
             return new ConnectionCacheResponse
             {
                 CachedConnection = false,

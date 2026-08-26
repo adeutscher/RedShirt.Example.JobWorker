@@ -47,7 +47,7 @@ public class RabbitMqServerConfigurationSourceTests
                 PasswordPath = passwordPath
             }));
 
-        var configuration = await source.GetConfigurationAsync(TestContext.Current.CancellationToken);
+        var configuration = await source.GetConfigurationAsync(false, TestContext.Current.CancellationToken);
 
         Assert.Equal(hostname, configuration.Hostname);
         Assert.Equal(vhost, configuration.VirtualHost);
@@ -59,5 +59,44 @@ public class RabbitMqServerConfigurationSourceTests
             false,
             TestContext.Current.CancellationToken), Times.Once);
         secrets.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task GetConfigurationAsync_WhenForceNewSecretManagerPull_PassesForceTrue()
+    {
+        var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
+        secrets
+            .Setup(s => s.GetSecretsAsync(
+                It.IsAny<List<string>>(),
+                null,
+                true,
+                TestContext.Current.CancellationToken))
+            .ReturnsAsync(new SecretManagerCacheSecretsResponse
+            {
+                Values = new Dictionary<string, string>
+                {
+                    ["/u"] = "user",
+                    ["/p"] = "pass"
+                },
+                QueriedSecretManager = true
+            });
+
+        var source = new RabbitMqServerConfigurationSource(
+            secrets.Object,
+            Options.Create(new RabbitMqServerConfigurationSource.ConfigurationModel
+            {
+                Hostname = "h",
+                VHost = "/",
+                UserPath = "/u",
+                PasswordPath = "/p"
+            }));
+
+        await source.GetConfigurationAsync(true, TestContext.Current.CancellationToken);
+
+        secrets.Verify(s => s.GetSecretsAsync(
+            It.IsAny<List<string>>(),
+            null,
+            true,
+            TestContext.Current.CancellationToken), Times.Once);
     }
 }

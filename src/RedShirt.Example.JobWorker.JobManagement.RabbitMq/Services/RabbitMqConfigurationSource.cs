@@ -6,7 +6,9 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 
 internal interface IRabbitMqServerConfigurationSource
 {
-    Task<RabbitMqServerConfigurationModel> GetConfigurationAsync(CancellationToken cancellationToken = default);
+    Task<RabbitMqServerConfigurationModel> GetConfigurationAsync(
+        bool forceNewSecretManagerPull = false,
+        CancellationToken cancellationToken = default);
 }
 
 internal sealed class RabbitMqServerConfigurationSource(
@@ -14,10 +16,12 @@ internal sealed class RabbitMqServerConfigurationSource(
     IOptions<RabbitMqServerConfigurationSource.ConfigurationModel> options) : IRabbitMqServerConfigurationSource
 {
     public async Task<RabbitMqServerConfigurationModel> GetConfigurationAsync(
+        bool forceNewSecretManagerPull = false,
         CancellationToken cancellationToken = default)
     {
         var secrets = await secretManagerCacheService.GetSecretsAsync(
             [options.Value.UserPath, options.Value.PasswordPath],
+            force: forceNewSecretManagerPull,
             cancellationToken: cancellationToken);
 
         return new RabbitMqServerConfigurationModel
