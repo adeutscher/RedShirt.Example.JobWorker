@@ -13,6 +13,7 @@ internal interface IRabbitMqChannelRetryWrapper
     Task GetChannelAndDoActionWithRetryAsync(Func<IChannel, CancellationToken, Task> callback,
         bool forceNewConnectionImmediately = false, Action<IConnection>? onNewConnectionCallback = null,
         CancellationToken cancellationToken = default);
+
     void ResetChannel();
 }
 
