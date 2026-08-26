@@ -8,6 +8,7 @@ using RedShirt.Example.JobWorker.Common.Models;
 using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
+using RedShirt.Example.JobWorker.Core.Services.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.Health;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -30,8 +31,8 @@ internal sealed class IdempotencyExecutionService(
     ISafeAbstractedLockService abstractedLockService,
     ISafeRemoteCacheService cache,
     ICoreHealthStateUpdateService healthStateUpdateService,
+    ICoreConfigurationService coreConfigurationService,
     IOptions<IdempotencyConfigurationModel> options,
-    IOptions<CoreConfigurationModel> coreOptions,
     ILogger<IdempotencyExecutionService> logger) : IIdempotencyExecutionService
 {
     private const string CommonKeyPrefix = "idempotency";
@@ -118,7 +119,7 @@ internal sealed class IdempotencyExecutionService(
         {
             logger.LogError(ex, "Unexpected error writing idempotency cache");
             healthStateUpdateService.NoteIncident();
-            if (coreOptions.Value.HaltOnFailure)
+            if (coreConfigurationService.IsHaltOnFailure)
             {
                 throw;
             }
@@ -164,7 +165,7 @@ internal sealed class IdempotencyExecutionService(
         {
             logger.LogError(ex, "Unexpected error clearing idempotency cache");
             healthStateUpdateService.NoteIncident();
-            if (coreOptions.Value.HaltOnFailure)
+            if (coreConfigurationService.IsHaltOnFailure)
             {
                 throw;
             }
@@ -215,7 +216,7 @@ internal sealed class IdempotencyExecutionService(
         {
             logger.LogError(ex, "Unexpected error acquiring idempotency lock");
             healthStateUpdateService.NoteIncident();
-            if (coreOptions.Value.HaltOnFailure)
+            if (coreConfigurationService.IsHaltOnFailure)
             {
                 throw;
             }
@@ -273,7 +274,7 @@ internal sealed class IdempotencyExecutionService(
         {
             logger.LogError(ex, "Unexpected error reading idempotency cache");
             healthStateUpdateService.NoteIncident();
-            if (coreOptions.Value.HaltOnFailure)
+            if (coreConfigurationService.IsHaltOnFailure)
             {
                 throw;
             }

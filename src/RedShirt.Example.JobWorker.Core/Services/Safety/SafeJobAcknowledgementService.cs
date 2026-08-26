@@ -1,14 +1,13 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Retry;
 using RedShirt.Example.JobWorker.Common.Services.Utility;
-using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.Core.Services.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.Health;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Safety;
@@ -29,14 +28,14 @@ internal sealed class SafeJobAcknowledgementService(
     IJobFailureHandler jobFailureHandler,
     ISleepService sleepService,
     ICoreHealthStateUpdateService healthStateUpdateService,
-    IOptions<CoreConfigurationModel> coreOptions,
+    ICoreConfigurationService coreConfigurationService,
     ILogger<SafeJobAcknowledgementService> logger) : ISafeJobAcknowledgementService
 {
     /// <summary>
     ///     Lazily built Polly v8 <see cref="ResiliencePipeline" /> shared across invocations.
     ///     Anticipated <see cref="WorkerJobSourceException" /> failures are retried then soft-failed.
     ///     Unexpected exceptions note a health incident and either halt or soft-fail per
-    ///     <see cref="CoreConfigurationModel.HaltOnFailure" />.
+    ///     <see cref="ICoreConfigurationService.IsHaltOnFailure" />.
     /// </summary>
     private ResiliencePipeline? _retryPipeline;
 
@@ -103,7 +102,7 @@ internal sealed class SafeJobAcknowledgementService(
         {
             logger.LogError(ex, "Unexpected error during job acknowledge: {EMessage}", ex.Message);
             healthStateUpdateService.NoteIncident();
-            if (coreOptions.Value.HaltOnFailure)
+            if (coreConfigurationService.IsHaltOnFailure)
             {
                 throw;
             }
