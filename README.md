@@ -87,9 +87,8 @@ For configuration examples, see the `worker` section of the `test/local/docker-c
 
 The JobWorker application has a configurable set of health pages. When health endpoints are enabled, health is currently
 determined by the amount of time since the most recent major exception caught in the `RedShirt.Example.JobWorker.Core`
-project when it interacts with a service from the
-`RedShirt.Example.JobWorker.Common.Distributed` package or the `IJobSource` implementation in one of the `JobManagement`
-packages.
+project when it interacts with a service from the `RedShirt.Example.JobWorker.Common.Distributed` project or the
+`IJobSource` implementation in one of the `JobManagement` projects.
 
 | Endpoint          | Purpose    | Healthy response       | Unhealthy response           |
 |-------------------|------------|------------------------|------------------------------|
@@ -152,7 +151,9 @@ as a job source):
 
 Batch mode is the default mode for this template. To enable loader mode:
 
-* Set the `JOBS__USE_LOADER_MODE` environment variable to `true`.
+* Set the `JOBS__LOADER_MODE__ENABLED` environment variable to `true`.
+* Optionally set `JOBS__LOADER_MODE__MINIMUM_BATCH_SIZE` (default effective value: `1`) so that the loader waits when
+  free backlog capacity is below that size instead of polling for tiny refill batches.
 * If you wish to change the default or to have your application use only one polling strategy, then you can adjust the
   logic in the `RedShirt.Example.JobWorker.Core` project's `Extensions/ServiceCollectionExtensions.cs` (as part of
   initializing this template).
@@ -193,7 +194,7 @@ If you choose to configure your job worker for long polling, please consider the
 * Long polling implementations lean towards grabbing the first available messages and running with them, even if the
   batch is not fully fulfilled. If you wish to use multiple worker threads (as configured with the
   `JOBS__WORKER_THREAD_COUNT` environment variable), then this could leave some threads under-utilized in batch mode. I
-  would suggest pairing long polling with Loader mode (setting `JOBS__USE_LOADER_MODE` to `true).
+  would suggest pairing long polling with Loader mode (setting `JOBS__LOADER_MODE__ENABLED` to `true`).
 
 Long polling is configured on job sources that support it with a `WAIT_TIME_SECONDS` environment variable. A value of
 `0` (the local compose default) is short-polling. A positive value is the number of seconds to wait on the **first**

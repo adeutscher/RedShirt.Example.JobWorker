@@ -60,12 +60,14 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IIdempotencyMonitor, IdempotencyMonitor>()
             .AddSingleton<IIdempotencyExecutionService, IdempotencyExecutionService>()
             .Configure<IdempotencyConfigurationModel>(configuration.GetSection($"{ConfigSectionName}:Idempotency"))
+            .Configure<LoaderModeConfigurationModel>(configuration.GetSection($"{ConfigSectionName}:LoaderMode"))
             // Source Messages
             .AddSingleton<ISourceMessageConverter, SourceMessageConverter>()
             .AddSingleton<ISourceMessageSorter, SourceMessageSorter>();
 
         if (configuration
-                .GetSection(ConfigSectionName).Get<CoreServiceConfigurationModel>()?.EffectiveUseLoaderModeSetting ==
+                .GetSection($"{ConfigSectionName}:LoaderMode").Get<LoaderModeConfigurationModel>()
+                ?.EffectiveEnabledSetting ==
             true)
             // Loader Mode
         {
@@ -107,21 +109,5 @@ public static class ServiceCollectionExtensions
         }
 
         return services;
-    }
-
-    internal sealed class CoreServiceConfigurationModel
-    {
-        public required string? UseLoaderMode { get; init; }
-
-        /// <summary>
-        ///     Parsing of UseLoaderMode. Felt the need to be a bit more flexible with this parameter, so went with an Effective_
-        ///     property.
-        /// </summary>
-        public bool EffectiveUseLoaderModeSetting => !string.IsNullOrWhiteSpace(UseLoaderMode) &&
-                                                     (
-                                                         (int.TryParse(UseLoaderMode, out var intResult) &&
-                                                          intResult > 0) ||
-                                                         (bool.TryParse(UseLoaderMode, out var boolResult) &&
-                                                          boolResult));
     }
 }
