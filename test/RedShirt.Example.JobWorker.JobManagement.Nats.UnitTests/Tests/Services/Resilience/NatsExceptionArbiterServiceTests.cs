@@ -15,7 +15,10 @@ public class NatsExceptionArbiterServiceTests
     [Fact]
     public void GetReport_ArgumentException_IsExpectedAndNotTransient()
     {
+#pragma warning disable S3928
+        // ReSharper disable once NotResolvedInText
         var report = _sut.GetReport(new ArgumentException("bad stream", "stream"));
+#pragma warning restore S3928
 
         Assert.False(report.AlreadyHandled);
         Assert.True(report.IsExpected);

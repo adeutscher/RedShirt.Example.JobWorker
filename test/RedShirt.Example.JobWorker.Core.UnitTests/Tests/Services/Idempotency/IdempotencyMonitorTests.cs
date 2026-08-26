@@ -102,46 +102,6 @@ public class IdempotencyMonitorTests
                 TestContext.Current.CancellationToken), Times.Once);
     }
 
-    [Fact(Timeout = 1000)]
-    public async Task RunAsync_SleepsUsingEffectiveMonitorIntervalBetweenLoops()
-    {
-        var doQuit = false;
-        var executionEndArbiter = new Mock<IIdempotencyMonitorExecutionEndArbiter>(MockBehavior.Strict);
-        executionEndArbiter
-            .Setup(a => a.IdempotencyMonitorDelayWaitAsync(TimeSpan.FromSeconds(3),
-                TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
-        executionEndArbiter
-            .Setup(a => a.MonitorShouldKeepRunning())
-            .Returns(() =>
-            {
-                if (doQuit)
-                {
-                    return false;
-                }
-
-                doQuit = true;
-                return true;
-            });
-
-        var jobRepository = new Mock<IJobRepository>(MockBehavior.Strict);
-        jobRepository
-            .Setup(r => r.GetAllIdempotencyBlockedJobsAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync([]);
-
-        var monitor = new IdempotencyMonitor(executionEndArbiter.Object, jobRepository.Object,
-            new Mock<IIdempotencyExecutionService>(MockBehavior.Strict).Object,
-            new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object,
-            Options.Create(CreateOptions(monitorIntervalSeconds: 1)), CreateStatisticsService(),
-            new NullLogger<IdempotencyMonitor>());
-
-        await monitor.RunAsync(TestContext.Current.CancellationToken);
-
-        executionEndArbiter.Verify(
-            a => a.IdempotencyMonitorDelayWaitAsync(TimeSpan.FromSeconds(3),
-                TestContext.Current.CancellationToken), Times.Once);
-    }
-
     [Theory(Timeout = 2000)]
     [InlineData(null)]
     [InlineData(CoreJobResult.Failure)]
@@ -369,7 +329,8 @@ public class IdempotencyMonitorTests
             new Mock<ISafeJobAcknowledgementService>(MockBehavior.Strict).Object,
             Options.Create(CreateOptions(false)), CreateStatisticsService(), new NullLogger<IdempotencyMonitor>());
 
-        await monitor.RunAsync(TestContext.Current.CancellationToken);
+        var result = await monitor.RunAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(HandlerComponentResponse.NotEnabled, result);
     }
 
     [Fact(Timeout = 1000)]

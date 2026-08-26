@@ -62,8 +62,9 @@ public class HeartbeatMonitorTests
             CreateSleepService(),
             CreateCoreConfigurationService(), new NullLogger<HeartbeatMonitor>());
 
-        await monitor.RunAsync(TestContext.Current.CancellationToken);
+        var result = await monitor.RunAsync(TestContext.Current.CancellationToken);
 
+        Assert.Equal(HandlerComponentResponse.NotEnabled, result);
         Assert.Empty(executionEndArbiter.Invocations);
         Assert.Empty(jobRepository.Invocations);
         Assert.Empty(heartbeatCalculator.Invocations);
