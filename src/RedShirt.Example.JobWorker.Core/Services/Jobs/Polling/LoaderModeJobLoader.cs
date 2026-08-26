@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using RedShirt.Example.JobWorker.Core.Configuration;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Exceptions.MessagePolling;
 using RedShirt.Example.JobWorker.Core.Models;
@@ -10,9 +12,7 @@ using System.Diagnostics;
 
 namespace RedShirt.Example.JobWorker.Core.Services.Jobs.Polling;
 
-#pragma warning disable S107
 internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
-#pragma warning restore S107
 {
     private readonly CancellationTokenSource _cancellationTokenSource = new();
     private readonly ICoreConfigurationService _coreConfigurationService;
@@ -21,6 +21,7 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
     private readonly IJobIntakeService _jobIntakeService;
     private readonly IJobRepository _jobRepository;
     private readonly IJobSource _jobSource;
+    private readonly IOptions<LoaderModeConfigurationModel> _loaderModeOptions;
     private readonly ILogger<LoaderModeJobLoader> _logger;
 
     private bool _disposed;
@@ -153,6 +154,7 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
         IJobIntakeService jobIntakeService,
         ICoreHealthStateUpdateService healthStateUpdateService,
         ICoreConfigurationService coreConfigurationService,
+        IOptions<LoaderModeConfigurationModel> loaderModeOptions,
         ILogger<LoaderModeJobLoader> logger)
 #pragma warning restore S107
     {
@@ -161,6 +163,7 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
         _jobIntakeService = jobIntakeService;
         _healthStateUpdateService = healthStateUpdateService;
         _coreConfigurationService = coreConfigurationService;
+        _loaderModeOptions = loaderModeOptions;
         _logger = logger;
 
         executionEndArbiter.AddOnStopCallback(OnExecutionEndArbiterStop);
@@ -184,6 +187,12 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
         {
             // Throwing an exception in order to leverage Polly's handling for incremental backoff.
             throw new BacklogFullException();
+        }
+
+        if (sizeToGet < _loaderModeOptions.Value.EffectiveMinimumBatchSize)
+        {
+            // Free capacity exists, but not enough to justify a poll yet.
+            throw new BacklogNotEmptyEnoughException();
         }
 
         var jobResponse = await GetJobsAsync(sizeToGet, cancellationToken);

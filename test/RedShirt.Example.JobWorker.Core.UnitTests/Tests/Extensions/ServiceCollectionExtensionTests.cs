@@ -73,12 +73,12 @@ public class ServiceCollectionExtensionTests
     [InlineData("false", typeof(BatchModeJobLoader))]
     [InlineData("1", typeof(LoaderModeJobLoader))]
     [InlineData("true", typeof(LoaderModeJobLoader))]
-    public void AddCoreJobManagement_ConfiguresJobLoaderFromUseLoaderMode(string? useLoaderMode,
+    public void AddCoreJobManagement_ConfiguresJobLoaderFromLoaderModeEnabled(string? enabled,
         Type expectedLoaderType)
     {
         var configuration = CreateConfiguration(new Dictionary<string, string?>
         {
-            ["Jobs:UseLoaderMode"] = useLoaderMode
+            ["Jobs:LoaderMode:Enabled"] = enabled
         });
 
         var services = new ServiceCollection()
@@ -106,6 +106,27 @@ public class ServiceCollectionExtensionTests
 
         var options = provider.GetRequiredService<IOptions<JobSourceConfigurationModel>>().Value;
         Assert.Equal(batchSize, options.FetchCount);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(10)]
+    public void AddCoreJobManagement_ConfiguresLoaderModeMinimumBatchSize(int minimumBatchSize)
+    {
+        var configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Jobs:LoaderMode:MinimumBatchSize"] = minimumBatchSize.ToString()
+        });
+
+        var services = new ServiceCollection()
+            .AddCoreJobManagement(configuration);
+
+        using var provider = services.BuildServiceProvider();
+
+        var options = provider.GetRequiredService<IOptions<LoaderModeConfigurationModel>>().Value;
+        Assert.Equal(minimumBatchSize, options.MinimumBatchSize);
+        Assert.Equal(minimumBatchSize, options.EffectiveMinimumBatchSize);
     }
 
     [Theory]
@@ -279,13 +300,28 @@ public class ServiceCollectionExtensionTests
     [InlineData("true", true)]
     [InlineData("True", true)]
     [InlineData("TRUE", true)]
-    public void EffectiveUseLoaderModeSetting(string? useLoaderMode, bool expected)
+    public void EffectiveEnabledSetting(string? enabled, bool expected)
     {
-        var model = new ServiceCollectionExtensions.CoreServiceConfigurationModel
+        var model = new LoaderModeConfigurationModel
         {
-            UseLoaderMode = useLoaderMode
+            Enabled = enabled
         };
 
-        Assert.Equal(expected, model.EffectiveUseLoaderModeSetting);
+        Assert.Equal(expected, model.EffectiveEnabledSetting);
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(-3, 1)]
+    [InlineData(1, 1)]
+    [InlineData(5, 5)]
+    public void EffectiveMinimumBatchSize(int configured, int expected)
+    {
+        var model = new LoaderModeConfigurationModel
+        {
+            MinimumBatchSize = configured
+        };
+
+        Assert.Equal(expected, model.EffectiveMinimumBatchSize);
     }
 }

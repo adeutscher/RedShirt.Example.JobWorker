@@ -20,10 +20,17 @@ If this template is still in general form, then I would advise testing using the
 
 ## Loader Mode
 
-To enable loader mode in the general template, set `JOBS__USE_LOADER_MODE` to `true`:
+To enable loader mode in the general template, set `JOBS__LOADER_MODE__ENABLED` to `true`:
 
 ```bash
-export JOBS__USE_LOADER_MODE=true
+export JOBS__LOADER_MODE__ENABLED=true
+```
+
+Optionally raise `JOBS__LOADER_MODE__MINIMUM_BATCH_SIZE` so the loader waits until enough free backlog slots exist
+before polling (default effective minimum is `1`):
+
+```bash
+export JOBS__LOADER_MODE__MINIMUM_BATCH_SIZE=5
 ```
 
 ## Message Sources
