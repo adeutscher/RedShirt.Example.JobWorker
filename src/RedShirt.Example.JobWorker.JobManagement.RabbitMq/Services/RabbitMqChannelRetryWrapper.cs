@@ -85,7 +85,6 @@ internal class RabbitMqChannelRetryWrapper(
         if (state.Exception is not null)
         {
             state.RetryNumber++;
-            ResetChannel();
         }
 
         var localExceptionJudgement = GetExceptionJudgement(state);
@@ -122,6 +121,7 @@ internal class RabbitMqChannelRetryWrapper(
         }
         catch (Exception e)
         {
+            // Store the exception so that the next retry can pivot based on it
             state.Exception = e;
             throw;
         }
