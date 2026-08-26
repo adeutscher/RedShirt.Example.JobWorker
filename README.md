@@ -152,8 +152,8 @@ as a job source):
 Batch mode is the default mode for this template. To enable loader mode:
 
 * Set the `JOBS__LOADER_MODE__ENABLED` environment variable to `true`.
-* Optionally set `JOBS__LOADER_MODE__MINIMUM_BATCH_SIZE` (default effective value: `1`) so the loader waits when free
-  backlog capacity is below that size instead of polling for tiny refill batches.
+* Optionally set `JOBS__LOADER_MODE__MINIMUM_BATCH_SIZE` (default effective value: `1`) so that the loader waits when
+  free backlog capacity is below that size instead of polling for tiny refill batches.
 * If you wish to change the default or to have your application use only one polling strategy, then you can adjust the
   logic in the `RedShirt.Example.JobWorker.Core` project's `Extensions/ServiceCollectionExtensions.cs` (as part of
   initializing this template).
