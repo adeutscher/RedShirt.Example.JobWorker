@@ -84,7 +84,7 @@ public class SafeJobRunnerCancellationTests
                 MaxJobTimeSeconds = maximumRunTimeSeconds
             }));
 
-        using var callerCts = new CancellationTokenSource();
+        using var callerCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var originalCancellationToken = callerCts.Token;
         var result = await safeJobRunner.RunSafelyAsync(job.Object, originalCancellationToken);
 
@@ -146,7 +146,7 @@ public class SafeJobRunnerCancellationTests
                 MaxJobTimeSeconds = maximumRunTimeSeconds
             }));
 
-        using var callerCts = new CancellationTokenSource();
+        using var callerCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var originalCancellationToken = callerCts.Token;
         var result = await safeJobRunner.RunSafelyAsync(job.Object, originalCancellationToken);
 
