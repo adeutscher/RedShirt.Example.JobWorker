@@ -61,7 +61,61 @@ public class RabbitMqExceptionArbiterServiceTests
     }
 
     [Fact]
-    public void GetReport_BrokerUnreachableException_IsExpectedAndTransient()
+    public void
+        GetReport_BrokerUnreachableException_WithAuthenticationFailureInner_FirstAttempt_IsTransient()
+    {
+        var report = _sut.GetReport(
+            new BrokerUnreachableException(new AuthenticationFailureException("ACCESS_REFUSED")), 1);
+
+        Assert.False(report.AlreadyHandled);
+        Assert.True(report.IsExpected);
+        Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
+    }
+
+    [Fact]
+    public void
+        GetReport_BrokerUnreachableException_WithAuthenticationFailureInner_LaterAttempt_IsNotTransient()
+    {
+        var report = _sut.GetReport(
+            new BrokerUnreachableException(new AuthenticationFailureException("ACCESS_REFUSED")), 2);
+
+        Assert.False(report.AlreadyHandled);
+        Assert.True(report.IsExpected);
+        Assert.False(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
+    }
+
+    [Fact]
+    public void
+        GetReport_BrokerUnreachableException_WithPossibleAuthenticationFailureInner_FirstAttempt_IsTransient()
+    {
+        var report = _sut.GetReport(
+            new BrokerUnreachableException(new PossibleAuthenticationFailureException("likely ACCESS_REFUSED")),
+            1);
+
+        Assert.False(report.AlreadyHandled);
+        Assert.True(report.IsExpected);
+        Assert.True(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
+    }
+
+    [Fact]
+    public void
+        GetReport_BrokerUnreachableException_WithPossibleAuthenticationFailureInner_LaterAttempt_IsNotTransient()
+    {
+        var report = _sut.GetReport(
+            new BrokerUnreachableException(new PossibleAuthenticationFailureException("likely ACCESS_REFUSED")),
+            2);
+
+        Assert.False(report.AlreadyHandled);
+        Assert.True(report.IsExpected);
+        Assert.False(report.CouldBeTransient);
+        Assert.True(report.CouldBeExternallySolvable);
+    }
+
+    [Fact]
+    public void GetReport_BrokerUnreachableException_WithoutAuthInner_IsExpectedAndTransient()
     {
         var report = _sut.GetReport(new BrokerUnreachableException(new IOException("no broker")), 1);
 

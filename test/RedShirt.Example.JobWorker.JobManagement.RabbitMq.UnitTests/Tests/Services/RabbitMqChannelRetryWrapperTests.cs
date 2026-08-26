@@ -57,10 +57,12 @@ public class RabbitMqChannelRetryWrapperTests
         var newConnectionCalls = 0;
         Action<IConnection> onNewConnection = _ => newConnectionCalls++;
 
-        await wrapper.GetChannelAndDoActionWithRetryAsync((_, _) => Task.CompletedTask, onNewConnection,
-            TestContext.Current.CancellationToken);
-        await wrapper.GetChannelAndDoActionWithRetryAsync((_, _) => Task.CompletedTask, onNewConnection,
-            TestContext.Current.CancellationToken);
+        await wrapper.GetChannelAndDoActionWithRetryAsync((_, _) => Task.CompletedTask,
+            onNewConnectionCallback: onNewConnection,
+            cancellationToken: TestContext.Current.CancellationToken);
+        await wrapper.GetChannelAndDoActionWithRetryAsync((_, _) => Task.CompletedTask,
+            onNewConnectionCallback: onNewConnection,
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(1, newConnectionCalls);
         connection.Verify(
@@ -111,8 +113,8 @@ public class RabbitMqChannelRetryWrapperTests
 
                 return Task.CompletedTask;
             },
-            _ => newConnectionCalls++,
-            TestContext.Current.CancellationToken);
+            onNewConnectionCallback: _ => newConnectionCalls++,
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal([firstChannel.Object, secondChannel.Object], seenChannels);
         Assert.Equal(1, newConnectionCalls);
@@ -167,8 +169,8 @@ public class RabbitMqChannelRetryWrapperTests
 
                 return Task.CompletedTask;
             },
-            _ => forcedConnections++,
-            TestContext.Current.CancellationToken);
+            onNewConnectionCallback: _ => forcedConnections++,
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(2, attempts);
         Assert.Equal([firstChannel.Object, secondChannel.Object], seenChannels);
@@ -259,8 +261,8 @@ public class RabbitMqChannelRetryWrapperTests
                 received = ch;
                 return Task.CompletedTask;
             },
-            conn => notified = conn,
-            TestContext.Current.CancellationToken);
+            onNewConnectionCallback: conn => notified = conn,
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Same(channel.Object, received);
         Assert.Same(connection.Object, notified);

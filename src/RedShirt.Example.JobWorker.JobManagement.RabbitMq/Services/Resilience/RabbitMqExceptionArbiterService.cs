@@ -56,12 +56,25 @@ internal class RabbitMqExceptionArbiterService : IRabbitMqExceptionArbiterServic
         };
     }
 
+    private static RabbitMqExceptionArbiterReport MapBrokerUnreachableException(BrokerUnreachableException exception,
+        int attemptNumber)
+    {
+        // ReSharper disable once ConvertIfStatementToReturnStatement
+        if (exception.InnerException is AuthenticationFailureException
+            or PossibleAuthenticationFailureException)
+        {
+            return MapAuthenticationException(attemptNumber);
+        }
+
+        return Fresh(true, true, true);
+    }
+
     /// <summary>
     ///     Handle the special case of authentication failures.
     /// </summary>
     private static RabbitMqExceptionArbiterReport MapAuthenticationException(int attemptNumber)
     {
-        // First offense is treated as transient so a rotated secret can be pulled once.
+        // First offence is treated as transient so a rotated secret can be pulled once.
         return Fresh(true, attemptNumber == 1, true);
     }
 
@@ -89,8 +102,9 @@ internal class RabbitMqExceptionArbiterService : IRabbitMqExceptionArbiterServic
             WorkerSecretManagerException workerSecretManager =>
                 Handled(true, workerSecretManager.CouldBeTransient, workerSecretManager.CouldBeExternallySolvable),
             // Broker / network / channel lifecycle blips — auto-recovery or ops can clear them.
-            BrokerUnreachableException
-                or ConnectFailureException
+            BrokerUnreachableException brokerUnreachableException => MapBrokerUnreachableException(
+                brokerUnreachableException, attemptNumber),
+            ConnectFailureException
                 or AlreadyClosedException
                 or OperationInterruptedException => Fresh(true, true, true),
             // Auth failures — first attempt may refresh secrets; later attempts are permanent.

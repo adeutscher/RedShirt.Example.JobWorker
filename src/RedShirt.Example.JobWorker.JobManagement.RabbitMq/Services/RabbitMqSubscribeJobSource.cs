@@ -109,8 +109,10 @@ internal class RabbitMqSubscribeJobSource(
     /// <param name="logVerb">
     ///     Verb used in error logs (e.g. "subscribing" or "re-subscribing").
     /// </param>
+    /// <param name="forceNewConnectionImmediately"></param>
     /// <param name="cancellationToken"></param>
-    private async Task SubscribeWithRetryLoopAsync(string logVerb, CancellationToken cancellationToken)
+    private async Task SubscribeWithRetryLoopAsync(string logVerb, bool forceNewConnectionImmediately,
+        CancellationToken cancellationToken)
     {
         // CompareExchange returns the prior value; true means another caller already holds the lock.
         if (Interlocked.CompareExchange(ref _subscribeLoopRunning, true, false))
@@ -132,7 +134,8 @@ internal class RabbitMqSubscribeJobSource(
 
                 try
                 {
-                    await GetChannelAndDoActionWithRetryAsync(StartConsumerAsync, cancellationToken);
+                    await GetChannelAndDoActionWithRetryAsync(StartConsumerAsync, forceNewConnectionImmediately,
+                        cancellationToken);
                 }
                 catch (OperationCanceledException e) when (e.CancellationToken.IsCancellationRequested)
                 {
@@ -175,9 +178,11 @@ internal class RabbitMqSubscribeJobSource(
     }
 
     private Task GetChannelAndDoActionWithRetryAsync(Func<IChannel, CancellationToken, Task> callback,
+        bool forceNewConnectionImmediately,
         CancellationToken cancellationToken)
     {
         return channelRetryWrapper.GetChannelAndDoActionWithRetryAsync(callback,
+            forceNewConnectionImmediately,
             OnNewConnection,
             cancellationToken);
     }
@@ -223,7 +228,8 @@ internal class RabbitMqSubscribeJobSource(
 
             channelRetryWrapper.ResetChannel();
 
-            _ = Task.Run(() => SubscribeWithRetryLoopAsync("re-subscribing", _cancellationToken), _cancellationToken);
+            _ = Task.Run(() => SubscribeWithRetryLoopAsync("re-subscribing", true, _cancellationToken),
+                _cancellationToken);
             return Task.CompletedTask;
         }
 
@@ -260,6 +266,7 @@ internal class RabbitMqSubscribeJobSource(
             {
                 await GetChannelAndDoActionWithRetryAsync(
                     (channel, ct) => channel.BasicCancelAsync(_subscriberTag, cancellationToken: ct),
+                    false,
                     cancellationToken);
             }
             catch (WorkerJobSourceException e) when (e.InnerException is AlreadyClosedException)
@@ -306,7 +313,7 @@ internal class RabbitMqSubscribeJobSource(
                 await channel.BasicNackAsync(rabbitMqJobModel.DeliveryTag, false, result.IsRecoverableFailure(),
                     ct);
             }
-        }, cancellationToken);
+        }, false, cancellationToken);
     }
 
     public Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -334,6 +341,6 @@ internal class RabbitMqSubscribeJobSource(
         // Kick off the task that shall watch for unsubscribes
         _ = Task.Run(() => WaitThenStopSubscriberAsync(cancellationToken), cancellationToken);
 
-        await SubscribeWithRetryLoopAsync("subscribing", cancellationToken);
+        await SubscribeWithRetryLoopAsync("subscribing", false, cancellationToken);
     }
 }

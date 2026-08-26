@@ -24,9 +24,10 @@ public class RabbitMqJobSourceTests
         channelRetryWrapper
             .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
                 It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+                It.IsAny<bool>(),
                 It.IsAny<Action<IConnection>?>(),
                 It.IsAny<CancellationToken>()))
-            .Returns((Func<IChannel, CancellationToken, Task> callback, Action<IConnection>? _,
+            .Returns((Func<IChannel, CancellationToken, Task> callback, bool _, Action<IConnection>? __,
                 CancellationToken token) => callback(channel, token));
 
         var jobSource = new RabbitMqJobSource(
@@ -44,6 +45,7 @@ public class RabbitMqJobSourceTests
     {
         channelRetryWrapper.Verify(w => w.GetChannelAndDoActionWithRetryAsync(
             It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+            It.IsAny<bool>(),
             It.IsAny<Action<IConnection>?>(),
             TestContext.Current.CancellationToken), times);
     }
@@ -95,6 +97,7 @@ public class RabbitMqJobSourceTests
 
         channelRetryWrapper.Verify(w => w.GetChannelAndDoActionWithRetryAsync(
             It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+            It.IsAny<bool>(),
             It.IsAny<Action<IConnection>?>(),
             It.IsAny<CancellationToken>()), Times.Never);
         Assert.Empty(mockChannel.Invocations);

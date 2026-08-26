@@ -82,9 +82,10 @@ public class RabbitMqSubscribeJobSourceTests
         wrapper
             .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
                 It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+                It.IsAny<bool>(),
                 It.IsAny<Action<IConnection>?>(),
                 It.IsAny<CancellationToken>()))
-            .Returns((Func<IChannel, CancellationToken, Task> callback, Action<IConnection>? onNew,
+            .Returns((Func<IChannel, CancellationToken, Task> callback, bool _, Action<IConnection>? onNew,
                 CancellationToken token) =>
             {
                 captureOnNewConnection?.Invoke(onNew);
@@ -144,6 +145,7 @@ public class RabbitMqSubscribeJobSourceTests
 
         wrapper.Verify(w => w.GetChannelAndDoActionWithRetryAsync(
             It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+            It.IsAny<bool>(),
             It.IsAny<Action<IConnection>?>(),
             It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -343,6 +345,7 @@ public class RabbitMqSubscribeJobSourceTests
         wrapper
             .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
                 It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+                It.IsAny<bool>(),
                 It.IsAny<Action<IConnection>?>(),
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("permanent"));
@@ -412,9 +415,10 @@ public class RabbitMqSubscribeJobSourceTests
         wrapper
             .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
                 It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+                It.IsAny<bool>(),
                 It.IsAny<Action<IConnection>?>(),
                 It.IsAny<CancellationToken>()))
-            .Returns((Func<IChannel, CancellationToken, Task> callback, Action<IConnection>? onNew,
+            .Returns((Func<IChannel, CancellationToken, Task> callback, bool _, Action<IConnection>? onNew,
                 CancellationToken token) =>
             {
                 attempts++;
@@ -490,9 +494,10 @@ public class RabbitMqSubscribeJobSourceTests
         wrapper
             .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
                 It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+                It.IsAny<bool>(),
                 It.IsAny<Action<IConnection>?>(),
                 It.IsAny<CancellationToken>()))
-            .Returns((Func<IChannel, CancellationToken, Task> callback, Action<IConnection>? _,
+            .Returns((Func<IChannel, CancellationToken, Task> callback, bool _, Action<IConnection>? __,
                 CancellationToken token) =>
             {
                 attempts++;
@@ -532,6 +537,7 @@ public class RabbitMqSubscribeJobSourceTests
         wrapper
             .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
                 It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+                It.IsAny<bool>(),
                 It.IsAny<Action<IConnection>?>(),
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new WorkerJobSourceException(
@@ -573,6 +579,7 @@ public class RabbitMqSubscribeJobSourceTests
 
         wrapper.Verify(w => w.GetChannelAndDoActionWithRetryAsync(
             It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+            It.IsAny<bool>(),
             It.IsAny<Action<IConnection>?>(),
             It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -592,6 +599,7 @@ public class RabbitMqSubscribeJobSourceTests
 
         wrapper.Verify(w => w.GetChannelAndDoActionWithRetryAsync(
             It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+            It.IsAny<bool>(),
             It.IsAny<Action<IConnection>?>(),
             It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -626,6 +634,7 @@ public class RabbitMqSubscribeJobSourceTests
         wrapper
             .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
                 It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+                It.IsAny<bool>(),
                 It.IsAny<Action<IConnection>?>(),
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("cancel failed"));

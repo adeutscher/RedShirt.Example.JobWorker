@@ -11,8 +11,8 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 internal interface IRabbitMqChannelRetryWrapper
 {
     Task GetChannelAndDoActionWithRetryAsync(Func<IChannel, CancellationToken, Task> callback,
-        Action<IConnection>? onNewConnectionCallback = null, CancellationToken cancellationToken = default);
-
+        bool forceNewConnectionImmediately = false, Action<IConnection>? onNewConnectionCallback = null,
+        CancellationToken cancellationToken = default);
     void ResetChannel();
 }
 
@@ -38,12 +38,37 @@ internal class RabbitMqChannelRetryWrapper(
         var forceNewSecretManagerPull = false;
 
         // ReSharper disable once ConvertIfStatementToSwitchStatement
-        if (state.Exception is AuthenticationFailureException or PossibleAuthenticationFailureException
+        if (state.Exception is AuthenticationFailureException
+                or BrokerUnreachableException {InnerException: AuthenticationFailureException}
+                or PossibleAuthenticationFailureException
+                or BrokerUnreachableException {InnerException: PossibleAuthenticationFailureException}
             && exceptionArbiterService.GetReport(state.Exception, state.RetryNumber) is {CouldBeTransient: true})
         {
             forceNewSecretManagerPull = true;
             regenerateConnection = true;
             regenerateChannel = true;
+
+            // Just return now. It's all set to true
+            return new LocalExceptionJudgement
+            {
+                RegenerateConnection = regenerateConnection,
+                RegenerateChannel = regenerateChannel,
+                ForceNewSecretManagerPull = forceNewSecretManagerPull
+            };
+        }
+
+        if (state.Exception is AlreadyClosedException
+            {
+                ShutdownReason.ReplyCode: >= RabbitMqExceptionCodeConstants.ConnectionCodeRangeAMin
+                and <= RabbitMqExceptionCodeConstants.ConnectionCodeRangeAMax
+            }
+            or OperationInterruptedException
+            {
+                ShutdownReason.ReplyCode: >= RabbitMqExceptionCodeConstants.ConnectionCodeRangeBMin
+                and <= RabbitMqExceptionCodeConstants.ConnectionCodeRangeBMax
+            })
+        {
+            regenerateConnection = true;
         }
 
         if (state.Exception is OperationInterruptedException
@@ -80,6 +105,7 @@ internal class RabbitMqChannelRetryWrapper(
     private async Task CallbackAsync(Func<IChannel, CancellationToken, Task> callback,
         ChannelState state,
         Action<IConnection>? onNewConnectionCallback,
+        bool immediatelyRefreshConnection,
         CancellationToken cancellationToken)
     {
         if (state.Exception is not null)
@@ -96,7 +122,7 @@ internal class RabbitMqChannelRetryWrapper(
             try
             {
                 var connectionWrapper = await connectionCacheSource.GetConnectionAsync(
-                    localExceptionJudgement.RegenerateConnection,
+                    immediatelyRefreshConnection || localExceptionJudgement.RegenerateConnection,
                     localExceptionJudgement.ForceNewSecretManagerPull,
                     cancellationToken);
                 if (!connectionWrapper.CachedConnection)
@@ -133,10 +159,11 @@ internal class RabbitMqChannelRetryWrapper(
     }
 
     public Task GetChannelAndDoActionWithRetryAsync(Func<IChannel, CancellationToken, Task> callback,
+        bool forceNewConnectionImmediately = false,
         Action<IConnection>? onNewConnectionCallback = null, CancellationToken cancellationToken = default)
     {
         return retryWrapperService.RunAsync(
-            (state, ct) => CallbackAsync(callback, state, onNewConnectionCallback, ct),
+            (state, ct) => CallbackAsync(callback, state, onNewConnectionCallback, forceNewConnectionImmediately, ct),
             new ChannelState
             {
                 Exception = null,
