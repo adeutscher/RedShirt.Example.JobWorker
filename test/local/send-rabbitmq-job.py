@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import json
+import os
 import sys
 
 import pika
@@ -12,7 +13,10 @@ properties = pika.BasicProperties(content_type='application/json')
 if len(sys.argv) > 2:
     properties.message_id = sys.argv[2]
 
-credentials = pika.PlainCredentials('foo', 'bar')
+credentials = pika.PlainCredentials(
+    os.environ.get('RABBITMQ_DEFAULT_USER', 'foo'),
+    os.environ.get('RABBITMQ_DEFAULT_PASS', 'bar'),
+)
 connection = pika.BlockingConnection(
     pika.ConnectionParameters(host='localhost', credentials=credentials)
 )

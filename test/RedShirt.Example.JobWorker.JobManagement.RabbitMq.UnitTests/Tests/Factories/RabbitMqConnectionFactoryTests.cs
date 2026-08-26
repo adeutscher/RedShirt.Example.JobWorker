@@ -18,12 +18,12 @@ public class RabbitMqConnectionFactoryTests
 
         var innerFactory = new Mock<IInnerRabbitMqConnectionFactory>(MockBehavior.Strict);
         innerFactory
-            .Setup(i => i.GetConnectionFactoryWrapperAsync(TestContext.Current.CancellationToken))
+            .Setup(i => i.GetConnectionFactoryWrapperAsync(false, TestContext.Current.CancellationToken))
             .ReturnsAsync(mockWrapper.Object);
 
         var factory = new RabbitMqConnectionFactory(innerFactory.Object);
 
-        var returnedConnection = await factory.GetConnectionAsync(TestContext.Current.CancellationToken);
+        var returnedConnection = await factory.GetConnectionAsync(false, TestContext.Current.CancellationToken);
         Assert.NotNull(returnedConnection);
         Assert.Same(returnedConnection, mockConnection.Object);
     }

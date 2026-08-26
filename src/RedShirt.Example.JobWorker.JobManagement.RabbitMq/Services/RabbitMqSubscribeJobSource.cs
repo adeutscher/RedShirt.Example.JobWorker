@@ -14,20 +14,34 @@ using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
 using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 
+#pragma warning disable S107
 internal class RabbitMqSubscribeJobSource(
     IRabbitMqChannelRetryWrapper channelRetryWrapper,
     ICoreConfigurationService coreConfigurationService,
     IJobSubscriberIntakeQueue jobSubscriberIntakeQueue,
     IExecutionEndArbiter executionEndArbiter,
     ISleepService sleepService,
+    IRabbitMqDetailedExceptionArbiter detailedExceptionArbiter,
     IOptions<RabbitMqQueueConfigurationModel> rabbitMqConfiguration,
     ILogger<RabbitMqSubscribeJobSource> logger)
     : IJobSource
+#pragma warning restore S107
 {
+    /// <summary>
+    ///     Cancellation token provided when subscription started.
+    /// </summary>
+    private CancellationToken _cancellationToken;
+
+    /// <summary>
+    ///     Whether <see cref="SubscribeWithRetryLoopAsync" /> is currently running.
+    /// </summary>
+    private bool _subscribeLoopRunning;
+
     private string? _subscriberTag;
 
     private Task OnReceivedAsync(object sender, BasicDeliverEventArgs args)
@@ -88,88 +102,162 @@ internal class RabbitMqSubscribeJobSource(
         logger.LogTrace("Subscribed to RabbitMQ Queue: {QueueName}", rabbitMqConfiguration.Value.QueueName);
     }
 
-    private async Task OnRecoveryAsync(object? _, AsyncEventArgs args)
-    {
-        logger.LogInformation(
-            "RabbitMQ channel recovered; re-subscribing to queue {QueueName}",
-            rabbitMqConfiguration.Value.QueueName);
-
-        await SubscribeWithRetryLoopAsync("re-subscribing", args.CancellationToken);
-    }
-
     /// <summary>
     ///     Attempt to start the consumer, retrying according to transient / halt-on-failure configuration.
+    ///     Only one invocation may run at a time; concurrent callers return immediately.
     /// </summary>
     /// <param name="logVerb">
     ///     Verb used in error logs (e.g. "subscribing" or "re-subscribing").
     /// </param>
+    /// <param name="forceNewConnectionImmediately"></param>
     /// <param name="cancellationToken"></param>
-    private async Task SubscribeWithRetryLoopAsync(string logVerb, CancellationToken cancellationToken)
+    private async Task SubscribeWithRetryLoopAsync(string logVerb, bool forceNewConnectionImmediately,
+        CancellationToken cancellationToken)
     {
-        var firstIteration = true;
-        while (true)
+        // CompareExchange returns the prior value; true means another caller already holds the lock.
+        if (Interlocked.CompareExchange(ref _subscribeLoopRunning, true, false))
         {
-            if (firstIteration)
+            return;
+        }
+
+        try
+        {
+            var firstIteration = true;
+            while (true)
             {
+                if (!firstIteration)
+                {
+                    await sleepService.DelayAsync(TimeSpan.FromSeconds(1), cancellationToken);
+                }
+
                 firstIteration = false;
-                await sleepService.DelayAsync(TimeSpan.FromSeconds(1), cancellationToken);
-            }
 
-            try
-            {
-                await GetChannelAndDoActionWithRetryAsync(StartConsumerAsync, cancellationToken);
-            }
-            catch (OperationCanceledException e) when (e.CancellationToken.IsCancellationRequested)
-            {
-                // Pass
-            }
+                try
+                {
+                    await GetChannelAndDoActionWithRetryAsync(StartConsumerAsync, forceNewConnectionImmediately,
+                        cancellationToken);
+                }
+                catch (OperationCanceledException e) when (e.CancellationToken.IsCancellationRequested)
+                {
+                    // Pass
+                }
 #pragma warning disable S2139
-            // Misguided sonar warning
-            catch (Exception e)
+                // Misguided sonar warning
+                catch (Exception e)
 #pragma warning restore S2139
-            {
-                // Some variety of non-transient failure
-                logger.LogError(e, "Error {LogVerb} to RabbitMQ", logVerb);
-
-                if (e is WorkerJobSourceException {CouldBeTransient: true} &&
-                    !coreConfigurationService.IsTreatingTransientExceptionAsFailure)
                 {
-                    // Transient: Retry and try again
-                    continue;
+                    // Some variety of non-transient failure
+                    logger.LogError(e, "Error {LogVerb} to RabbitMQ", logVerb);
+
+                    if (e is WorkerJobSourceException {CouldBeTransient: true} &&
+                        !coreConfigurationService.IsTreatingTransientExceptionAsFailure)
+                    {
+                        // Transient: Retry and try again
+                        continue;
+                    }
+
+                    if (!coreConfigurationService.IsHaltOnFailure)
+                    {
+                        // Not halting on failure, continue and try again
+                        continue;
+                    }
+
+                    // HaltOnFailure is true.
+                    // Pass the exception up to one of our threads as opposed to a RabbitMQ-managed one
+                    executionEndArbiter.Stop(e);
+                    // Fall through to break out of loop
                 }
 
-                if (!coreConfigurationService.IsHaltOnFailure)
-                {
-                    // Not halting on failure, continue and try again
-                    continue;
-                }
-
-                // HaltOnFailure is true.
-                // Pass the exception up to one of our threads as opposed to a RabbitMQ-managed one
-                executionEndArbiter.Stop(e);
-                // Fall through to break out of loop
+                break;
             }
-
-            break;
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _subscribeLoopRunning, false);
         }
     }
 
     private Task GetChannelAndDoActionWithRetryAsync(Func<IChannel, CancellationToken, Task> callback,
+        bool forceNewConnectionImmediately,
         CancellationToken cancellationToken)
     {
         return channelRetryWrapper.GetChannelAndDoActionWithRetryAsync(callback,
+            forceNewConnectionImmediately,
             OnNewConnection,
             cancellationToken);
     }
 
+    /// <summary>
+    ///     Handle RabbitMQ connection shutdown.
+    ///     Intended to handle network connection problems and initiate a reconnect when AutomaticRecovery is disabled.
+    /// </summary>
+    private Task OnConnectionShutdownAsync(object sender, ShutdownEventArgs args)
+    {
+        /*
+         * ConnectionShutdownAsync is the reconnect signal when AutomaticRecovery is disabled for subscriptions.
+         * Application-initiated closes (unsubscribe / dispose) should not trigger reconnect.
+         */
+
+        if (args.Initiator == ShutdownInitiator.Application)
+        {
+            return Task.CompletedTask;
+        }
+
+        var exception = args.Exception ?? new AlreadyClosedException(args);
+
+        if (detailedExceptionArbiter.IsReasonToReconnect(exception)
+            || detailedExceptionArbiter.IsReasonToStopIfHaltOnFailure(exception))
+        {
+            /*
+             * Is an explicit reason to reconnect or another serious error. Funnel both through reconnection.
+             *
+             * If it is a known reason to reconnect, then reconnect is exactly what we'll do.
+             * If it is another error, then the reconnect serves a few different purposes:
+             *  * The reconnect is aware of the established retry loop and the main exception arbiter, allowing both to weigh in.
+             *  * If HaltOnFailure is false, then it allows the subscriber a chance to recover
+             *  * If HaltOnFailure is true, then the established retry loop still stops the application
+             */
+
+            // Avoid spawning another reconnect task while a subscribe loop is already in flight.
+            if (Volatile.Read(ref _subscribeLoopRunning))
+            {
+                return Task.CompletedTask;
+            }
+
+            logger.LogWarning(exception, "RabbitMQ connection shutdown, reconnecting");
+
+            channelRetryWrapper.ResetChannel();
+
+            _ = Task.Run(() => SubscribeWithRetryLoopAsync("re-subscribing", true, _cancellationToken),
+                _cancellationToken);
+            return Task.CompletedTask;
+        }
+
+        if (detailedExceptionArbiter.IsAccountedForAndLikelyTransientError(exception))
+        {
+            // Is an expected transient error, not worth warning about
+            return Task.CompletedTask;
+        }
+
+        logger.LogWarning(exception,
+            "Unaccounted-for exception in {Name}. Classify via {IRabbitMqDetailedExceptionArbiter} methods",
+            nameof(RabbitMqSubscribeJobSource),
+            nameof(IRabbitMqDetailedExceptionArbiter));
+        return Task.CompletedTask;
+    }
+
     private void OnNewConnection(IConnection connection)
     {
-        connection.RecoverySucceededAsync -= OnRecoveryAsync;
-        connection.RecoverySucceededAsync += OnRecoveryAsync;
+        // Subscription mode disables AutomaticRecovery. ConnectionShutdownAsync drives our reconnect loop
+        // (including credential rotation after a drop). Do not hook RecoverySucceededAsync.
+        connection.ConnectionShutdownAsync -= OnConnectionShutdownAsync;
+        connection.ConnectionShutdownAsync += OnConnectionShutdownAsync;
     }
 
     private async Task WaitThenStopSubscriberAsync(CancellationToken cancellationToken = default)
     {
+        _cancellationToken = cancellationToken;
+
         await executionEndArbiter.WaitForFinishedAsync(cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(_subscriberTag))
@@ -178,6 +266,7 @@ internal class RabbitMqSubscribeJobSource(
             {
                 await GetChannelAndDoActionWithRetryAsync(
                     (channel, ct) => channel.BasicCancelAsync(_subscriberTag, cancellationToken: ct),
+                    false,
                     cancellationToken);
             }
             catch (WorkerJobSourceException e) when (e.InnerException is AlreadyClosedException)
@@ -224,7 +313,7 @@ internal class RabbitMqSubscribeJobSource(
                 await channel.BasicNackAsync(rabbitMqJobModel.DeliveryTag, false, result.IsRecoverableFailure(),
                     ct);
             }
-        }, cancellationToken);
+        }, false, cancellationToken);
     }
 
     public Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
@@ -252,6 +341,6 @@ internal class RabbitMqSubscribeJobSource(
         // Kick off the task that shall watch for unsubscribes
         _ = Task.Run(() => WaitThenStopSubscriberAsync(cancellationToken), cancellationToken);
 
-        await SubscribeWithRetryLoopAsync("subscribing", cancellationToken);
+        await SubscribeWithRetryLoopAsync("subscribing", false, cancellationToken);
     }
 }

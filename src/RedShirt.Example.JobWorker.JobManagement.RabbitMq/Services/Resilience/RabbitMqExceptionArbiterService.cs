@@ -11,12 +11,22 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
 /// </summary>
 internal interface IRabbitMqExceptionArbiterService
 {
-    RabbitMqExceptionArbiterReport GetReport(Exception exception);
+    /// <summary>
+    ///     Get a judgement on an exception.
+    /// </summary>
+    /// <param name="exception"></param>
+    /// <param name="attemptNumber">
+    ///     Attempt number. First attempt number starts at 1. This arbiter's partner retry wrapper uses
+    ///     Polly pipelines that are zero-based, but I find using non-zero-based more intuitive.
+    /// </param>
+    /// <returns></returns>
+    RabbitMqExceptionArbiterReport GetReport(Exception exception, int attemptNumber);
 }
 
 /// <summary>
 ///     RabbitMQ-oriented exception arbiter modelled after the Kafka / Azure / Distributed arbiters:
-///     known infrastructure failures may be transient; auth, cancel, and bad arguments are not.
+///     known infrastructure failures may be transient; auth, cancel, and bad arguments are not
+///     (except auth on the first attempt, which allows a secret-manager refresh).
 /// </summary>
 internal class RabbitMqExceptionArbiterService : IRabbitMqExceptionArbiterService
 {
@@ -46,7 +56,29 @@ internal class RabbitMqExceptionArbiterService : IRabbitMqExceptionArbiterServic
         };
     }
 
-    public RabbitMqExceptionArbiterReport GetReport(Exception exception)
+    private static RabbitMqExceptionArbiterReport MapBrokerUnreachableException(BrokerUnreachableException exception,
+        int attemptNumber)
+    {
+        // ReSharper disable once ConvertIfStatementToReturnStatement
+        if (exception.InnerException is AuthenticationFailureException
+            or PossibleAuthenticationFailureException)
+        {
+            return MapAuthenticationException(attemptNumber);
+        }
+
+        return Fresh(true, true, true);
+    }
+
+    /// <summary>
+    ///     Handle the special case of authentication failures.
+    /// </summary>
+    private static RabbitMqExceptionArbiterReport MapAuthenticationException(int attemptNumber)
+    {
+        // First offence is treated as transient so a rotated secret can be pulled once.
+        return Fresh(true, attemptNumber == 1, true);
+    }
+
+    public RabbitMqExceptionArbiterReport GetReport(Exception exception, int attemptNumber)
     {
         ArgumentNullException.ThrowIfNull(exception);
 
@@ -70,13 +102,14 @@ internal class RabbitMqExceptionArbiterService : IRabbitMqExceptionArbiterServic
             WorkerSecretManagerException workerSecretManager =>
                 Handled(true, workerSecretManager.CouldBeTransient, workerSecretManager.CouldBeExternallySolvable),
             // Broker / network / channel lifecycle blips — auto-recovery or ops can clear them.
-            BrokerUnreachableException
-                or ConnectFailureException
+            BrokerUnreachableException brokerUnreachableException => MapBrokerUnreachableException(
+                brokerUnreachableException, attemptNumber),
+            ConnectFailureException
                 or AlreadyClosedException
                 or OperationInterruptedException => Fresh(true, true, true),
-            // Auth failures — ops can rotate credentials or grant vhost access without a worker restart.
+            // Auth failures — first attempt may refresh secrets; later attempts are permanent.
             AuthenticationFailureException
-                or PossibleAuthenticationFailureException => Fresh(true, false, true),
+                or PossibleAuthenticationFailureException => MapAuthenticationException(attemptNumber),
             // Too many channels on this connection — a local client lifecycle issue, not an external fix.
             ChannelAllocationException => Fresh(true, false, false),
             // Wire / protocol mismatches — require a local client or broker version fix.

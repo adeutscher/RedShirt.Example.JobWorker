@@ -16,7 +16,7 @@ public class RabbitMqChannelRetryWrapperTests
     }
 
     private static (RabbitMqChannelRetryWrapper Wrapper, Mock<IRabbitMqConnectionCacheSource> Cache,
-        Mock<IConnection> Connection)
+        Mock<IConnection> Connection, Mock<IRabbitMqExceptionArbiterService> Arbiter)
         CreateWrapper(IRabbitMqRetryWrapperService retry, IChannel? channel = null)
     {
         var connection = new Mock<IConnection>(MockBehavior.Strict);
@@ -28,8 +28,9 @@ public class RabbitMqChannelRetryWrapperTests
         }
 
         var cache = new Mock<IRabbitMqConnectionCacheSource>(MockBehavior.Strict);
-        var wrapper = new RabbitMqChannelRetryWrapper(retry, cache.Object);
-        return (wrapper, cache, connection);
+        var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
+        var wrapper = new RabbitMqChannelRetryWrapper(retry, cache.Object, arbiter.Object);
+        return (wrapper, cache, connection, arbiter);
     }
 
     [Fact]
@@ -38,10 +39,10 @@ public class RabbitMqChannelRetryWrapperTests
     {
         var channel = new Mock<IChannel>(MockBehavior.Strict);
         var retry = new ImmediateRetryWrapper();
-        var (wrapper, cache, connection) = CreateWrapper(retry, channel.Object);
+        var (wrapper, cache, connection, _) = CreateWrapper(retry, channel.Object);
 
         cache
-            .SetupSequence(c => c.GetConnectionAsync(false, TestContext.Current.CancellationToken))
+            .SetupSequence(c => c.GetConnectionAsync(false, false, TestContext.Current.CancellationToken))
             .ReturnsAsync(new ConnectionCacheResponse
             {
                 CachedConnection = false,
@@ -56,10 +57,12 @@ public class RabbitMqChannelRetryWrapperTests
         var newConnectionCalls = 0;
         Action<IConnection> onNewConnection = _ => newConnectionCalls++;
 
-        await wrapper.GetChannelAndDoActionWithRetryAsync((_, _) => Task.CompletedTask, onNewConnection,
-            TestContext.Current.CancellationToken);
-        await wrapper.GetChannelAndDoActionWithRetryAsync((_, _) => Task.CompletedTask, onNewConnection,
-            TestContext.Current.CancellationToken);
+        await wrapper.GetChannelAndDoActionWithRetryAsync((_, _) => Task.CompletedTask,
+            onNewConnectionCallback: onNewConnection,
+            cancellationToken: TestContext.Current.CancellationToken);
+        await wrapper.GetChannelAndDoActionWithRetryAsync((_, _) => Task.CompletedTask,
+            onNewConnectionCallback: onNewConnection,
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(1, newConnectionCalls);
         connection.Verify(
@@ -74,7 +77,7 @@ public class RabbitMqChannelRetryWrapperTests
         var firstChannel = new Mock<IChannel>(MockBehavior.Strict);
         var secondChannel = new Mock<IChannel>(MockBehavior.Strict);
         var retry = new ImmediateRetryWrapper(2);
-        var (wrapper, cache, connection) = CreateWrapper(retry);
+        var (wrapper, cache, connection, _) = CreateWrapper(retry);
 
         connection
             .SetupSequence(c => c.CreateChannelAsync(It.IsAny<CreateChannelOptions>(), It.IsAny<CancellationToken>()))
@@ -82,7 +85,7 @@ public class RabbitMqChannelRetryWrapperTests
             .ReturnsAsync(secondChannel.Object);
 
         cache
-            .SetupSequence(c => c.GetConnectionAsync(false, TestContext.Current.CancellationToken))
+            .SetupSequence(c => c.GetConnectionAsync(false, false, TestContext.Current.CancellationToken))
             .ReturnsAsync(new ConnectionCacheResponse
             {
                 CachedConnection = false,
@@ -110,13 +113,13 @@ public class RabbitMqChannelRetryWrapperTests
 
                 return Task.CompletedTask;
             },
-            _ => newConnectionCalls++,
-            TestContext.Current.CancellationToken);
+            onNewConnectionCallback: _ => newConnectionCalls++,
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal([firstChannel.Object, secondChannel.Object], seenChannels);
         Assert.Equal(1, newConnectionCalls);
-        cache.Verify(c => c.GetConnectionAsync(false, TestContext.Current.CancellationToken), Times.Exactly(2));
-        cache.Verify(c => c.GetConnectionAsync(true, It.IsAny<CancellationToken>()), Times.Never);
+        cache.Verify(c => c.GetConnectionAsync(false, false, TestContext.Current.CancellationToken), Times.Exactly(2));
+        cache.Verify(c => c.GetConnectionAsync(true, false, It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Theory]
@@ -128,7 +131,7 @@ public class RabbitMqChannelRetryWrapperTests
         var firstChannel = new Mock<IChannel>(MockBehavior.Strict);
         var secondChannel = new Mock<IChannel>(MockBehavior.Strict);
         var retry = new ImmediateRetryWrapper(2);
-        var (wrapper, cache, connection) = CreateWrapper(retry);
+        var (wrapper, cache, connection, _) = CreateWrapper(retry);
 
         connection
             .SetupSequence(c => c.CreateChannelAsync(It.IsAny<CreateChannelOptions>(), It.IsAny<CancellationToken>()))
@@ -136,14 +139,14 @@ public class RabbitMqChannelRetryWrapperTests
             .ReturnsAsync(secondChannel.Object);
 
         cache
-            .Setup(c => c.GetConnectionAsync(false, TestContext.Current.CancellationToken))
+            .Setup(c => c.GetConnectionAsync(false, false, TestContext.Current.CancellationToken))
             .ReturnsAsync(new ConnectionCacheResponse
             {
                 CachedConnection = false,
                 Connection = connection.Object
             });
         cache
-            .Setup(c => c.GetConnectionAsync(true, TestContext.Current.CancellationToken))
+            .Setup(c => c.GetConnectionAsync(true, false, TestContext.Current.CancellationToken))
             .ReturnsAsync(new ConnectionCacheResponse
             {
                 CachedConnection = false,
@@ -166,14 +169,72 @@ public class RabbitMqChannelRetryWrapperTests
 
                 return Task.CompletedTask;
             },
-            _ => forcedConnections++,
-            TestContext.Current.CancellationToken);
+            onNewConnectionCallback: _ => forcedConnections++,
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(2, attempts);
         Assert.Equal([firstChannel.Object, secondChannel.Object], seenChannels);
         Assert.Equal(2, forcedConnections);
-        cache.Verify(c => c.GetConnectionAsync(false, TestContext.Current.CancellationToken), Times.Once);
-        cache.Verify(c => c.GetConnectionAsync(true, TestContext.Current.CancellationToken), Times.Once);
+        cache.Verify(c => c.GetConnectionAsync(false, false, TestContext.Current.CancellationToken), Times.Once);
+        cache.Verify(c => c.GetConnectionAsync(true, false, TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Fact]
+    public async Task
+        GetChannelAndDoActionWithRetryAsync_WhenTransientAuthFailure_ForcesSecretRefreshAndNewConnection()
+    {
+        var firstChannel = new Mock<IChannel>(MockBehavior.Strict);
+        var secondChannel = new Mock<IChannel>(MockBehavior.Strict);
+        var retry = new ImmediateRetryWrapper(2);
+        var (wrapper, cache, connection, arbiter) = CreateWrapper(retry);
+
+        arbiter
+            .Setup(a => a.GetReport(It.IsAny<AuthenticationFailureException>(), 1))
+            .Returns(new RabbitMqExceptionArbiterReport
+            {
+                AlreadyHandled = false,
+                IsExpected = true,
+                CouldBeTransient = true,
+                CouldBeExternallySolvable = true
+            });
+
+        connection
+            .SetupSequence(c => c.CreateChannelAsync(It.IsAny<CreateChannelOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(firstChannel.Object)
+            .ReturnsAsync(secondChannel.Object);
+
+        cache
+            .Setup(c => c.GetConnectionAsync(false, false, TestContext.Current.CancellationToken))
+            .ReturnsAsync(new ConnectionCacheResponse
+            {
+                CachedConnection = false,
+                Connection = connection.Object
+            });
+        cache
+            .Setup(c => c.GetConnectionAsync(true, true, TestContext.Current.CancellationToken))
+            .ReturnsAsync(new ConnectionCacheResponse
+            {
+                CachedConnection = false,
+                Connection = connection.Object
+            });
+
+        var attempts = 0;
+        await wrapper.GetChannelAndDoActionWithRetryAsync(
+            (_, _) =>
+            {
+                attempts++;
+                if (attempts == 1)
+                {
+                    throw new AuthenticationFailureException("ACCESS_REFUSED");
+                }
+
+                return Task.CompletedTask;
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, attempts);
+        cache.Verify(c => c.GetConnectionAsync(true, true, TestContext.Current.CancellationToken), Times.Once);
+        arbiter.Verify(a => a.GetReport(It.IsAny<AuthenticationFailureException>(), 1), Times.Once);
     }
 
     [Fact]
@@ -181,10 +242,10 @@ public class RabbitMqChannelRetryWrapperTests
     {
         var channel = new Mock<IChannel>(MockBehavior.Strict);
         var retry = new ImmediateRetryWrapper();
-        var (wrapper, cache, connection) = CreateWrapper(retry, channel.Object);
+        var (wrapper, cache, connection, _) = CreateWrapper(retry, channel.Object);
 
         cache
-            .Setup(c => c.GetConnectionAsync(false, TestContext.Current.CancellationToken))
+            .Setup(c => c.GetConnectionAsync(false, false, TestContext.Current.CancellationToken))
             .ReturnsAsync(new ConnectionCacheResponse
             {
                 CachedConnection = false,
@@ -200,14 +261,64 @@ public class RabbitMqChannelRetryWrapperTests
                 received = ch;
                 return Task.CompletedTask;
             },
-            conn => notified = conn,
-            TestContext.Current.CancellationToken);
+            onNewConnectionCallback: conn => notified = conn,
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Same(channel.Object, received);
         Assert.Same(connection.Object, notified);
         connection.Verify(
             c => c.CreateChannelAsync(It.IsAny<CreateChannelOptions>(), TestContext.Current.CancellationToken),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetChannel_ClearsCachedChannelSoNextCallCreatesNewOne()
+    {
+        var firstChannel = new Mock<IChannel>(MockBehavior.Strict);
+        var secondChannel = new Mock<IChannel>(MockBehavior.Strict);
+        var retry = new ImmediateRetryWrapper();
+        var (wrapper, cache, connection, _) = CreateWrapper(retry);
+
+        connection
+            .SetupSequence(c => c.CreateChannelAsync(It.IsAny<CreateChannelOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(firstChannel.Object)
+            .ReturnsAsync(secondChannel.Object);
+
+        cache
+            .Setup(c => c.GetConnectionAsync(false, false, TestContext.Current.CancellationToken))
+            .ReturnsAsync(new ConnectionCacheResponse
+            {
+                CachedConnection = false,
+                Connection = connection.Object
+            });
+
+        IChannel? first = null;
+        IChannel? second = null;
+        await wrapper.GetChannelAndDoActionWithRetryAsync((ch, _) =>
+        {
+            first = ch;
+            return Task.CompletedTask;
+        }, cancellationToken: TestContext.Current.CancellationToken);
+
+        wrapper.ResetChannel();
+
+        cache
+            .Setup(c => c.GetConnectionAsync(false, false, TestContext.Current.CancellationToken))
+            .ReturnsAsync(new ConnectionCacheResponse
+            {
+                CachedConnection = true,
+                Connection = connection.Object
+            });
+
+        await wrapper.GetChannelAndDoActionWithRetryAsync((ch, _) =>
+        {
+            second = ch;
+            return Task.CompletedTask;
+        }, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Same(firstChannel.Object, first);
+        Assert.Same(secondChannel.Object, second);
+        Assert.NotSame(first, second);
     }
 
     private sealed class ImmediateRetryWrapper(int maxAttempts = 1) : IRabbitMqRetryWrapperService

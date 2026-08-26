@@ -24,8 +24,8 @@ awslocal sqs create-queue --queue-name kafka-failures
 
 # RabbitMQ
 
-awslocal ssm put-parameter --overwrite --type String --name /rabbitmq/user --value foo
-awslocal ssm put-parameter --overwrite --type String --name /rabbitmq/password --value bar
+awslocal ssm put-parameter --overwrite --type String --name /rabbitmq/user --value "${RABBITMQ_DEFAULT_USER:-foo}"
+awslocal ssm put-parameter --overwrite --type String --name /rabbitmq/password --value "${RABBITMQ_DEFAULT_PASS:-bar}"
 
 # ActiveMQ Artemis
 
