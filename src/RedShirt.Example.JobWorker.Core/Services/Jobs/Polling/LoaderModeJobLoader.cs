@@ -189,8 +189,12 @@ internal sealed class LoaderModeJobLoader : IJobLoader, IDisposable
             throw new BacklogFullException();
         }
 
-        if (_loaderModeOptions.Value.EffectiveMinimumBatchSize <= _coreConfigurationService.FetchCount
-            && sizeToGet < _loaderModeOptions.Value.EffectiveMinimumBatchSize)
+        if (
+            // Confirm that there is enough demand to poll right now 
+            sizeToGet < _loaderModeOptions.Value.EffectiveMinimumBatchSize
+            // Confirm that the batch size isn't higher than the fetch count
+            //  (in which case a misconfigured worker would wait to pull any items forever).
+            && _loaderModeOptions.Value.EffectiveMinimumBatchSize <= _coreConfigurationService.FetchCount)
         {
             // Free capacity exists, but not enough to justify a poll yet.
             throw new BacklogNotEmptyEnoughException();
