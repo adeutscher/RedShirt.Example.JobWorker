@@ -168,11 +168,13 @@ public class LoaderModeJobLoaderTests
             Times.Never);
     }
 
-    [Fact]
-    public async Task RunAsync_WhenFreeCapacityBelowMinimumBatchSize_ThrowsBacklogNotEmptyEnoughException()
+    [Theory]
+    [InlineData(5, 3, 3)] // Free slots 2 < min 3; min < FetchCount
+    [InlineData(5, 3, 5)] // Free slots 2 < min 5; min == FetchCount
+    public async Task RunAsync_WhenFreeCapacityBelowMinimumBatchSize_ThrowsBacklogNotEmptyEnoughException(
+        int fetchCount, int watchedJobCount, int minimumBatchSize)
     {
-        // FetchCount 5, watched 3 → free slots 2; minimum batch size 3 → wait
-        var jobRepository = CreateJobRepository(3);
+        var jobRepository = CreateJobRepository(watchedJobCount);
         var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
         var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
 
@@ -182,8 +184,8 @@ public class LoaderModeJobLoaderTests
             jobRepository.Object,
             jobIntakeService.Object,
             CreateHealthStateUpdateService(),
-            CreateCoreConfigurationService(fetchCount: 5),
-            CreateLoaderModeOptions(3),
+            CreateCoreConfigurationService(fetchCount: fetchCount),
+            CreateLoaderModeOptions(minimumBatchSize),
             new NullLogger<LoaderModeJobLoader>());
 
         await Assert.ThrowsAsync<BacklogNotEmptyEnoughException>(() =>
@@ -194,6 +196,40 @@ public class LoaderModeJobLoaderTests
         jobIntakeService.Verify(
             s => s.SubmitAsync(It.IsAny<IJobSourceResponse>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task
+        RunAsync_WhenMinimumBatchSizeExceedsFetchCount_DoesNotThrowBacklogNotEmptyEnoughException()
+    {
+        // Free slots 2 < minimum 10, but minimum > FetchCount 3 → skip the min-batch wait and poll.
+        var response = CreateJobSourceResponse([new Mock<IRawJobModel>(MockBehavior.Strict).Object]);
+
+        var jobRepository = CreateJobRepository(1);
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        jobSource
+            .Setup(s => s.GetJobsAsync(2, TestContext.Current.CancellationToken))
+            .ReturnsAsync(response);
+
+        var jobIntakeService = new Mock<IJobIntakeService>(MockBehavior.Strict);
+        jobIntakeService
+            .Setup(s => s.SubmitAsync(response, TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
+        var loader = new LoaderModeJobLoader(
+            jobSource.Object,
+            CreateExecutionEndArbiter().Object,
+            jobRepository.Object,
+            jobIntakeService.Object,
+            CreateHealthStateUpdateService(),
+            CreateCoreConfigurationService(fetchCount: 3),
+            CreateLoaderModeOptions(minimumBatchSize: 10),
+            new NullLogger<LoaderModeJobLoader>());
+
+        await loader.RunAsync(TestContext.Current.CancellationToken);
+
+        jobSource.Verify(s => s.GetJobsAsync(2, TestContext.Current.CancellationToken), Times.Once);
+        jobIntakeService.Verify(s => s.SubmitAsync(response, TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Fact]
