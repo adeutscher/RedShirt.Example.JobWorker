@@ -27,7 +27,6 @@ internal class AzureServiceBusClientRetryWrapper(
     private static LocalExceptionJudgement GetExceptionJudgement(Exception? exception, int retryNumber)
     {
         var regenerateClient = false;
-        var forceNewSecretManagerPull = false;
 
         if (exception is not null
             && exception.IsPotentialCredentialProblem()
@@ -40,6 +39,7 @@ internal class AzureServiceBusClientRetryWrapper(
             };
         }
 
+        // Drill into inner exceptions
         for (var current = exception; current is not null; current = current.InnerException)
         {
             regenerateClient = current switch
@@ -53,6 +53,11 @@ internal class AzureServiceBusClientRetryWrapper(
                 } or ObjectDisposedException => true,
                 _ => regenerateClient
             };
+
+            if (regenerateClient)
+            {
+                break;
+            }
         }
 
         if (exception is ServiceBusException {IsTransient: true})
@@ -63,7 +68,8 @@ internal class AzureServiceBusClientRetryWrapper(
         return new LocalExceptionJudgement
         {
             RegenerateClient = regenerateClient,
-            ForceNewSecretManagerPull = forceNewSecretManagerPull
+            ForceNewSecretManagerPull =
+                false // hard-code false for now, no other path than the original one suggests true
         };
     }
 
@@ -96,7 +102,9 @@ internal class AzureServiceBusClientRetryWrapper(
         }
         catch (Exception e)
         {
+            // Store exception to drive decisions in later retries
             state.Exception = e;
+            // Throw so that there is a later retry
             throw;
         }
     }
