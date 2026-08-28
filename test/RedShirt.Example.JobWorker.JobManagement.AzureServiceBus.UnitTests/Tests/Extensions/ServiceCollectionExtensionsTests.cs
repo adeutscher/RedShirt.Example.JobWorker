@@ -29,6 +29,8 @@ public class ServiceCollectionExtensionsTests
                                        && d.ImplementationType == typeof(NoReactionFailureHandler));
         Assert.Contains(services, d => d.ServiceType == typeof(IAzureExceptionArbiterService));
         Assert.Contains(services, d => d.ServiceType == typeof(IAzureServiceBusExceptionArbiterService));
+        Assert.Contains(services, d => d.ServiceType == typeof(IAzureServiceBusDetailedExceptionArbiter));
         Assert.Contains(services, d => d.ServiceType == typeof(IAzureServiceBusRetryWrapperService));
+        Assert.Contains(services, d => d.ServiceType == typeof(IAzureServiceBusClientRetryWrapper));
     }
 }

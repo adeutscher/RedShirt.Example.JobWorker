@@ -2,13 +2,48 @@ using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Models;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
-using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tests.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tests.Factories;
 
 public class BusReceiverClientFactoryTests
 {
+    private static BusReceiverClientFactory CreateFactory(
+        ISecretManagerCacheService secrets,
+        BusReceiverClientFactory.ConfigurationModel config)
+    {
+        return new BusReceiverClientFactory(secrets, Options.Create(config));
+    }
+
+    [Fact]
+    public async Task GetQueueClientAsync_ForceSecretPull_PassesForceToSecretManager()
+    {
+        const string secretPath = "secrets/service-bus-force";
+        var config = new BusReceiverClientFactory.ConfigurationModel
+        {
+            ConnectionStringPath = secretPath,
+            QueueName = "queue",
+            FullyQualifiedNamespace = "unused"
+        };
+
+        var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
+        secrets
+            .Setup(c => c.GetSecretAsync(secretPath, null, true, TestContext.Current.CancellationToken))
+            .ReturnsAsync(new SecretManagerCacheSecretResponse
+            {
+                Value =
+                    "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
+                QueriedSecretManager = true
+            });
+
+        var factory = CreateFactory(secrets.Object, config);
+
+        await factory.GetQueueClientAsync(true, TestContext.Current.CancellationToken);
+
+        secrets.Verify(c => c.GetSecretAsync(secretPath, null, true, TestContext.Current.CancellationToken),
+            Times.Once);
+    }
+
     [Fact]
     public async Task GetQueueClientAsync_PassesCancellationTokenToSecretManager()
     {
@@ -32,11 +67,9 @@ public class BusReceiverClientFactoryTests
                 QueriedSecretManager = true
             });
 
-        var factory = new BusReceiverClientFactory(secrets.Object,
-            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(config));
+        var factory = CreateFactory(secrets.Object, config);
 
-        await factory.GetQueueClientAsync(cts.Token);
+        await factory.GetQueueClientAsync(cancellationToken: cts.Token);
 
         secrets.Verify(c => c.GetSecretAsync(secretPath, null, false, cts.Token), Times.Once);
         secrets.VerifyNoOtherCalls();
@@ -63,11 +96,9 @@ public class BusReceiverClientFactoryTests
                 QueriedSecretManager = true
             });
 
-        var factory = new BusReceiverClientFactory(secrets.Object,
-            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(config));
+        var factory = CreateFactory(secrets.Object, config);
 
-        var client = await factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
+        var client = await factory.GetQueueClientAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.IsType<ServiceBusClientWrapper>(client);
         secrets.Verify(c => c.GetSecretAsync(secretPath, null, false, TestContext.Current.CancellationToken),
@@ -95,12 +126,10 @@ public class BusReceiverClientFactoryTests
         };
 
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
-        var factory = new BusReceiverClientFactory(secrets.Object,
-            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(config));
+        var factory = CreateFactory(secrets.Object, config);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            factory.GetQueueClientAsync(TestContext.Current.CancellationToken));
+            factory.GetQueueClientAsync(cancellationToken: TestContext.Current.CancellationToken));
 
         secrets.VerifyNoOtherCalls();
     }
@@ -116,12 +145,10 @@ public class BusReceiverClientFactoryTests
         };
 
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
-        var factory = new BusReceiverClientFactory(secrets.Object,
-            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(config));
+        var factory = CreateFactory(secrets.Object, config);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            factory.GetQueueClientAsync(TestContext.Current.CancellationToken));
+            factory.GetQueueClientAsync(cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Equal("No service bus address has been set", exception.Message);
         secrets.VerifyNoOtherCalls();
@@ -141,11 +168,9 @@ public class BusReceiverClientFactoryTests
         };
 
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
-        var factory = new BusReceiverClientFactory(secrets.Object,
-            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(config));
+        var factory = CreateFactory(secrets.Object, config);
 
-        var client = await factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
+        var client = await factory.GetQueueClientAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.IsType<ServiceBusClientWrapper>(client);
         Assert.NotNull(((ServiceBusClientWrapper) client).Client);
@@ -165,7 +190,6 @@ public class BusReceiverClientFactoryTests
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
         secrets
             .Setup(c => c.GetSecretAsync("foo", null, false, TestContext.Current.CancellationToken))
-            // Using connection string suggestion from local testing's service bus emulator
             .ReturnsAsync(new SecretManagerCacheSecretResponse
             {
                 Value =
@@ -173,11 +197,9 @@ public class BusReceiverClientFactoryTests
                 QueriedSecretManager = true
             });
 
-        var factory = new BusReceiverClientFactory(secrets.Object,
-            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(config));
+        var factory = CreateFactory(secrets.Object, config);
 
-        var client = await factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
+        var client = await factory.GetQueueClientAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(client);
 
         Assert.IsType<ServiceBusClientWrapper>(client);
@@ -200,11 +222,9 @@ public class BusReceiverClientFactoryTests
 
         var secrets = new Mock<ISecretManagerCacheService>(MockBehavior.Strict);
 
-        var factory = new BusReceiverClientFactory(secrets.Object,
-            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(config));
+        var factory = CreateFactory(secrets.Object, config);
 
-        var client = await factory.GetQueueClientAsync(TestContext.Current.CancellationToken);
+        var client = await factory.GetQueueClientAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(client);
 
         Assert.IsType<ServiceBusClientWrapper>(client);

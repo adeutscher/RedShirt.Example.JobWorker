@@ -1,4 +1,5 @@
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Models;
+using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
@@ -6,6 +7,26 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tes
 
 internal static class AzureServiceBusRetryTestHelpers
 {
+    public static Mock<IAzureServiceBusClientRetryWrapper> CreatePassthroughClientRetryWrapper(
+        IServiceBusClientWrapper? client = null)
+    {
+        var wrapper = new Mock<IAzureServiceBusClientRetryWrapper>(MockBehavior.Strict);
+        wrapper.Setup(w => w.ResetClient());
+
+        if (client is not null)
+        {
+            wrapper
+                .Setup(w => w.GetClientAndDoActionWithRetryAsync(
+                    It.IsAny<Func<IServiceBusClientWrapper, CancellationToken, Task>>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns((Func<IServiceBusClientWrapper, CancellationToken, Task> callback, bool _, CancellationToken
+                    token) => callback(client, token));
+        }
+
+        return wrapper;
+    }
+
     public static Mock<IAzureServiceBusRetryWrapperService> CreatePassthroughRetryWrapper()
     {
         var retry = new Mock<IAzureServiceBusRetryWrapperService>(MockBehavior.Strict);
@@ -22,6 +43,25 @@ internal static class AzureServiceBusRetryTestHelpers
                 It.IsAny<CancellationToken>()))
             .Returns<Func<CancellationToken, Task<IServiceBusClientWrapper>>, CancellationToken>((func, token) =>
                 func(token));
+        retry
+            .Setup(r => r.RunAsync(It.IsAny<Func<It.IsAnyType, CancellationToken, Task>>(),
+                It.IsAny<It.IsAnyType>(), It.IsAny<CancellationToken>()))
+            .Returns(new InvocationFunc(invocation =>
+            {
+                var func = (Delegate) invocation.Arguments[0];
+                var state = invocation.Arguments[1];
+                var token = (CancellationToken) invocation.Arguments[2];
+                return func.DynamicInvoke(state, token) as Task ?? Task.CompletedTask;
+            }));
         return retry;
+    }
+
+    public static Mock<IAzureServiceBusDetailedExceptionArbiter> CreatePermissiveDetailedArbiter()
+    {
+        var arbiter = new Mock<IAzureServiceBusDetailedExceptionArbiter>(MockBehavior.Strict);
+        arbiter.Setup(a => a.IsReasonToReconnect(It.IsAny<Exception>())).Returns(true);
+        arbiter.Setup(a => a.IsReasonToStopIfHaltOnFailure(It.IsAny<Exception>())).Returns(false);
+        arbiter.Setup(a => a.IsAccountedForAndLikelyTransientError(It.IsAny<Exception>())).Returns(false);
+        return arbiter;
     }
 }

@@ -2,52 +2,46 @@ using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
-using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 
 internal interface IBusReceiverClientFactory
 {
-    Task<IServiceBusClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default);
+    Task<IServiceBusClientWrapper> GetQueueClientAsync(bool forceNewSecretManagerPull = false,
+        CancellationToken cancellationToken = default);
 }
 
 internal class BusReceiverClientFactory(
     ISecretManagerCacheService secretManagerService,
-    IAzureServiceBusRetryWrapperService retryWrapperService,
-    IOptions<BusReceiverClientFactory.ConfigurationModel> options)
-    : IBusReceiverClientFactory
+    IOptions<BusReceiverClientFactory.ConfigurationModel> options) : IBusReceiverClientFactory
 {
-    private async Task<IServiceBusClientWrapper> GetQueueClientInnerAsync(CancellationToken cancellationToken)
+    private async Task<ServiceBusClient> CreateServiceBusClientAsync(bool forceNewSecretManagerPull,
+        CancellationToken cancellationToken)
     {
-        ServiceBusClient innerClient;
-
-        /*
-         * Connection via Connection String and connection via Uri/Namespace seems to be mutually exclusive.
-         */
-
         if (!string.IsNullOrWhiteSpace(options.Value.ConnectionStringPath))
         {
             var connectionString =
                 await secretManagerService.GetSecretAsync(options.Value.ConnectionStringPath,
+                    force: forceNewSecretManagerPull,
                     cancellationToken: cancellationToken);
-            innerClient = new ServiceBusClient(connectionString.Value);
-        }
-        else if (!string.IsNullOrWhiteSpace(options.Value.FullyQualifiedNamespace))
-        {
-            innerClient = new ServiceBusClient(options.Value.FullyQualifiedNamespace, new DefaultAzureCredential());
-        }
-        else
-        {
-            throw new InvalidOperationException("No service bus address has been set");
+            return new ServiceBusClient(connectionString.Value);
         }
 
-        return new ServiceBusClientWrapper(innerClient.CreateReceiver(options.Value.QueueName));
+        // ReSharper disable once ConvertIfStatementToReturnStatement
+        if (!string.IsNullOrWhiteSpace(options.Value.FullyQualifiedNamespace))
+        {
+            return new ServiceBusClient(options.Value.FullyQualifiedNamespace, new DefaultAzureCredential());
+        }
+
+        throw new InvalidOperationException("No service bus address has been set");
     }
 
-    public Task<IServiceBusClientWrapper> GetQueueClientAsync(CancellationToken cancellationToken = default)
+    public async Task<IServiceBusClientWrapper> GetQueueClientAsync(bool forceNewSecretManagerPull = false,
+        CancellationToken cancellationToken = default)
     {
-        return retryWrapperService.RunAsync(GetQueueClientInnerAsync, cancellationToken);
+        var innerClient = await CreateServiceBusClientAsync(forceNewSecretManagerPull, cancellationToken);
+        return new ServiceBusClientWrapper(innerClient.CreateReceiver(options.Value.QueueName));
     }
 
     public sealed class ConfigurationModel

@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Configuration;
-using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Models;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tests.Services.Resilience;
@@ -32,10 +31,7 @@ public class AzureServiceBusMessageSourceTests
         }
 
         var client = new Mock<IServiceBusClientWrapper>();
-        var source = new Mock<IBusReceiverClientSource>();
-        source
-            .Setup(s => s.GetQueueClientAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(client.Object);
+        var wrapper = AzureServiceBusRetryTestHelpers.CreatePassthroughClientRetryWrapper(client.Object);
 
         client
             .Setup(c => c.GetMessagesAsync(It.IsAny<int>(), It.IsAny<int?>(), TestContext.Current.CancellationToken))
@@ -69,8 +65,7 @@ public class AzureServiceBusMessageSourceTests
             WaitTimeSeconds = 0,
             AbandonRecoveredFailuresOnAcknowledge = true
         };
-        var messageSource = new AzureServiceBusMessageSource(source.Object,
-            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object, Options.Create(options));
+        var messageSource = new AzureServiceBusMessageSource(wrapper.Object, Options.Create(options));
 
         var messages = await messageSource.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 
@@ -124,10 +119,7 @@ public class AzureServiceBusMessageSourceTests
         }
 
         var client = new Mock<IServiceBusClientWrapper>();
-        var source = new Mock<IBusReceiverClientSource>();
-        source
-            .Setup(s => s.GetQueueClientAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(client.Object);
+        var wrapper = AzureServiceBusRetryTestHelpers.CreatePassthroughClientRetryWrapper(client.Object);
 
         client
             .Setup(c => c.GetMessagesAsync(It.IsAny<int>(), It.IsAny<int?>(), TestContext.Current.CancellationToken))
@@ -161,8 +153,7 @@ public class AzureServiceBusMessageSourceTests
             WaitTimeSeconds = waitTimeSeconds,
             AbandonRecoveredFailuresOnAcknowledge = true
         };
-        var messageSource = new AzureServiceBusMessageSource(source.Object,
-            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object, Options.Create(options));
+        var messageSource = new AzureServiceBusMessageSource(wrapper.Object, Options.Create(options));
 
         var messages = await messageSource.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 
@@ -227,10 +218,7 @@ public class AzureServiceBusMessageSourceTests
         }
 
         var client = new Mock<IServiceBusClientWrapper>();
-        var source = new Mock<IBusReceiverClientSource>();
-        source
-            .Setup(s => s.GetQueueClientAsync(TestContext.Current.CancellationToken))
-            .ReturnsAsync(client.Object);
+        var wrapper = AzureServiceBusRetryTestHelpers.CreatePassthroughClientRetryWrapper(client.Object);
 
         client
             .Setup(c => c.GetMessagesAsync(It.IsAny<int>(), It.IsAny<int?>(), TestContext.Current.CancellationToken))
@@ -264,8 +252,7 @@ public class AzureServiceBusMessageSourceTests
             WaitTimeSeconds = waitTimeSeconds,
             AbandonRecoveredFailuresOnAcknowledge = true
         };
-        var messageSource = new AzureServiceBusMessageSource(source.Object,
-            AzureServiceBusRetryTestHelpers.CreatePassthroughRetryWrapper().Object, Options.Create(options));
+        var messageSource = new AzureServiceBusMessageSource(wrapper.Object, Options.Create(options));
 
         var messages = await messageSource.GetMessagesAsync(batchSize, TestContext.Current.CancellationToken);
 

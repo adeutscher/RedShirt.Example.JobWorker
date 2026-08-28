@@ -11,22 +11,25 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Extensions;
 
 public static class ServiceCollectionExtensions
 {
+    private const string ConfigurationSectionName = "JobSource:AzureServiceBus";
+
     public static IServiceCollection AddAzureServiceBusJobManagement(this IServiceCollection services,
         IConfigurationRoot configuration)
     {
+        var section = configuration.GetSection(ConfigurationSectionName);
+
         return services
-            .AddCommonAzureServices()
-            // Required
             .AddSingleton<IJobSource, AzureServiceBusJobSource>()
+            .AddCommonAzureServices()
             .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>()
-            // Supporting
-            .Configure<AzureServiceBusConfigurationModel>(configuration.GetSection("JobSource:AzureServiceBus"))
-            .Configure<BusReceiverClientFactory.ConfigurationModel>(
-                configuration.GetSection("JobSource:AzureServiceBus"))
+            .Configure<AzureServiceBusConfigurationModel>(section)
+            .Configure<BusReceiverClientFactory.ConfigurationModel>(section)
             .AddSingleton<IBusReceiverClientFactory, BusReceiverClientFactory>()
             .AddSingleton<IBusReceiverClientSource, BusReceiverClientSource>()
             .AddSingleton<IAzureServiceBusExceptionArbiterService, AzureServiceBusExceptionArbiterService>()
+            .AddSingleton<IAzureServiceBusDetailedExceptionArbiter, AzureServiceBusDetailedExceptionArbiterService>()
             .AddSingleton<IAzureServiceBusRetryWrapperService, AzureServiceBusRetryWrapperService>()
+            .AddSingleton<IAzureServiceBusClientRetryWrapper, AzureServiceBusClientRetryWrapper>()
             .AddSingleton<IAzureServiceBusMessageSource, AzureServiceBusMessageSource>();
     }
 }
