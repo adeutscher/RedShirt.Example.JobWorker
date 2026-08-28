@@ -8,12 +8,10 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tes
 internal static class AzureServiceBusRetryTestHelpers
 {
     public static Mock<IAzureServiceBusClientRetryWrapper> CreatePassthroughClientRetryWrapper(
-        IServiceBusClientWrapper? client = null,
-        IServiceBusProcessorWrapper? processor = null)
+        IServiceBusClientWrapper? client = null)
     {
         var wrapper = new Mock<IAzureServiceBusClientRetryWrapper>(MockBehavior.Strict);
         wrapper.Setup(w => w.ResetClient());
-        wrapper.Setup(w => w.ResetProcessor());
 
         if (client is not null)
         {
@@ -24,22 +22,6 @@ internal static class AzureServiceBusRetryTestHelpers
                     It.IsAny<CancellationToken>()))
                 .Returns((Func<IServiceBusClientWrapper, CancellationToken, Task> callback, bool _, CancellationToken
                     token) => callback(client, token));
-        }
-
-        if (processor is not null)
-        {
-            wrapper
-                .Setup(w => w.GetProcessorAndDoActionWithRetryAsync(
-                    It.IsAny<Func<IServiceBusProcessorWrapper, CancellationToken, Task>>(),
-                    It.IsAny<bool>(),
-                    It.IsAny<Action<IServiceBusProcessorWrapper>?>(),
-                    It.IsAny<CancellationToken>()))
-                .Returns((Func<IServiceBusProcessorWrapper, CancellationToken, Task> callback, bool _,
-                    Action<IServiceBusProcessorWrapper>? onNew, CancellationToken token) =>
-                {
-                    onNew?.Invoke(processor);
-                    return callback(processor, token);
-                });
         }
 
         return wrapper;

@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Models;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
-using RedShirt.Example.JobWorker.Core.Services.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
@@ -11,12 +10,9 @@ public class BusReceiverClientFactoryTests
 {
     private static BusReceiverClientFactory CreateFactory(
         ISecretManagerCacheService secrets,
-        BusReceiverClientFactory.ConfigurationModel config,
-        int fetchCount = 5)
+        BusReceiverClientFactory.ConfigurationModel config)
     {
-        var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
-        coreConfiguration.SetupGet(c => c.FetchCount).Returns(fetchCount);
-        return new BusReceiverClientFactory(secrets, coreConfiguration.Object, Options.Create(config));
+        return new BusReceiverClientFactory(secrets, Options.Create(config));
     }
 
     [Fact]

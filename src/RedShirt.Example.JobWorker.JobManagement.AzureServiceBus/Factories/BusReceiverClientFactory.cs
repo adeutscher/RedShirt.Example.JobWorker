@@ -2,23 +2,18 @@ using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Services;
-using RedShirt.Example.JobWorker.Core.Services.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 
 internal interface IBusReceiverClientFactory
 {
-    Task<IServiceBusProcessorWrapper> GetProcessorAsync(bool forceNewSecretManagerPull = false,
-        CancellationToken cancellationToken = default);
-
     Task<IServiceBusClientWrapper> GetQueueClientAsync(bool forceNewSecretManagerPull = false,
         CancellationToken cancellationToken = default);
 }
 
 internal class BusReceiverClientFactory(
     ISecretManagerCacheService secretManagerService,
-    ICoreConfigurationService coreConfigurationService,
     IOptions<BusReceiverClientFactory.ConfigurationModel> options) : IBusReceiverClientFactory
 {
     private async Task<ServiceBusClient> CreateServiceBusClientAsync(bool forceNewSecretManagerPull,
@@ -47,20 +42,6 @@ internal class BusReceiverClientFactory(
     {
         var innerClient = await CreateServiceBusClientAsync(forceNewSecretManagerPull, cancellationToken);
         return new ServiceBusClientWrapper(innerClient.CreateReceiver(options.Value.QueueName));
-    }
-
-    public async Task<IServiceBusProcessorWrapper> GetProcessorAsync(bool forceNewSecretManagerPull = false,
-        CancellationToken cancellationToken = default)
-    {
-        var innerClient = await CreateServiceBusClientAsync(forceNewSecretManagerPull, cancellationToken);
-        var processorOptions = new ServiceBusProcessorOptions
-        {
-            AutoCompleteMessages = false,
-            PrefetchCount = Math.Max(1, coreConfigurationService.FetchCount),
-            MaxConcurrentCalls = Math.Max(1, coreConfigurationService.FetchCount)
-        };
-        var processor = innerClient.CreateProcessor(options.Value.QueueName, processorOptions);
-        return new ServiceBusProcessorWrapper(processor, innerClient);
     }
 
     public sealed class ConfigurationModel

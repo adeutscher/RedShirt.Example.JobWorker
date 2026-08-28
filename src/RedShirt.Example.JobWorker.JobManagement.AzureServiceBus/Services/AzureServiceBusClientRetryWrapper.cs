@@ -7,7 +7,7 @@ using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services;
 
 /// <summary>
-///     Central point to perform operations on a Service Bus client/processor and manage retries.
+///     Central point to perform operations on a Service Bus client and manage retries.
 /// </summary>
 internal interface IAzureServiceBusClientRetryWrapper
 {
@@ -15,14 +15,7 @@ internal interface IAzureServiceBusClientRetryWrapper
         bool forceNewClientImmediately = false,
         CancellationToken cancellationToken = default);
 
-    Task GetProcessorAndDoActionWithRetryAsync(Func<IServiceBusProcessorWrapper, CancellationToken, Task> callback,
-        bool forceNewClientImmediately = false,
-        Action<IServiceBusProcessorWrapper>? onNewProcessorCallback = null,
-        CancellationToken cancellationToken = default);
-
     void ResetClient();
-
-    void ResetProcessor();
 }
 
 internal class AzureServiceBusClientRetryWrapper(
@@ -30,7 +23,6 @@ internal class AzureServiceBusClientRetryWrapper(
     IBusReceiverClientSource clientSource) : IAzureServiceBusClientRetryWrapper
 {
     private IServiceBusClientWrapper? _mostRecentClient;
-    private IServiceBusProcessorWrapper? _mostRecentProcessor;
 
     private static LocalExceptionJudgement GetExceptionJudgement(Exception? exception, int retryNumber)
     {
@@ -108,54 +100,9 @@ internal class AzureServiceBusClientRetryWrapper(
         }
     }
 
-    private async Task ProcessorCallbackAsync(Func<IServiceBusProcessorWrapper, CancellationToken, Task> callback,
-        ClientState state,
-        Action<IServiceBusProcessorWrapper>? onNewProcessorCallback,
-        bool immediatelyRefreshClient,
-        CancellationToken cancellationToken)
-    {
-        if (state.Exception is not null)
-        {
-            state.RetryNumber++;
-            _mostRecentProcessor = null;
-        }
-
-        var localExceptionJudgement = GetExceptionJudgement(state.Exception, state.RetryNumber);
-
-        try
-        {
-            var processorWrapper = await clientSource.GetProcessorAsync(
-                immediatelyRefreshClient || localExceptionJudgement.RegenerateClient,
-                localExceptionJudgement.ForceNewSecretManagerPull,
-                cancellationToken);
-
-            if (!processorWrapper.CachedClient)
-            {
-                onNewProcessorCallback?.Invoke(processorWrapper.Client);
-            }
-
-            if (localExceptionJudgement.RegenerateClient || _mostRecentProcessor is null)
-            {
-                _mostRecentProcessor = processorWrapper.Client;
-            }
-
-            await callback(_mostRecentProcessor, cancellationToken);
-        }
-        catch (Exception e)
-        {
-            state.Exception = e;
-            throw;
-        }
-    }
-
     public void ResetClient()
     {
         _mostRecentClient = null;
-    }
-
-    public void ResetProcessor()
-    {
-        _mostRecentProcessor = null;
     }
 
     public Task GetClientAndDoActionWithRetryAsync(Func<IServiceBusClientWrapper, CancellationToken, Task> callback,
@@ -164,21 +111,6 @@ internal class AzureServiceBusClientRetryWrapper(
     {
         return retryWrapperService.RunAsync(
             (state, ct) => CallbackAsync(callback, state, forceNewClientImmediately, ct),
-            new ClientState
-            {
-                Exception = null,
-                RetryNumber = 0
-            }, cancellationToken);
-    }
-
-    public Task GetProcessorAndDoActionWithRetryAsync(Func<IServiceBusProcessorWrapper, CancellationToken, Task> callback,
-        bool forceNewClientImmediately = false,
-        Action<IServiceBusProcessorWrapper>? onNewProcessorCallback = null,
-        CancellationToken cancellationToken = default)
-    {
-        return retryWrapperService.RunAsync(
-            (state, ct) => ProcessorCallbackAsync(callback, state, onNewProcessorCallback, forceNewClientImmediately,
-                ct),
             new ClientState
             {
                 Exception = null,

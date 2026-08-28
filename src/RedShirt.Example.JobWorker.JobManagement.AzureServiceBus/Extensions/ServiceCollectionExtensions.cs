@@ -17,18 +17,9 @@ public static class ServiceCollectionExtensions
         IConfigurationRoot configuration)
     {
         var section = configuration.GetSection(ConfigurationSectionName);
-        var useSubscribe = section.Get<SubscribeConfigurationModel>()?.Subscribe == true;
-
-        if (useSubscribe)
-        {
-            services.AddSingleton<IJobSource, AzureServiceBusSubscribeJobSource>();
-        }
-        else
-        {
-            services.AddSingleton<IJobSource, AzureServiceBusJobSource>();
-        }
 
         return services
+            .AddSingleton<IJobSource, AzureServiceBusJobSource>()
             .AddCommonAzureServices()
             .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>()
             .Configure<AzureServiceBusConfigurationModel>(section)
@@ -40,14 +31,5 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IAzureServiceBusRetryWrapperService, AzureServiceBusRetryWrapperService>()
             .AddSingleton<IAzureServiceBusClientRetryWrapper, AzureServiceBusClientRetryWrapper>()
             .AddSingleton<IAzureServiceBusMessageSource, AzureServiceBusMessageSource>();
-    }
-
-    private sealed class SubscribeConfigurationModel
-    {
-#pragma warning disable S3459
-#pragma warning disable S1144
-        public required bool Subscribe { get; init; }
-#pragma warning restore S1144
-#pragma warning restore S3459
     }
 }

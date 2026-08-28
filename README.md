@@ -30,7 +30,7 @@ Repo features:
     * [Apache Pulsar](https://pulsar.apache.org/)
     * [Azure Queue Storage](https://learn.microsoft.com/en-us/azure/storage/queues/storage-queues-introduction)
     * [Azure Service Bus](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview)
-        * Supports short polling, long polling, or consumer subscriptions.
+        * Supports short polling or long polling.
     * [Google Pub/Sub](https://cloud.google.com/pubsub/docs)
     * [NATS](https://nats.io/)
     * [RabbitMQ](https://www.rabbitmq.com/)
@@ -228,11 +228,10 @@ source with poll requests.
 Subscribing is configured on job sources that support it with a `SUBSCRIBE` environment variable. Setting this value to
 `true` will enable it.
 
-| Job source        | Environment variable                       |
-|-------------------|--------------------------------------------|
-| ActiveMQ          | `JOB_SOURCE__ACTIVEMQ__SUBSCRIBE`          |
-| RabbitMQ          | `JOB_SOURCE__RABBITMQ__SUBSCRIBE`          |
-| Azure Service Bus | `JOB_SOURCE__AZURE_SERVICE_BUS__SUBSCRIBE` |
+| Job source | Environment variable              |
+|------------|-----------------------------------|
+| ActiveMQ   | `JOB_SOURCE__ACTIVEMQ__SUBSCRIBE` |
+| RabbitMQ   | `JOB_SOURCE__RABBITMQ__SUBSCRIBE` |
 
 #### Notes on Implementing Other Subscribe Patterns
 

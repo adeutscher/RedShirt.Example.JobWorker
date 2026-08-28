@@ -5,7 +5,7 @@ using IOException = System.IO.IOException;
 namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services.Resilience;
 
 /// <summary>
-///     Classifies processor / connection callback exceptions for the Azure Service Bus subscribe job source:
+///     Classifies connection exceptions for the Azure Service Bus poll job source:
 ///     reconnect, halt-on-failure stop, or accounted-for transient noise.
 /// </summary>
 internal interface IAzureServiceBusDetailedExceptionArbiter
