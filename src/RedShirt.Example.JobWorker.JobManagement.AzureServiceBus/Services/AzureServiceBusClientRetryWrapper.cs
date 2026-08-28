@@ -42,16 +42,17 @@ internal class AzureServiceBusClientRetryWrapper(
 
         for (var current = exception; current is not null; current = current.InnerException)
         {
-            switch (current)
+            regenerateClient = current switch
             {
-                case ServiceBusException serviceBus when serviceBus.Reason is ServiceBusFailureReason.ServiceTimeout
+                ServiceBusException
+                {
+                    Reason: ServiceBusFailureReason.ServiceTimeout
                     or ServiceBusFailureReason.ServiceBusy
                     or ServiceBusFailureReason.ServiceCommunicationProblem
-                    or ServiceBusFailureReason.QuotaExceeded:
-                case ObjectDisposedException:
-                    regenerateClient = true;
-                    break;
-            }
+                    or ServiceBusFailureReason.QuotaExceeded
+                } or ObjectDisposedException => true,
+                _ => regenerateClient
+            };
         }
 
         if (exception is ServiceBusException {IsTransient: true})
