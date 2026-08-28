@@ -241,7 +241,7 @@ To be a good fit for subscribe mode, the fundamental implementation of the techn
 technology delivering messages down the connection. For example:
 
 * RabbitMQ broker delivers messages to clients through their existing connection.
-* ActiveMQ implementation or writing to a stream for the client to pull (as with ActiveMQ, for instance).
+* ActiveMQ broker writes to a stream for the client to pull.
 
 If the fundamental behaviour of a subscription's at the client library level is still a poll behaviour, then I would
 advise against implementing the subscription pattern and instead use this template's established poll pattern to pull
