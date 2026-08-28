@@ -5,7 +5,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Configuration
 /// </summary>
 internal sealed class AzureServiceBusConfigurationModel
 {
-    public required int MaxMessagesPerRequest { get; set; }
+    public required int MaxMessagesPerRequest { get; init; }
     public required int VisibilityTimeoutSeconds { get; init; }
     public required int WaitTimeSeconds { get; init; }
 

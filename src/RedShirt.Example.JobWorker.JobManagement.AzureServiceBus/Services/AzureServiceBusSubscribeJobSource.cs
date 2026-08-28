@@ -31,9 +31,10 @@ internal class AzureServiceBusSubscribeJobSource(
     : IJobSource
 #pragma warning restore S107
 {
-    private CancellationToken _cancellationToken;
-    private bool _subscribeLoopRunning;
     private IServiceBusProcessorWrapper? _activeProcessor;
+    private CancellationToken _cancellationToken;
+    private bool _nextConnectionAttemptShouldForceNewClient;
+    private bool _subscribeLoopRunning;
 
     private Task OnReceivedAsync(ProcessMessageEventArgs args)
     {
@@ -137,7 +138,8 @@ internal class AzureServiceBusSubscribeJobSource(
         }
     }
 
-    private Task GetProcessorAndDoActionWithRetryAsync(Func<IServiceBusProcessorWrapper, CancellationToken, Task> callback,
+    private Task GetProcessorAndDoActionWithRetryAsync(
+        Func<IServiceBusProcessorWrapper, CancellationToken, Task> callback,
         bool forceNewClientImmediately,
         CancellationToken cancellationToken)
     {
@@ -247,16 +249,22 @@ internal class AzureServiceBusSubscribeJobSource(
         throw new NotSupportedException();
     }
 
-    public int RecommendedHeartbeatIntervalSeconds => 0;
+    public int RecommendedHeartbeatIntervalSeconds =>
+        (int) Math.Ceiling(options.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
     public bool IsSubscriptionSource => true;
 
-    public Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
+    public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
-        /*
-         * Not necessary. Lock renewal is managed by the Service Bus processor while the handler runs.
-         */
-        return Task.CompletedTask;
+        if (message is not AzureRawJobModel messageAsAzureJobModel)
+        {
+            return;
+        }
+
+        await clientRetryWrapper.GetClientAndDoActionWithRetryAsync(
+            async (client, ct) => { await client.RenewMessageLockAsync(messageAsAzureJobModel.Message, ct); },
+            _nextConnectionAttemptShouldForceNewClient, cancellationToken);
+        _nextConnectionAttemptShouldForceNewClient = false;
     }
 
     public async Task StartSubscriberAsync(CancellationToken cancellationToken = default)
