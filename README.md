@@ -30,7 +30,6 @@ Repo features:
     * [Apache Pulsar](https://pulsar.apache.org/)
     * [Azure Queue Storage](https://learn.microsoft.com/en-us/azure/storage/queues/storage-queues-introduction)
     * [Azure Service Bus](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview)
-        * Supports short polling or long polling.
     * [Google Pub/Sub](https://cloud.google.com/pubsub/docs)
     * [NATS](https://nats.io/)
     * [RabbitMQ](https://www.rabbitmq.com/)
