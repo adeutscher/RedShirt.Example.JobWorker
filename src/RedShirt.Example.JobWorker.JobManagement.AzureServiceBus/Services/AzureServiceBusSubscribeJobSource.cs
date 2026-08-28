@@ -264,7 +264,7 @@ internal class AzureServiceBusSubscribeJobSource(
         var lockExtender = messageAsAzureJobModel.LockExtender;
 
         await retryWrapperService.RunAsync(
-            async ct => { await lockExtender.RenewMessageLockAsync(ct); },
+            lockExtender.RenewMessageLockAsync,
             cancellationToken);
     }
 
