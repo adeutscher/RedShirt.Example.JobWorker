@@ -33,7 +33,6 @@ internal class AzureServiceBusSubscribeJobSource(
 {
     private IServiceBusProcessorWrapper? _activeProcessor;
     private CancellationToken _cancellationToken;
-    private bool _nextConnectionAttemptShouldForceNewClient;
     private bool _subscribeLoopRunning;
 
     private Task OnReceivedAsync(ProcessMessageEventArgs args)
@@ -52,6 +51,7 @@ internal class AzureServiceBusSubscribeJobSource(
             {
                 Message = container,
                 Settler = new ProcessMessageSettler(args),
+                LockExtender = new ProcessMessageLockExtender(args),
                 CreatedAtUtc = DateTime.UtcNow
             };
 
@@ -256,15 +256,16 @@ internal class AzureServiceBusSubscribeJobSource(
 
     public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
-        if (message is not AzureRawJobModel messageAsAzureJobModel)
+        if (message is not AzureRawJobModel messageAsAzureJobModel || messageAsAzureJobModel.LockExtender is null)
         {
             return;
         }
 
-        await clientRetryWrapper.GetClientAndDoActionWithRetryAsync(
-            async (client, ct) => { await client.RenewMessageLockAsync(messageAsAzureJobModel.Message, ct); },
-            _nextConnectionAttemptShouldForceNewClient, cancellationToken);
-        _nextConnectionAttemptShouldForceNewClient = false;
+        var lockExtender = messageAsAzureJobModel.LockExtender;
+
+        await retryWrapperService.RunAsync(
+            async ct => { await lockExtender.RenewMessageLockAsync(ct); },
+            cancellationToken);
     }
 
     public async Task StartSubscriberAsync(CancellationToken cancellationToken = default)

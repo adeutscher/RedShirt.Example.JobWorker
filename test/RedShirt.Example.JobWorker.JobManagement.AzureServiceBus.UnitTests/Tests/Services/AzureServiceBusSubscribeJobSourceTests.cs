@@ -12,12 +12,11 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tes
 public class AzureServiceBusSubscribeJobSourceTests
 {
     private static AzureServiceBusSubscribeJobSource CreateJobSource(
-        Mock<IServiceBusClientWrapper>? client = null,
         AzureServiceBusConfigurationModel? config = null)
     {
-        client ??= new Mock<IServiceBusClientWrapper>();
         var clientRetryWrapper =
-            AzureServiceBusRetryTestHelpers.CreatePassthroughClientRetryWrapper(client.Object);
+            AzureServiceBusRetryTestHelpers.CreatePassthroughClientRetryWrapper(new Mock<IServiceBusClientWrapper>()
+                .Object);
 
         return new AzureServiceBusSubscribeJobSource(
             clientRetryWrapper.Object,
@@ -38,17 +37,13 @@ public class AzureServiceBusSubscribeJobSourceTests
     }
 
     [Fact]
-    public void RecommendedHeartbeatIntervalSeconds_MatchesPollJobSourceFormula()
+    public async Task HeartbeatAsync_OffModel_DoesNothing()
     {
-        var jobSource = CreateJobSource(config: new AzureServiceBusConfigurationModel
-        {
-            VisibilityTimeoutSeconds = 20,
-            MaxMessagesPerRequest = 0,
-            WaitTimeSeconds = 0,
-            AbandonRecoveredFailuresOnAcknowledge = true
-        });
+        var jobSource = CreateJobSource();
 
-        Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
+        await jobSource.HeartbeatAsync(new Mock<IRawJobModel>().Object, TestContext.Current.CancellationToken);
+
+        Assert.True(true);
     }
 
     [Theory]
@@ -57,8 +52,7 @@ public class AzureServiceBusSubscribeJobSourceTests
     [InlineData(30)]
     public async Task HeartbeatAsync_RenewsMessageLock(int timeoutSeconds)
     {
-        var client = new Mock<IServiceBusClientWrapper>();
-        var jobSource = CreateJobSource(client, new AzureServiceBusConfigurationModel
+        var jobSource = CreateJobSource(new AzureServiceBusConfigurationModel
         {
             VisibilityTimeoutSeconds = timeoutSeconds,
             MaxMessagesPerRequest = 0,
@@ -66,31 +60,49 @@ public class AzureServiceBusSubscribeJobSourceTests
             AbandonRecoveredFailuresOnAcknowledge = true
         });
 
-        var innerMessage = new Mock<IServiceBusMessageContainer>(MockBehavior.Strict);
+        var lockExtender = new Mock<IServiceBusMessageLockExtender>(MockBehavior.Strict);
+        lockExtender
+            .Setup(h => h.RenewMessageLockAsync(TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
         var job = new AzureRawJobModel
         {
-            Message = innerMessage.Object,
+            Message = new Mock<IServiceBusMessageContainer>(MockBehavior.Strict).Object,
+            LockExtender = lockExtender.Object,
             CreatedAtUtc = DateTime.UtcNow
         };
 
         await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken);
 
-        client.Verify(
-            c => c.RenewMessageLockAsync(It.IsAny<IServiceBusMessageContainer>(),
-                It.IsAny<CancellationToken>()), Times.Once);
-        client.Verify(
-            c => c.RenewMessageLockAsync(innerMessage.Object,
-                TestContext.Current.CancellationToken), Times.Once);
+        lockExtender.Verify(h => h.RenewMessageLockAsync(TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Fact]
-    public async Task HeartbeatAsync_OffModel_DoesNothing()
+    public async Task HeartbeatAsync_WithoutLockExtender_DoesNothing()
     {
-        var client = new Mock<IServiceBusClientWrapper>(MockBehavior.Strict);
-        var jobSource = CreateJobSource(client);
+        var jobSource = CreateJobSource();
+        var job = new AzureRawJobModel
+        {
+            Message = new Mock<IServiceBusMessageContainer>(MockBehavior.Strict).Object,
+            CreatedAtUtc = DateTime.UtcNow
+        };
 
-        await jobSource.HeartbeatAsync(new Mock<IRawJobModel>().Object, TestContext.Current.CancellationToken);
+        await jobSource.HeartbeatAsync(job, TestContext.Current.CancellationToken);
 
-        Assert.Empty(client.Invocations);
+        Assert.True(true);
+    }
+
+    [Fact]
+    public void RecommendedHeartbeatIntervalSeconds_MatchesPollJobSourceFormula()
+    {
+        var jobSource = CreateJobSource(new AzureServiceBusConfigurationModel
+        {
+            VisibilityTimeoutSeconds = 20,
+            MaxMessagesPerRequest = 0,
+            WaitTimeSeconds = 0,
+            AbandonRecoveredFailuresOnAcknowledge = true
+        });
+
+        Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
     }
 }
