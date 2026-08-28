@@ -29,6 +29,28 @@ public class ServiceCollectionExtensionsTests
                                        && d.ImplementationType == typeof(NoReactionFailureHandler));
         Assert.Contains(services, d => d.ServiceType == typeof(IAzureExceptionArbiterService));
         Assert.Contains(services, d => d.ServiceType == typeof(IAzureServiceBusExceptionArbiterService));
+        Assert.Contains(services, d => d.ServiceType == typeof(IAzureServiceBusDetailedExceptionArbiter));
         Assert.Contains(services, d => d.ServiceType == typeof(IAzureServiceBusRetryWrapperService));
+        Assert.Contains(services, d => d.ServiceType == typeof(IAzureServiceBusClientRetryWrapper));
+    }
+
+    [Fact]
+    public void AddAzureServiceBusJobManagement_WhenSubscribeTrue_RegistersSubscribeJobSource()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["JobSource:AzureServiceBus:QueueName"] = "jobs",
+                ["JobSource:AzureServiceBus:Subscribe"] = "true"
+            })
+            .Build();
+
+        services.AddAzureServiceBusJobManagement(configuration);
+
+        Assert.Contains(services, d => d.ServiceType == typeof(IJobSource)
+                                       && d.ImplementationType == typeof(AzureServiceBusSubscribeJobSource));
+        Assert.DoesNotContain(services, d => d.ServiceType == typeof(IJobSource)
+                                             && d.ImplementationType == typeof(AzureServiceBusJobSource));
     }
 }

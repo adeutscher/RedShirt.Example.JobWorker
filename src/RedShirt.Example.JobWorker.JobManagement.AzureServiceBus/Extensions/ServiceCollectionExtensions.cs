@@ -11,22 +11,43 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Extensions;
 
 public static class ServiceCollectionExtensions
 {
+    private const string ConfigurationSectionName = "JobSource:AzureServiceBus";
+
     public static IServiceCollection AddAzureServiceBusJobManagement(this IServiceCollection services,
         IConfigurationRoot configuration)
     {
+        var section = configuration.GetSection(ConfigurationSectionName);
+        var useSubscribe = section.Get<SubscribeConfigurationModel>()?.Subscribe == true;
+
+        if (useSubscribe)
+        {
+            services.AddSingleton<IJobSource, AzureServiceBusSubscribeJobSource>();
+        }
+        else
+        {
+            services.AddSingleton<IJobSource, AzureServiceBusJobSource>();
+        }
+
         return services
             .AddCommonAzureServices()
-            // Required
-            .AddSingleton<IJobSource, AzureServiceBusJobSource>()
             .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>()
-            // Supporting
-            .Configure<AzureServiceBusConfigurationModel>(configuration.GetSection("JobSource:AzureServiceBus"))
-            .Configure<BusReceiverClientFactory.ConfigurationModel>(
-                configuration.GetSection("JobSource:AzureServiceBus"))
+            .Configure<AzureServiceBusConfigurationModel>(section)
+            .Configure<BusReceiverClientFactory.ConfigurationModel>(section)
             .AddSingleton<IBusReceiverClientFactory, BusReceiverClientFactory>()
             .AddSingleton<IBusReceiverClientSource, BusReceiverClientSource>()
             .AddSingleton<IAzureServiceBusExceptionArbiterService, AzureServiceBusExceptionArbiterService>()
+            .AddSingleton<IAzureServiceBusDetailedExceptionArbiter, AzureServiceBusDetailedExceptionArbiterService>()
             .AddSingleton<IAzureServiceBusRetryWrapperService, AzureServiceBusRetryWrapperService>()
+            .AddSingleton<IAzureServiceBusClientRetryWrapper, AzureServiceBusClientRetryWrapper>()
             .AddSingleton<IAzureServiceBusMessageSource, AzureServiceBusMessageSource>();
+    }
+
+    private sealed class SubscribeConfigurationModel
+    {
+#pragma warning disable S3459
+#pragma warning disable S1144
+        public required bool Subscribe { get; init; }
+#pragma warning restore S1144
+#pragma warning restore S3459
     }
 }

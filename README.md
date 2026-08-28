@@ -25,14 +25,16 @@ Repo features:
     * [Amazon SQS](https://aws.amazon.com/sqs/)
     * [Amazon Kinesis](https://aws.amazon.com/kinesis/data-streams/)
     * [Apache ActiveMQ Artemis](https://artemis.apache.org/components/artemis/)
+        * Supports short polling or consumer subscriptions.
     * [Apache Kafka](https://kafka.apache.org/)
     * [Apache Pulsar](https://pulsar.apache.org/)
     * [Azure Queue Storage](https://learn.microsoft.com/en-us/azure/storage/queues/storage-queues-introduction)
     * [Azure Service Bus](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview)
+        * Supports short polling, long polling, or consumer subscriptions.
     * [Google Pub/Sub](https://cloud.google.com/pubsub/docs)
     * [NATS](https://nats.io/)
     * [RabbitMQ](https://www.rabbitmq.com/)
-        * Supports short polling or consumer subscriptions
+        * Supports short polling or consumer subscriptions.
     * [Redis Streams](https://redis.io/docs/latest/develop/data-types/streams/)
 * Cache-based idempotency support
     * Prevents the same message from being run twice in the event that an executor loses custody of a message.
@@ -226,10 +228,11 @@ source with poll requests.
 Subscribing is configured on job sources that support it with a `SUBSCRIBE` environment variable. Setting this value to
 `true` will enable it.
 
-| Job source | Environment variable              |
-|------------|-----------------------------------|
-| ActiveMQ   | `JOB_SOURCE__ACTIVEMQ__SUBSCRIBE` |
-| RabbitMQ   | `JOB_SOURCE__RABBITMQ__SUBSCRIBE` |
+| Job source        | Environment variable                       |
+|-------------------|--------------------------------------------|
+| ActiveMQ          | `JOB_SOURCE__ACTIVEMQ__SUBSCRIBE`          |
+| RabbitMQ          | `JOB_SOURCE__RABBITMQ__SUBSCRIBE`          |
+| Azure Service Bus | `JOB_SOURCE__AZURE_SERVICE_BUS__SUBSCRIBE` |
 
 #### Notes on Implementing Other Subscribe Patterns
 

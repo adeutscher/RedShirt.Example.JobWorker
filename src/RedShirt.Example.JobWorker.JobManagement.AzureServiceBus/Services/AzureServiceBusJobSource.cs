@@ -1,33 +1,33 @@
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Configuration;
-using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
+using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Models;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services;
 
 internal class AzureServiceBusJobSource(
-    IBusReceiverClientSource clientSource,
+    IAzureServiceBusClientRetryWrapper clientRetryWrapper,
     IAzureServiceBusMessageSource azureServiceBusServiceSource,
-    IAzureServiceBusRetryWrapperService retryWrapperService,
+    IAzureServiceBusDetailedExceptionArbiter detailedExceptionArbiter,
     IOptions<AzureServiceBusConfigurationModel> options) : IJobSource
 {
+    private bool _nextConnectionAttemptShouldForceNewClient;
+
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
         if (message is not AzureRawJobModel messageAsAzureJobModel)
-            // For consideration: Throw some kind of exception?
         {
             return;
         }
 
-        var client = await clientSource.GetQueueClientAsync(cancellationToken);
-
-        await retryWrapperService.RunAsync(async ct =>
+        await clientRetryWrapper.GetClientAndDoActionWithRetryAsync(async (client, ct) =>
         {
             if (result.IsSuccessful())
             {
@@ -37,42 +37,42 @@ internal class AzureServiceBusJobSource(
             {
                 if (options.Value.AbandonRecoveredFailuresOnAcknowledge)
                 {
-                    /*
-                     * Recoverable execution failures: explicitly abandon (if configured) so the message becomes available again.
-                     * If not abandoned, then the message should fall back into the queue within a minute.
-                     * Either option counts toward the service bus queue's configured maximum delivery count.
-                     */
                     await client.AbandonMessageAsync(messageAsAzureJobModel.Message, ct);
                 }
             }
             else
             {
-                // Empty / Parsing / InvalidData: dead-letter immediately.
-                // One could argue that there's no point in even bothering to dead-letter Empty problems,
-                //  but on the other hand there could be useful properties for debugging on the message.
-                // This application's priority is just getting unrecoverable messages out of the way ASAP.
                 await client.DeadLetterMessageAsync(messageAsAzureJobModel.Message, result.ToString(),
                     cancellationToken: ct);
             }
-        }, cancellationToken);
+        }, _nextConnectionAttemptShouldForceNewClient, cancellationToken);
+        _nextConnectionAttemptShouldForceNewClient = false;
     }
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
-        var messagesFromSource = await azureServiceBusServiceSource.GetMessagesAsync(batchSize, cancellationToken);
-        var items = messagesFromSource
-            .Select(receivedMessage => new AzureRawJobModel
-            {
-                Message = receivedMessage,
-                CreatedAtUtc = DateTime.UtcNow
-            } as IRawJobModel).ToList();
-
-        var response = new JobSourceResponse
+        try
         {
-            Items = items
-        };
+            var messagesFromSource =
+                await azureServiceBusServiceSource.GetMessagesAsync(batchSize, cancellationToken);
+            var items = messagesFromSource
+                .Select(receivedMessage => new AzureRawJobModel
+                {
+                    Message = receivedMessage,
+                    CreatedAtUtc = DateTime.UtcNow
+                } as IRawJobModel).ToList();
 
-        return response;
+            return new JobSourceResponse
+            {
+                Items = items
+            };
+        }
+        catch (WorkerJobSourceException e) when (e.IsPotentialCredentialProblem()
+                                                 || detailedExceptionArbiter.IsReasonToReconnect(e))
+        {
+            _nextConnectionAttemptShouldForceNewClient = true;
+            throw;
+        }
     }
 
     public int RecommendedHeartbeatIntervalSeconds =>
@@ -83,14 +83,14 @@ internal class AzureServiceBusJobSource(
     public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
         if (message is not AzureRawJobModel messageAsAzureJobModel)
-            // For consideration: Throw some kind of exception?
         {
             return;
         }
 
-        var client = await clientSource.GetQueueClientAsync(cancellationToken);
-        await retryWrapperService.RunAsync(
-            async ct => { await client.RenewMessageLockAsync(messageAsAzureJobModel.Message, ct); }, cancellationToken);
+        await clientRetryWrapper.GetClientAndDoActionWithRetryAsync(
+            async (client, ct) => { await client.RenewMessageLockAsync(messageAsAzureJobModel.Message, ct); },
+            _nextConnectionAttemptShouldForceNewClient, cancellationToken);
+        _nextConnectionAttemptShouldForceNewClient = false;
     }
 
     public Task StartSubscriberAsync(CancellationToken cancellationToken = default)

@@ -52,6 +52,9 @@ internal interface IAzureServiceBusRetryWrapperService
     ///     <see cref="WorkerJobSourceException.IsHandled" /> is <c>true</c>.
     /// </exception>
     Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default);
+
+    Task RunAsync<TState>(Func<TState, CancellationToken, Task> func, TState state,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -204,6 +207,29 @@ internal class AzureServiceBusRetryWrapperService(
             }
 
             // Do a flat throw to preserve stack trace
+            throw;
+        }
+    }
+
+    public async Task RunAsync<TState>(Func<TState, CancellationToken, Task> func, TState state,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await GetRetryPipeline().ExecuteAsync(
+                async (s, ct) => await func(s, ct), state, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            if (TryGetWrappedException(exception, out var wrappedException) && wrappedException is not null)
+            {
+                throw wrappedException;
+            }
+
             throw;
         }
     }

@@ -1,9 +1,6 @@
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Configuration;
-using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Models;
-using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services.Resilience;
-using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 
 namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services;
 
@@ -14,21 +11,22 @@ internal interface IAzureServiceBusMessageSource
 }
 
 internal class AzureServiceBusMessageSource(
-    IBusReceiverClientSource clientSource,
-    IAzureServiceBusRetryWrapperService retryWrapperService,
+    IAzureServiceBusClientRetryWrapper clientRetryWrapper,
     IOptions<AzureServiceBusConfigurationModel> options) : IAzureServiceBusMessageSource
 {
-    private Task<List<IServiceBusMessageContainer>> GetAsync(int batchSize,
+    private async Task<List<IServiceBusMessageContainer>> GetAsync(int batchSize,
         bool useWaitTimeSeconds,
-        IServiceBusClientWrapper client,
         CancellationToken cancellationToken)
     {
-        return retryWrapperService.RunAsync(async ct =>
+        List<IServiceBusMessageContainer>? result = null;
+        await clientRetryWrapper.GetClientAndDoActionWithRetryAsync(async (client, ct) =>
         {
             var rawMessages = await client.GetMessagesAsync(batchSize,
                 useWaitTimeSeconds ? options.Value.EffectiveWaitTimeSeconds : null, ct);
-            return rawMessages.ToList();
-        }, cancellationToken);
+            // ReSharper disable once UseCollectionExpression
+            result = rawMessages.ToList();
+        }, cancellationToken: cancellationToken);
+        return result ?? [];
     }
 
     public async Task<List<IServiceBusMessageContainer>> GetMessagesAsync(int batchSize,
@@ -37,20 +35,17 @@ internal class AzureServiceBusMessageSource(
         var messages = new List<IServiceBusMessageContainer>();
         var firstRequest = true;
 
-        var client = await clientSource.GetQueueClientAsync(cancellationToken);
-
         while (batchSize > options.Value.MaxMessagesPerRequest)
         {
             var loopResult =
                 await GetAsync(Math.Min(batchSize, options.Value.MaxMessagesPerRequest), firstRequest,
-                    client, cancellationToken);
+                    cancellationToken);
             firstRequest = false;
 
             messages.AddRange(loopResult);
 
             if (loopResult.Count < options.Value.MaxMessagesPerRequest)
             {
-                // Received less than our batch size
                 break;
             }
 
@@ -59,8 +54,7 @@ internal class AzureServiceBusMessageSource(
 
         if (batchSize > 0 && batchSize <= options.Value.MaxMessagesPerRequest)
         {
-            // Finish off requested size
-            messages.AddRange(await GetAsync(batchSize, firstRequest, client, cancellationToken));
+            messages.AddRange(await GetAsync(batchSize, firstRequest, cancellationToken));
         }
 
         return messages;
