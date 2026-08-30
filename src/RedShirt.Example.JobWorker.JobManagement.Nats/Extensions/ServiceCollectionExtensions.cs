@@ -39,7 +39,6 @@ public static class ServiceCollectionExtensions
             .AddSingleton<INatsConnectionCacheSource, NatsConnectionCacheSource>()
             .AddSingleton<INatsConsumerSource, NatsConsumerSource>()
             .AddSingleton<INatsExceptionArbiterService, NatsExceptionArbiterService>()
-            .AddSingleton<INatsSubscribeExceptionArbiter, NatsSubscribeExceptionArbiterService>()
             .AddSingleton<INatsRetryWrapperService, NatsRetryWrapperService>()
             .AddSingleton<INatsConnectionRetryWrapper, NatsConnectionRetryWrapper>();
     }

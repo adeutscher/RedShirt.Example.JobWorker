@@ -41,6 +41,7 @@ internal class NatsConnectionRetryWrapper(
             };
         }
 
+        // ReSharper disable once InvertIf
         if (exception is not null)
         {
             var report = exceptionArbiterService.GetReport(exception);

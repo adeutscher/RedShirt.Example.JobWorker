@@ -12,7 +12,6 @@ using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services;
-using RedShirt.Example.JobWorker.JobManagement.Nats.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Services.Resilience;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -34,7 +33,8 @@ public class NatsSubscribeJobSourceTests
     }
 
     private static async IAsyncEnumerable<INatsJSMsg<NatsMemoryOwner<byte>>> WaitUntilCancelledAsync(
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+        [EnumeratorCancellation]
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -53,7 +53,6 @@ public class NatsSubscribeJobSourceTests
         Mock<IJobSubscriberIntakeQueue>? intakeQueue = null,
         Mock<IExecutionEndArbiter>? executionEndArbiter = null,
         Mock<ISleepService>? sleepService = null,
-        Mock<INatsSubscribeExceptionArbiter>? subscribeExceptionArbiter = null,
         bool haltOnFailure = true,
         int fetchCount = 5,
         bool treatTransientExceptionAsFailure = false)
@@ -77,8 +76,6 @@ public class NatsSubscribeJobSourceTests
                 .Returns(new TaskCompletionSource().Task);
         }
 
-        subscribeExceptionArbiter ??= NatsRetryTestHelpers.CreatePermissiveSubscribeArbiter();
-
         return new NatsSubscribeJobSource(
             connectionRetryWrapper.Object,
             NatsRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
@@ -86,7 +83,6 @@ public class NatsSubscribeJobSourceTests
             (intakeQueue ?? new Mock<IJobSubscriberIntakeQueue>(MockBehavior.Strict)).Object,
             executionEndArbiter.Object,
             sleepService.Object,
-            subscribeExceptionArbiter.Object,
             Options.Create(new NatsStreamConfigurationModel
             {
                 StreamName = StreamName,
@@ -95,11 +91,8 @@ public class NatsSubscribeJobSourceTests
             NullLogger<NatsSubscribeJobSource>.Instance);
     }
 
-    private static Mock<INatsConnectionRetryWrapper> CreatePassthroughWrapper(INatsJSConsumer consumer,
-        Action<Action<INatsConnection>?>? captureOnNewConnection = null,
-        INatsConnection? connection = null)
+    private static Mock<INatsConnectionRetryWrapper> CreatePassthroughWrapper(INatsJSConsumer consumer)
     {
-        connection ??= new Mock<INatsConnection>().Object;
         var wrapper = new Mock<INatsConnectionRetryWrapper>(MockBehavior.Strict);
         wrapper.Setup(w => w.ResetConnection());
         wrapper
@@ -108,13 +101,8 @@ public class NatsSubscribeJobSourceTests
                 It.IsAny<bool>(),
                 It.IsAny<Action<INatsConnection>?>(),
                 It.IsAny<CancellationToken>()))
-            .Returns((Func<INatsJSConsumer, CancellationToken, Task> callback, bool _, Action<INatsConnection>? onNew,
-                CancellationToken token) =>
-            {
-                captureOnNewConnection?.Invoke(onNew);
-                onNew?.Invoke(connection);
-                return callback(consumer, token);
-            });
+            .Returns((Func<INatsJSConsumer, CancellationToken, Task> callback, bool _, Action<INatsConnection>? __,
+                CancellationToken token) => callback(consumer, token));
         return wrapper;
     }
 
@@ -139,24 +127,6 @@ public class NatsSubscribeJobSourceTests
                 It.IsAny<CancellationToken>()))
             .Returns((INatsDeserialize<NatsMemoryOwner<byte>> _, NatsJSConsumeOpts __, CancellationToken _) =>
                 AsAsyncEnumerable(messages));
-    }
-
-    private static (Mock<INatsConnection> Connection, Func<AsyncEventHandler<NatsEventArgs>?> GetDisconnectedHandler)
-        CreateConnectionCapturingHandlers()
-    {
-        var connection = new Mock<INatsConnection>();
-        AsyncEventHandler<NatsEventArgs>? disconnectedHandler = null;
-
-        connection
-            .SetupAdd(c => c.ConnectionDisconnected += It.IsAny<AsyncEventHandler<NatsEventArgs>>())
-            .Callback<AsyncEventHandler<NatsEventArgs>>(handler => disconnectedHandler += handler);
-        connection.SetupRemove(c => c.ConnectionDisconnected -= It.IsAny<AsyncEventHandler<NatsEventArgs>>());
-        connection
-            .SetupAdd(c => c.ReconnectFailed += It.IsAny<AsyncEventHandler<NatsEventArgs>>())
-            .Callback<AsyncEventHandler<NatsEventArgs>>(handler => disconnectedHandler += handler);
-        connection.SetupRemove(c => c.ReconnectFailed -= It.IsAny<AsyncEventHandler<NatsEventArgs>>());
-
-        return (connection, () => disconnectedHandler);
     }
 
     private static INatsJSMsg<NatsMemoryOwner<byte>> CreateMessage(string body, ulong streamSequence = 42)
@@ -415,52 +385,6 @@ public class NatsSubscribeJobSourceTests
 
         await cts.CancelAsync();
         await subscribeTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
-    }
-
-    [Fact]
-    public async Task StartSubscriberAsync_WhenConnectionDisconnectsAfterConsume_Resubscribes()
-    {
-        var consumer = new Mock<INatsJSConsumer>(MockBehavior.Strict);
-        consumer
-            .Setup(c => c.ConsumeAsync(
-                It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
-                It.IsAny<NatsJSConsumeOpts>(),
-                It.IsAny<CancellationToken>()))
-            .Returns((INatsDeserialize<NatsMemoryOwner<byte>> _, NatsJSConsumeOpts __, CancellationToken _) =>
-                AsAsyncEnumerable(Array.Empty<INatsJSMsg<NatsMemoryOwner<byte>>>()));
-
-        var (connection, getDisconnectedHandler) = CreateConnectionCapturingHandlers();
-
-        var subscribeCalls = 0;
-        var wrapper = new Mock<INatsConnectionRetryWrapper>(MockBehavior.Strict);
-        wrapper.Setup(w => w.ResetConnection());
-        wrapper
-            .Setup(w => w.GetConsumerAndDoActionWithRetryAsync(
-                It.IsAny<Func<INatsJSConsumer, CancellationToken, Task>>(),
-                It.IsAny<bool>(),
-                It.IsAny<Action<INatsConnection>?>(),
-                It.IsAny<CancellationToken>()))
-            .Returns((Func<INatsJSConsumer, CancellationToken, Task> callback, bool _, Action<INatsConnection>? onNew,
-                CancellationToken token) =>
-            {
-                subscribeCalls++;
-                onNew?.Invoke(connection.Object);
-                return callback(consumer.Object, token);
-            });
-
-        var jobSource = CreateJobSource(wrapper);
-
-        await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(1, subscribeCalls);
-
-        var disconnectedHandler = getDisconnectedHandler();
-        Assert.NotNull(disconnectedHandler);
-        await disconnectedHandler!(connection.Object, new NatsEventArgs("connection lost"));
-
-        await Task.Delay(200, TestContext.Current.CancellationToken);
-
-        Assert.Equal(2, subscribeCalls);
-        wrapper.Verify(w => w.ResetConnection(), Times.AtLeastOnce);
     }
 
     [Fact]

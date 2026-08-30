@@ -61,15 +61,6 @@ internal static class NatsRetryTestHelpers
         return retry;
     }
 
-    public static Mock<INatsSubscribeExceptionArbiter> CreatePermissiveSubscribeArbiter()
-    {
-        var arbiter = new Mock<INatsSubscribeExceptionArbiter>(MockBehavior.Strict);
-        arbiter.Setup(a => a.IsReasonToReconnect(It.IsAny<Exception>())).Returns(true);
-        arbiter.Setup(a => a.IsReasonToStopIfHaltOnFailure(It.IsAny<Exception>())).Returns(false);
-        arbiter.Setup(a => a.IsAccountedForAndLikelyTransientError(It.IsAny<Exception>())).Returns(false);
-        return arbiter;
-    }
-
     public sealed class ImmediateRetryWrapper(int maxAttempts = 1) : INatsRetryWrapperService
     {
         public async Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> func,

@@ -24,14 +24,19 @@ internal class NatsSubscribeJobSource(
     IJobSubscriberIntakeQueue jobSubscriberIntakeQueue,
     IExecutionEndArbiter executionEndArbiter,
     ISleepService sleepService,
-    INatsSubscribeExceptionArbiter subscribeExceptionArbiter,
     IOptions<NatsStreamConfigurationModel> options,
     ILogger<NatsSubscribeJobSource> logger)
     : IJobSource
 #pragma warning restore S107
 {
     private CancellationToken _cancellationToken;
+    private readonly CancellationTokenSource _cancellationTokenSource = new();
     private bool _subscribeLoopRunning;
+
+    private void OnExecutionStop(Exception? exception)
+    {
+        _cancellationTokenSource.Cancel();
+    }
 
     private Task OnReceivedAsync(INatsJSMsg<NatsMemoryOwner<byte>> msg)
     {
@@ -68,8 +73,8 @@ internal class NatsSubscribeJobSource(
             MaxMsgs = Math.Max(1, coreConfigurationService.FetchCount)
         };
 
-        await foreach (var msg in consumer.ConsumeAsync<NatsMemoryOwner<byte>>(serializer: null, opts: consumeOpts,
-                           cancellationToken: cancellationToken))
+        await foreach (var msg in consumer.ConsumeAsync<NatsMemoryOwner<byte>>(null, consumeOpts,
+                           cancellationToken))
         {
             await OnReceivedAsync(msg);
         }
@@ -99,12 +104,13 @@ internal class NatsSubscribeJobSource(
 
                 try
                 {
-                    await GetConsumerAndDoActionWithRetryAsync(StartConsumerAsync, forceNewConnectionImmediately,
-                        cancellationToken);
+                    await connectionRetryWrapper.GetConsumerAndDoActionWithRetryAsync(StartConsumerAsync,
+                        forceNewConnectionImmediately,
+                        cancellationToken: cancellationToken);
                 }
                 catch (OperationCanceledException e) when (e.CancellationToken.IsCancellationRequested)
                 {
-                    // Pass
+                    // Pass to break later
                 }
 #pragma warning disable S2139
                 catch (Exception e)
@@ -133,63 +139,6 @@ internal class NatsSubscribeJobSource(
         {
             Interlocked.Exchange(ref _subscribeLoopRunning, false);
         }
-    }
-
-    private Task GetConsumerAndDoActionWithRetryAsync(
-        Func<INatsJSConsumer, CancellationToken, Task> callback,
-        bool forceNewConnectionImmediately,
-        CancellationToken cancellationToken)
-    {
-        return connectionRetryWrapper.GetConsumerAndDoActionWithRetryAsync(callback,
-            forceNewConnectionImmediately,
-            OnNewConnection,
-            cancellationToken);
-    }
-
-    private ValueTask OnConnectionDisconnectedAsync(object? sender, NatsEventArgs args)
-    {
-        var exception = new NatsConnectionFailedException(!string.IsNullOrWhiteSpace(args.Message) ? args.Message : "NATS connection disconnected");
-
-        if (subscribeExceptionArbiter.IsReasonToReconnect(exception)
-            || subscribeExceptionArbiter.IsReasonToStopIfHaltOnFailure(exception))
-        {
-            if (Volatile.Read(ref _subscribeLoopRunning))
-            {
-                return ValueTask.CompletedTask;
-            }
-
-            logger.LogWarning(exception, "NATS connection disconnected, reconnecting");
-
-            connectionRetryWrapper.ResetConnection();
-
-            _ = Task.Run(() => SubscribeWithRetryLoopAsync("re-subscribing", true, _cancellationToken),
-                _cancellationToken);
-            return ValueTask.CompletedTask;
-        }
-
-        if (subscribeExceptionArbiter.IsAccountedForAndLikelyTransientError(exception))
-        {
-            return ValueTask.CompletedTask;
-        }
-
-        logger.LogWarning(exception,
-            "Unaccounted-for exception in {Name}. Classify via {INatsSubscribeExceptionArbiter} methods",
-            nameof(NatsSubscribeJobSource),
-            nameof(INatsSubscribeExceptionArbiter));
-        return ValueTask.CompletedTask;
-    }
-
-    private ValueTask OnReconnectFailedAsync(object? sender, NatsEventArgs args)
-    {
-        return OnConnectionDisconnectedAsync(sender, args);
-    }
-
-    private void OnNewConnection(INatsConnection connection)
-    {
-        connection.ConnectionDisconnected -= OnConnectionDisconnectedAsync;
-        connection.ConnectionDisconnected += OnConnectionDisconnectedAsync;
-        connection.ReconnectFailed -= OnReconnectFailedAsync;
-        connection.ReconnectFailed += OnReconnectFailedAsync;
     }
 
     private async Task WaitThenStopSubscriberAsync(CancellationToken cancellationToken = default)

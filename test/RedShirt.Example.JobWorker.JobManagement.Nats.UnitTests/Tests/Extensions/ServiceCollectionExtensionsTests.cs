@@ -77,9 +77,6 @@ public class ServiceCollectionExtensionsTests
         Assert.Contains(services, d => d.ServiceType == typeof(INatsExceptionArbiterService)
                                        && d.ImplementationType == typeof(NatsExceptionArbiterService)
                                        && d.Lifetime == ServiceLifetime.Singleton);
-        Assert.Contains(services, d => d.ServiceType == typeof(INatsSubscribeExceptionArbiter)
-                                       && d.ImplementationType == typeof(NatsSubscribeExceptionArbiterService)
-                                       && d.Lifetime == ServiceLifetime.Singleton);
         Assert.Contains(services, d => d.ServiceType == typeof(INatsRetryWrapperService)
                                        && d.ImplementationType == typeof(NatsRetryWrapperService)
                                        && d.Lifetime == ServiceLifetime.Singleton);

@@ -132,7 +132,9 @@ internal class NatsExceptionArbiterService : INatsExceptionArbiterService
             WorkerSecretManagerException workerSecretManager =>
                 Handled(true, workerSecretManager.CouldBeTransient, workerSecretManager.CouldBeExternallySolvable),
             // Connection / timeout / no-responder blips — ops can restore the broker or network.
-            NatsNoRespondersException
+            NatsConnectionFailedException
+                or NatsJSConnectionException
+                or NatsNoRespondersException
                 or NatsNoReplyException
                 or NatsTimeoutException
                 or NatsJSTimeoutException

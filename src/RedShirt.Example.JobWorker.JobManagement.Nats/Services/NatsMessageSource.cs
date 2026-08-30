@@ -16,7 +16,7 @@ internal interface INatsMessageSource
 internal class NatsMessageSource(
     INatsConnectionRetryWrapper connectionRetryWrapper,
     INatsRetryWrapperService retryWrapperService,
-    INatsSubscribeExceptionArbiter subscribeExceptionArbiter,
+    INatsExceptionArbiterService exceptionArbiterService,
     IOptions<NatsMessageSource.ConfigurationModel> options) : INatsMessageSource
 {
     private static readonly TimeSpan HeartbeatTime = TimeSpan.FromSeconds(5);
@@ -68,7 +68,7 @@ internal class NatsMessageSource(
         catch (Exception e)
         {
             _nextConnectionAttemptShouldForceNewConnection = e.IsPotentialCredentialProblem()
-                                                             || subscribeExceptionArbiter.IsReasonToReconnect(e);
+                                                             || exceptionArbiterService.GetReport(e).CouldBeTransient;
 
             if (!suppressProblem)
             {
