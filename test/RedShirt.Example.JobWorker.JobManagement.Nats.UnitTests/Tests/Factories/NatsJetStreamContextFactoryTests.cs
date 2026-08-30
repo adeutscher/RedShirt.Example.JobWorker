@@ -8,14 +8,14 @@ namespace RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Factorie
 public class NatsJetStreamContextFactoryTests
 {
     [Fact]
-    public async Task Test_CreateNatsJSContextAsync()
+    public async Task Test_CreateConnectionAsync()
     {
         var username = Guid.NewGuid().ToString();
         var password = Guid.NewGuid().ToString();
 
         var credentialsSource = new Mock<INatsCredentialSource>(MockBehavior.Strict);
         credentialsSource
-            .Setup(s => s.GetCredentialsAsync(TestContext.Current.CancellationToken))
+            .Setup(s => s.GetCredentialsAsync(false, TestContext.Current.CancellationToken))
             .ReturnsAsync(new NatsCredentialModel
             {
                 User = username,
@@ -31,14 +31,14 @@ public class NatsJetStreamContextFactoryTests
 
         var factory = new NatsJetStreamContextFactory(credentialsSource.Object, Options.Create(options));
 
-        var context = await factory.CreateNatsJetStreamContextAsync(TestContext.Current.CancellationToken);
-        Assert.NotNull(context);
+        var bundle = await factory.CreateConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
+        Assert.NotNull(bundle);
 
-        Assert.Equal(url, context.Connection.Opts.Url);
-        Assert.Equal(username, context.Connection.Opts.AuthOpts.Username);
-        Assert.Equal(password, context.Connection.Opts.AuthOpts.Password);
+        Assert.Equal(url, bundle.Connection.Opts.Url);
+        Assert.Equal(username, bundle.Connection.Opts.AuthOpts.Username);
+        Assert.Equal(password, bundle.Connection.Opts.AuthOpts.Password);
 
-        credentialsSource.Verify(s => s.GetCredentialsAsync(TestContext.Current.CancellationToken), Times.Once);
+        credentialsSource.Verify(s => s.GetCredentialsAsync(false, TestContext.Current.CancellationToken), Times.Once);
         credentialsSource.VerifyNoOtherCalls();
     }
 }

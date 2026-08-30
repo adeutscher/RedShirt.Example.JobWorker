@@ -459,7 +459,13 @@ To install the `nats` command:
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     ```
 
-7. Bring up the worker:
+7. By default, NATS uses short polling (`NextAsync` / `FetchNoWaitAsync`). To consume continuously via JetStream `ConsumeAsync` instead, set `JOB_SOURCE__NATS__SUBSCRIBE`:
+
+    ```bash
+    export JOB_SOURCE__NATS__SUBSCRIBE=true
+    ```
+
+8. Bring up the worker:
 
     ```bash
     docker compose up worker

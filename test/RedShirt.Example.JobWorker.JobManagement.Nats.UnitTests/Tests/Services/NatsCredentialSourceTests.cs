@@ -43,7 +43,7 @@ public class NatsCredentialSourceTests
                 PasswordPath = passwordPath
             }));
 
-        var credentials = await source.GetCredentialsAsync(TestContext.Current.CancellationToken);
+        var credentials = await source.GetCredentialsAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(user, credentials.User);
         Assert.Equal(password, credentials.Password);

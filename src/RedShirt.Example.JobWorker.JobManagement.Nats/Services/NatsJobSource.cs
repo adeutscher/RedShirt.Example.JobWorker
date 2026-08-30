@@ -46,25 +46,18 @@ internal class NatsJobSource(
         logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from NATS Stream: {StreamName}",
             batchSize, options.Value.StreamName);
 
-        var getJobsResponseItems = new List<IRawJobModel>();
-
-        var messageResult = await messageSource.FetchMessagesAsync(batchSize, cancellationToken);
-
-        // ReSharper disable once ForeachCanBeConvertedToQueryUsingAnotherGetEnumerator
-        foreach (var msg in messageResult.Messages)
-        {
-            // Got a message, add it to return set.
-            getJobsResponseItems.Add(new NatsRawJobModel
-            {
-                Message = msg,
-                MessageId = msg.Metadata?.Sequence.Stream.ToString() ?? "UNKNOWN",
-                CreatedAtUtc = DateTime.UtcNow
-            });
-        }
+        var messageResult =
+            await messageSource.FetchMessagesAsync(batchSize, cancellationToken);
 
         return new JobSourceResponse
         {
-            Items = getJobsResponseItems
+            Items = messageResult.Messages
+                .Select(msg => new NatsRawJobModel
+                {
+                    Message = msg,
+                    MessageId = msg.Metadata?.Sequence.Stream.ToString() ?? "UNKNOWN",
+                    CreatedAtUtc = DateTime.UtcNow
+                } as IRawJobModel).ToList()
         };
     }
 

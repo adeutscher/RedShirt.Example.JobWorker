@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services;
+using RedShirt.Example.JobWorker.JobManagement.Nats.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Services;
@@ -38,23 +39,26 @@ public class NatsMessageSourceTests
         return message.Object;
     }
 
-    private static (NatsMessageSource MessageSource, Mock<INatsJSConsumer> Consumer, Mock<INatsConsumerSource>
-        ConsumerSource) CreateSut(int waitTimeSeconds)
+    private static (NatsMessageSource MessageSource, Mock<INatsJSConsumer> Consumer, Mock<INatsConnectionRetryWrapper>
+        ConnectionRetryWrapper, Mock<INatsSubscribeExceptionArbiter> SubscribeArbiter) CreateSut(
+            int waitTimeSeconds,
+            Mock<INatsConnectionRetryWrapper>? connectionRetryWrapper = null,
+            Mock<INatsSubscribeExceptionArbiter>? subscribeArbiter = null)
     {
         var consumer = CreateConsumerMock();
-        var consumerSource = new Mock<INatsConsumerSource>(MockBehavior.Strict);
-        consumerSource
-            .Setup(s => s.GetConsumerAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(consumer.Object);
+        connectionRetryWrapper ??=
+            NatsRetryTestHelpers.CreatePassthroughConnectionRetryWrapper(consumer.Object);
+        subscribeArbiter ??= NatsRetryTestHelpers.CreatePermissiveSubscribeArbiter();
 
-        var messageSource = new NatsMessageSource(consumerSource.Object,
+        var messageSource = new NatsMessageSource(connectionRetryWrapper.Object,
             NatsRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            subscribeArbiter.Object,
             Options.Create(new NatsMessageSource.ConfigurationModel
             {
                 WaitTimeSeconds = waitTimeSeconds
             }));
 
-        return (messageSource, consumer, consumerSource);
+        return (messageSource, consumer, connectionRetryWrapper, subscribeArbiter);
     }
 
     [Theory]
@@ -74,7 +78,7 @@ public class NatsMessageSourceTests
     [Fact]
     public async Task FetchMessagesAsync_NoWait_ReturnsEmptyWhenFetchReturnsNothing()
     {
-        var (messageSource, consumer, consumerSource) = CreateSut(0);
+        var (messageSource, consumer, connectionRetryWrapper, _) = CreateSut(0);
         consumer
             .Setup(c => c.FetchNoWaitAsync(
                 It.IsAny<NatsJSFetchOpts>(),
@@ -85,7 +89,13 @@ public class NatsMessageSourceTests
         var response = await messageSource.FetchMessagesAsync(3, TestContext.Current.CancellationToken);
 
         Assert.Empty(response.Messages);
-        consumerSource.Verify(s => s.GetConsumerAsync(TestContext.Current.CancellationToken), Times.Once);
+        connectionRetryWrapper.Verify(
+            w => w.GetConsumerAndDoActionWithRetryAsync(
+                It.IsAny<Func<INatsJSConsumer, CancellationToken, Task>>(),
+                false,
+                null,
+                TestContext.Current.CancellationToken),
+            Times.Once);
         consumer.Verify(
             c => c.FetchNoWaitAsync<NatsMemoryOwner<byte>>(
                 It.Is<NatsJSFetchOpts>(o => o.MaxMsgs == 3 && o.IdleHeartbeat == ExpectedIdleHeartbeat),
@@ -107,7 +117,7 @@ public class NatsMessageSourceTests
     public async Task FetchMessagesAsync_NoWait_ReturnsMessagesUpToBatchSize(int availableMessages, int batchSize)
     {
         var messages = Enumerable.Range(0, availableMessages).Select(CreateMessage).ToList();
-        var (messageSource, consumer, consumerSource) = CreateSut(0);
+        var (messageSource, consumer, connectionRetryWrapper, _) = CreateSut(0);
         consumer
             .Setup(c => c.FetchNoWaitAsync(
                 It.IsAny<NatsJSFetchOpts>(),
@@ -125,7 +135,13 @@ public class NatsMessageSourceTests
             Assert.Same(messages[i], response.Messages[i]);
         }
 
-        consumerSource.Verify(s => s.GetConsumerAsync(TestContext.Current.CancellationToken), Times.Once);
+        connectionRetryWrapper.Verify(
+            w => w.GetConsumerAndDoActionWithRetryAsync(
+                It.IsAny<Func<INatsJSConsumer, CancellationToken, Task>>(),
+                false,
+                null,
+                TestContext.Current.CancellationToken),
+            Times.Once);
         consumer.Verify(
             c => c.FetchNoWaitAsync<NatsMemoryOwner<byte>>(
                 It.Is<NatsJSFetchOpts>(o => o.MaxMsgs == batchSize && o.IdleHeartbeat == ExpectedIdleHeartbeat),
@@ -134,13 +150,36 @@ public class NatsMessageSourceTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task FetchMessagesAsync_NoWait_WhenConnectionFails_PropagatesException()
+    {
+        var consumer = CreateConsumerMock();
+        var wrapper = new Mock<INatsConnectionRetryWrapper>(MockBehavior.Strict);
+        wrapper
+            .Setup(w => w.GetConsumerAndDoActionWithRetryAsync(
+                It.IsAny<Func<INatsJSConsumer, CancellationToken, Task>>(),
+                It.IsAny<bool>(),
+                It.IsAny<Action<INatsConnection>?>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("connection failed"));
+
+        var arbiter = new Mock<INatsSubscribeExceptionArbiter>(MockBehavior.Strict);
+        arbiter.Setup(a => a.IsReasonToReconnect(It.IsAny<Exception>())).Returns(false);
+
+        var (messageSource, _, _, _) = CreateSut(0, wrapper, arbiter);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            messageSource.FetchMessagesAsync(1, TestContext.Current.CancellationToken));
+        consumer.VerifyNoOtherCalls();
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
     public async Task FetchMessagesAsync_NonPositiveDelayUsesFetchNoWait(int delayTimeSeconds)
     {
         var message = CreateMessage(0);
-        var (messageSource, consumer, consumerSource) = CreateSut(delayTimeSeconds);
+        var (messageSource, consumer, connectionRetryWrapper, _) = CreateSut(delayTimeSeconds);
         consumer
             .Setup(c => c.FetchNoWaitAsync(
                 It.IsAny<NatsJSFetchOpts>(),
@@ -152,7 +191,13 @@ public class NatsMessageSourceTests
 
         Assert.Single(response.Messages);
         Assert.Same(message, response.Messages[0]);
-        consumerSource.Verify(s => s.GetConsumerAsync(TestContext.Current.CancellationToken), Times.Once);
+        connectionRetryWrapper.Verify(
+            w => w.GetConsumerAndDoActionWithRetryAsync(
+                It.IsAny<Func<INatsJSConsumer, CancellationToken, Task>>(),
+                false,
+                null,
+                TestContext.Current.CancellationToken),
+            Times.Once);
         consumer.Verify(
             c => c.FetchNoWaitAsync(
                 It.IsAny<NatsJSFetchOpts>(),
@@ -167,6 +212,50 @@ public class NatsMessageSourceTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task FetchMessagesAsync_WhenReconnectExceptionOccurs_SubsequentCallForcesNewConnection()
+    {
+        var consumer = CreateConsumerMock();
+        consumer
+            .Setup(c => c.FetchNoWaitAsync(
+                It.IsAny<NatsJSFetchOpts>(),
+                It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(AsAsyncEnumerable(Array.Empty<INatsJSMsg<NatsMemoryOwner<byte>>>()));
+
+        var forceNewConnectionFlags = new List<bool>();
+        var wrapper = new Mock<INatsConnectionRetryWrapper>(MockBehavior.Strict);
+        wrapper
+            .Setup(w => w.GetConsumerAndDoActionWithRetryAsync(
+                It.IsAny<Func<INatsJSConsumer, CancellationToken, Task>>(),
+                It.IsAny<bool>(),
+                It.IsAny<Action<INatsConnection>?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((Func<INatsJSConsumer, CancellationToken, Task> callback, bool forceNewConnection,
+                Action<INatsConnection>? _, CancellationToken token) =>
+            {
+                forceNewConnectionFlags.Add(forceNewConnection);
+                if (forceNewConnectionFlags.Count == 1)
+                {
+                    return Task.FromException(new NatsTimeoutException());
+                }
+
+                return callback(consumer.Object, token);
+            });
+
+        var arbiter = new Mock<INatsSubscribeExceptionArbiter>(MockBehavior.Strict);
+        arbiter.Setup(a => a.IsReasonToReconnect(It.IsAny<Exception>())).Returns(true);
+
+        var (messageSource, _, _, _) = CreateSut(0, wrapper, arbiter);
+
+        await Assert.ThrowsAsync<NatsTimeoutException>(() =>
+            messageSource.FetchMessagesAsync(1, TestContext.Current.CancellationToken));
+
+        await messageSource.FetchMessagesAsync(1, TestContext.Current.CancellationToken);
+
+        Assert.Equal([false, true], forceNewConnectionFlags);
+    }
+
     [Theory]
     [InlineData(5, 3, 2)]
     [InlineData(10, 5, 4)]
@@ -175,7 +264,7 @@ public class NatsMessageSourceTests
     {
         var firstMessage = CreateMessage(0);
         var remaining = Enumerable.Range(1, remainingMessages).Select(CreateMessage).ToList();
-        var (messageSource, consumer, consumerSource) = CreateSut(delayTimeSeconds);
+        var (messageSource, consumer, connectionRetryWrapper, _) = CreateSut(delayTimeSeconds);
         consumer
             .Setup(c => c.NextAsync(
                 It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
@@ -200,7 +289,13 @@ public class NatsMessageSourceTests
             Assert.Same(remaining[i - 1], response.Messages[i]);
         }
 
-        consumerSource.Verify(s => s.GetConsumerAsync(TestContext.Current.CancellationToken), Times.Once);
+        connectionRetryWrapper.Verify(
+            w => w.GetConsumerAndDoActionWithRetryAsync(
+                It.IsAny<Func<INatsJSConsumer, CancellationToken, Task>>(),
+                false,
+                null,
+                TestContext.Current.CancellationToken),
+            Times.Exactly(2));
         consumer.Verify(
             c => c.NextAsync<NatsMemoryOwner<byte>>(
                 null,
@@ -223,7 +318,7 @@ public class NatsMessageSourceTests
     [InlineData(10)]
     public async Task FetchMessagesAsync_WithDelay_ReturnsEmptyWhenNextReturnsNull(int delayTimeSeconds)
     {
-        var (messageSource, consumer, consumerSource) = CreateSut(delayTimeSeconds);
+        var (messageSource, consumer, connectionRetryWrapper, _) = CreateSut(delayTimeSeconds);
         consumer
             .Setup(c => c.NextAsync(
                 It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
@@ -234,7 +329,13 @@ public class NatsMessageSourceTests
         var response = await messageSource.FetchMessagesAsync(3, TestContext.Current.CancellationToken);
 
         Assert.Empty(response.Messages);
-        consumerSource.Verify(s => s.GetConsumerAsync(TestContext.Current.CancellationToken), Times.Once);
+        connectionRetryWrapper.Verify(
+            w => w.GetConsumerAndDoActionWithRetryAsync(
+                It.IsAny<Func<INatsJSConsumer, CancellationToken, Task>>(),
+                false,
+                null,
+                TestContext.Current.CancellationToken),
+            Times.Once);
         consumer.Verify(
             c => c.NextAsync<NatsMemoryOwner<byte>>(
                 null,
@@ -257,7 +358,7 @@ public class NatsMessageSourceTests
     public async Task FetchMessagesAsync_WithDelay_ReturnsSingleMessageFromNext(int delayTimeSeconds, int batchSize)
     {
         var message = CreateMessage(0);
-        var (messageSource, consumer, consumerSource) = CreateSut(delayTimeSeconds);
+        var (messageSource, consumer, connectionRetryWrapper, _) = CreateSut(delayTimeSeconds);
         consumer
             .Setup(c => c.NextAsync(
                 It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
@@ -275,12 +376,68 @@ public class NatsMessageSourceTests
 
         Assert.Single(response.Messages);
         Assert.Same(message, response.Messages[0]);
-        consumerSource.Verify(s => s.GetConsumerAsync(TestContext.Current.CancellationToken), Times.Once);
+        connectionRetryWrapper.Verify(
+            w => w.GetConsumerAndDoActionWithRetryAsync(
+                It.IsAny<Func<INatsJSConsumer, CancellationToken, Task>>(),
+                false,
+                null,
+                TestContext.Current.CancellationToken),
+            Times.Exactly(2));
         consumer.Verify(
             c => c.FetchNoWaitAsync<NatsMemoryOwner<byte>>(
                 It.Is<NatsJSFetchOpts>(o => o.MaxMsgs == 0 && o.IdleHeartbeat == ExpectedIdleHeartbeat),
                 null,
                 TestContext.Current.CancellationToken),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task
+        FetchMessagesAsync_WithDelay_WhenRemainingFetchFailsWithReconnectException_ReturnsFirstMessageOnly()
+    {
+        var firstMessage = CreateMessage(0);
+        var consumer = CreateConsumerMock();
+        consumer
+            .Setup(c => c.NextAsync(
+                It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
+                It.IsAny<NatsJSNextOpts>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(firstMessage);
+
+        var operationCalls = 0;
+        var wrapper = new Mock<INatsConnectionRetryWrapper>(MockBehavior.Strict);
+        wrapper
+            .Setup(w => w.GetConsumerAndDoActionWithRetryAsync(
+                It.IsAny<Func<INatsJSConsumer, CancellationToken, Task>>(),
+                It.IsAny<bool>(),
+                It.IsAny<Action<INatsConnection>?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((Func<INatsJSConsumer, CancellationToken, Task> callback, bool _, Action<INatsConnection>? __,
+                CancellationToken token) =>
+            {
+                operationCalls++;
+                if (operationCalls == 2)
+                {
+                    return Task.FromException(new NatsTimeoutException());
+                }
+
+                return callback(consumer.Object, token);
+            });
+
+        var arbiter = new Mock<INatsSubscribeExceptionArbiter>(MockBehavior.Strict);
+        arbiter.Setup(a => a.IsReasonToReconnect(It.IsAny<Exception>())).Returns(true);
+
+        var (messageSource, _, _, _) = CreateSut(5, wrapper, arbiter);
+
+        var response = await messageSource.FetchMessagesAsync(3, TestContext.Current.CancellationToken);
+
+        Assert.Single(response.Messages);
+        Assert.Same(firstMessage, response.Messages[0]);
+        consumer.Verify(
+            c => c.FetchNoWaitAsync(
+                It.IsAny<NatsJSFetchOpts>(),
+                It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }

@@ -1,22 +1,25 @@
 using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
+using RedShirt.Example.JobWorker.JobManagement.Nats.Models;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Nats.Factories;
 
 internal interface INatsJetStreamContextFactory
 {
-    Task<INatsJSContext> CreateNatsJetStreamContextAsync(CancellationToken cancellationToken = default);
+    Task<NatsConnectionBundle> CreateConnectionAsync(bool forceNewSecretManagerPull = false,
+        CancellationToken cancellationToken = default);
 }
 
 internal class NatsJetStreamContextFactory(
     INatsCredentialSource natsCredentialSource,
     IOptions<NatsJetStreamContextFactory.ConfigurationModel> options) : INatsJetStreamContextFactory
 {
-    public async Task<INatsJSContext> CreateNatsJetStreamContextAsync(CancellationToken cancellationToken = default)
+    public async Task<NatsConnectionBundle> CreateConnectionAsync(bool forceNewSecretManagerPull = false,
+        CancellationToken cancellationToken = default)
     {
-        var credentials = await natsCredentialSource.GetCredentialsAsync(cancellationToken);
+        var credentials = await natsCredentialSource.GetCredentialsAsync(forceNewSecretManagerPull, cancellationToken);
 
         var natsOpts = NatsOpts.Default with
         {
@@ -29,10 +32,10 @@ internal class NatsJetStreamContextFactory(
         };
 
         var connection = new NatsConnection(natsOpts);
-        return new NatsJSContext(connection);
+        return new NatsConnectionBundle(new NatsJSContext(connection));
     }
 
-    public class ConfigurationModel
+    public sealed class ConfigurationModel
     {
         public required string Url { get; init; }
     }

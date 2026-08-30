@@ -65,6 +65,9 @@ public class ServiceCollectionExtensionsTests
         Assert.Contains(services, d => d.ServiceType == typeof(INatsConsumerSource)
                                        && d.ImplementationType == typeof(NatsConsumerSource)
                                        && d.Lifetime == ServiceLifetime.Singleton);
+        Assert.Contains(services, d => d.ServiceType == typeof(INatsConnectionCacheSource)
+                                       && d.ImplementationType == typeof(NatsConnectionCacheSource)
+                                       && d.Lifetime == ServiceLifetime.Singleton);
         Assert.Contains(services, d => d.ServiceType == typeof(INatsJetStreamContextFactory)
                                        && d.ImplementationType == typeof(NatsJetStreamContextFactory)
                                        && d.Lifetime == ServiceLifetime.Singleton);
@@ -74,8 +77,34 @@ public class ServiceCollectionExtensionsTests
         Assert.Contains(services, d => d.ServiceType == typeof(INatsExceptionArbiterService)
                                        && d.ImplementationType == typeof(NatsExceptionArbiterService)
                                        && d.Lifetime == ServiceLifetime.Singleton);
+        Assert.Contains(services, d => d.ServiceType == typeof(INatsSubscribeExceptionArbiter)
+                                       && d.ImplementationType == typeof(NatsSubscribeExceptionArbiterService)
+                                       && d.Lifetime == ServiceLifetime.Singleton);
         Assert.Contains(services, d => d.ServiceType == typeof(INatsRetryWrapperService)
                                        && d.ImplementationType == typeof(NatsRetryWrapperService)
                                        && d.Lifetime == ServiceLifetime.Singleton);
+        Assert.Contains(services, d => d.ServiceType == typeof(INatsConnectionRetryWrapper)
+                                       && d.ImplementationType == typeof(NatsConnectionRetryWrapper)
+                                       && d.Lifetime == ServiceLifetime.Singleton);
+    }
+
+    [Fact]
+    public void AddNatsJobManagement_WhenSubscribeTrue_RegistersSubscribeJobSource()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["JobSource:NATS:StreamName"] = "jobs",
+                ["JobSource:NATS:Subscribe"] = "true"
+            })
+            .Build();
+
+        var services = new ServiceCollection()
+            .AddNatsJobManagement(configuration);
+
+        Assert.Contains(services, d => d.ServiceType == typeof(IJobSource)
+                                       && d.ImplementationType == typeof(NatsSubscribeJobSource));
+        Assert.DoesNotContain(services, d => d.ServiceType == typeof(IJobSource)
+                                             && d.ImplementationType == typeof(NatsJobSource));
     }
 }
