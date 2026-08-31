@@ -147,13 +147,14 @@ internal class NatsSubscribeJobSource : IJobSource, IDisposable
         }
     }
 
-    private async Task SubscribeWithRetryLoopAsync(string logVerb, bool forceNewConnectionImmediately,
-        CancellationToken cancellationToken)
+    private async Task SubscribeWithRetryLoopAsync(string logVerb, CancellationToken cancellationToken)
     {
         if (Interlocked.CompareExchange(ref _subscribeLoopRunning, true, false))
         {
             return;
         }
+
+        var forceNewConnectionImmediately = false;
 
         try
         {
@@ -183,11 +184,13 @@ internal class NatsSubscribeJobSource : IJobSource, IDisposable
                     if (e is WorkerJobSourceException {CouldBeTransient: true} &&
                         !_coreConfigurationService.IsTreatingTransientExceptionAsFailure)
                     {
+                        // Repeat loop
                         continue;
                     }
 
                     if (!_coreConfigurationService.IsHaltOnFailure)
                     {
+                        // Repeat loop
                         continue;
                     }
 
@@ -277,7 +280,7 @@ internal class NatsSubscribeJobSource : IJobSource, IDisposable
     {
         // Kick off SubscribeWithRetryLoopAsync in a thread because the implementation is blocking.
         _ = Task.Run(() => DoOperationWithLinkedToken(
-                ct => SubscribeWithRetryLoopAsync("subscribing", false, ct),
+                ct => SubscribeWithRetryLoopAsync("subscribing", ct),
                 cancellationToken),
             cancellationToken);
         return Task.CompletedTask;
