@@ -6,6 +6,13 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tes
 public class ExceptionExtensionsTests
 {
     [Fact]
+    public void IsPotentialCredentialProblem_WhenNotAuthRelated_ReturnsFalse()
+    {
+        Assert.False(new Exception("mystery").IsPotentialCredentialProblem());
+        Assert.False(((Exception?) null).IsPotentialCredentialProblem());
+    }
+
+    [Fact]
     public void IsPotentialCredentialProblem_WhenUnauthorized_ReturnsTrue()
     {
         Assert.True(new UnauthorizedAccessException().IsPotentialCredentialProblem());
@@ -15,12 +22,5 @@ public class ExceptionExtensionsTests
             CouldBeTransient = false,
             CouldBeExternallySolvable = true
         }.IsPotentialCredentialProblem());
-    }
-
-    [Fact]
-    public void IsPotentialCredentialProblem_WhenNotAuthRelated_ReturnsFalse()
-    {
-        Assert.False(new Exception("mystery").IsPotentialCredentialProblem());
-        Assert.False(((Exception?) null).IsPotentialCredentialProblem());
     }
 }

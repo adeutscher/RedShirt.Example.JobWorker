@@ -9,6 +9,15 @@ public class AzureServiceBusDetailedExceptionArbiterServiceTests
 {
     private readonly AzureServiceBusDetailedExceptionArbiterService _sut = new();
 
+    public static TheoryData<Exception> AccountedTransientExceptions()
+    {
+        return
+        [
+            new ServiceBusException("lock", ServiceBusFailureReason.MessageLockLost),
+            new ObjectDisposedException("processor")
+        ];
+    }
+
     [Fact]
     public void Classification_InspectsInnerExceptions()
     {
@@ -18,6 +27,13 @@ public class AzureServiceBusDetailedExceptionArbiterServiceTests
         Assert.True(_sut.IsAccountedForAndLikelyTransientError(
             new Exception("outer",
                 new ServiceBusException("lock", ServiceBusFailureReason.MessageLockLost))));
+    }
+
+    [Theory]
+    [MemberData(nameof(AccountedTransientExceptions))]
+    public void IsAccountedForAndLikelyTransientError_KnownShapes_ReturnsTrue(Exception exception)
+    {
+        Assert.True(_sut.IsAccountedForAndLikelyTransientError(exception));
     }
 
     [Theory]
@@ -40,13 +56,6 @@ public class AzureServiceBusDetailedExceptionArbiterServiceTests
         Assert.True(_sut.IsReasonToStopIfHaltOnFailure(exception));
     }
 
-    [Theory]
-    [MemberData(nameof(AccountedTransientExceptions))]
-    public void IsAccountedForAndLikelyTransientError_KnownShapes_ReturnsTrue(Exception exception)
-    {
-        Assert.True(_sut.IsAccountedForAndLikelyTransientError(exception));
-    }
-
     public static TheoryData<Exception> ReconnectExceptions()
     {
         return
@@ -66,15 +75,6 @@ public class AzureServiceBusDetailedExceptionArbiterServiceTests
             new UnauthorizedAccessException(),
             new ServiceBusException("missing", ServiceBusFailureReason.MessagingEntityNotFound),
             new ServiceBusException("disabled", ServiceBusFailureReason.MessagingEntityDisabled)
-        ];
-    }
-
-    public static TheoryData<Exception> AccountedTransientExceptions()
-    {
-        return
-        [
-            new ServiceBusException("lock", ServiceBusFailureReason.MessageLockLost),
-            new ObjectDisposedException("processor")
         ];
     }
 }
