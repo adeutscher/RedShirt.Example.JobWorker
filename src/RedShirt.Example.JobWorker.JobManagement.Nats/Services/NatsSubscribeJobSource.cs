@@ -181,6 +181,7 @@ internal class NatsSubscribeJobSource : IJobSource, IDisposable
                     _logger.LogError(e, "Error {LogVerb} to NATS", logVerb);
                     forceNewConnectionImmediately = true;
 
+                    // ReSharper disable once DuplicatedSequentialIfBodies
                     if (e is WorkerJobSourceException {CouldBeTransient: true} &&
                         !_coreConfigurationService.IsTreatingTransientExceptionAsFailure)
                     {
