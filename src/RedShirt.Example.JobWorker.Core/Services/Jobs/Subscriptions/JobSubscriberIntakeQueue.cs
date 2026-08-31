@@ -39,19 +39,30 @@ public interface IJobSubscriberIntakeQueue
     void Load(IJobSourceResponse jobSourceResponse);
 }
 
+/// <summary>
+///     Subscriber intake queue implementation. Probably a bit more thread-safe than it really needs to be...
+/// </summary>
 internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
 {
     private readonly ConcurrentQueue<IJobSourceResponse> _jobs = new();
     private readonly AsyncManualResetEvent _jobsAreAvailableIfSetEvent = new();
     private readonly Lock _lock = new();
     private bool _done;
+
+    /// <summary>
+    ///     Like in other places in this codebase, using a bool out of complete paranoia of redundant Set/Resets having an
+    ///     impact.
+    /// </summary>
     private bool _jobsAreAvailableIfSetEventIsSet;
 
     private void Cancel()
     {
-        _done = true;
-        // ReSharper disable once InconsistentlySynchronizedField
-        _jobsAreAvailableIfSetEvent.Set();
+        lock (_lock)
+        {
+            // Mark as done
+            _done = true;
+            _jobsAreAvailableIfSetEvent.Set();
+        }
     }
 
     /// <summary>
@@ -115,27 +126,31 @@ internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
         IJobSourceResponse? response;
         while (true)
         {
+            // Wait until there are jobs available.
             // ReSharper disable once InconsistentlySynchronizedField
             await _jobsAreAvailableIfSetEvent.WaitAsync(cancellationToken);
 
-            // ReSharper disable once InconsistentlySynchronizedField
-            if (_jobs.TryDequeue(out response))
+            lock (_lock)
             {
-                break;
+                try
+                {
+                    if (_jobs.TryDequeue(out response))
+                    {
+                        break;
+                    }
+                }
+                finally
+                {
+                    UpdateEvent();
+                }
+
+                if (_done)
+                {
+                    // Return null, indicating to consumers that things are done
+                    break;
+                }
             }
 
-            if (_done)
-            {
-                // Return null, indicating to consumers that things are done
-                break;
-            }
-
-            // If we are not done, then indicate a demand.
-            // ReSharper disable once InconsistentlySynchronizedField
-        }
-
-        if (!_done)
-        {
             UpdateEvent();
         }
 
