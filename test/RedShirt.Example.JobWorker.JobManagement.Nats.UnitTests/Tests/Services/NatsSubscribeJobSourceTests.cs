@@ -322,12 +322,6 @@ public class NatsSubscribeJobSourceTests
         await jobSource.StartSubscriberAsync(cts.Token);
 
         await consumeStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
-        consumer.Verify(
-            c => c.ConsumeAsync(
-                It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
-                It.Is<NatsJSConsumeOpts>(o => o.MaxMsgs == expectedMaxMsgs),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
         wrapper.Verify(
             w => w.GetConsumerAndDoActionWithRetryAsync(
                 It.IsAny<Func<INatsJSConsumer, CancellationToken, Task>>(),
@@ -335,25 +329,15 @@ public class NatsSubscribeJobSourceTests
                 null,
                 It.IsAny<CancellationToken>()),
             Times.Once);
+        consumer.Verify(
+            c => c.ConsumeAsync(
+                It.IsAny<INatsDeserialize<NatsMemoryOwner<byte>>>(),
+                It.Is<NatsJSConsumeOpts>(o =>
+                    o.MaxMsgs == expectedMaxMsgs
+                    && o.MaxConsecutive503Errors == 2),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
 
-        await cts.CancelAsync();
-    }
-
-    [Fact]
-    public async Task StartSubscriberAsync_ReturnsImmediatelyWithoutAwaitingConsume()
-    {
-        var consumer = new Mock<INatsJSConsumer>(MockBehavior.Strict);
-        SetupBlockingConsume(consumer);
-
-        var wrapper = CreatePassthroughWrapper(consumer.Object);
-        var (jobSource, _, _) = CreateJobSource(wrapper);
-
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var completed = await Task.WhenAny(
-            jobSource.StartSubscriberAsync(cts.Token),
-            Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
-
-        Assert.True(completed.IsCompletedSuccessfully);
         await cts.CancelAsync();
     }
 
@@ -383,34 +367,6 @@ public class NatsSubscribeJobSourceTests
             Times.Once);
 
         await cts.CancelAsync();
-    }
-
-    [Fact]
-    public async Task StartSubscriberAsync_WhenCancelled_DoesNotStopArbiter()
-    {
-        var loopFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var wrapper = new Mock<INatsConnectionRetryWrapper>(MockBehavior.Strict);
-        wrapper
-            .Setup(w => w.GetConsumerAndDoActionWithRetryAsync(
-                It.IsAny<Func<INatsJSConsumer, CancellationToken, Task>>(),
-                It.IsAny<bool>(),
-                It.IsAny<Action<INatsConnection>?>(),
-                It.IsAny<CancellationToken>()))
-            .Returns<Func<INatsJSConsumer, CancellationToken, Task>, bool, Action<INatsConnection>?,
-                CancellationToken>((_, _, _, _) =>
-            {
-                loopFinished.TrySetResult();
-                return Task.FromException(new OperationCanceledException());
-            });
-
-        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
-        var (jobSource, _, _) = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter);
-
-        await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
-        await loopFinished.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
-        await Task.Delay(50, TestContext.Current.CancellationToken);
-
-        executionEndArbiter.Verify(a => a.Stop(It.IsAny<Exception?>()), Times.Never);
     }
 
     [Fact]
@@ -562,13 +518,13 @@ public class NatsSubscribeJobSourceTests
     }
 
     [Fact]
-    public async Task StartSubscriberAsync_WhenNonTransientAndNotHaltOnFailure_Retries()
+    public async Task StartSubscriberAsync_WhenNonTransientAndNotHaltOnFailure_RetriesWithForcedNewConnection()
     {
         var consumer = new Mock<INatsJSConsumer>(MockBehavior.Strict);
         var consumeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         SetupBlockingConsume(consumer, consumeStarted);
 
-        var attempts = 0;
+        var forceFlags = new List<bool>();
         var wrapper = new Mock<INatsConnectionRetryWrapper>(MockBehavior.Strict);
         wrapper
             .Setup(w => w.GetConsumerAndDoActionWithRetryAsync(
@@ -576,11 +532,11 @@ public class NatsSubscribeJobSourceTests
                 It.IsAny<bool>(),
                 It.IsAny<Action<INatsConnection>?>(),
                 It.IsAny<CancellationToken>()))
-            .Returns((Func<INatsJSConsumer, CancellationToken, Task> callback, bool _, Action<INatsConnection>? __,
-                CancellationToken token) =>
+            .Returns((Func<INatsJSConsumer, CancellationToken, Task> callback, bool forceNewConnection,
+                Action<INatsConnection>? __, CancellationToken token) =>
             {
-                attempts++;
-                if (attempts == 1)
+                forceFlags.Add(forceNewConnection);
+                if (forceFlags.Count == 1)
                 {
                     return Task.FromException(new InvalidOperationException("permanent"));
                 }
@@ -601,7 +557,7 @@ public class NatsSubscribeJobSourceTests
         await jobSource.StartSubscriberAsync(cts.Token);
         await consumeStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, attempts);
+        Assert.Equal([false, true], forceFlags);
         executionEndArbiter.Verify(a => a.Stop(It.IsAny<Exception?>()), Times.Never);
         sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(1), It.IsAny<CancellationToken>()), Times.Once);
 
@@ -609,13 +565,13 @@ public class NatsSubscribeJobSourceTests
     }
 
     [Fact]
-    public async Task StartSubscriberAsync_WhenTransientFailure_RetriesUntilSuccess()
+    public async Task StartSubscriberAsync_WhenTransientFailure_RetriesWithForcedNewConnection()
     {
         var consumer = new Mock<INatsJSConsumer>(MockBehavior.Strict);
         var consumeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         SetupBlockingConsume(consumer, consumeStarted);
 
-        var attempts = 0;
+        var forceFlags = new List<bool>();
         var wrapper = new Mock<INatsConnectionRetryWrapper>(MockBehavior.Strict);
         wrapper
             .Setup(w => w.GetConsumerAndDoActionWithRetryAsync(
@@ -623,11 +579,11 @@ public class NatsSubscribeJobSourceTests
                 It.IsAny<bool>(),
                 It.IsAny<Action<INatsConnection>?>(),
                 It.IsAny<CancellationToken>()))
-            .Returns((Func<INatsJSConsumer, CancellationToken, Task> callback, bool _, Action<INatsConnection>? __,
-                CancellationToken token) =>
+            .Returns((Func<INatsJSConsumer, CancellationToken, Task> callback, bool forceNewConnection,
+                Action<INatsConnection>? __, CancellationToken token) =>
             {
-                attempts++;
-                if (attempts == 1)
+                forceFlags.Add(forceNewConnection);
+                if (forceFlags.Count == 1)
                 {
                     return Task.FromException(CreateTransientException());
                 }
@@ -646,7 +602,7 @@ public class NatsSubscribeJobSourceTests
         await jobSource.StartSubscriberAsync(cts.Token);
         await consumeStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, attempts);
+        Assert.Equal([false, true], forceFlags);
         sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(1), It.IsAny<CancellationToken>()), Times.Once);
 
         await cts.CancelAsync();

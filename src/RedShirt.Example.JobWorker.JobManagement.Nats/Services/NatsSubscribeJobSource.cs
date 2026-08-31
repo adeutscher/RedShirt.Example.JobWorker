@@ -121,7 +121,10 @@ internal class NatsSubscribeJobSource : IJobSource, IDisposable
         var consumeOpts = new NatsJSConsumeOpts
         {
             MaxMsgs = Math.Max(1, _coreConfigurationService.FetchCount),
-            IdleHeartbeat = IdleHeartbeat
+            IdleHeartbeat = IdleHeartbeat,
+            // Setting lower than default of 10 because the standard resilience pattern will have our backs most of the time.
+            // Was really tempted to make it a flat 1, but holding off for the moment.
+            MaxConsecutive503Errors = 2
         };
 
         await foreach (var msg in consumer.ConsumeAsync<NatsMemoryOwner<byte>>(null, consumeOpts,
@@ -170,15 +173,12 @@ internal class NatsSubscribeJobSource : IJobSource, IDisposable
                         forceNewConnectionImmediately,
                         cancellationToken: cancellationToken);
                 }
-                catch (OperationCanceledException e)
-                {
-                    // Pass to break later
-                }
 #pragma warning disable S2139
                 catch (Exception e)
 #pragma warning restore S2139
                 {
                     _logger.LogError(e, "Error {LogVerb} to NATS", logVerb);
+                    forceNewConnectionImmediately = true;
 
                     if (e is WorkerJobSourceException {CouldBeTransient: true} &&
                         !_coreConfigurationService.IsTreatingTransientExceptionAsFailure)
