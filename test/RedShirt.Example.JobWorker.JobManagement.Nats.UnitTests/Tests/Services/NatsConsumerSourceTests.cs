@@ -37,6 +37,10 @@ public class NatsConsumerSourceTests
             {
                 StreamName = streamName,
                 ConsumerName = consumerName
+            }),
+            Options.Create(new NatsStreamTimeoutConfigurationModel
+            {
+                VisibilityTimeoutSeconds = 40
             }));
 
         cache.Verify(c => c.GetConnectionAsync(It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
@@ -48,7 +52,10 @@ public class NatsConsumerSourceTests
         cache.Verify(c => c.GetConnectionAsync(false, false, TestContext.Current.CancellationToken), Times.Once);
         mockContext.Verify(
             c => c.CreateOrUpdateConsumerAsync(streamName,
-                It.Is<ConsumerConfig>(cfg => cfg.Name == consumerName && cfg.DurableName == consumerName),
+                It.Is<ConsumerConfig>(cfg =>
+                    cfg.Name == consumerName
+                    && cfg.DurableName == consumerName
+                    && cfg.AckWait == TimeSpan.FromSeconds(40)),
                 TestContext.Current.CancellationToken), Times.Once);
 
         var consumer2 = await source.GetConsumerAsync(cancellationToken: TestContext.Current.CancellationToken);

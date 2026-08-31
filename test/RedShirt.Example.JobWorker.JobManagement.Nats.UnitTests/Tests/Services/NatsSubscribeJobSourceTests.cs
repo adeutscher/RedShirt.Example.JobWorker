@@ -55,7 +55,8 @@ public class NatsSubscribeJobSourceTests
             Mock<ISleepService>? sleepService = null,
             bool haltOnFailure = true,
             int fetchCount = 5,
-            bool treatTransientExceptionAsFailure = false)
+            bool treatTransientExceptionAsFailure = false,
+            int visibilityTimeoutSeconds = 20)
     {
         var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
         coreConfiguration.SetupGet(c => c.FetchCount).Returns(fetchCount);
@@ -86,6 +87,10 @@ public class NatsSubscribeJobSourceTests
             {
                 StreamName = StreamName,
                 ConsumerName = "worker"
+            }),
+            Options.Create(new NatsStreamTimeoutConfigurationModel
+            {
+                VisibilityTimeoutSeconds = visibilityTimeoutSeconds
             }),
             NullLogger<NatsSubscribeJobSource>.Instance);
 
@@ -260,22 +265,44 @@ public class NatsSubscribeJobSourceTests
     }
 
     [Fact]
-    public async Task HeartbeatAsync_Completes()
+    public async Task HeartbeatAsync_WhenIncompatibleMessage_DoesNothing()
     {
         var wrapper = new Mock<INatsConnectionRetryWrapper>(MockBehavior.Strict);
         var (jobSource, _, _) = CreateJobSource(wrapper);
 
-        await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);
+        await jobSource.HeartbeatAsync(new Mock<IRawJobModel>().Object, TestContext.Current.CancellationToken);
     }
 
     [Fact]
-    public void IsSubscriptionSource_IsTrue_AndHeartbeatIntervalIsZero()
+    public async Task HeartbeatAsync_WhenNatsJob_SendsAckProgress()
     {
+        var message = new Mock<INatsJSMsg<NatsMemoryOwner<byte>>>(MockBehavior.Strict);
+        message
+            .Setup(m => m.AckProgressAsync(It.IsAny<AckOpts?>(), TestContext.Current.CancellationToken))
+            .Returns(ValueTask.CompletedTask);
+
         var wrapper = new Mock<INatsConnectionRetryWrapper>(MockBehavior.Strict);
         var (jobSource, _, _) = CreateJobSource(wrapper);
 
+        await jobSource.HeartbeatAsync(new NatsRawJobModel
+        {
+            Message = message.Object,
+            MessageId = "m",
+            CreatedAtUtc = DateTime.UtcNow
+        }, TestContext.Current.CancellationToken);
+
+        message.Verify(m => m.AckProgressAsync(It.IsAny<AckOpts?>(), TestContext.Current.CancellationToken),
+            Times.Once);
+    }
+
+    [Fact]
+    public void IsSubscriptionSource_IsTrue_AndHeartbeatIntervalUsesVisibilityTimeout()
+    {
+        var wrapper = new Mock<INatsConnectionRetryWrapper>(MockBehavior.Strict);
+        var (jobSource, _, _) = CreateJobSource(wrapper, visibilityTimeoutSeconds: 40);
+
         Assert.True(jobSource.IsSubscriptionSource);
-        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(30, jobSource.RecommendedHeartbeatIntervalSeconds);
     }
 
     [Theory]

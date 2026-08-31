@@ -16,7 +16,8 @@ internal interface INatsConsumerSource
 
 internal class NatsConsumerSource(
     INatsConnectionCacheSource connectionCacheSource,
-    IOptions<NatsStreamConfigurationModel> options) : INatsConsumerSource
+    IOptions<NatsStreamConfigurationModel> options,
+    IOptions<NatsStreamTimeoutConfigurationModel> timeoutOptions) : INatsConsumerSource
 {
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private INatsJSConsumer? _consumer;
@@ -41,7 +42,8 @@ internal class NatsConsumerSource(
                 new ConsumerConfig
                 {
                     Name = options.Value.ConsumerName,
-                    DurableName = options.Value.ConsumerName
+                    DurableName = options.Value.ConsumerName,
+                    AckWait = TimeSpan.FromSeconds(timeoutOptions.Value.EffectiveVisibilityTimeoutSeconds)
                 }, cancellationToken);
             return _consumer;
         }

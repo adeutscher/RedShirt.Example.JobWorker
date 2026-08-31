@@ -30,6 +30,7 @@ public static class ServiceCollectionExtensions
         return services
             .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>()
             .Configure<NatsStreamConfigurationModel>(section)
+            .Configure<NatsStreamTimeoutConfigurationModel>(section)
             .Configure<NatsCredentialSource.ConfigurationModel>(section)
             .AddSingleton<INatsCredentialSource, NatsCredentialSource>()
             .Configure<NatsMessageSource.ConfigurationModel>(section)

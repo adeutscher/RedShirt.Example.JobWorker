@@ -28,8 +28,16 @@ internal class NatsSubscribeJobSource : IJobSource, IDisposable
     private readonly IOptions<NatsStreamConfigurationModel> _options;
     private readonly INatsRetryWrapperService _retryWrapperService;
     private readonly ISleepService _sleepService;
+    private readonly IOptions<NatsStreamTimeoutConfigurationModel> _timeoutOptions;
     private bool _disposed;
     private bool _subscribeLoopRunning;
+
+    /// <summary>
+    ///     Idle heartbeat for consume requests: a fraction of ack-wait / visibility timeout, clamped to a
+    ///     sensible client range so long-lived consumes still get keepalive traffic.
+    /// </summary>
+    private TimeSpan IdleHeartbeat => TimeSpan.FromSeconds(Math.Clamp(
+        _timeoutOptions.Value.EffectiveVisibilityTimeoutSeconds / 4.0, 5, 30));
 
     private void OnExecutionStop(Exception? exception)
     {
@@ -112,7 +120,8 @@ internal class NatsSubscribeJobSource : IJobSource, IDisposable
 
         var consumeOpts = new NatsJSConsumeOpts
         {
-            MaxMsgs = Math.Max(1, _coreConfigurationService.FetchCount)
+            MaxMsgs = Math.Max(1, _coreConfigurationService.FetchCount),
+            IdleHeartbeat = IdleHeartbeat
         };
 
         await foreach (var msg in consumer.ConsumeAsync<NatsMemoryOwner<byte>>(null, consumeOpts,
@@ -203,6 +212,7 @@ internal class NatsSubscribeJobSource : IJobSource, IDisposable
         IExecutionEndArbiter executionEndArbiter,
         ISleepService sleepService,
         IOptions<NatsStreamConfigurationModel> options,
+        IOptions<NatsStreamTimeoutConfigurationModel> timeoutOptions,
         ILogger<NatsSubscribeJobSource> logger)
 #pragma warning restore S107
     {
@@ -213,6 +223,7 @@ internal class NatsSubscribeJobSource : IJobSource, IDisposable
         _executionEndArbiter = executionEndArbiter;
         _sleepService = sleepService;
         _options = options;
+        _timeoutOptions = timeoutOptions;
         _logger = logger;
 
         executionEndArbiter.AddOnStopCallback(OnExecutionStop);
@@ -245,13 +256,21 @@ internal class NatsSubscribeJobSource : IJobSource, IDisposable
         throw new NotSupportedException();
     }
 
-    public int RecommendedHeartbeatIntervalSeconds => 0;
+    public int RecommendedHeartbeatIntervalSeconds =>
+        (int) Math.Ceiling(_timeoutOptions.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
     public bool IsSubscriptionSource => true;
 
-    public Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
+    public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
-        return Task.CompletedTask;
+        if (message is not NatsRawJobModel jobModel)
+        {
+            return;
+        }
+
+        await _retryWrapperService.RunAsync(
+            async ct => await jobModel.Message.AckProgressAsync(cancellationToken: ct),
+            cancellationToken);
     }
 
     public Task StartSubscriberAsync(CancellationToken cancellationToken = default)

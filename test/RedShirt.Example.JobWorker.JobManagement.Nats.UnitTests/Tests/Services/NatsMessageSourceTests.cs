@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
+using RedShirt.Example.JobWorker.JobManagement.Nats.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services;
 using RedShirt.Example.JobWorker.JobManagement.Nats.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Services.Resilience;
@@ -9,6 +10,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Services
 
 public class NatsMessageSourceTests
 {
+    private const int DefaultVisibilityTimeoutSeconds = 20;
     private static readonly TimeSpan ExpectedIdleHeartbeat = TimeSpan.FromSeconds(5);
 
     private static async IAsyncEnumerable<T> AsAsyncEnumerable<T>(IEnumerable<T> items)
@@ -43,7 +45,8 @@ public class NatsMessageSourceTests
         ConnectionRetryWrapper) CreateSut(
             int waitTimeSeconds,
             Mock<INatsConnectionRetryWrapper>? connectionRetryWrapper = null,
-            INatsExceptionArbiterService? exceptionArbiter = null)
+            INatsExceptionArbiterService? exceptionArbiter = null,
+            int visibilityTimeoutSeconds = DefaultVisibilityTimeoutSeconds)
     {
         var consumer = CreateConsumerMock();
         connectionRetryWrapper ??=
@@ -55,6 +58,10 @@ public class NatsMessageSourceTests
             Options.Create(new NatsMessageSource.ConfigurationModel
             {
                 WaitTimeSeconds = waitTimeSeconds
+            }),
+            Options.Create(new NatsStreamTimeoutConfigurationModel
+            {
+                VisibilityTimeoutSeconds = visibilityTimeoutSeconds
             }));
 
         return (messageSource, consumer, connectionRetryWrapper);
