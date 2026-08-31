@@ -39,48 +39,108 @@ public interface IJobSubscriberIntakeQueue
     void Load(IJobSourceResponse jobSourceResponse);
 }
 
+/// <summary>
+///     Subscriber intake queue implementation. Probably a bit more thread-safe than it really needs to be...
+/// </summary>
 internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
 {
-    private readonly AsyncManualResetEvent _doNotWaitIfSetEvent = new();
     private readonly ConcurrentQueue<IJobSourceResponse> _jobs = new();
+    private readonly AsyncManualResetEvent _jobsAreAvailableIfSetEvent = new();
+    private readonly Lock _lock = new();
     private bool _done;
 
-#pragma warning disable S2325
+    /// <summary>
+    ///     Like in other places in this codebase, using a bool out of complete paranoia of redundant Set/Resets having an
+    ///     impact.
+    /// </summary>
+    private bool _jobsAreAvailableIfSetEventIsSet;
+
     private void Cancel()
-#pragma warning restore S2325
     {
-        _done = true;
-        _doNotWaitIfSetEvent.Set();
+        lock (_lock)
+        {
+            // Mark as done
+            _done = true;
+            _jobsAreAvailableIfSetEvent.Set();
+        }
+    }
+
+    /// <summary>
+    ///     Update event state. Assumed to be run behind a lock.
+    /// </summary>
+    private void UpdateEventUnsafe()
+    {
+        if (_done)
+        {
+            // Already done, keep event in locked-in state.
+            return;
+        }
+
+        if (_jobs.IsEmpty)
+        {
+            // ReSharper disable once InvertIf
+            if (_jobsAreAvailableIfSetEventIsSet)
+            {
+                _jobsAreAvailableIfSetEvent.Reset();
+                _jobsAreAvailableIfSetEventIsSet = false;
+            }
+        }
+        else
+        {
+            // ReSharper disable once InvertIf
+            if (!_jobsAreAvailableIfSetEventIsSet)
+            {
+                _jobsAreAvailableIfSetEvent.Set();
+                _jobsAreAvailableIfSetEventIsSet = true;
+            }
+        }
     }
 
     public JobSubscriberIntakeQueue(IExecutionEndArbiter executionEndArbiter)
     {
         executionEndArbiter.AddOnStopCallback(_ => Cancel());
     }
-#pragma warning disable S2325
+
     public void Load(IJobSourceResponse jobSourceResponse)
-#pragma warning disable S2325
     {
-        _jobs.Enqueue(jobSourceResponse);
-        _doNotWaitIfSetEvent.Set();
+        lock (_lock)
+        {
+            _jobs.Enqueue(jobSourceResponse);
+            UpdateEventUnsafe();
+        }
     }
 
     public async Task<IJobSourceResponse?> GetNextAsync(CancellationToken cancellationToken = default)
     {
+        IJobSourceResponse? response;
         while (true)
         {
-            await _doNotWaitIfSetEvent.WaitAsync(cancellationToken);
-            if (_jobs.TryDequeue(out var jobSourceResponse))
-            {
-                return jobSourceResponse;
-            }
+            // Wait until there are jobs available.
+            // ReSharper disable once InconsistentlySynchronizedField
+            await _jobsAreAvailableIfSetEvent.WaitAsync(cancellationToken);
 
-            _doNotWaitIfSetEvent.Reset();
-
-            if (_done)
+            lock (_lock)
             {
-                return null;
+                try
+                {
+                    if (_jobs.TryDequeue(out response))
+                    {
+                        break;
+                    }
+                }
+                finally
+                {
+                    UpdateEventUnsafe();
+                }
+
+                if (_done)
+                {
+                    // Return null, indicating to consumers that things are done
+                    break;
+                }
             }
         }
+
+        return response;
     }
 }
