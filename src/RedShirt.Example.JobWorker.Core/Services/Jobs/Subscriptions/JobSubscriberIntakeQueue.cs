@@ -41,14 +41,14 @@ public interface IJobSubscriberIntakeQueue
 
 internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
 {
-    private readonly AsyncManualResetEvent _doNotWaitIfSetEvent = new();
+    private readonly AsyncManualResetEvent _jobsAreAvailableIfSetEvent = new();
     private readonly ConcurrentQueue<IJobSourceResponse> _jobs = new();
     private bool _done;
 
     private void Cancel()
     {
         _done = true;
-        _doNotWaitIfSetEvent.Set();
+        _jobsAreAvailableIfSetEvent.Set();
     }
 
     public JobSubscriberIntakeQueue(IExecutionEndArbiter executionEndArbiter)
@@ -59,14 +59,14 @@ internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
     public void Load(IJobSourceResponse jobSourceResponse)
     {
         _jobs.Enqueue(jobSourceResponse);
-        _doNotWaitIfSetEvent.Set();
+        _jobsAreAvailableIfSetEvent.Set();
     }
 
     public async Task<IJobSourceResponse?> GetNextAsync(CancellationToken cancellationToken = default)
     {
         while (true)
         {
-            await _doNotWaitIfSetEvent.WaitAsync(cancellationToken);
+            await _jobsAreAvailableIfSetEvent.WaitAsync(cancellationToken);
             if (_jobs.TryDequeue(out var jobSourceResponse))
             {
                 return jobSourceResponse;
@@ -79,7 +79,7 @@ internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
             }
 
             // If we are not done, then indicate a demand.
-            _doNotWaitIfSetEvent.Reset();
+            _jobsAreAvailableIfSetEvent.Reset();
         }
     }
 }
