@@ -14,7 +14,8 @@ namespace RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Services
 
 public class NatsJobSourceTests
 {
-    private static NatsJobSource CreateJobSource(INatsMessageSource messageSource, string? streamName = null)
+    private static NatsJobSource CreateJobSource(INatsMessageSource messageSource, string? streamName = null,
+        int visibilityTimeoutSeconds = 20)
     {
         return new NatsJobSource(
             messageSource,
@@ -26,6 +27,10 @@ public class NatsJobSourceTests
                              Guid.NewGuid()
                                  .ToString(),
                 ConsumerName = "foo"
+            }),
+            Options.Create(new NatsStreamTimeoutConfigurationModel
+            {
+                VisibilityTimeoutSeconds = visibilityTimeoutSeconds
             }));
     }
 
@@ -35,6 +40,24 @@ public class NatsJobSourceTests
         var owner = NatsMemoryOwner<byte>.Allocate(bytes.Length);
         bytes.AsSpan().CopyTo(owner.Span);
         mockMessage.Setup(m => m.Data).Returns(owner);
+    }
+
+    [Theory]
+    [InlineData(10, 20, 15)]
+    [InlineData(40, 40, 30)]
+    public void RecommendedHeartbeatIntervalSeconds_IsThreeQuartersOfEffectiveVisibility(
+        int configuredSeconds, int effectiveSeconds, int expectedHeartbeat)
+    {
+        var configuration = new NatsStreamTimeoutConfigurationModel
+        {
+            VisibilityTimeoutSeconds = configuredSeconds
+        };
+        Assert.Equal(effectiveSeconds, configuration.EffectiveVisibilityTimeoutSeconds);
+
+        var jobSource = CreateJobSource(new Mock<INatsMessageSource>(MockBehavior.Strict).Object,
+            visibilityTimeoutSeconds: configuredSeconds);
+
+        Assert.Equal(expectedHeartbeat, jobSource.RecommendedHeartbeatIntervalSeconds);
     }
 
     [Theory]
@@ -93,7 +116,7 @@ public class NatsJobSourceTests
 
         var jobResponse = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Empty(jobResponse.Items);
 
         mockMessageSource.Verify(
@@ -155,7 +178,7 @@ public class NatsJobSourceTests
 
         var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
         var returnedJobItem = Assert.Single(jobResponse.Items);
         Assert.Equal(messageId, returnedJobItem.MessageId);
         Assert.Equal(body, returnedJobItem.Body);
@@ -204,7 +227,7 @@ public class NatsJobSourceTests
 
         var jobResponse = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
+        Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
         Assert.Equal(batchSize, jobResponse.Items.Count);
 
         for (var i = 0; i < batchSize; i++)
@@ -222,10 +245,29 @@ public class NatsJobSourceTests
     [Fact]
     public async Task Test_HeartbeatAsync()
     {
+        var message = new Mock<INatsJSMsg<NatsMemoryOwner<byte>>>(MockBehavior.Strict);
+        message
+            .Setup(m => m.AckProgressAsync(It.IsAny<AckOpts?>(), TestContext.Current.CancellationToken))
+            .Returns(ValueTask.CompletedTask);
+
         var jobSource = CreateJobSource(new Mock<INatsMessageSource>(MockBehavior.Strict).Object);
 
-        await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);
-        // Satisfy sonar (not much to really assert for NATS as heartbeats are handled by underlying library)
-        Assert.True(true);
+        await jobSource.HeartbeatAsync(new NatsRawJobModel
+        {
+            Message = message.Object,
+            MessageId = "m",
+            CreatedAtUtc = DateTime.UtcNow
+        }, TestContext.Current.CancellationToken);
+
+        message.Verify(m => m.AckProgressAsync(It.IsAny<AckOpts?>(), TestContext.Current.CancellationToken),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Test_HeartbeatAsync_Incompatible()
+    {
+        var jobSource = CreateJobSource(new Mock<INatsMessageSource>(MockBehavior.Strict).Object);
+
+        await jobSource.HeartbeatAsync(new Mock<IRawJobModel>().Object, TestContext.Current.CancellationToken);
     }
 }

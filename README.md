@@ -32,6 +32,7 @@ Repo features:
     * [Azure Service Bus](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview)
     * [Google Pub/Sub](https://cloud.google.com/pubsub/docs)
     * [NATS](https://nats.io/)
+        * Supports short polling, long polling, or JetStream push-style subscribe consumption.
     * [RabbitMQ](https://www.rabbitmq.com/)
         * Supports short polling or consumer subscriptions.
     * [Redis Streams](https://redis.io/docs/latest/develop/data-types/streams/)
@@ -230,6 +231,7 @@ Subscribing is configured on job sources that support it with a `SUBSCRIBE` envi
 | Job source | Environment variable              |
 |------------|-----------------------------------|
 | ActiveMQ   | `JOB_SOURCE__ACTIVEMQ__SUBSCRIBE` |
+| NATS       | `JOB_SOURCE__NATS__SUBSCRIBE`     |
 | RabbitMQ   | `JOB_SOURCE__RABBITMQ__SUBSCRIBE` |
 
 #### Notes on Implementing Other Subscribe Patterns

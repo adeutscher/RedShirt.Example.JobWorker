@@ -13,7 +13,8 @@ internal class NatsJobSource(
     INatsMessageSource messageSource,
     INatsRetryWrapperService retryWrapperService,
     ILogger<NatsJobSource> logger,
-    IOptions<NatsStreamConfigurationModel> options) : IJobSource
+    IOptions<NatsStreamConfigurationModel> options,
+    IOptions<NatsStreamTimeoutConfigurationModel> timeoutOptions) : IJobSource
 {
 #pragma warning disable S2325
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
@@ -37,7 +38,8 @@ internal class NatsJobSource(
             cancellationToken);
     }
 
-    public int RecommendedHeartbeatIntervalSeconds => 0;
+    public int RecommendedHeartbeatIntervalSeconds =>
+        (int) Math.Ceiling(timeoutOptions.Value.EffectiveVisibilityTimeoutSeconds * 0.75);
 
     public bool IsSubscriptionSource => false;
 
@@ -46,31 +48,31 @@ internal class NatsJobSource(
         logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from NATS Stream: {StreamName}",
             batchSize, options.Value.StreamName);
 
-        var getJobsResponseItems = new List<IRawJobModel>();
-
-        var messageResult = await messageSource.FetchMessagesAsync(batchSize, cancellationToken);
-
-        // ReSharper disable once ForeachCanBeConvertedToQueryUsingAnotherGetEnumerator
-        foreach (var msg in messageResult.Messages)
-        {
-            // Got a message, add it to return set.
-            getJobsResponseItems.Add(new NatsRawJobModel
-            {
-                Message = msg,
-                MessageId = msg.Metadata?.Sequence.Stream.ToString() ?? "UNKNOWN",
-                CreatedAtUtc = DateTime.UtcNow
-            });
-        }
+        var messageResult =
+            await messageSource.FetchMessagesAsync(batchSize, cancellationToken);
 
         return new JobSourceResponse
         {
-            Items = getJobsResponseItems
+            Items = messageResult.Messages
+                .Select(msg => new NatsRawJobModel
+                {
+                    Message = msg,
+                    MessageId = msg.Metadata?.Sequence.Stream.ToString() ?? "UNKNOWN",
+                    CreatedAtUtc = DateTime.UtcNow
+                } as IRawJobModel).ToList()
         };
     }
 
-    public Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
+    public async Task HeartbeatAsync(IRawJobModel message, CancellationToken cancellationToken = default)
     {
-        return Task.CompletedTask;
+        if (message is not NatsRawJobModel jobModel)
+        {
+            return;
+        }
+
+        await retryWrapperService.RunAsync(
+            async ct => await jobModel.Message.AckProgressAsync(cancellationToken: ct),
+            cancellationToken);
     }
 
     public Task StartSubscriberAsync(CancellationToken cancellationToken = default)

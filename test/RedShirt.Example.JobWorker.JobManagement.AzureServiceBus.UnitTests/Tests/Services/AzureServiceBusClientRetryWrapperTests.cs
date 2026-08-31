@@ -3,7 +3,6 @@ using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Factories;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Models;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Services.Resilience;
-using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.UnitTests.Tests.Services.Resilience;
 using RedShirt.Example.JobWorker.JobManagement.AzureServiceBus.Utility;
 using System.Runtime.ExceptionServices;
 
@@ -45,46 +44,8 @@ public class AzureServiceBusClientRetryWrapperTests
         await wrapper.GetClientAndDoActionWithRetryAsync((_, _) => Task.CompletedTask,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        source.Verify(s => s.GetQueueClientAsync(false, false, TestContext.Current.CancellationToken), Times.Exactly(2));
-    }
-
-    [Fact]
-    public async Task GetClientAndDoActionWithRetryAsync_WhenServiceBusCommunicationProblem_ForcesNewClient()
-    {
-        var firstClient = new Mock<IServiceBusClientWrapper>(MockBehavior.Strict);
-        var secondClient = new Mock<IServiceBusClientWrapper>(MockBehavior.Strict);
-        var retry = new ImmediateRetryWrapper(2);
-        var (wrapper, source) = CreateWrapper(retry);
-
-        source
-            .Setup(s => s.GetQueueClientAsync(false, false, TestContext.Current.CancellationToken))
-            .ReturnsAsync(new ClientCacheResponse<IServiceBusClientWrapper>
-            {
-                CachedClient = false,
-                Client = firstClient.Object
-            });
-        source
-            .Setup(s => s.GetQueueClientAsync(true, false, TestContext.Current.CancellationToken))
-            .ReturnsAsync(new ClientCacheResponse<IServiceBusClientWrapper>
-            {
-                CachedClient = false,
-                Client = secondClient.Object
-            });
-
-        var attempts = 0;
-        await wrapper.GetClientAndDoActionWithRetryAsync((_, _) =>
-        {
-            attempts++;
-            if (attempts == 1)
-            {
-                throw new ServiceBusException("comm", ServiceBusFailureReason.ServiceCommunicationProblem);
-            }
-
-            return Task.CompletedTask;
-        }, cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.Equal(2, attempts);
-        source.Verify(s => s.GetQueueClientAsync(true, false, TestContext.Current.CancellationToken), Times.Once);
+        source.Verify(s => s.GetQueueClientAsync(false, false, TestContext.Current.CancellationToken),
+            Times.Exactly(2));
     }
 
     [Fact]
@@ -124,6 +85,45 @@ public class AzureServiceBusClientRetryWrapperTests
 
         Assert.Equal(2, attempts);
         source.Verify(s => s.GetQueueClientAsync(true, true, TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetClientAndDoActionWithRetryAsync_WhenServiceBusCommunicationProblem_ForcesNewClient()
+    {
+        var firstClient = new Mock<IServiceBusClientWrapper>(MockBehavior.Strict);
+        var secondClient = new Mock<IServiceBusClientWrapper>(MockBehavior.Strict);
+        var retry = new ImmediateRetryWrapper(2);
+        var (wrapper, source) = CreateWrapper(retry);
+
+        source
+            .Setup(s => s.GetQueueClientAsync(false, false, TestContext.Current.CancellationToken))
+            .ReturnsAsync(new ClientCacheResponse<IServiceBusClientWrapper>
+            {
+                CachedClient = false,
+                Client = firstClient.Object
+            });
+        source
+            .Setup(s => s.GetQueueClientAsync(true, false, TestContext.Current.CancellationToken))
+            .ReturnsAsync(new ClientCacheResponse<IServiceBusClientWrapper>
+            {
+                CachedClient = false,
+                Client = secondClient.Object
+            });
+
+        var attempts = 0;
+        await wrapper.GetClientAndDoActionWithRetryAsync((_, _) =>
+        {
+            attempts++;
+            if (attempts == 1)
+            {
+                throw new ServiceBusException("comm", ServiceBusFailureReason.ServiceCommunicationProblem);
+            }
+
+            return Task.CompletedTask;
+        }, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, attempts);
+        source.Verify(s => s.GetQueueClientAsync(true, false, TestContext.Current.CancellationToken), Times.Once);
     }
 
     private sealed class ImmediateRetryWrapper(int maxAttempts = 1) : IAzureServiceBusRetryWrapperService

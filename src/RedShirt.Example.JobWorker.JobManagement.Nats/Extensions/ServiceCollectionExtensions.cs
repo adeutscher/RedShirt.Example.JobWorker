@@ -16,21 +16,40 @@ public static class ServiceCollectionExtensions
         IConfigurationRoot configuration)
     {
         var section = configuration.GetSection(ConfigPrefix);
+        var useSubscribe = section.Get<SubscribeConfigurationModel>()?.Subscribe == true;
+
+        if (useSubscribe)
+        {
+            services.AddSingleton<IJobSource, NatsSubscribeJobSource>();
+        }
+        else
+        {
+            services.AddSingleton<IJobSource, NatsJobSource>();
+        }
 
         return services
-            // Required
-            .AddSingleton<IJobSource, NatsJobSource>()
-            .Configure<NatsStreamConfigurationModel>(section)
             .AddSingleton<IJobFailureHandler, NoReactionFailureHandler>()
-            // Supporting (also required)
+            .Configure<NatsStreamConfigurationModel>(section)
+            .Configure<NatsStreamTimeoutConfigurationModel>(section)
             .Configure<NatsCredentialSource.ConfigurationModel>(section)
             .AddSingleton<INatsCredentialSource, NatsCredentialSource>()
-            .AddSingleton<INatsMessageSource, NatsMessageSource>()
             .Configure<NatsMessageSource.ConfigurationModel>(section)
-            .AddSingleton<INatsJetStreamContextFactory, NatsJetStreamContextFactory>()
+            .AddSingleton<INatsMessageSource, NatsMessageSource>()
             .Configure<NatsJetStreamContextFactory.ConfigurationModel>(section)
+            .AddSingleton<INatsJetStreamContextFactory, NatsJetStreamContextFactory>()
+            .AddSingleton<INatsConnectionCacheSource, NatsConnectionCacheSource>()
             .AddSingleton<INatsConsumerSource, NatsConsumerSource>()
             .AddSingleton<INatsExceptionArbiterService, NatsExceptionArbiterService>()
-            .AddSingleton<INatsRetryWrapperService, NatsRetryWrapperService>();
+            .AddSingleton<INatsRetryWrapperService, NatsRetryWrapperService>()
+            .AddSingleton<INatsConnectionRetryWrapper, NatsConnectionRetryWrapper>();
+    }
+
+    private sealed class SubscribeConfigurationModel
+    {
+#pragma warning disable S3459
+#pragma warning disable S1144
+        public required bool Subscribe { get; init; }
+#pragma warning restore S1144
+#pragma warning restore S3459
     }
 }

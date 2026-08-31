@@ -223,7 +223,7 @@ public class LoaderModeJobLoaderTests
             jobIntakeService.Object,
             CreateHealthStateUpdateService(),
             CreateCoreConfigurationService(fetchCount: 3),
-            CreateLoaderModeOptions(minimumBatchSize: 10),
+            CreateLoaderModeOptions(10),
             new NullLogger<LoaderModeJobLoader>());
 
         await loader.RunAsync(TestContext.Current.CancellationToken);

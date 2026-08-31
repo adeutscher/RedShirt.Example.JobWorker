@@ -13,15 +13,17 @@ namespace RedShirt.Example.JobWorker.JobManagement.Nats.UnitTests.Tests.Extensio
 public class ServiceCollectionExtensionsTests
 {
     [Theory]
-    [InlineData("jobs-stream", 5)]
-    [InlineData("other-stream", 0)]
-    public void AddNatsJobManagement_ConfiguresStreamAndWaitTime(string streamName, int waitTimeSeconds)
+    [InlineData("jobs-stream", 5, 40)]
+    [InlineData("other-stream", 0, 20)]
+    public void AddNatsJobManagement_ConfiguresStreamWaitTimeAndVisibilityTimeout(string streamName,
+        int waitTimeSeconds, int visibilityTimeoutSeconds)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["JobSource:NATS:StreamName"] = streamName,
-                ["JobSource:NATS:WaitTimeSeconds"] = waitTimeSeconds.ToString()
+                ["JobSource:NATS:WaitTimeSeconds"] = waitTimeSeconds.ToString(),
+                ["JobSource:NATS:VisibilityTimeoutSeconds"] = visibilityTimeoutSeconds.ToString()
             })
             .Build();
 
@@ -36,6 +38,10 @@ public class ServiceCollectionExtensionsTests
         var messageSource = provider.GetRequiredService<IOptions<NatsMessageSource.ConfigurationModel>>().Value;
         Assert.Equal(waitTimeSeconds, messageSource.WaitTimeSeconds);
         Assert.Equal(Math.Max(waitTimeSeconds, 0), messageSource.EffectiveWaitTimeSeconds);
+
+        var timeout = provider.GetRequiredService<IOptions<NatsStreamTimeoutConfigurationModel>>().Value;
+        Assert.Equal(visibilityTimeoutSeconds, timeout.VisibilityTimeoutSeconds);
+        Assert.Equal(Math.Max(20, visibilityTimeoutSeconds), timeout.EffectiveVisibilityTimeoutSeconds);
     }
 
     [Fact]
@@ -65,6 +71,9 @@ public class ServiceCollectionExtensionsTests
         Assert.Contains(services, d => d.ServiceType == typeof(INatsConsumerSource)
                                        && d.ImplementationType == typeof(NatsConsumerSource)
                                        && d.Lifetime == ServiceLifetime.Singleton);
+        Assert.Contains(services, d => d.ServiceType == typeof(INatsConnectionCacheSource)
+                                       && d.ImplementationType == typeof(NatsConnectionCacheSource)
+                                       && d.Lifetime == ServiceLifetime.Singleton);
         Assert.Contains(services, d => d.ServiceType == typeof(INatsJetStreamContextFactory)
                                        && d.ImplementationType == typeof(NatsJetStreamContextFactory)
                                        && d.Lifetime == ServiceLifetime.Singleton);
@@ -77,5 +86,28 @@ public class ServiceCollectionExtensionsTests
         Assert.Contains(services, d => d.ServiceType == typeof(INatsRetryWrapperService)
                                        && d.ImplementationType == typeof(NatsRetryWrapperService)
                                        && d.Lifetime == ServiceLifetime.Singleton);
+        Assert.Contains(services, d => d.ServiceType == typeof(INatsConnectionRetryWrapper)
+                                       && d.ImplementationType == typeof(NatsConnectionRetryWrapper)
+                                       && d.Lifetime == ServiceLifetime.Singleton);
+    }
+
+    [Fact]
+    public void AddNatsJobManagement_WhenSubscribeTrue_RegistersSubscribeJobSource()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["JobSource:NATS:StreamName"] = "jobs",
+                ["JobSource:NATS:Subscribe"] = "true"
+            })
+            .Build();
+
+        var services = new ServiceCollection()
+            .AddNatsJobManagement(configuration);
+
+        Assert.Contains(services, d => d.ServiceType == typeof(IJobSource)
+                                       && d.ImplementationType == typeof(NatsSubscribeJobSource));
+        Assert.DoesNotContain(services, d => d.ServiceType == typeof(IJobSource)
+                                             && d.ImplementationType == typeof(NatsJobSource));
     }
 }

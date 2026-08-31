@@ -52,6 +52,9 @@ internal interface INatsRetryWrapperService
     ///     <see cref="WorkerJobSourceException.IsHandled" /> is <c>true</c>.
     /// </exception>
     Task RunAsync(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default);
+
+    Task RunAsync<TState>(Func<TState, CancellationToken, Task> func, TState state,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -204,6 +207,31 @@ internal class NatsRetryWrapperService(
             }
 
             // Do a flat throw to preserve stack trace
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task RunAsync<TState>(Func<TState, CancellationToken, Task> func, TState state,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await GetRetryPipeline().ExecuteAsync(
+                async token => await func(state, token),
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            if (TryGetWrappedException(exception, out var wrappedException) && wrappedException is not null)
+            {
+                throw wrappedException;
+            }
+
             throw;
         }
     }
