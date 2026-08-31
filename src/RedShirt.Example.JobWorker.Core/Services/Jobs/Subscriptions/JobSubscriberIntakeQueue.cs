@@ -66,17 +66,6 @@ internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
     }
 
     /// <summary>
-    ///     Update event state.
-    /// </summary>
-    private void UpdateEvent()
-    {
-        lock (_lock)
-        {
-            UpdateEventUnsafe();
-        }
-    }
-
-    /// <summary>
     ///     Update event state. Assumed to be run behind a lock.
     /// </summary>
     private void UpdateEventUnsafe()
@@ -141,7 +130,7 @@ internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
                 }
                 finally
                 {
-                    UpdateEvent();
+                    UpdateEventUnsafe();
                 }
 
                 if (_done)
@@ -150,8 +139,6 @@ internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
                     break;
                 }
             }
-
-            UpdateEvent();
         }
 
         return response;
