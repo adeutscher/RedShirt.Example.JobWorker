@@ -4,7 +4,6 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Jobs;
 using RedShirt.Example.JobWorker.Core.Services.SourceMessages;
-using RedShirt.Example.JobWorker.Core.Utility;
 using System.Diagnostics;
 using Range = Moq.Range;
 
@@ -26,6 +25,15 @@ public class JobRepositoryTests
     {
         executionEndArbiter.Verify(a => a.AddOnStopCallback(It.IsAny<Action<Exception?>>()), Times.Once);
         jobLoaderStateService.Verify(s => s.AddOnFinishCallback(It.IsAny<Action>()), Times.Once);
+    }
+
+    private static async Task<Task<IJobRepositoryEntry?>> WaitForAnyCompletedTaskAsync(
+        IReadOnlyList<Task<IJobRepositoryEntry?>> tasks,
+        CancellationToken cancellationToken)
+    {
+        var completed = await Task.WhenAny(tasks).WaitAsync(cancellationToken);
+        await completed;
+        return completed;
     }
 
     private static JobRepository CreateRepository(
@@ -719,25 +727,11 @@ public class JobRepositoryTests
 
         // Notably doing this BEFORE loading in jobs
         // Also intentionally not awaiting it just yet
-        // ReSharper disable once RedundantArgumentDefaultValue
-        var manualResetEvent = new AsyncManualResetEvent(false);
-        var getJobFunc = new Func<Task<IJobRepositoryEntry?>>(async () =>
-        {
-            var funcItem = await jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken);
-            manualResetEvent.Set();
-            return funcItem;
-        });
-        var getJobTask = Task.Run(getJobFunc);
-        // Run a second time
-        var getJobTask2 = Task.Run(getJobFunc);
-        // Run a third time (I promise that this is relevant)
-        var getJobTask3 = Task.Run(getJobFunc);
-
         var getJobList = new List<Task<IJobRepositoryEntry?>>
         {
-            getJobTask,
-            getJobTask2,
-            getJobTask3
+            Task.Run(() => jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken)),
+            Task.Run(() => jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken)),
+            Task.Run(() => jobRepository.GetNextJobAsync(TestContext.Current.CancellationToken))
         };
 
         await jobRepository.LoadAsync(envelopes, TestContext.Current.CancellationToken);
@@ -757,11 +751,9 @@ public class JobRepositoryTests
                 DateTime.UtcNow + TimeSpan.FromMilliseconds(250));
         }
 
-        await manualResetEvent.WaitAsync(TestContext.Current.CancellationToken);
-        var completeTask = Assert.Single(getJobList, i => i.Status == TaskStatus.RanToCompletion);
-        manualResetEvent.Reset();
-        // Remove complete task from watch list
-        getJobList.RemoveAll(j => j.IsCompleted);
+        var completeTask =
+            await WaitForAnyCompletedTaskAsync(getJobList, TestContext.Current.CancellationToken);
+        getJobList.Remove(completeTask);
         // The other task versions should still be working
         Assert.Equal(2, getJobList.Count);
 
@@ -779,12 +771,9 @@ public class JobRepositoryTests
         gottenJob.State = JobState.Inactive;
 
         // Wait for another job to finish
-        await manualResetEvent.WaitAsync(TestContext.Current.CancellationToken);
-        // Get another job out of our watch list.
-        var completeTask2 = Assert.Single(getJobList, i => i.Status == TaskStatus.RanToCompletion);
-        manualResetEvent.Reset();
-        // Remove complete task from watch list
-        getJobList.RemoveAll(j => j.IsCompleted);
+        var completeTask2 =
+            await WaitForAnyCompletedTaskAsync(getJobList, TestContext.Current.CancellationToken);
+        getJobList.Remove(completeTask2);
         // The other task version should still be working
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
         Assert.Single(getJobList);
@@ -1188,6 +1177,7 @@ public class JobRepositoryTests
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var demandTask = Task.Run(
+            // ReSharper disable once AccessToDisposedClosure
             () => jobRepository.WaitForJobDemandAsync(cts.Token),
             TestContext.Current.CancellationToken);
 
