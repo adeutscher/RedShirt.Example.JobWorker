@@ -45,9 +45,7 @@ internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
     private readonly ConcurrentQueue<IJobSourceResponse> _jobs = new();
     private bool _done;
 
-#pragma warning disable S2325
     private void Cancel()
-#pragma warning restore S2325
     {
         _done = true;
         _doNotWaitIfSetEvent.Set();
@@ -57,9 +55,7 @@ internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
     {
         executionEndArbiter.AddOnStopCallback(_ => Cancel());
     }
-#pragma warning disable S2325
     public void Load(IJobSourceResponse jobSourceResponse)
-#pragma warning disable S2325
     {
         _jobs.Enqueue(jobSourceResponse);
         _doNotWaitIfSetEvent.Set();
