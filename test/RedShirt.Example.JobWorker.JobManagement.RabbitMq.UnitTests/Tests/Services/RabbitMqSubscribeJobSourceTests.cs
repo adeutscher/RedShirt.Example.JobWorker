@@ -270,11 +270,35 @@ public class RabbitMqSubscribeJobSourceTests
             TestContext.Current.CancellationToken), Times.Once);
     }
 
-    [Fact]
+    [Fact(Timeout = 5000)]
     public async Task StartSubscriberAsync_WhenConnectionShutsDown_Resubscribes()
     {
         var channel = new Mock<IChannel>(MockBehavior.Strict);
-        SetupConsume(channel);
+        var resubscribed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var consumeCount = 0;
+
+        channel
+            .Setup(c => c.BasicQosAsync(0, ushort.MaxValue, false, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        channel
+            .Setup(c => c.BasicConsumeAsync(
+                QueueName,
+                false,
+                It.IsAny<string>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>(),
+                It.IsAny<IDictionary<string, object?>>(),
+                It.IsAny<IAsyncBasicConsumer>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                if (Interlocked.Increment(ref consumeCount) == 2)
+                {
+                    resubscribed.TrySetResult();
+                }
+
+                return Task.FromResult("ctag");
+            });
 
         var connection = new Mock<IConnection>();
         AsyncEventHandler<ShutdownEventArgs>? shutdownHandler = null;
@@ -294,8 +318,7 @@ public class RabbitMqSubscribeJobSourceTests
                 new AlreadyClosedException(new ShutdownEventArgs(ShutdownInitiator.Peer, 320, "CONNECTION_FORCED")),
                 TestContext.Current.CancellationToken));
 
-        // Allow background reconnect Task.Run to finish
-        await Task.Delay(200, TestContext.Current.CancellationToken);
+        await resubscribed.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
         wrapper.Verify(w => w.ResetChannel(), Times.AtLeastOnce);
         channel.Verify(c => c.BasicConsumeAsync(
