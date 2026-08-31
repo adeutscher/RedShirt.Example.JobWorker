@@ -41,14 +41,59 @@ public interface IJobSubscriberIntakeQueue
 
 internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
 {
-    private readonly AsyncManualResetEvent _jobsAreAvailableIfSetEvent = new();
     private readonly ConcurrentQueue<IJobSourceResponse> _jobs = new();
+    private readonly AsyncManualResetEvent _jobsAreAvailableIfSetEvent = new();
+    private readonly Lock _lock = new();
     private bool _done;
+    private bool _jobsAreAvailableIfSetEventIsSet;
 
     private void Cancel()
     {
         _done = true;
+        // ReSharper disable once InconsistentlySynchronizedField
         _jobsAreAvailableIfSetEvent.Set();
+    }
+
+    /// <summary>
+    ///     Update event state.
+    /// </summary>
+    private void UpdateEvent()
+    {
+        lock (_lock)
+        {
+            UpdateEventUnsafe();
+        }
+    }
+
+    /// <summary>
+    ///     Update event state. Assumed to be run behind a lock.
+    /// </summary>
+    private void UpdateEventUnsafe()
+    {
+        if (_done)
+        {
+            // Already done, keep event in locked-in state.
+            return;
+        }
+
+        if (_jobs.IsEmpty)
+        {
+            // ReSharper disable once InvertIf
+            if (_jobsAreAvailableIfSetEventIsSet)
+            {
+                _jobsAreAvailableIfSetEvent.Reset();
+                _jobsAreAvailableIfSetEventIsSet = false;
+            }
+        }
+        else
+        {
+            // ReSharper disable once InvertIf
+            if (!_jobsAreAvailableIfSetEventIsSet)
+            {
+                _jobsAreAvailableIfSetEvent.Set();
+                _jobsAreAvailableIfSetEventIsSet = true;
+            }
+        }
     }
 
     public JobSubscriberIntakeQueue(IExecutionEndArbiter executionEndArbiter)
@@ -58,28 +103,42 @@ internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
 
     public void Load(IJobSourceResponse jobSourceResponse)
     {
-        _jobs.Enqueue(jobSourceResponse);
-        _jobsAreAvailableIfSetEvent.Set();
+        lock (_lock)
+        {
+            _jobs.Enqueue(jobSourceResponse);
+            UpdateEventUnsafe();
+        }
     }
 
     public async Task<IJobSourceResponse?> GetNextAsync(CancellationToken cancellationToken = default)
     {
+        IJobSourceResponse? response;
         while (true)
         {
+            // ReSharper disable once InconsistentlySynchronizedField
             await _jobsAreAvailableIfSetEvent.WaitAsync(cancellationToken);
-            if (_jobs.TryDequeue(out var jobSourceResponse))
+
+            // ReSharper disable once InconsistentlySynchronizedField
+            if (_jobs.TryDequeue(out response))
             {
-                return jobSourceResponse;
+                break;
             }
 
             if (_done)
             {
                 // Return null, indicating to consumers that things are done
-                return null;
+                break;
             }
 
             // If we are not done, then indicate a demand.
-            _jobsAreAvailableIfSetEvent.Reset();
+            // ReSharper disable once InconsistentlySynchronizedField
         }
+
+        if (!_done)
+        {
+            UpdateEvent();
+        }
+
+        return response;
     }
 }
