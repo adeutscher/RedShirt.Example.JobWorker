@@ -55,6 +55,7 @@ internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
     {
         executionEndArbiter.AddOnStopCallback(_ => Cancel());
     }
+
     public void Load(IJobSourceResponse jobSourceResponse)
     {
         _jobs.Enqueue(jobSourceResponse);
@@ -71,12 +72,14 @@ internal class JobSubscriberIntakeQueue : IJobSubscriberIntakeQueue
                 return jobSourceResponse;
             }
 
-            _doNotWaitIfSetEvent.Reset();
-
             if (_done)
             {
+                // Return null, indicating to consumers that things are done
                 return null;
             }
+
+            // If we are not done, then indicate a demand.
+            _doNotWaitIfSetEvent.Reset();
         }
     }
 }
