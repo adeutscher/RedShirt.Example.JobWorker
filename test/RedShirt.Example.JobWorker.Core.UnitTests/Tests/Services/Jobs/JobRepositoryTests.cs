@@ -775,7 +775,9 @@ public class JobRepositoryTests
             await WaitForAnyCompletedTaskAsync(getJobList, TestContext.Current.CancellationToken);
         getJobList.Remove(completeTask2);
         // The other task version should still be working
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
         Assert.Single(getJobList);
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 
         var gottenJob2 = await completeTask2;
         Assert.NotNull(gottenJob2);
@@ -1175,6 +1177,7 @@ public class JobRepositoryTests
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var demandTask = Task.Run(
+            // ReSharper disable once AccessToDisposedClosure
             () => jobRepository.WaitForJobDemandAsync(cts.Token),
             TestContext.Current.CancellationToken);
 
