@@ -35,14 +35,29 @@ export JOBS__LOADER_MODE__MINIMUM_BATCH_SIZE=5
 
 ## Message Sources
 
+Each section below includes a block that sets every job-source toggle defined in `test/local/docker-compose.yaml`:
+
+* `USE_ACTIVEMQ`
+* `USE_AZURE_QUEUE_STORAGE`
+* `USE_AZURE_SERVICE_BUS`
+* `USE_GOOGLE_PUB_SUB`
+* `USE_KAFKA`
+* `USE_KINESIS`
+* `USE_NATS`
+* `USE_PULSAR`
+* `USE_RABBITMQ`
+* `USE_REDIS_STREAMS`
+
+SQS is the default when all of these are `0`, there is no `USE_SQS` variable.
+
 ### SQS
 
 To initialize SQS and queue sample messages:
 
-1. Bring up ministack and Redis:
+1. Bring up ministack, Redis, and `wiremock-bar`:
 
 ```bash
-docker compose up -d ministack redis
+docker compose up -d ministack redis wiremock-bar
 ```
 
 2. Run the `make-local-aws-resources.sh` script:
@@ -57,24 +72,31 @@ docker compose up -d ministack redis
 ./send-sqs-message.py 12
 ```
 
-4. Before starting the worker, make sure none of the `USE_` environment variables are set to **1**, and unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
+4. Before starting the worker, make sure none of the `USE_` environment variables are set to **1**, unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`), and unset `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` so compose uses the default SSM Bar OAuth paths:
 
     ```bash
     export USE_ACTIVEMQ=0
-    export USE_KINESIS=0
-    export USE_KAFKA=0
-    export USE_PULSAR=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
-    export USE_REDIS_STREAMS=0
-    export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+    unset CONNECTORS__BAR__CLIENT_ID_PATH
+    unset CONNECTORS__BAR__CLIENT_SECRET_PATH
     ```
 
-5. Bring up the worker:
+5. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+6. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -84,10 +106,10 @@ docker compose up -d ministack redis
 
 To initialize Kinesis and queue sample messages:
 
-1. Bring up ministack and Redis:
+1. Bring up ministack, Redis, and `wiremock-bar`:
 
     ```bash
-    docker compose up -d ministack redis
+    docker compose up -d ministack redis wiremock-bar
     ```
 
 2. Run the `make-local-aws-resources.sh` script:
@@ -103,37 +125,44 @@ To initialize Kinesis and queue sample messages:
     ```
 
 4. Before starting the worker, make sure that neither the `USE_KINESIS` is set to `1` and that other `USE_` environment variables are not set to `1`.
-   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
+   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`), and unset `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` so compose uses the default SSM Bar OAuth paths:
 
     ```bash
     export USE_ACTIVEMQ=0
-    export USE_KINESIS=1
-    export USE_KAFKA=0
-    export USE_PULSAR=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
-    export USE_REDIS_STREAMS=0
-    export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=1
+    export USE_NATS=0
+    export USE_PULSAR=0
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+    unset CONNECTORS__BAR__CLIENT_ID_PATH
+    unset CONNECTORS__BAR__CLIENT_SECRET_PATH
     ```
 
-5. Bring up the worker:
+5. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+6. Bring up the worker:
 
     ```bash
     docker compose up worker
     ```
 
-## Kafka
+### Kafka
 
 To initialize Kafka and queue sample messages:
 
-1. Bring up ministack, Kafka, and Redis:
+1. Bring up ministack, Kafka, Redis, and `wiremock-bar`:
 
     ```bash
-    docker compose up -d ministack kafka redis
+    docker compose up -d ministack kafka redis wiremock-bar
     ```
 
 2. Run the `make-local-aws-resources.sh` script (creates the SQS queue used for Kafka job failures):
@@ -149,37 +178,44 @@ To initialize Kafka and queue sample messages:
     ```
 
 4. Before starting the worker, make sure that `USE_KAFKA` is set to `1` and that other `USE_` environment variables are not set to `1`.
-    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`)::
+    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`), and unset `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` so compose uses the default SSM Bar OAuth paths:
 
     ```bash
-    export USE_KAFKA=1
-    export USE_PULSAR=0
     export USE_ACTIVEMQ=0
-    export USE_KINESIS=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
-    export USE_REDIS_STREAMS=0
-    export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=1
+    export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+    unset CONNECTORS__BAR__CLIENT_ID_PATH
+    unset CONNECTORS__BAR__CLIENT_SECRET_PATH
     ```
 
-5. Bring up the worker:
+5. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+6. Bring up the worker:
 
     ```bash
     docker compose up worker
     ```
 
-## Apache Pulsar
+### Apache Pulsar
 
 To initialize Apache Pulsar and queue sample messages:
 
-1. Bring up ministack, Pulsar, and Redis:
+1. Bring up ministack, Pulsar, Redis, and `wiremock-bar`:
 
     ```bash
-    docker compose up -d ministack pulsar redis
+    docker compose up -d ministack pulsar redis wiremock-bar
     ```
 
 2. Run the `make-local-aws-resources.sh` script (creates shared local AWS resources such as Redis SSM params):
@@ -201,24 +237,31 @@ To initialize Apache Pulsar and queue sample messages:
     ```
 
 5. Before starting the worker, make sure that `USE_PULSAR` is set to `1` and that other `USE_` environment variables are not set to `1`.
-    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
+    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`), and unset `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` so compose uses the default SSM Bar OAuth paths:
 
     ```bash
-    export USE_PULSAR=1
-    export USE_KAFKA=0
     export USE_ACTIVEMQ=0
-    export USE_KINESIS=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
-    export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
-    export USE_REDIS_STREAMS=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=1
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+    unset CONNECTORS__BAR__CLIENT_ID_PATH
+    unset CONNECTORS__BAR__CLIENT_SECRET_PATH
     ```
 
-6. Bring up the worker:
+6. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+7. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -232,10 +275,10 @@ RabbitMQ takes a few more steps to set up than the other input sources.
 
 To initialize RabbitMQ and queue messages:
 
-1. Bring up ministack and Redis:
+1. Bring up ministack, Redis, and `wiremock-bar`:
 
     ```bash
-    docker compose up -d ministack redis
+    docker compose up -d ministack redis wiremock-bar
     ```
 
 2. Run the `make-local-aws-resources.sh` script:
@@ -264,21 +307,22 @@ To initialize RabbitMQ and queue messages:
     ```
 
 6. Before starting the worker, make sure that the `USE_RABBITMQ` is set to `1` and that other `USE_` environment variables are not set to `1`.
-   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
+   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`), and unset `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` so compose uses the default SSM Bar OAuth paths:
 
     ```bash
-    export USE_RABBITMQ=1
-    export USE_RABBITMQ_SUBSCRIBE=false
-    export USE_KINESIS=0
-    export USE_KAFKA=0
-    export USE_PULSAR=0
     export USE_ACTIVEMQ=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
-    export USE_REDIS_STREAMS=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
+    export USE_RABBITMQ=1
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+    unset CONNECTORS__BAR__CLIENT_ID_PATH
+    unset CONNECTORS__BAR__CLIENT_SECRET_PATH
     ```
 
 7. By default, RabbitMQ uses a short polling strategy. If you want to have RabbitMQ instead subscribe to a queue, then set `JOB_SOURCE__RABBITMQ__SUBSCRIBE`:
@@ -286,7 +330,14 @@ To initialize RabbitMQ and queue messages:
     ```bash
     export JOB_SOURCE__RABBITMQ__SUBSCRIBE=true
     ```
-8. Bring up the worker:
+
+8. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+9. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -306,10 +357,10 @@ ActiveMQ Artemis takes a few more steps to set up than the other input sources.
 
 To initialize ActiveMQ and queue messages:
 
-1. Bring up ministack and Redis:
+1. Bring up ministack, Redis, and `wiremock-bar`:
 
     ```bash
-    docker compose up -d ministack redis
+    docker compose up -d ministack redis wiremock-bar
     ```
 
 2. Run the `make-local-aws-resources.sh` script:
@@ -341,20 +392,22 @@ To initialize ActiveMQ and queue messages:
     ```
 
 6. Before starting the worker, make sure that `USE_ACTIVEMQ` is set to `1` and that other `USE_` environment variables are not set to `1`.
-    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
+    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`), and unset `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` so compose uses the default SSM Bar OAuth paths:
 
     ```bash
     export USE_ACTIVEMQ=1
-    export USE_KINESIS=0
-    export USE_KAFKA=0
-    export USE_PULSAR=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
-    export USE_REDIS_STREAMS=0
-    export USE_RABBITMQ=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+    unset CONNECTORS__BAR__CLIENT_ID_PATH
+    unset CONNECTORS__BAR__CLIENT_SECRET_PATH
     ```
 
 7. By default, ActiveMQ uses short polling. To subscribe with an async listener instead, set `JOB_SOURCE__ACTIVEMQ__SUBSCRIBE`:
@@ -363,7 +416,13 @@ To initialize ActiveMQ and queue messages:
     export JOB_SOURCE__ACTIVEMQ__SUBSCRIBE=true
     ```
 
-8. Bring up the worker:
+8. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+9. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -413,10 +472,10 @@ To install the `nats` command:
 
 #### Testing Messages
 
-1. Bring up ministack and Redis:
+1. Bring up ministack, Redis, and `wiremock-bar`:
 
     ```bash
-    docker compose up -d ministack redis
+    docker compose up -d ministack redis wiremock-bar
     ```
 
 2. Run the `make-local-aws-resources.sh` script:
@@ -442,21 +501,22 @@ To install the `nats` command:
     ```
 
 6. Before starting the worker, make sure that the `USE_NATS` is set to `1` and that other `USE_` environment variables are not set to `1`.
-   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
+   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`), and unset `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` so compose uses the default SSM Bar OAuth paths:
 
     ```bash
-    export USE_NATS=1
     export USE_ACTIVEMQ=0
-    export USE_KAFKA=0
-    export USE_PULSAR=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_KINESIS=0
-    export USE_REDIS_STREAMS=0
-    export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=0
+    export USE_NATS=1
+    export USE_PULSAR=0
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+    unset CONNECTORS__BAR__CLIENT_ID_PATH
+    unset CONNECTORS__BAR__CLIENT_SECRET_PATH
     ```
 
 7. By default, NATS uses short polling (`NextAsync` / `FetchNoWaitAsync`). To consume continuously via JetStream `ConsumeAsync` instead, set `JOB_SOURCE__NATS__SUBSCRIBE`:
@@ -465,7 +525,13 @@ To install the `nats` command:
     export JOB_SOURCE__NATS__SUBSCRIBE=true
     ```
 
-8. Bring up the worker:
+8. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+9. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -477,10 +543,10 @@ Redis Streams testing requires the `redis` Python module to be installed.
 
 #### Testing Messages
 
-1. Bring up ministack and Redis:
+1. Bring up ministack, Redis, and `wiremock-bar`:
 
     ```bash
-    docker compose up -d ministack redis
+    docker compose up -d ministack redis wiremock-bar
     ```
 
 2. Run the `make-local-aws-resources.sh` script:
@@ -503,22 +569,31 @@ Redis Streams testing requires the `redis` Python module to be installed.
     ```
 
 5. Before starting the worker, make sure that `USE_REDIS_STREAMS` is set to `1` and that the other `USE_` environment variables are not set to `1`.
-   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
+   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`), and unset `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` so compose uses the default SSM Bar OAuth paths:
 
     ```bash
-    export USE_REDIS_STREAMS=1
-    export USE_NATS=0
     export USE_ACTIVEMQ=0
-    export USE_KAFKA=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
+    export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
     export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
     export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
+    export USE_REDIS_STREAMS=1
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+    unset CONNECTORS__BAR__CLIENT_ID_PATH
+    unset CONNECTORS__BAR__CLIENT_SECRET_PATH
     ```
 
-6. Bring up the worker:
+6. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+7. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -556,10 +631,10 @@ VSCode automatically knows how to point to your local `azurite` server after the
     ./generate-azure-key-vault-cert.sh
     ```
 
-2. Bring up `azure-key-vault-emulator` (which shall be holding the connection string for Azure Queue Storage) and Redis:
+2. Bring up `azure-key-vault-emulator` (which shall be holding the connection string for Azure Queue Storage), Redis, and `wiremock-bar`:
 
     ```bash
-    docker compose up -d azure-key-vault-emulator redis
+    docker compose up -d azure-key-vault-emulator redis wiremock-bar
     ```
 
 3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage, Azure Service Bus, and Redis (`common-distributed-redis`) in the Azure Key Vault emulator:
@@ -583,24 +658,31 @@ VSCode automatically knows how to point to your local `azurite` server after the
     The script sends a plain UTF-8 JSON body (`{"SleepDurationSeconds": 12}`). If you instead add messages with Azure Storage Explorer, note that its Add menu **stores the message as a Base64-encoded string by default**. So far, this seems to be unique to Storage Explorer. Because of this, **this template does not go out of its way to account for Base64**. However, you may wish to consider it if you are adapting this into an application that uses Azure Queue Storage. Any messages added via Storage Explorer should be stored as **Plain UTF-8**.
 
 6. Before starting the worker, make sure that the `USE_AZURE_QUEUE_STORAGE` is set to `1` and that other `USE_` environment variables are not set to `1`.
-   You will also point Redis at the Key Vault secret name created by `set-azure-key-vault-secrets.py`, as the compose file's default is to use the SSM path (Azure Key Vault key and SSM Parameter Store path formats are entirely incompatible with one another):
+   You will also point Redis at the Key Vault secret name created by `set-azure-key-vault-secrets.py`, as the compose file's default is to use the SSM path (Azure Key Vault key and SSM Parameter Store path formats are entirely incompatible with one another). Set `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` to the Bar OAuth Key Vault secret names from the same script:
 
     ```bash
+    export USE_ACTIVEMQ=0
     export USE_AZURE_QUEUE_STORAGE=1
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
-    export USE_REDIS_STREAMS=0
-    export USE_KAFKA=0
-    export USE_PULSAR=0
-    export USE_ACTIVEMQ=0
-    export USE_KINESIS=0
-    export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     export COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH=common-distributed-redis
+    export CONNECTORS__BAR__CLIENT_ID_PATH=bar-oauth-client-id
+    export CONNECTORS__BAR__CLIENT_SECRET_PATH=bar-oauth-client-secret
     ```
 
-7. Bring up the worker:
+7. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+8. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -622,10 +704,10 @@ pip install azure.servicebus azure.identity azure.keyvault
     ./generate-azure-key-vault-cert.sh
     ```
 
-2. Bring up `azure-key-vault-emulator` (which shall be holding the connection string for Azure Service Bus) and Redis:
+2. Bring up `azure-key-vault-emulator` (which shall be holding the connection string for Azure Service Bus), Redis, and `wiremock-bar`:
 
     ```bash
-    docker compose up -d azure-key-vault-emulator redis
+    docker compose up -d azure-key-vault-emulator redis wiremock-bar
     ```
 
 3. Run `set-azure-key-vault-secrets.py` to set the connection strings for Azure Queue Storage, Azure Service Bus, and Redis (`common-distributed-redis`) in the Azure Key Vault emulator:
@@ -667,37 +749,44 @@ pip install azure.servicebus azure.identity azure.keyvault
     ```
 
 10. Before starting the worker, make sure that the `USE_AZURE_SERVICE_BUS` is set to `1` and that other `USE_` environment variables are not set to `1`.
-    You will also point Redis at the Key Vault secret name created by `set-azure-key-vault-secrets.py`, as the compose file's default is to use the SSM path (Azure Key Vault key and SSM Parameter Store path formats are entirely incompatible with one another):
+    You will also point Redis at the Key Vault secret name created by `set-azure-key-vault-secrets.py`, as the compose file's default is to use the SSM path (Azure Key Vault key and SSM Parameter Store path formats are entirely incompatible with one another). Set `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` to the Bar OAuth Key Vault secret names from the same script:
 
     ```bash
+    export USE_ACTIVEMQ=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=1
-    export USE_NATS=0
-    export USE_REDIS_STREAMS=0
-    export USE_KAFKA=0
-    export USE_PULSAR=0
-    export USE_ACTIVEMQ=0
-    export USE_KINESIS=0
-    export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     export COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH=common-distributed-redis
+    export CONNECTORS__BAR__CLIENT_ID_PATH=bar-oauth-client-id
+    export CONNECTORS__BAR__CLIENT_SECRET_PATH=bar-oauth-client-secret
     ```
 
-11. Bring up the worker:
+11. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+12. Bring up the worker:
 
     ```bash
     docker compose up worker
     ```
 
-## Google Pub/Sub
+### Google Pub/Sub
 
 To initialize Google Pub/Sub and queue sample messages:
 
-1. Bring up the Pub/Sub emulator, ministack, and Redis:
+1. Bring up the Pub/Sub emulator, ministack, Redis, and `wiremock-bar`:
 
     ```bash
-    docker compose up -d google-pubsub-emulator ministack redis
+    docker compose up -d google-pubsub-emulator ministack redis wiremock-bar
     ```
 
 2. Run the `make-local-aws-resources.sh` script (creates the Redis SSM parameter used for idempotency):
@@ -719,23 +808,113 @@ To initialize Google Pub/Sub and queue sample messages:
     ```
 
 5. Before starting the worker, make sure that `USE_GOOGLE_PUB_SUB` is set to `1` and that other `USE_` environment variables are not set to `1`.
-   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`):
+   Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`), and unset `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` so compose uses the default SSM Bar OAuth paths:
 
     ```bash
-    export USE_GOOGLE_PUB_SUB=1
+    export USE_ACTIVEMQ=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
+    export USE_GOOGLE_PUB_SUB=1
     export USE_KAFKA=0
-    export USE_ACTIVEMQ=0
     export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
     export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
+    unset CONNECTORS__BAR__CLIENT_ID_PATH
+    unset CONNECTORS__BAR__CLIENT_SECRET_PATH
     ```
 
-6. Bring up the worker:
+6. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+7. Bring up the worker:
 
     ```bash
     docker compose up worker
     ```
+
+## Bar WireMock stubs
+
+`wiremock-bar` mocks the Bar OAuth token endpoint and Bar HTTP API used by
+`RedShirt.Example.JobWorker.Connectors.Bar.Implementation` (`BarApiClient` +
+`OAuthTokenSource`). Mapping files live under `wiremock/bar/mappings/`. See also
+[`docs/bar-connector.md`](../../docs/bar-connector.md) for adapting this connector to a real API.
+
+Default credentials (from `make-local-aws-resources.sh`):
+
+* SSM `/bar/oauth/client-id` → `local-bar-client-id`
+* SSM `/bar/oauth/client-secret` → `local-bar-client-secret`
+* Access token returned by the token stub → `local-bar-access-token`
+
+Compose points the worker at `http://wiremock-bar:8080` for both `BaseUrl` and
+`TokenUrl` (`…/oauth/token`), with scope form field `audience=https://bar.local/api`.
+From the host use `http://localhost:9101`.
+
+| Method | Path                       | Auth / body                                                             | Result                                                    |
+|--------|----------------------------|-------------------------------------------------------------------------|-----------------------------------------------------------|
+| POST   | `/oauth/token`             | form: `grant_type=client_credentials`, valid client id/secret, audience | 200 with `access_token` + `expires_in`                    |
+| POST   | `/oauth/token`             | anything else                                                           | 401 `invalid_client`                                      |
+| POST   | `/api/bar`                 | `Authorization: Bearer local-bar-access-token`                          | 200 with `{ "Id": <random int>, "Name": <request Name> }` |
+| GET    | `/api/bar/{id}`            | valid Bearer                                                            | 200 with `{ "Id": {id}, "Name": "Bar-{id}" }`             |
+| GET    | `/api/bar/404`             | valid Bearer                                                            | 404 (exercises not-found handling)                        |
+| GET    | `/api/bar/429`             | valid Bearer                                                            | 429 with `Retry-After: 1` (exercises rate-limit handling) |
+| any    | `/api/bar` or `/api/bar/…` | missing/invalid Bearer                                                  | 401                                                       |
+
+Bring up WireMock with ministack (for SSM) and Redis before running jobs that call Bar:
+
+```bash
+docker compose up -d ministack redis wiremock-bar
+./make-local-aws-resources.sh
+```
+
+### Secret paths: SSM vs Azure Key Vault
+
+By default, compose uses SSM Parameter Store paths (`/bar/oauth/client-id`, `/bar/oauth/client-secret`).
+Azure Key Vault secret names cannot contain slashes; when testing with the Key Vault emulator instead of SSM,
+set Key Vault–friendly paths before starting the worker:
+
+```bash
+export CONNECTORS__BAR__CLIENT_ID_PATH=bar-oauth-client-id
+export CONNECTORS__BAR__CLIENT_SECRET_PATH=bar-oauth-client-secret
+```
+
+Seed those secrets with `set-azure-key-vault-secrets.py` (which sets `bar-oauth-client-id` and
+`bar-oauth-client-secret` alongside the Azure queue/service bus and Redis entries). To return to SSM-backed
+local testing, **unset** those overrides so compose falls back to the default `/bar/oauth/…` paths:
+
+```bash
+unset CONNECTORS__BAR__CLIENT_ID_PATH
+unset CONNECTORS__BAR__CLIENT_SECRET_PATH
+```
+
+### Testing Unauthorized Behaviour
+
+To put an invalid client secret in SSM (token endpoint will 401 once credentials are refreshed):
+
+```bash
+./scripts/wiremock-bar/bar-set-ssm-oauth-secret.sh 'bogus-secret-value-here'
+```
+
+Same caching caveat as other OAuth samples: a successfully obtained bearer token stays cached until it fails or expires. Setting a bad secret in SSM alone does not invalidate an already-cached token. To force WireMock to reject the current token (and exercise refresh), use the rotation script below so the worker's cached token no longer matches WireMock's Authorization matcher—or restart the worker after changing secrets.
+
+Local Compose defaults `COMMON__SECRETS__CACHE__FORCE_COOLDOWN_SECONDS` and
+`CONNECTORS__BAR__TOKEN_REFRESH_COOLDOWN_SECONDS` to short values so credential rotation can
+recover on the next request. The rotate script waits briefly for those windows to
+elapse before returning.
+
+### Testing Credential / Token Rotations
+
+To update the client secret in SSM *and* WireMock's in-memory stubs (token bodyPatterns, returned `access_token`, and API `Authorization` matchers):
+
+```bash
+./scripts/wiremock-bar/bar-rotate-oauth-credentials.sh
+# or:
+./scripts/wiremock-bar/bar-rotate-oauth-credentials.sh 'my-new-secret' 'my-new-access-token'
+```
+
+This only updates in-memory WireMock stubs. Restarting `wiremock-bar` restores the mapping files under `wiremock/bar/mappings/`. After the script finishes, process another job — the connector should 401 once with the old bearer, refresh client credentials + token, then succeed with the rotated bearer.

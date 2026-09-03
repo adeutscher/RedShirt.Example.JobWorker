@@ -42,8 +42,10 @@ Repo features:
           the message source.
     * Prevents simultaneous execution of the same message in the event of a dropped message
     * Caches results to prevent re-running of a job if received non-concurrently
-* Container health probes
-* Documentation for local testing (see `test/local/`)
+* Container health probes.
+* Sample API connector that respects rate limit responses.
+    * For more information, see [`docs/bar-connector.md`](docs/bar-connector.md).
+* Documentation for local testing (see `test/local/`).
 
 # Core Architecture
 
@@ -420,6 +422,8 @@ Below are the recommended steps for using this as a template:
     * The dependency injection setup in the root project assumes that the general template will be pruned down.
     * The dependency injection setup in the root project assumes that the chosen Secret Manager is SSM unless the chosen
       job source is explicitly Azure-based (see below for more details).
+6. Consider revising/pruning the Markdown files such as this README or those located in the `docs/` directory. They
+   assume that they are speaking for a general template and not for an applied application.
 
 ## Cached Idempotency vs Database
 

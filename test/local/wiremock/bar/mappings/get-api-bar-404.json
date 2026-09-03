@@ -1,0 +1,22 @@
+{
+  "priority": 1,
+  "name": "Bar get by id — not found",
+  "request": {
+    "method": "GET",
+    "urlPath": "/api/bar/404",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Bearer local-bar-access-token"
+      }
+    }
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "message": "Bar not found"
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "priority": 1,
+  "name": "Bar OAuth token — valid client credentials",
+  "request": {
+    "method": "POST",
+    "urlPath": "/oauth/token",
+    "headers": {
+      "Content-Type": {
+        "contains": "application/x-www-form-urlencoded"
+      }
+    },
+    "bodyPatterns": [
+      {
+        "contains": "grant_type=client_credentials"
+      },
+      {
+        "contains": "client_id=local-bar-client-id"
+      },
+      {
+        "contains": "client_secret=local-bar-client-secret"
+      },
+      {
+        "contains": "audience=https%3A%2F%2Fbar.local%2Fapi"
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "access_token": "local-bar-access-token",
+      "token_type": "Bearer",
+      "expires_in": 3600
+    }
+  }
+}

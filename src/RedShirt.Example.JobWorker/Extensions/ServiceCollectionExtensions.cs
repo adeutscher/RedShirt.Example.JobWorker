@@ -4,6 +4,7 @@ using RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.Extensions;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Extensions;
 using RedShirt.Example.JobWorker.Common.Distributed.Extensions;
 using RedShirt.Example.JobWorker.Common.SecretManagers.Core.Extensions;
+using RedShirt.Example.JobWorker.Connectors.Bar.Implementation.Extensions;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Logic.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.ActiveMq.Extensions;
@@ -68,7 +69,9 @@ public static class ServiceCollectionExtensions
             // Core job handling
             .AddCoreJobManagement(configuration)
             // Implementation logic
-            .AddCoreLogic(configuration);
+            .AddCoreLogic(configuration)
+            // Bar connector (stand-in for an OAuth API client; see docs/bar-connector.md)
+            .AddBarConnector(configuration);
 
         /*
          * Template note:

@@ -154,6 +154,19 @@ services:
     depends_on:
       - azure-service-bus-mssql
 
+  # Mocks Bar OAuth token + Bar HTTP API (POST /oauth/token, POST/GET /api/bar).
+  # Stubs live under ./wiremock/bar/mappings. Admin UI: http://localhost:9101/__admin/
+  wiremock-bar:
+    image: wiremock/wiremock:3.13.1
+    ports:
+      - "9101:8080"
+    volumes:
+      - ./wiremock/bar:/home/wiremock
+    entrypoint:
+      - /docker-entrypoint.sh
+      - --global-response-templating
+      - --verbose
+
   google-pubsub-emulator:
     image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
     container_name: pubsub
@@ -217,6 +230,7 @@ services:
       JOBS__WORKER_THREAD_COUNT: "${JOBS__WORKER_THREAD_COUNT:-2}"
       JOBS__LOADER_MODE__ENABLED: "${JOBS__LOADER_MODE__ENABLED:-false}"
       JOBS__LOADER_MODE__MINIMUM_BATCH_SIZE: "${JOBS__LOADER_MODE__MINIMUM_BATCH_SIZE:-5}"
+      JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED: "${JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED:-false}"
       JOBS__IDEMPOTENCY__ENABLED: "${JOBS__IDEMPOTENCY__ENABLED:-true}"
       JOBS__IDEMPOTENCY__RESULT_CACHE_DURATION_SECONDS: "${JOBS__IDEMPOTENCY__RESULT_CACHE_DURATION_SECONDS:-300}"
       JOBS__IDEMPOTENCY__MONITOR_INTERVAL_SECONDS: "${JOBS__IDEMPOTENCY__MONITOR_INTERVAL_SECONDS:-30}"
@@ -229,7 +243,7 @@ services:
       ## Default is the SSM parameter path. Override for Azure Key Vault (e.g. common-distributed-redis).
       COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH: "${COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH:-/common/redis}"
       ## Common Secret Management Library (In-Memory Cache)
-      COMMON__SECRETS__CACHE__FORCE_COOLDOWN_SECONDS: "${COMMON__SECRETS__CACHE__FORCE_COOLDOWN_SECONDS:-60}"
+      COMMON__SECRETS__CACHE__FORCE_COOLDOWN_SECONDS: "${COMMON__SECRETS__CACHE__FORCE_COOLDOWN_SECONDS:-1}"
       ## Common Secret Management Library (Azure Key Vault)
       COMMON__SECRETS__AZURE_KEY_VAULT__KEY_VAULT_URL: https://azure-key-vault-emulator.vault.azure.net:4997
       # Tell the worker to generate a syntactically valid auth token for James Gould's key vault emulator
@@ -330,4 +344,15 @@ services:
       JOB_SOURCE__GOOGLE_PUB_SUB__WAIT_TIME_SECONDS: ${JOB_SOURCE__GOOGLE_PUB_SUB__WAIT_TIME_SECONDS:-0}
       JOB_SOURCE__GOOGLE_PUB_SUB__DLQ_NOT_ENABLED: true
       JOB_SOURCE__GOOGLE_PUB_SUB__MAXIMUM_RECEIVES: 3
+      ## Bar connector (external HTTP dependency + OAuth client credentials)
+      CONNECTORS__BAR__BASE_URL: "${CONNECTORS__BAR__BASE_URL-http://wiremock-bar:8080}"
+      CONNECTORS__BAR__TOKEN_URL: "${CONNECTORS__BAR__TOKEN_URL-http://wiremock-bar:8080/oauth/token}"
+      CONNECTORS__BAR__CLIENT_ID_PATH: "${CONNECTORS__BAR__CLIENT_ID_PATH-/bar/oauth/client-id}"
+      CONNECTORS__BAR__CLIENT_SECRET_PATH: "${CONNECTORS__BAR__CLIENT_SECRET_PATH-/bar/oauth/client-secret}"
+      CONNECTORS__BAR__SCOPE_LABEL: "${CONNECTORS__BAR__SCOPE_LABEL-audience}"
+      CONNECTORS__BAR__SCOPE_VALUE: "${CONNECTORS__BAR__SCOPE_VALUE-https://bar.local/api}"
+      CONNECTORS__BAR__TOKEN_REFRESH_COOLDOWN_SECONDS: "${CONNECTORS__BAR__TOKEN_REFRESH_COOLDOWN_SECONDS-30}"
+      CONNECTORS__BAR__RETRY_COUNT: "${CONNECTORS__BAR__RETRY_COUNT-3}"
+      CONNECTORS__BAR__FALLBACK_JWT_EXPIRY_TIME_MINUTES: "${CONNECTORS__BAR__FALLBACK_JWT_EXPIRY_TIME_MINUTES-30}"
+      CONNECTORS__BAR__REASON_TO_WAIT_FALLBACK_SECONDS: "${CONNECTORS__BAR__REASON_TO_WAIT_FALLBACK_SECONDS-15}"
 

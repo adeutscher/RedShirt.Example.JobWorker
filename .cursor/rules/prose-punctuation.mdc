@@ -1,0 +1,40 @@
+---
+description: Avoid semicolons and em dashes in prose and documentation
+alwaysApply: true
+---
+
+# Prose punctuation
+
+In user-facing text (documentation, comments, commit messages, PR descriptions, and assistant replies), avoid semicolons and em dashes.
+
+## Semicolons
+
+Do not use `;` to join clauses in prose. Prefer separate sentences, a comma with a conjunction, or a short list.
+
+```markdown
+<!-- Avoid -->
+Compose defaults to `false`; when disabled, jobs only sleep for the requested duration.
+
+<!-- Prefer -->
+Compose defaults to `false`. When disabled, jobs only sleep for the requested duration.
+```
+
+This rule does **not** apply to code syntax. Keep semicolons where the language requires them (for example C# statement terminators).
+
+## Em dashes
+
+Do not use em dashes (`—`) or spaced hyphen em-dash stand-ins (` - ` used as a break). Prefer periods, commas, parentheses, or a colon.
+
+```markdown
+<!-- Avoid -->
+The connector retries indefinitely—until the job is cancelled.
+
+<!-- Prefer -->
+The connector retries indefinitely until the job is cancelled.
+```
+
+Hyphens in compound words (`client-credentials`) and en dashes in ranges (`1–5`) are fine.
+
+## When editing existing text
+
+When you touch documentation or comments, rewrite nearby semicolon- or em-dash-heavy phrasing into the preferred style.
