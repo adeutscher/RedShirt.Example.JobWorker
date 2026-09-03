@@ -10,6 +10,7 @@ public static class ServiceCollectionExtensions
         IConfigurationRoot configuration)
     {
         return services
+            .Configure<JobLogicRunner.ConfigurationModel>(configuration.GetSection("Jobs:JobLogic"))
             .AddSingleton<IJobLogicRunner, JobLogicRunner>();
     }
 }
