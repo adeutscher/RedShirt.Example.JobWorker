@@ -1,0 +1,21 @@
+{
+  "priority": 5,
+  "name": "Bar get by id",
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/api/bar/[0-9]+",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Bearer local-bar-access-token"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "transformers": ["response-template"],
+    "body": "{\"Id\":{{request.pathSegments.[2]}},\"Name\":\"Bar-{{request.pathSegments.[2]}}\"}"
+  }
+}

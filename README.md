@@ -42,7 +42,9 @@ Repo features:
           the message source.
     * Prevents simultaneous execution of the same message in the event of a dropped message
     * Caches results to prevent re-running of a job if received non-concurrently
-* Container health probes
+* Container health probes.
+* Sample API connector.
+    * For more information, see TOMATO.
 * Documentation for local testing (see `test/local/`)
 
 # Core Architecture

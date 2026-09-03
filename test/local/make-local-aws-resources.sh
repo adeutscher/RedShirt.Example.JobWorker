@@ -36,3 +36,13 @@ awslocal ssm put-parameter --overwrite --type String --name /activemq/password -
 
 awslocal ssm put-parameter --overwrite --type String --name /nats/user --value admin
 awslocal ssm put-parameter --overwrite --type String --name /nats/password --value admin
+
+# Bar OAuth (WireMock bar connector)
+
+awslocal ssm put-parameter --overwrite --type String \
+    --name /bar/oauth/client-id \
+    --value "local-bar-client-id"
+
+awslocal ssm put-parameter --overwrite --type String \
+    --name /bar/oauth/client-secret \
+    --value "local-bar-client-secret"

@@ -8,6 +8,9 @@
         <File Path="Dockerfile"/>
         <File Path="README.md"/>
     </Folder>
+    <Folder Name="/Solution Items/docs/">
+        <File Path="docs\bar-connector.md"/>
+    </Folder>
     <Folder Name="/src/">
         <Project
                 Path="src/RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager/RedShirt.Example.JobWorker.Common.Aws.SsmSecretManager.csproj"/>
@@ -25,6 +28,12 @@
         <Project
                 Path="src/RedShirt.Example.JobWorker.Common.SecretManagers.Core/RedShirt.Example.JobWorker.Common.SecretManagers.Core.csproj"/>
         <Project Path="src/RedShirt.Example.JobWorker.Common/RedShirt.Example.JobWorker.Common.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.Connectors.Bar.Core/RedShirt.Example.JobWorker.Connectors.Bar.Core.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.Connectors.Bar.Implementation/RedShirt.Example.JobWorker.Connectors.Bar.Implementation.csproj"/>
+        <Project
+                Path="src/RedShirt.Example.JobWorker.Connectors.Common.Http/RedShirt.Example.JobWorker.Connectors.Common.Http.csproj"/>
         <Project Path="src/RedShirt.Example.JobWorker.Core.Logic/RedShirt.Example.JobWorker.Core.Logic.csproj"/>
         <Project Path="src/RedShirt.Example.JobWorker.Core/RedShirt.Example.JobWorker.Core.csproj"/>
         <Project

@@ -54,3 +54,5 @@ if __name__ == '__main__':
         "Endpoint=sb://azure-service-bus-emulator;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
     )
     set('common-distributed-redis', 'redis:6379')
+    set('bar-oauth-client-id', 'local-bar-client-id')
+    set('bar-oauth-client-secret', 'local-bar-client-secret')

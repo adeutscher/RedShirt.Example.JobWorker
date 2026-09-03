@@ -1,0 +1,17 @@
+{
+  "priority": 10,
+  "name": "Bar API unauthorized without valid bearer token",
+  "request": {
+    "method": "ANY",
+    "urlPathPattern": "/api/bar(/.*)?"
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "message": "Unauthorized"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "priority": 1,
+  "name": "Bar create",
+  "request": {
+    "method": "POST",
+    "urlPath": "/api/bar",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Bearer local-bar-access-token"
+      }
+    },
+    "bodyPatterns": [
+      {
+        "matchesJsonPath": "$.Name"
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "transformers": ["response-template"],
+    "body": "{\"Id\":{{randomInt lower=1 upper=999999}},\"Name\":\"{{jsonPath request.body '$.Name'}}\"}"
+  }
+}
