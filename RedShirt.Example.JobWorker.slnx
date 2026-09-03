@@ -82,6 +82,12 @@
         <Project
                 Path="test/RedShirt.Example.JobWorker.Common.UnitTests/RedShirt.Example.JobWorker.Common.UnitTests.csproj"/>
         <Project
+                Path="test/RedShirt.Example.JobWorker.Connectors.Bar.Core.UnitTests/RedShirt.Example.JobWorker.Connectors.Bar.Core.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Connectors.Bar.Implementation.UnitTests/RedShirt.Example.JobWorker.Connectors.Bar.Implementation.UnitTests.csproj"/>
+        <Project
+                Path="test/RedShirt.Example.JobWorker.Connectors.Common.Http.UnitTests/RedShirt.Example.JobWorker.Connectors.Common.Http.UnitTests.csproj"/>
+        <Project
                 Path="test/RedShirt.Example.JobWorker.Core.Logic.UnitTests/RedShirt.Example.JobWorker.Core.Logic.UnitTests.csproj"/>
         <Project
                 Path="test/RedShirt.Example.JobWorker.Core.UnitTests/RedShirt.Example.JobWorker.Core.UnitTests.csproj"/>
