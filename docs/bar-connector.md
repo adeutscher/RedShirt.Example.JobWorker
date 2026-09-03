@@ -27,7 +27,7 @@ duty is to keep trying respectfully when rate limited or otherwise told to wait.
 
 ## Last-mile instructions
 
-These steps cannot be fully prescribed by a general template. Adapt them for your target API.
+These steps cannot be fully performed in a general template. Adapt them for your target API.
 
 ### If you are using the [API Template](https://github.com/adeutscher/RedShirt.Example.Api)
 
