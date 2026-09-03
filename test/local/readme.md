@@ -35,6 +35,21 @@ export JOBS__LOADER_MODE__MINIMUM_BATCH_SIZE=5
 
 ## Message Sources
 
+Each section below includes a block that sets every job-source toggle defined in `test/local/docker-compose.yaml`:
+
+* `USE_ACTIVEMQ`
+* `USE_AZURE_QUEUE_STORAGE`
+* `USE_AZURE_SERVICE_BUS`
+* `USE_GOOGLE_PUB_SUB`
+* `USE_KAFKA`
+* `USE_KINESIS`
+* `USE_NATS`
+* `USE_PULSAR`
+* `USE_RABBITMQ`
+* `USE_REDIS_STREAMS`
+
+SQS is the default when all of these are `0`, there is no `USE_SQS` variable.
+
 ### SQS
 
 To initialize SQS and queue sample messages:
@@ -61,15 +76,15 @@ docker compose up -d ministack redis wiremock-bar
 
     ```bash
     export USE_ACTIVEMQ=0
-    export USE_KINESIS=0
-    export USE_KAFKA=0
-    export USE_PULSAR=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
-    export USE_REDIS_STREAMS=0
-    export USE_RABBITMQ=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     unset CONNECTORS__BAR__CLIENT_ID_PATH
     unset CONNECTORS__BAR__CLIENT_SECRET_PATH
@@ -108,16 +123,15 @@ To initialize Kinesis and queue sample messages:
 
     ```bash
     export USE_ACTIVEMQ=0
-    export USE_KINESIS=1
-    export USE_KAFKA=0
-    export USE_PULSAR=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
-    export USE_REDIS_STREAMS=0
-    export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=1
+    export USE_NATS=0
+    export USE_PULSAR=0
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     unset CONNECTORS__BAR__CLIENT_ID_PATH
     unset CONNECTORS__BAR__CLIENT_SECRET_PATH
@@ -155,17 +169,16 @@ To initialize Kafka and queue sample messages:
     Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`), and unset `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` so compose uses the default SSM Bar OAuth paths:
 
     ```bash
-    export USE_KAFKA=1
-    export USE_PULSAR=0
     export USE_ACTIVEMQ=0
-    export USE_KINESIS=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
-    export USE_REDIS_STREAMS=0
-    export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=1
+    export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     unset CONNECTORS__BAR__CLIENT_ID_PATH
     unset CONNECTORS__BAR__CLIENT_SECRET_PATH
@@ -209,17 +222,16 @@ To initialize Apache Pulsar and queue sample messages:
     Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`), and unset `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` so compose uses the default SSM Bar OAuth paths:
 
     ```bash
-    export USE_PULSAR=1
-    export USE_KAFKA=0
     export USE_ACTIVEMQ=0
-    export USE_KINESIS=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
-    export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
-    export USE_REDIS_STREAMS=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=1
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     unset CONNECTORS__BAR__CLIENT_ID_PATH
     unset CONNECTORS__BAR__CLIENT_SECRET_PATH
@@ -274,17 +286,16 @@ To initialize RabbitMQ and queue messages:
    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`), and unset `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` so compose uses the default SSM Bar OAuth paths:
 
     ```bash
-    export USE_RABBITMQ=1
-    export USE_RABBITMQ_SUBSCRIBE=false
-    export USE_KINESIS=0
-    export USE_KAFKA=0
-    export USE_PULSAR=0
     export USE_ACTIVEMQ=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
-    export USE_REDIS_STREAMS=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
+    export USE_RABBITMQ=1
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     unset CONNECTORS__BAR__CLIENT_ID_PATH
     unset CONNECTORS__BAR__CLIENT_SECRET_PATH
@@ -354,15 +365,15 @@ To initialize ActiveMQ and queue messages:
 
     ```bash
     export USE_ACTIVEMQ=1
-    export USE_KINESIS=0
-    export USE_KAFKA=0
-    export USE_PULSAR=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
-    export USE_REDIS_STREAMS=0
-    export USE_RABBITMQ=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     unset CONNECTORS__BAR__CLIENT_ID_PATH
     unset CONNECTORS__BAR__CLIENT_SECRET_PATH
@@ -456,17 +467,16 @@ To install the `nats` command:
    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`), and unset `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` so compose uses the default SSM Bar OAuth paths:
 
     ```bash
-    export USE_NATS=1
     export USE_ACTIVEMQ=0
-    export USE_KAFKA=0
-    export USE_PULSAR=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_KINESIS=0
-    export USE_REDIS_STREAMS=0
-    export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=0
+    export USE_NATS=1
+    export USE_PULSAR=0
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     unset CONNECTORS__BAR__CLIENT_ID_PATH
     unset CONNECTORS__BAR__CLIENT_SECRET_PATH
@@ -519,15 +529,16 @@ Redis Streams testing requires the `redis` Python module to be installed.
    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`), and unset `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` so compose uses the default SSM Bar OAuth paths:
 
     ```bash
-    export USE_REDIS_STREAMS=1
-    export USE_NATS=0
     export USE_ACTIVEMQ=0
-    export USE_KAFKA=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
+    export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
     export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
     export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
+    export USE_REDIS_STREAMS=1
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     unset CONNECTORS__BAR__CLIENT_ID_PATH
     unset CONNECTORS__BAR__CLIENT_SECRET_PATH
@@ -601,17 +612,16 @@ VSCode automatically knows how to point to your local `azurite` server after the
    You will also point Redis at the Key Vault secret name created by `set-azure-key-vault-secrets.py`, as the compose file's default is to use the SSM path (Azure Key Vault key and SSM Parameter Store path formats are entirely incompatible with one another). Set `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` to the Bar OAuth Key Vault secret names from the same script:
 
     ```bash
+    export USE_ACTIVEMQ=0
     export USE_AZURE_QUEUE_STORAGE=1
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
-    export USE_REDIS_STREAMS=0
-    export USE_KAFKA=0
-    export USE_PULSAR=0
-    export USE_ACTIVEMQ=0
-    export USE_KINESIS=0
-    export USE_RABBITMQ=0
-    export USE_RABBITMQ_SUBSCRIBE=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     export COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH=common-distributed-redis
     export CONNECTORS__BAR__CLIENT_ID_PATH=bar-oauth-client-id
     export CONNECTORS__BAR__CLIENT_SECRET_PATH=bar-oauth-client-secret
@@ -687,16 +697,16 @@ pip install azure.servicebus azure.identity azure.keyvault
     You will also point Redis at the Key Vault secret name created by `set-azure-key-vault-secrets.py`, as the compose file's default is to use the SSM path (Azure Key Vault key and SSM Parameter Store path formats are entirely incompatible with one another). Set `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` to the Bar OAuth Key Vault secret names from the same script:
 
     ```bash
+    export USE_ACTIVEMQ=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=1
-    export USE_NATS=0
-    export USE_REDIS_STREAMS=0
-    export USE_KAFKA=0
-    export USE_PULSAR=0
-    export USE_ACTIVEMQ=0
-    export USE_KINESIS=0
-    export USE_RABBITMQ=0
     export USE_GOOGLE_PUB_SUB=0
+    export USE_KAFKA=0
+    export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
+    export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     export COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH=common-distributed-redis
     export CONNECTORS__BAR__CLIENT_ID_PATH=bar-oauth-client-id
     export CONNECTORS__BAR__CLIENT_SECRET_PATH=bar-oauth-client-secret
@@ -740,14 +750,16 @@ To initialize Google Pub/Sub and queue sample messages:
    Unset `COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH` so compose uses the default SSM path (`/common/redis`), and unset `CONNECTORS__BAR__CLIENT_ID_PATH` and `CONNECTORS__BAR__CLIENT_SECRET_PATH` so compose uses the default SSM Bar OAuth paths:
 
     ```bash
-    export USE_GOOGLE_PUB_SUB=1
+    export USE_ACTIVEMQ=0
     export USE_AZURE_QUEUE_STORAGE=0
     export USE_AZURE_SERVICE_BUS=0
-    export USE_NATS=0
+    export USE_GOOGLE_PUB_SUB=1
     export USE_KAFKA=0
-    export USE_ACTIVEMQ=0
     export USE_KINESIS=0
+    export USE_NATS=0
+    export USE_PULSAR=0
     export USE_RABBITMQ=0
+    export USE_REDIS_STREAMS=0
     unset COMMON__DISTRIBUTED__REDIS__CONNECTION_STRING_PATH
     unset CONNECTORS__BAR__CLIENT_ID_PATH
     unset CONNECTORS__BAR__CLIENT_SECRET_PATH
