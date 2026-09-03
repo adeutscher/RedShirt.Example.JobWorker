@@ -39,8 +39,9 @@ These steps cannot be fully prescribed by a general template. Adapt them for you
 3. Reference the interop NuGet package in your renamed implementation project.
 4. Write wrapper clients for the relevant clients from the interop package that translate thrown `SwaggerException`
    instances to a generic `BarException` (renamed for your API):
-    * `BarException` translation should judge the status code in the `SwaggerException` to set `CouldBeTransient`.
-      Abstract this decision into an exception arbiter service with a method called `CouldSwaggerExceptionBeTransient`.
+    * `BarException` translation should judge the status code in the `SwaggerException` to set `CouldBeTransient`. It is
+      recommended to abstract this decision into an exception arbiter service with a method called
+      `CouldSwaggerExceptionBeTransient`.
     * The exception to this translation is HTTP **429** (Too Many Requests), which should specifically become a
       `BarRateLimitedException` with the value of the `Retry-After` header.
 5. Adjust your client factory to return the wrapper client.
@@ -50,8 +51,9 @@ These steps cannot be fully prescribed by a general template. Adapt them for you
 
 1. Rename `Bar.Core` and `Bar.Implementation` projects as appropriate for your target API.
 2. Adjust HTTP clients for the subject API so non-successful status codes translate to a generic `BarException`:
-    * Judge the status code to set `CouldBeTransient`. Abstract this into an exception arbiter service with a method
-      called `CouldSwaggerExceptionBeTransient` (or an equivalent name if you are not using Swagger/OpenAPI clients).
+    * Judge the status code to set `CouldBeTransient`. It is recommended to abstract this into an exception arbiter
+      service with a method called `CouldSwaggerExceptionBeTransient` (or an equivalent name if you are not using
+      Swagger/OpenAPI clients).
     * HTTP **429** should specifically become a `BarRateLimitedException` with the value of the `Retry-After` header.
 3. Rename classes whose names begin with `Bar` as appropriate for your target API.
 
