@@ -83,27 +83,34 @@ internal sealed class BarConnector(
             cancellationToken).AsTask();
     }
 
+    private Task<T> ExecuteWithResilienceAsync<T>(
+        Func<CancellationToken, Task<T>> operation,
+        CancellationToken cancellationToken)
+    {
+        return ExecuteRespectingReasonToWaitAsync(
+            token => retryWrapperService.RunAsync(operation, token),
+            cancellationToken);
+    }
+
     public Task<CreateBarConnectorResponse> CreateAsync(CreateBarConnectorRequest request,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        return ExecuteRespectingReasonToWaitAsync(token =>
-            retryWrapperService.RunAsync(async innerToken =>
-            {
-                var client = barApiClientFactory.CreateBarApiClient();
-                return await client.CreateBarAsync(request, innerToken);
-            }, token), cancellationToken);
+        return ExecuteWithResilienceAsync(async innerToken =>
+        {
+            var client = barApiClientFactory.CreateBarApiClient();
+            return await client.CreateBarAsync(request, innerToken);
+        }, cancellationToken);
     }
 
     public Task<GetBarConnectorResponse> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
-        return ExecuteRespectingReasonToWaitAsync(token =>
-            retryWrapperService.RunAsync(innerToken =>
-            {
-                var client = barApiClientFactory.CreateBarApiClient();
-                return client.GetBarByIdAsync(id, innerToken);
-            }, token), cancellationToken);
+        return ExecuteWithResilienceAsync(innerToken =>
+        {
+            var client = barApiClientFactory.CreateBarApiClient();
+            return client.GetBarByIdAsync(id, innerToken);
+        }, cancellationToken);
     }
 
     internal sealed class ConfigurationModel
