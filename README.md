@@ -422,6 +422,8 @@ Below are the recommended steps for using this as a template:
     * The dependency injection setup in the root project assumes that the general template will be pruned down.
     * The dependency injection setup in the root project assumes that the chosen Secret Manager is SSM unless the chosen
       job source is explicitly Azure-based (see below for more details).
+6. Consider revising/pruning the Markdown files such as this README or those located in the `docs/` directory. They
+   assume that they are speaking for a general template and not for an applied application.
 
 ## Cached Idempotency vs Database
 
