@@ -69,3 +69,18 @@ __pycache__/
 .ruff_cache/
 .venv/
 venv/
+
+# Local benchmarks
+.bench/
+
+# Cursor / editor artifacts (.cursor/rules/ is tracked intentionally)
+.specstory/
+.history/
+.cursorrules
+.cursor-chat-history/
+.cursor/chats/
+.cursor/logs/
+.cursor/session*
+.agents/
+.claude/
+.codex/
