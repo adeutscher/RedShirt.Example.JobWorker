@@ -1,0 +1,23 @@
+{
+  "priority": 1,
+  "name": "Bar get by id — rate limited",
+  "request": {
+    "method": "GET",
+    "urlPath": "/api/bar/429",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Bearer local-bar-access-token"
+      }
+    }
+  },
+  "response": {
+    "status": 429,
+    "headers": {
+      "Content-Type": "application/json",
+      "Retry-After": "1"
+    },
+    "jsonBody": {
+      "message": "Rate limit exceeded"
+    }
+  }
+}

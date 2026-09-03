@@ -795,6 +795,7 @@ From the host use `http://localhost:9101`.
 | POST   | `/api/bar`                 | `Authorization: Bearer local-bar-access-token`                          | 200 with `{ "Id": <random int>, "Name": <request Name> }` |
 | GET    | `/api/bar/{id}`            | valid Bearer                                                            | 200 with `{ "Id": {id}, "Name": "Bar-{id}" }`             |
 | GET    | `/api/bar/404`             | valid Bearer                                                            | 404 (exercises not-found handling)                        |
+| GET    | `/api/bar/429`             | valid Bearer                                                            | 429 with `Retry-After: 1` (exercises rate-limit handling) |
 | any    | `/api/bar` or `/api/bar/…` | missing/invalid Bearer                                                  | 401                                                       |
 
 Bring up WireMock with ministack (for SSM) and Redis before running jobs that call Bar:
@@ -849,4 +850,4 @@ To update the client secret in SSM *and* WireMock's in-memory stubs (token bodyP
 ./scripts/wiremock-bar/bar-rotate-oauth-credentials.sh 'my-new-secret' 'my-new-access-token'
 ```
 
-This only updates in-memory WireMock stubs. Restarting `wiremock-bar` restores the mapping files under `wiremock/bar/`. After the script finishes, process another job — the connector should 401 once with the old bearer, refresh client credentials + token, then succeed with the rotated bearer.
+This only updates in-memory WireMock stubs. Restarting `wiremock-bar` restores the mapping files under `wiremock/bar/mappings/`. After the script finishes, process another job — the connector should 401 once with the old bearer, refresh client credentials + token, then succeed with the rotated bearer.

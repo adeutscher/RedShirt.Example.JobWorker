@@ -10,7 +10,7 @@ namespace RedShirt.Example.JobWorker.Core.Logic.UnitTests.Tests;
 public class JobLogicRunnerTests
 {
     [Fact]
-    public async Task Test_RunAsync()
+    public async Task RunAsync_WhenSleepDurationIsZero_SleepsZeroSecondsAndCallsBarWithIdOne()
     {
         var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
         sleepService
@@ -38,5 +38,38 @@ public class JobLogicRunnerTests
         Assert.Equal(JobResult.Success, result.Result);
         sleepService.Verify(s => s.DelayAsync(TimeSpan.Zero, TestContext.Current.CancellationToken), Times.Once);
         barConnector.Verify(b => b.GetByIdAsync(1, TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(404)]
+    [InlineData(429)]
+    public async Task RunAsync_WhenSleepDurationIsBarTestId_SleepsOneSecondAndCallsBarWithThatId(int barTestId)
+    {
+        var sleepService = new Mock<ISleepService>(MockBehavior.Strict);
+        sleepService
+            .Setup(s => s.DelayAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken))
+            .Returns(Task.CompletedTask);
+
+        var barConnector = new Mock<IBarConnector>(MockBehavior.Strict);
+        barConnector
+            .Setup(b => b.GetByIdAsync(barTestId, TestContext.Current.CancellationToken))
+            .ReturnsAsync(new GetBarConnectorResponse {Id = barTestId, Name = $"Bar-{barTestId}"});
+
+        var jobLogicRunner = new JobLogicRunner(
+            barConnector.Object,
+            sleepService.Object,
+            new NullLogger<JobLogicRunner>());
+
+        var jobData = new Mock<IJobDataModel>(MockBehavior.Strict);
+        jobData.Setup(j => j.SleepDurationSeconds).Returns(barTestId);
+
+        var job = new Mock<IJobModel>(MockBehavior.Strict);
+        job.Setup(j => j.Data).Returns(jobData.Object);
+
+        var result = await jobLogicRunner.RunAsync(job.Object, TestContext.Current.CancellationToken);
+
+        Assert.Equal(JobResult.Success, result.Result);
+        sleepService.Verify(s => s.DelayAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken), Times.Once);
+        barConnector.Verify(b => b.GetByIdAsync(barTestId, TestContext.Current.CancellationToken), Times.Once);
     }
 }
