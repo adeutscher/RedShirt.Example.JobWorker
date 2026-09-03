@@ -129,7 +129,7 @@ To initialize Kinesis and queue sample messages:
     docker compose up worker
     ```
 
-## Kafka
+### Kafka
 
 To initialize Kafka and queue sample messages:
 
@@ -177,7 +177,7 @@ To initialize Kafka and queue sample messages:
     docker compose up worker
     ```
 
-## Apache Pulsar
+### Apache Pulsar
 
 To initialize Apache Pulsar and queue sample messages:
 
