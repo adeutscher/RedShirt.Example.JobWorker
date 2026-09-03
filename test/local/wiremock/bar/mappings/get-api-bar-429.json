@@ -14,7 +14,7 @@
     "status": 429,
     "headers": {
       "Content-Type": "application/json",
-      "Retry-After": "1"
+      "Retry-After": "10"
     },
     "jsonBody": {
       "message": "Rate limit exceeded"
