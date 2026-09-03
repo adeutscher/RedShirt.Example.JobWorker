@@ -58,7 +58,6 @@ BenchmarkDotNet.Artifacts/
 
 # Editor
 .vscode/
-.cursor/
 
 # Python
 __pycache__/

@@ -1,0 +1,34 @@
+---
+description: Use asterisk markers for Markdown unordered list bullets
+globs: **/*.md
+alwaysApply: false
+---
+
+# Markdown list bullets
+
+In Markdown files, mark **unordered** list items with asterisks (`*`), not hyphens (`-`) or plus signs (`+`).
+
+## Rules
+
+* Use `*` for every unordered list bullet, including nested items under numbered steps.
+* Preserve existing indentation (typically four spaces per nesting level under numbered lists).
+* Ordered lists (`1.`, `2.`, …) are unchanged.
+* When editing or adding list items, convert any `-` or `+` bullets you touch to `*`.
+
+## Examples
+
+```markdown
+<!-- Prefer -->
+* First item
+* Second item
+    * Nested item
+
+1. Step one:
+    * Detail A
+    * Detail B
+
+<!-- Avoid -->
+- First item
+- Second item
+    - Nested item
+```
