@@ -90,7 +90,13 @@ docker compose up -d ministack redis wiremock-bar
     unset CONNECTORS__BAR__CLIENT_SECRET_PATH
     ```
 
-5. Bring up the worker:
+5. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+6. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -137,7 +143,13 @@ To initialize Kinesis and queue sample messages:
     unset CONNECTORS__BAR__CLIENT_SECRET_PATH
     ```
 
-5. Bring up the worker:
+5. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+6. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -184,7 +196,13 @@ To initialize Kafka and queue sample messages:
     unset CONNECTORS__BAR__CLIENT_SECRET_PATH
     ```
 
-5. Bring up the worker:
+5. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+6. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -237,7 +255,13 @@ To initialize Apache Pulsar and queue sample messages:
     unset CONNECTORS__BAR__CLIENT_SECRET_PATH
     ```
 
-6. Bring up the worker:
+6. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+7. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -306,7 +330,14 @@ To initialize RabbitMQ and queue messages:
     ```bash
     export JOB_SOURCE__RABBITMQ__SUBSCRIBE=true
     ```
-8. Bring up the worker:
+
+8. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+9. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -385,7 +416,13 @@ To initialize ActiveMQ and queue messages:
     export JOB_SOURCE__ACTIVEMQ__SUBSCRIBE=true
     ```
 
-8. Bring up the worker:
+8. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+9. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -488,7 +525,13 @@ To install the `nats` command:
     export JOB_SOURCE__NATS__SUBSCRIBE=true
     ```
 
-8. Bring up the worker:
+8. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+9. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -544,7 +587,13 @@ Redis Streams testing requires the `redis` Python module to be installed.
     unset CONNECTORS__BAR__CLIENT_SECRET_PATH
     ```
 
-6. Bring up the worker:
+6. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+7. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -627,7 +676,13 @@ VSCode automatically knows how to point to your local `azurite` server after the
     export CONNECTORS__BAR__CLIENT_SECRET_PATH=bar-oauth-client-secret
     ```
 
-7. Bring up the worker:
+7. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+8. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -712,7 +767,13 @@ pip install azure.servicebus azure.identity azure.keyvault
     export CONNECTORS__BAR__CLIENT_SECRET_PATH=bar-oauth-client-secret
     ```
 
-11. Bring up the worker:
+11. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+12. Bring up the worker:
 
     ```bash
     docker compose up worker
@@ -765,7 +826,13 @@ To initialize Google Pub/Sub and queue sample messages:
     unset CONNECTORS__BAR__CLIENT_SECRET_PATH
     ```
 
-6. Bring up the worker:
+6. Optionally set `JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED` to `true` to exercise the Bar connector after each job's sleep. Compose defaults to `false`, and when disabled jobs only sleep for the requested duration. When enabled, a requested sleep time of `404` or `429` sleeps for only 1 second so you can demonstrate special Bar API responses without having to wait for that many seconds:
+
+    ```bash
+    export JOBS__JOB_LOGIC__ACCESS_BAR_ENABLED=true
+    ```
+
+7. Bring up the worker:
 
     ```bash
     docker compose up worker

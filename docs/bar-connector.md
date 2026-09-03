@@ -2,7 +2,7 @@
 
 The Bar connector projects (`Connectors.Bar.Core` and `Connectors.Bar.Implementation`) are a placeholder for an
 OAuth-backed HTTP API, such as the [RedShirt.Example.Api](https://github.com/adeutscher/RedShirt.Example.Api) template.
-They stand in for a real API client that a JobWorker uses to perform long-running or downstream work against another
+They are a generic placeholder for a real API client that a JobWorker uses to perform long-running or downstream work against another
 service.
 
 ## OAuth by default
