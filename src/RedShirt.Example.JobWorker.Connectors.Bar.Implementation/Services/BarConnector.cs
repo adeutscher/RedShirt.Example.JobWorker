@@ -61,8 +61,8 @@ internal sealed class BarConnector(
 
                     var baseDelay = reasonToWait.RetryAfter ?? options.Value.EffectiveReasonToWaitFallback;
                     // Polly v8 AttemptNumber is zero-based (0 on the first retry). Add linear slack on top of
-                    // RetryAfter/fallback because the API may need a little extra time to recognize that the
-                    // rate-limiting window has passed (0s, then 1s, then 2s, etc).
+                    // RetryAfter/fallback, assuming that the API may need a little extra time to recognize that
+                    // the rate-limiting window has passed (0s, then 1s, then 2s, etc).
                     var attemptBuffer = TimeSpan.FromSeconds(args.AttemptNumber);
                     var delay = baseDelay + attemptBuffer;
                     logger.LogWarning(reasonToWait,
