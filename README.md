@@ -43,9 +43,9 @@ Repo features:
     * Prevents simultaneous execution of the same message in the event of a dropped message
     * Caches results to prevent re-running of a job if received non-concurrently
 * Container health probes.
-* Sample API connector.
+* Sample API connector that respects rate limit responses.
     * For more information, see [`docs/bar-connector.md`](docs/bar-connector.md).
-* Documentation for local testing (see `test/local/`)
+* Documentation for local testing (see `test/local/`).
 
 # Core Architecture
 
