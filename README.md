@@ -44,7 +44,7 @@ Repo features:
     * Caches results to prevent re-running of a job if received non-concurrently
 * Container health probes.
 * Sample API connector.
-    * For more information, see TOMATO.
+    * For more information, see [`docs/bar-connector.md`](docs/bar-connector.md).
 * Documentation for local testing (see `test/local/`)
 
 # Core Architecture
