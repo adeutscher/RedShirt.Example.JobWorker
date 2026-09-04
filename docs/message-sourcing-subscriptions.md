@@ -17,6 +17,23 @@ Subscribing is configured on job sources that support it with a `SUBSCRIBE` envi
 | NATS       | `JOB_SOURCE__NATS__SUBSCRIBE`     |
 | RabbitMQ   | `JOB_SOURCE__RABBITMQ__SUBSCRIBE` |
 
+## Terminology: Pull vs Poll
+
+This section describes a bit of terminology confusion that I ran into when I was researching subscribe features on
+different message broker technologies.
+
+It may be tempting to think of subscribing to messages and being assigned a message by the message broker as being a
+Pull operation. After all, RabbitMQ's underlying protocol has messages being delivered to a client. The subscription
+mode in ActiveMQ and consuming in NATS involves reading from a stream that the server writes to, which could be interpreted as a Pull
+or a Push from a certain point of view. However, these systems are not Push systems.
+
+The terms Push and Pull in message brokers specifically refer to the directionality of the connection that the messages
+are sent over. The mechanics of how messages are relayed at the protocol level is irrelevant. Thus, every message source
+and acquisition method that this template supports is a Pull. A true Push system would involve a message broker actively
+delegating messages to consumers.
+
+Because of this, the template uses the terms polling and subscribe to describe messaging strategies.
+
 ## Notes on Implementing Other Subscribe Patterns
 
 A subscription job source is made to leverage the consume feature of a message provider. Like with long polling, the
