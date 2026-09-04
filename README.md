@@ -24,11 +24,11 @@ Repo features:
 * Support for the following message sources:
     * [Amazon SQS](https://aws.amazon.com/sqs/)
     * [Amazon Kinesis](https://aws.amazon.com/kinesis/data-streams/)
-        * For more information on the Kinesis implementation, refer to [`docs/job-source-notes-kinesis.md`](docs/job-source-notes-kinesis.md)
+        * For more details on Kinesis, refer to [`docs/job-source-notes-kinesis.md`](docs/job-source-notes-kinesis.md)
     * [Apache ActiveMQ Artemis](https://artemis.apache.org/components/artemis/)
         * Supports short polling or consumer subscriptions.
     * [Apache Kafka](https://kafka.apache.org/)
-        * For more information on the Kafka implementation, refer to [`docs/job-source-notes-kafka.md`](docs/job-source-notes-kafka.md)
+        * For more details on Kafka, refer to [`docs/job-source-notes-kafka.md`](docs/job-source-notes-kafka.md)
     * [Apache Pulsar](https://pulsar.apache.org/)
     * [Azure Queue Storage](https://learn.microsoft.com/en-us/azure/storage/queues/storage-queues-introduction)
     * [Azure Service Bus](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview)
