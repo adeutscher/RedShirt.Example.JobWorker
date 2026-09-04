@@ -38,17 +38,18 @@ While the other secret managers are more straightforward with their plans, Docke
 assumptions that should be documented.
 
 In general, I would encourage the use of a secret manager other than Docker Secrets. Compared to other options it lacks
-flexibility. However, it may be exactly what is needed for a small-scale environment.
+flexibility. However, it may be all that is needed for a small-scale environment and leaves the architecture open to
+be pivoted to a different implementation.
 
 Other notes:
 
-* Unlike other secret managers, a container instance's secrets cannot be rotated without restarting the
-* Secrets are assumed to be files in `/run/secrets`
+* Unlike other secret managers, a container instance's secrets cannot be rotated without restarting the container.
+* Secrets are assumed to be files in `/run/secrets`.
     * This directory can be overridden by setting a new path in `COMMON__SECRETS__DOCKER__DIRECTORY`
 * Secret keys are assumed to be roughly equal to the underlying file specified in the Docker stack configuration. If the
-  file does not meet these guidelines and because the compose file specifies another target path within the container,
-  then the secret manager has nothing with which to resolve a key to a file containing a value. After checking the exact
-  name of the key under the secret directory, the secret manager will attempt the path with a few file extensions
+  file does not meet these guidelines because the compose file specifies another target path within the container, then
+  the secret manager has no information with which to resolve a key to a file containing a value. After checking the
+  exact name of the key under the secret directory, the secret manager will attempt the path with a few file extensions
   (though realistically, only the flat key match will probably be useful).
     * For example, with no overriding directory the key `foo-password` will be searched for under the following absolute
       paths:
