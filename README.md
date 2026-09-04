@@ -95,7 +95,7 @@ For configuration examples, see the `worker` section of the `test/local/docker-c
 This template supports flexibility in how messages are sourced.
 
 The default behaviour of each message source is short polling with an exponential back-off. Depending on the messaging
-technology, the implementation may also support long polling or a subscription consumer.
+technology, the implementation may also support long polling and/or a subscription consumer.
 
 ## Idempotency
 
@@ -118,25 +118,27 @@ Below are the recommended steps for using this as a template:
     bash init-repo.sh New.Namespace.Here
     ```
 
-2. In the `Core` project (in the `Services/SourceMessages/` directory), update `IJobDataModel` interface and
-   `JobDataModel` implementation to reflect the needs of your project.
+2. In the `Common` project (in the `Models/` directory), update `IJobDataModel` interface and
+   its `JobDataModel` implementation to reflect the needs of your project.
 3. In the `Core` project (in the `Services/SourceMessages/` directory), update `SourceMessageConverter` and
    `SourceMessageSorter` to fit your needs of your project.
 4. Update the `Core.Logic` project's implementation of the `IJobLogicRunner` interface to handle `IJobDataModel` jobs as
    needed by your project.
-5. Select a message source type and prune the implementation projects for the sources that you are not using. This will
-   involve changing the dependency injection setup in the root `RedShirt.Example.JobWorker` project's
-   `Extensions/ServiceCollectionExtensions.cs` file.
-    * The dependency injection setup in the root project assumes that the general template will be pruned down.
-    * The dependency injection setup in the root project assumes that the chosen Secret Manager is SSM unless the chosen
-      job source is explicitly Azure-based (see below for more details).
-6. Consider revising/pruning the Markdown files such as this README or those located in the `docs/` directory. They
-   assume that they are speaking for a general template and not for an applied application.
+5. Select a message source type and prune the projects for the job sources and other features that you are not using for
+   your applied application. Deleting projects will cause minor compilation errors particularly around dependency
+   injection setup, but they can be resolved quickly.
+    * Removing job sources will involve changing the dependency injection setup in the root `RedShirt.Example.JobWorker`
+      project's `Extensions/ServiceCollectionExtensions.cs` file.
+        * The dependency injection setup in the root project assumes that the general template will be pruned down.
+        * The dependency injection setup in the root project assumes that the chosen Secret Manager is SSM unless the
+          chosen job source is explicitly Azure-based (see below for more details).
+6. Consider revising/pruning the Markdown files such as this README or those located in the `docs/` directory. At the
+   very least, these documents assume that they are speaking for a general template and not for an applied application.
 
 ## Cached Idempotency vs Database
 
 This general template uses Redis to cache results and drive its idempotency. However, if Redis does not meet your needs
-for message permanence then you will need to implement a service to access another data store.
+for idempotency-tracking permanence then you will need to adjust the implementation to access another data store.
 
 ## Secret Managers
 
