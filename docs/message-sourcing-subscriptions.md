@@ -30,7 +30,7 @@ or a Push from a certain point of view. However, these systems are not Push syst
 The terms Push and Pull in message brokers specifically refer to the directionality of the connection that the messages
 are sent over. The mechanics of how messages are relayed at the protocol level is irrelevant. Thus, every message source
 and acquisition method that this template supports is a Pull. A true Push system would involve a message broker actively
-delegating messages to consumers.
+connecting to consumers in order to delegate messages them.
 
 Because of this, the template uses the terms polling and subscribe to describe messaging strategies.
 
