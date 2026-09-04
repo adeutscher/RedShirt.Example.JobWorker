@@ -118,8 +118,8 @@ Below are the recommended steps for using this as a template:
     bash init-repo.sh New.Namespace.Here
     ```
 
-2. In the `Common` project (in the `Models/` directory), update `IJobDataModel` interface and
-   its `JobDataModel` implementation to reflect the needs of your project.
+2. In the `Common` project (in the `Models/` directory), update `IJobDataModel` interface and its `JobDataModel`
+   implementation to reflect the needs of your project.
 3. In the `Core` project (in the `Services/SourceMessages/` directory), update `SourceMessageConverter` and
    `SourceMessageSorter` to fit your needs of your project.
 4. Update the `Core.Logic` project's implementation of the `IJobLogicRunner` interface to handle `IJobDataModel` jobs as
@@ -166,3 +166,12 @@ For more information, refer to [`docs/secret-managers.md`](docs/secret-managers.
 Unit tests are written using XUnit/Moq.
 
 For local development testing, see the `test/local/` folder.
+
+# Other Templates
+
+If this template is of use to you, then these templates might also be useful:
+
+* [RedShirt.Example.Api](https://github.com/adeutscher/RedShirt.Example.Api): ASP.NET API Template with OpenAPI/Swagger
+  Support
+* [RedShirt.Example.Schema](https://github.com/adeutscher/RedShirt.Example.Schema): Quick database schema
+  structure/scripts. The example tables support the API template.
