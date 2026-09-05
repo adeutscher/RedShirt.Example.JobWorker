@@ -1,9 +1,9 @@
 # Secret Managers
 
-This general template has support for using a secret manager service. The services within the template interact with the
-secret manager through the `ISecretManagerService` or `ISecretManagerCacheService` interfaces.
-`ISecretManagerCacheService` maintains an in-memory cache of secrets in order to avoid overwhelming the secret manager
-service by accident.
+This general template defines a secret manager service interface for securely holding sensitive configuration values
+such as credentials or connection strings. The services within the template interact with an underlying secret manager
+service through the `ISecretManagerService` or `ISecretManagerCacheService` interfaces. `ISecretManagerCacheService`
+maintains an in-memory cache of secrets in order to avoid overwhelming the secret manager service by accident.
 
 At the moment, there are three available implementations of `ISecretManagerService`:
 
@@ -38,8 +38,8 @@ While the other secret managers are more straightforward with their plans, Docke
 assumptions that should be documented.
 
 In general, I would encourage the use of a secret manager other than Docker Secrets. Compared to other options it lacks
-flexibility. However, it may be all that is needed for a small-scale environment and leaves the architecture open to
-be pivoted to a different implementation.
+flexibility. However, it may be all that is needed for a small-scale environment and leaves the architecture open to be
+pivoted to a different implementation.
 
 Other notes:
 
