@@ -11,6 +11,9 @@ jobs:
   build:
     if: github.event_name == 'push' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: api
+      IMAGE_TAG: ci-${{ github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -20,12 +23,28 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore
-        run: dotnet restore RedShirt.Example.JobWorker.slnx
+      - name: Install gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.24.2/gitleaks_8.24.2_linux_x64.tar.gz \
+            | tar -xz -C /usr/local/bin gitleaks
 
-      - name: Build
-        run: dotnet build RedShirt.Example.JobWorker.slnx --no-restore --configuration Release
+      - name: Install trivy
+        uses: aquasecurity/setup-trivy@v0.3.1
 
-      # Note: Docker build also runs tests
+      - name: Lint
+        run: ./scripts/cicd/lint.sh
+
+      - name: Scan (program)
+        run: ./scripts/cicd/scan.sh
+
+      - name: Build and test
+        run: ./scripts/cicd/build.sh
+
       - name: Docker build
-        run: docker build --pull -t job-worker:ci-${{ github.sha }} .
+        run: ./scripts/cicd/docker-build.sh
+
+      - name: Docker test
+        run: ./scripts/cicd/docker-test.sh
+
+      - name: Scan (container image)
+        run: ./scripts/cicd/scan-image.sh
