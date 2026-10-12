@@ -18,6 +18,15 @@
         <File Path="docs\message-sourcing-subscriptions.md"/>
         <File Path="docs\secret-managers.md"/>
     </Folder>
+    <Folder Name="/Solution Items/scripts/"/>
+    <Folder Name="/Solution Items/scripts/cicd/">
+        <File Path="scripts\cicd\build.sh"/>
+        <File Path="scripts\cicd\docker-build.sh"/>
+        <File Path="scripts\cicd\docker-test.sh"/>
+        <File Path="scripts\cicd\lint.sh"/>
+        <File Path="scripts\cicd\scan-image.sh"/>
+        <File Path="scripts\cicd\scan.sh"/>
+    </Folder>
     <Folder Name="/src/">
         <Project Path="src/RedShirt.Example.JobWorker.HealthCheck/RedShirt.Example.JobWorker.HealthCheck.csproj"/>
         <Project Path="src/RedShirt.Example.JobWorker.Core.Logic/RedShirt.Example.JobWorker.Core.Logic.csproj"/>
