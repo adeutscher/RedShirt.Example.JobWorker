@@ -1,0 +1,24 @@
+title = "gitleaks config (RedShirt.Example.JobWorker)"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+# The AccountKey value `Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==`
+# for the `devstoreaccount1` account is well-known public information for local testing only
+# (Azure Storage emulator / Azurite). These paths are the only places it appears in this repo today.
+[[rules.allowlists]]
+description = "devstoreaccount1 public emulator AccountKey in local test and compose files"
+condition = "AND"
+regexTarget = "secret"
+regexes = [
+  '''^Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==$''',
+]
+paths = [
+  '''test/local/docker-compose\.yaml''',
+  '''test/local/send-azure-queue-job\.py''',
+  '''test/local/set-azure-key-vault-secrets\.py''',
+  '''test/RedShirt\.Example\.JobWorker\.JobManagement\.AzureQueue\.UnitTests/Tests/Factories/QueueConsumerClientFactoryTests\.cs''',
+]
