@@ -102,8 +102,18 @@ internal class RabbitMqJobSource(
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
-        logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from RabbitMQ Queue: {QueueName}",
-            batchSize, consumerQueueService.ConsumerQueueName);
+        if (consumerQueueService.IsUsingExchange)
+        {
+            logger.LogTrace(
+                "Fetching up to {EffectiveBatchSize} messages from RabbitMQ Exchange: {ExchangeName}, Queue: {QueueName}",
+                batchSize, consumerQueueService.ExchangeNameForLogging,
+                consumerQueueService.ConsumerQueueNameForLogging);
+        }
+        else
+        {
+            logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from RabbitMQ Queue: {QueueName}",
+                batchSize, consumerQueueService.ConsumerQueueNameForLogging);
+        }
 
         InnerResults results;
         try
