@@ -1,12 +1,10 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
-using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
@@ -80,10 +78,7 @@ public class RabbitMqJobSourceTests
         var jobSource = new RabbitMqJobSource(
             channelRetryWrapper.Object,
             CreateDetailedExceptionArbiter(),
-            Options.Create(new RabbitMqQueueConfigurationModel
-            {
-                QueueName = queueName!
-            }),
+            RabbitMqConsumerQueueTestHelpers.Create(queueName ?? "jobs"),
             NullLogger<RabbitMqJobSource>.Instance);
 
         return (jobSource, channelRetryWrapper);
@@ -123,10 +118,7 @@ public class RabbitMqJobSourceTests
         return new RabbitMqJobSource(
             wrapper,
             CreateDetailedExceptionArbiter(),
-            Options.Create(new RabbitMqQueueConfigurationModel
-            {
-                QueueName = queueName!
-            }),
+            RabbitMqConsumerQueueTestHelpers.Create(queueName ?? "jobs"),
             NullLogger<RabbitMqJobSource>.Instance);
     }
 
@@ -174,10 +166,7 @@ public class RabbitMqJobSourceTests
         var jobSource = new RabbitMqJobSource(
             channelRetryWrapper.Object,
             CreateDetailedExceptionArbiter(),
-            Options.Create(new RabbitMqQueueConfigurationModel
-            {
-                QueueName = null!
-            }),
+            RabbitMqConsumerQueueTestHelpers.CreateLoose(),
             NullLogger<RabbitMqJobSource>.Instance);
 
         var job = new Mock<IRawJobModel>();
@@ -607,10 +596,7 @@ public class RabbitMqJobSourceTests
         var jobSource = new RabbitMqJobSource(
             null!,
             CreateDetailedExceptionArbiter(),
-            Options.Create(new RabbitMqQueueConfigurationModel
-            {
-                QueueName = null!
-            }),
+            RabbitMqConsumerQueueTestHelpers.CreateLoose(),
             NullLogger<RabbitMqJobSource>.Instance);
 
         await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);

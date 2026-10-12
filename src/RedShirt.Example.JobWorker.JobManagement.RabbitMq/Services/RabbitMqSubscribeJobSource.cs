@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
@@ -12,7 +11,6 @@ using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Services.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
-using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
 using System.Text;
@@ -27,7 +25,7 @@ internal class RabbitMqSubscribeJobSource(
     IExecutionEndArbiter executionEndArbiter,
     ISleepService sleepService,
     IRabbitMqDetailedExceptionArbiter detailedExceptionArbiter,
-    IOptions<RabbitMqQueueConfigurationModel> rabbitMqConfiguration,
+    IRabbitMqConsumerQueueService consumerQueueService,
     ILogger<RabbitMqSubscribeJobSource> logger)
     : IJobSource
 #pragma warning restore S107
@@ -51,7 +49,7 @@ internal class RabbitMqSubscribeJobSource(
             var body = Encoding.UTF8.GetString(args.Body.ToArray());
 
             logger.LogTrace("Received message {MessageId} from RabbitMQ Queue: {QueueName}",
-                args.BasicProperties.MessageId ?? "UNKNOWN", rabbitMqConfiguration.Value.QueueName);
+                args.BasicProperties.MessageId ?? "UNKNOWN", consumerQueueService.ConsumerQueueName);
 
             var job = new RabbitMqRawJobModel
             {
@@ -82,7 +80,7 @@ internal class RabbitMqSubscribeJobSource(
     /// <param name="cancellationToken"></param>
     private async Task StartConsumerAsync(IChannel channel, CancellationToken cancellationToken)
     {
-        logger.LogTrace("Subscribing to RabbitMQ Queue: {QueueName}", rabbitMqConfiguration.Value.QueueName);
+        logger.LogTrace("Subscribing to RabbitMQ Queue: {QueueName}", consumerQueueService.ConsumerQueueName);
 
         var consumer = new AsyncEventingBasicConsumer(channel);
         consumer.ReceivedAsync += OnReceivedAsync;
@@ -97,9 +95,9 @@ internal class RabbitMqSubscribeJobSource(
             false, // per consumer, not the whole channel
             cancellationToken);
         _subscriberTag =
-            await channel.BasicConsumeAsync(rabbitMqConfiguration.Value.QueueName, false, consumer, cancellationToken);
+            await channel.BasicConsumeAsync(consumerQueueService.ConsumerQueueName, false, consumer, cancellationToken);
 
-        logger.LogTrace("Subscribed to RabbitMQ Queue: {QueueName}", rabbitMqConfiguration.Value.QueueName);
+        logger.LogTrace("Subscribed to RabbitMQ Queue: {QueueName}", consumerQueueService.ConsumerQueueName);
     }
 
     /// <summary>
