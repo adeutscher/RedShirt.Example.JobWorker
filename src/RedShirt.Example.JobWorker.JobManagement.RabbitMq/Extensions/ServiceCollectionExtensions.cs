@@ -44,6 +44,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton<IRabbitMqExceptionArbiterService, RabbitMqExceptionArbiterService>()
             .AddSingleton<IRabbitMqDetailedExceptionArbiter, RabbitMqDetailedExceptionArbiterService>()
             .AddSingleton<IRabbitMqRetryWrapperService, RabbitMqRetryWrapperService>()
+            .AddSingleton<IRabbitMqConsumerQueueService, RabbitMqConsumerQueueService>()
             .AddSingleton<IRabbitMqChannelRetryWrapper, RabbitMqChannelRetryWrapper>();
     }
 

@@ -21,7 +21,8 @@ internal interface IRabbitMqChannelRetryWrapper
 internal class RabbitMqChannelRetryWrapper(
     IRabbitMqRetryWrapperService retryWrapperService,
     IRabbitMqConnectionCacheSource connectionCacheSource,
-    IRabbitMqExceptionArbiterService exceptionArbiterService) : IRabbitMqChannelRetryWrapper
+    IRabbitMqExceptionArbiterService exceptionArbiterService,
+    IRabbitMqConsumerQueueService consumerQueueService) : IRabbitMqChannelRetryWrapper
 {
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
     private IChannel? _mostRecentChannel;
@@ -141,8 +142,10 @@ internal class RabbitMqChannelRetryWrapper(
             if (localExceptionJudgement.RegenerateChannel || _mostRecentChannel is null)
             {
                 _mostRecentChannel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
+                consumerQueueService.ResetPreparedQueue();
             }
 
+            await consumerQueueService.PrepareConsumerQueueAsync(_mostRecentChannel!, cancellationToken);
             await callback(_mostRecentChannel!, cancellationToken);
         }
         catch (Exception e)
@@ -156,6 +159,7 @@ internal class RabbitMqChannelRetryWrapper(
     public void ResetChannel()
     {
         _mostRecentChannel = null;
+        consumerQueueService.ResetPreparedQueue();
     }
 
     public Task GetChannelAndDoActionWithRetryAsync(Func<IChannel, CancellationToken, Task> callback,

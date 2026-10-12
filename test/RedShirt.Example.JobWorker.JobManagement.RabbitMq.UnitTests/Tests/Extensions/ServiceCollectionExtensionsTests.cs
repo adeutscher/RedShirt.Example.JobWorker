@@ -61,5 +61,7 @@ public class ServiceCollectionExtensionsTests
         Assert.Contains(services, d => d.ServiceType == typeof(IRabbitMqDetailedExceptionArbiter)
                                        && d.ImplementationType == typeof(RabbitMqDetailedExceptionArbiterService));
         Assert.Contains(services, d => d.ServiceType == typeof(IRabbitMqSubscribeConfigurationService));
+        Assert.Contains(services, d => d.ServiceType == typeof(IRabbitMqConsumerQueueService)
+                                       && d.ImplementationType == typeof(RabbitMqConsumerQueueService));
     }
 }

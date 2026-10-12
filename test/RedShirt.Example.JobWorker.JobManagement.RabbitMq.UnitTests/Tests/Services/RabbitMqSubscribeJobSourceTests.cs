@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
@@ -10,7 +9,6 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Configuration;
 using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
-using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
@@ -70,7 +68,7 @@ public class RabbitMqSubscribeJobSourceTests
             executionEndArbiter.Object,
             sleepService.Object,
             subscribeExceptionArbiter.Object,
-            Options.Create(new RabbitMqQueueConfigurationModel {QueueName = QueueName}),
+            RabbitMqConsumerQueueTestHelpers.Create(QueueName),
             NullLogger<RabbitMqSubscribeJobSource>.Instance);
     }
 

@@ -1,12 +1,10 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Extensions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
-using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
@@ -17,7 +15,7 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
 internal class RabbitMqJobSource(
     IRabbitMqChannelRetryWrapper channelRetryWrapper,
     IRabbitMqDetailedExceptionArbiter detailedExceptionArbiter,
-    IOptions<RabbitMqQueueConfigurationModel> configuration,
+    IRabbitMqConsumerQueueService consumerQueueService,
     ILogger<RabbitMqJobSource> logger)
     : IJobSource
 {
@@ -42,7 +40,7 @@ internal class RabbitMqJobSource(
                 await channelRetryWrapper.GetChannelAndDoActionWithRetryAsync(
                     async (channel, ct) =>
                     {
-                        result = await channel.BasicGetAsync(configuration.Value.QueueName, false, ct);
+                        result = await channel.BasicGetAsync(consumerQueueService.ConsumerQueueName, false, ct);
                     }, _nextConnectionAttemptShouldForceNewConnection, cancellationToken: cancellationToken);
                 _nextConnectionAttemptShouldForceNewConnection = false;
             }
@@ -105,7 +103,7 @@ internal class RabbitMqJobSource(
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         logger.LogTrace("Fetching up to {EffectiveBatchSize} messages from RabbitMQ Queue: {QueueName}",
-            batchSize, configuration.Value.QueueName);
+            batchSize, consumerQueueService.ConsumerQueueName);
 
         InnerResults results;
         try

@@ -29,7 +29,11 @@ public class RabbitMqChannelRetryWrapperTests
 
         var cache = new Mock<IRabbitMqConnectionCacheSource>(MockBehavior.Strict);
         var arbiter = new Mock<IRabbitMqExceptionArbiterService>(MockBehavior.Strict);
-        var wrapper = new RabbitMqChannelRetryWrapper(retry, cache.Object, arbiter.Object);
+        var consumerQueue = new Mock<IRabbitMqConsumerQueueService>(MockBehavior.Loose);
+        consumerQueue
+            .Setup(s => s.PrepareConsumerQueueAsync(It.IsAny<IChannel>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var wrapper = new RabbitMqChannelRetryWrapper(retry, cache.Object, arbiter.Object, consumerQueue.Object);
         return (wrapper, cache, connection, arbiter);
     }
 
