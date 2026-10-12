@@ -26,6 +26,7 @@ internal class RabbitMqSubscribeJobSource(
     ISleepService sleepService,
     IRabbitMqDetailedExceptionArbiter detailedExceptionArbiter,
     IRabbitMqConsumerQueueService consumerQueueService,
+    IThreadPoolBackgroundTaskRunner threadPoolBackgroundTaskRunner,
     ILogger<RabbitMqSubscribeJobSource> logger)
     : IJobSource
 #pragma warning restore S107
@@ -34,6 +35,11 @@ internal class RabbitMqSubscribeJobSource(
     ///     Cancellation token provided when subscription started.
     /// </summary>
     private CancellationToken _cancellationToken;
+
+    /// <summary>
+    ///     Set when a reconnect is requested while <see cref="_subscribeLoopRunning" /> is true.
+    /// </summary>
+    private int _pendingReconnectAfterSubscribeLoop;
 
     /// <summary>
     ///     Whether <see cref="SubscribeWithRetryLoopAsync" /> is currently running.
@@ -172,7 +178,19 @@ internal class RabbitMqSubscribeJobSource(
         finally
         {
             Interlocked.Exchange(ref _subscribeLoopRunning, false);
+            if (Interlocked.Exchange(ref _pendingReconnectAfterSubscribeLoop, 0) == 1)
+            {
+                channelRetryWrapper.ResetChannel();
+                ScheduleReconnectAfterShutdown();
+            }
         }
+    }
+
+    private void ScheduleReconnectAfterShutdown()
+    {
+        threadPoolBackgroundTaskRunner.Run(
+            () => SubscribeWithRetryLoopAsync("re-subscribing", true, _cancellationToken),
+            _cancellationToken);
     }
 
     private Task GetChannelAndDoActionWithRetryAsync(Func<IChannel, CancellationToken, Task> callback,
@@ -216,18 +234,17 @@ internal class RabbitMqSubscribeJobSource(
              *  * If HaltOnFailure is true, then the established retry loop still stops the application
              */
 
-            // Avoid spawning another reconnect task while a subscribe loop is already in flight.
-            if (Volatile.Read(ref _subscribeLoopRunning))
-            {
-                return Task.CompletedTask;
-            }
-
             logger.LogWarning(exception, "RabbitMQ connection shutdown, reconnecting");
 
             channelRetryWrapper.ResetChannel();
 
-            _ = Task.Run(() => SubscribeWithRetryLoopAsync("re-subscribing", true, _cancellationToken),
-                _cancellationToken);
+            if (Volatile.Read(ref _subscribeLoopRunning))
+            {
+                Interlocked.Exchange(ref _pendingReconnectAfterSubscribeLoop, 1);
+                return Task.CompletedTask;
+            }
+
+            ScheduleReconnectAfterShutdown();
             return Task.CompletedTask;
         }
 

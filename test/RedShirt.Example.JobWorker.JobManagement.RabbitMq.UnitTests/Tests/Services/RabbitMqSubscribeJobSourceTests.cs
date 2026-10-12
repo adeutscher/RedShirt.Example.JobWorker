@@ -28,7 +28,8 @@ public class RabbitMqSubscribeJobSourceTests
         Mock<ISleepService>? sleepService = null,
         bool haltOnFailure = true,
         int backlogSize = 5,
-        bool treatTransientExceptionAsFailure = false)
+        bool treatTransientExceptionAsFailure = false,
+        IThreadPoolBackgroundTaskRunner? backgroundTaskRunner = null)
     {
         var coreConfiguration = new Mock<ICoreConfigurationService>(MockBehavior.Strict);
         coreConfiguration.SetupGet(c => c.FetchCount).Returns(backlogSize);
@@ -69,6 +70,7 @@ public class RabbitMqSubscribeJobSourceTests
             sleepService.Object,
             subscribeExceptionArbiter.Object,
             RabbitMqConsumerQueueTestHelpers.Create(QueueName),
+            backgroundTaskRunner ?? new ThreadPoolBackgroundTaskRunner(),
             NullLogger<RabbitMqSubscribeJobSource>.Instance);
     }
 
@@ -268,11 +270,11 @@ public class RabbitMqSubscribeJobSourceTests
             TestContext.Current.CancellationToken), Times.Once);
     }
 
-    [Fact(Timeout = 5000)]
+    [Fact]
     public async Task StartSubscriberAsync_WhenConnectionShutsDown_Resubscribes()
     {
         var channel = new Mock<IChannel>(MockBehavior.Strict);
-        var resubscribed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var initialSubscribeCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var consumeCount = 0;
 
         channel
@@ -290,9 +292,9 @@ public class RabbitMqSubscribeJobSourceTests
                 It.IsAny<CancellationToken>()))
             .Returns(() =>
             {
-                if (Interlocked.Increment(ref consumeCount) == 2)
+                if (Interlocked.Increment(ref consumeCount) == 1)
                 {
-                    resubscribed.TrySetResult();
+                    initialSubscribeCompleted.TrySetResult();
                 }
 
                 return Task.FromResult("ctag");
@@ -305,10 +307,25 @@ public class RabbitMqSubscribeJobSourceTests
             .Callback<AsyncEventHandler<ShutdownEventArgs>>(handler => shutdownHandler += handler);
         connection.SetupRemove(c => c.ConnectionShutdownAsync -= It.IsAny<AsyncEventHandler<ShutdownEventArgs>>());
 
-        var wrapper = CreatePassthroughWrapper(channel.Object, onNew => onNew?.Invoke(connection.Object));
-        var jobSource = CreateJobSource(wrapper);
+        var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
+        wrapper.Setup(w => w.ResetChannel());
+        wrapper
+            .Setup(w => w.GetChannelAndDoActionWithRetryAsync(
+                It.IsAny<Func<IChannel, CancellationToken, Task>>(),
+                It.IsAny<bool>(),
+                It.IsAny<Action<IConnection>?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((Func<IChannel, CancellationToken, Task> callback, bool _, Action<IConnection>? onNew,
+                CancellationToken token) =>
+            {
+                onNew?.Invoke(connection.Object);
+                return callback(channel.Object, token);
+            });
+
+        var jobSource = CreateJobSource(wrapper, backgroundTaskRunner: new InlineThreadPoolBackgroundTaskRunner());
 
         await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
+        await initialSubscribeCompleted.Task.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.NotNull(shutdownHandler);
         await shutdownHandler!(connection.Object,
@@ -316,9 +333,8 @@ public class RabbitMqSubscribeJobSourceTests
                 new AlreadyClosedException(new ShutdownEventArgs(ShutdownInitiator.Peer, 320, "CONNECTION_FORCED")),
                 TestContext.Current.CancellationToken));
 
-        await resubscribed.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
-
         wrapper.Verify(w => w.ResetChannel(), Times.AtLeastOnce);
+        Assert.Equal(2, consumeCount);
         channel.Verify(c => c.BasicConsumeAsync(
             QueueName,
             false,
