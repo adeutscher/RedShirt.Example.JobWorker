@@ -43,6 +43,15 @@ internal class RabbitMqConsumerQueueService(
     private IChannel? _preparedChannel;
     private string? _temporaryQueueName;
 
+    private static string BuildTemporaryQueueName(string exchangeName, string? label)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(exchangeName);
+        var guid = Guid.NewGuid().ToString("N");
+        return string.IsNullOrWhiteSpace(label)
+            ? $"{exchangeName}-Temp-{guid}"
+            : $"{exchangeName}-Temp-{label}-{guid}";
+    }
+
     public bool IsUsingExchange => options.Value.UseExchange;
 
     public string ConsumerQueueNameForLogging
@@ -129,19 +138,19 @@ internal class RabbitMqConsumerQueueService(
 
         var queueName = BuildTemporaryQueueName(exchangeName, configuration.TemporaryQueueLabel);
         await channel.QueueDeclareAsync(
-            queue: queueName,
-            durable: false,
-            exclusive: true,
-            autoDelete: true,
+            queueName,
+            false,
+            true,
+            true,
             passive: false,
             arguments: null,
             cancellationToken: cancellationToken);
 
         await channel.QueueBindAsync(
-            queue: queueName,
-            exchange: exchangeName,
-            routingKey: string.Empty,
-            arguments: new Dictionary<string, object?> {["x-match"] = "all"},
+            queueName,
+            exchangeName,
+            string.Empty,
+            new Dictionary<string, object?> {["x-match"] = "all"},
             cancellationToken: cancellationToken);
 
         _preparedChannel = channel;
@@ -151,14 +160,5 @@ internal class RabbitMqConsumerQueueService(
             "Prepared temporary RabbitMQ queue {QueueName} bound to exchange {ExchangeName}",
             queueName,
             exchangeName);
-    }
-
-    private static string BuildTemporaryQueueName(string exchangeName, string? label)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(exchangeName);
-        var guid = Guid.NewGuid().ToString("N");
-        return string.IsNullOrWhiteSpace(label)
-            ? $"{exchangeName}-Temp-{guid}"
-            : $"{exchangeName}-Temp-{label}-{guid}";
     }
 }

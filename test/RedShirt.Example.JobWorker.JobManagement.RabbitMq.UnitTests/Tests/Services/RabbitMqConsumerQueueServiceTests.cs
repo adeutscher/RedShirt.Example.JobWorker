@@ -9,16 +9,14 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Serv
 public class RabbitMqConsumerQueueServiceTests
 {
     [Fact]
-    public void ConsumerQueueName_WhenNotUsingExchange_ReturnsConfiguredQueueName()
+    public void ConsumerQueueNameForLogging_WhenConsumerQueueNameThrows_ReturnsNotDeclaredPlaceholder()
     {
         var service = new RabbitMqConsumerQueueService(
-            Options.Create(new RabbitMqQueueConfigurationModel
-            {
-                QueueName = "jobs"
-            }),
+            Options.Create(new RabbitMqQueueConfigurationModel()),
             NullLogger<RabbitMqConsumerQueueService>.Instance);
 
-        Assert.Equal("jobs", service.ConsumerQueueName);
+        Assert.Equal(RabbitMqConsumerQueueLoggingConstants.NotDeclaredLoggingPlaceholder,
+            service.ConsumerQueueNameForLogging);
     }
 
     [Fact]
@@ -29,6 +27,19 @@ public class RabbitMqConsumerQueueServiceTests
             NullLogger<RabbitMqConsumerQueueService>.Instance);
 
         Assert.Throws<InvalidOperationException>(() => _ = service.ConsumerQueueName);
+    }
+
+    [Fact]
+    public void ConsumerQueueName_WhenNotUsingExchange_ReturnsConfiguredQueueName()
+    {
+        var service = new RabbitMqConsumerQueueService(
+            Options.Create(new RabbitMqQueueConfigurationModel
+            {
+                QueueName = "jobs"
+            }),
+            NullLogger<RabbitMqConsumerQueueService>.Instance);
+
+        Assert.Equal("jobs", service.ConsumerQueueName);
     }
 
     [Fact]
@@ -43,17 +54,6 @@ public class RabbitMqConsumerQueueServiceTests
             NullLogger<RabbitMqConsumerQueueService>.Instance);
 
         Assert.Throws<InvalidOperationException>(() => _ = service.ConsumerQueueName);
-    }
-
-    [Fact]
-    public void ConsumerQueueNameForLogging_WhenConsumerQueueNameThrows_ReturnsNotDeclaredPlaceholder()
-    {
-        var service = new RabbitMqConsumerQueueService(
-            Options.Create(new RabbitMqQueueConfigurationModel()),
-            NullLogger<RabbitMqConsumerQueueService>.Instance);
-
-        Assert.Equal(RabbitMqConsumerQueueLoggingConstants.NotDeclaredLoggingPlaceholder,
-            service.ConsumerQueueNameForLogging);
     }
 
     [Fact]

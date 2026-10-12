@@ -5,17 +5,6 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Conf
 public class RabbitMqQueueConfigurationModelTests
 {
     [Fact]
-    public void Properties_DefaultToUnsetValues()
-    {
-        var model = new RabbitMqQueueConfigurationModel();
-
-        Assert.False(model.UseExchange);
-        Assert.Null(model.QueueName);
-        Assert.Null(model.TemporaryQueueExchangeName);
-        Assert.Null(model.TemporaryQueueLabel);
-    }
-
-    [Fact]
     public void Properties_CanBeInitializedAndRead()
     {
         var model = new RabbitMqQueueConfigurationModel
@@ -30,5 +19,16 @@ public class RabbitMqQueueConfigurationModelTests
         Assert.Equal("RabbitQueue", model.QueueName);
         Assert.Equal("RabbitExchange", model.TemporaryQueueExchangeName);
         Assert.Equal("worker", model.TemporaryQueueLabel);
+    }
+
+    [Fact]
+    public void Properties_DefaultToUnsetValues()
+    {
+        var model = new RabbitMqQueueConfigurationModel();
+
+        Assert.False(model.UseExchange);
+        Assert.Null(model.QueueName);
+        Assert.Null(model.TemporaryQueueExchangeName);
+        Assert.Null(model.TemporaryQueueLabel);
     }
 }

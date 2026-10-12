@@ -79,7 +79,7 @@ public class BarRetryWrapperServiceTests
         var rateLimited = new BarRateLimitedException(TimeSpan.FromSeconds(2));
         var arbiter = new Mock<IBarExceptionArbiterService>(MockBehavior.Strict);
         var sleep = CreateSleepService();
-        var sut = CreateSut(arbiter, sleep, 3);
+        var sut = CreateSut(arbiter, sleep);
 
         var thrown = await Assert.ThrowsAsync<BarRateLimitedException>(() =>
             sut.RunAsync<int>(_ => throw rateLimited, TestContext.Current.CancellationToken));

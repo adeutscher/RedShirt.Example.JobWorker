@@ -24,8 +24,8 @@ different message broker technologies.
 
 It may be tempting to think of subscribing to messages and being assigned a message by the message broker as being a
 Pull operation. After all, RabbitMQ's underlying protocol has messages being delivered to a client. The subscription
-mode in ActiveMQ and consuming in NATS involves reading from a stream that the server writes to, which could be interpreted as a Pull
-or a Push from a certain point of view. However, these systems are not Push systems.
+mode in ActiveMQ and consuming in NATS involves reading from a stream that the server writes to, which could be
+interpreted as a Pull or a Push from a certain point of view. However, these systems are not Push systems.
 
 The terms Push and Pull in message brokers specifically refer to the directionality of the connection that the messages
 are sent over. The mechanics of how messages are relayed at the protocol level is irrelevant. Thus, every message source
