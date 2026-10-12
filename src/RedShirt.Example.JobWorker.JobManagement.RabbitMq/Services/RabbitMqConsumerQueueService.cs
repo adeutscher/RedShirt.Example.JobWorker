@@ -26,7 +26,7 @@ internal interface IRabbitMqConsumerQueueService
 
     /// <summary>
     ///     Exchange name for trace logging when <see cref="IsUsingExchange" /> is true.
-    ///     Returns "&lt; Not Declared &gt;" when the exchange name is not configured. For logging only.
+    ///     Returns a human-friendly placeholder when the exchange name is not configured. For logging only.
     /// </summary>
     string ExchangeNameForLogging { get; }
 
