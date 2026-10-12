@@ -38,6 +38,7 @@ done <<< "$(find . \( \
   -name '*.cs' -o \
   -name '*.csproj' -o \
   -name '*.md' -o \
+  -name '*.mdc' -o \
   -name '*.slnx' -o \
   -name '*.sh' -o \
   -name 'Dockerfile' -o \
