@@ -12,5 +12,8 @@ public class RabbitMqQueueConfigurationModel
 
     public string? TemporaryQueueExchangeName { get; init; }
 
-    public string? TemporaryQueueNamePrefix { get; init; }
+    /// <summary>
+    ///     Optional infix in generated temporary queue names when <see cref="UseExchange" /> is true.
+    /// </summary>
+    public string? TemporaryQueueLabel { get; init; }
 }

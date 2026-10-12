@@ -127,7 +127,7 @@ internal class RabbitMqConsumerQueueService(
 
         await channel.ExchangeDeclarePassiveAsync(exchangeName, cancellationToken);
 
-        var queueName = BuildTemporaryQueueName(configuration.TemporaryQueueNamePrefix);
+        var queueName = BuildTemporaryQueueName(exchangeName, configuration.TemporaryQueueLabel);
         await channel.QueueDeclareAsync(
             queue: queueName,
             durable: false,
@@ -153,9 +153,12 @@ internal class RabbitMqConsumerQueueService(
             exchangeName);
     }
 
-    private static string BuildTemporaryQueueName(string? prefix)
+    private static string BuildTemporaryQueueName(string exchangeName, string? label)
     {
-        var suffix = Guid.NewGuid().ToString("N");
-        return string.IsNullOrWhiteSpace(prefix) ? $"jobworker-{suffix}" : $"{prefix}{suffix}";
+        ArgumentException.ThrowIfNullOrWhiteSpace(exchangeName);
+        var guid = Guid.NewGuid().ToString("N");
+        return string.IsNullOrWhiteSpace(label)
+            ? $"{exchangeName}-Temp-{guid}"
+            : $"{exchangeName}-Temp-{label}-{guid}";
     }
 }
