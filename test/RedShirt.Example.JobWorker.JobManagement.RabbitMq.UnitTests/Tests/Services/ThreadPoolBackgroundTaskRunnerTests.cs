@@ -5,24 +5,55 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Serv
 public class ThreadPoolBackgroundTaskRunnerTests
 {
     [Fact]
-    public async Task Run_ExecutesWorkOnAnotherThread()
+    public async Task Run_AwaitsReturnedTaskFromWork()
     {
         var runner = new ThreadPoolBackgroundTaskRunner();
-        var callerThreadId = Environment.CurrentManagedThreadId;
-        var workerThreadId = default(int?);
-        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var workEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var innerCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var workFullyCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var observed = false;
 
         runner.Run(async () =>
         {
-            workerThreadId = Environment.CurrentManagedThreadId;
-            await Task.Yield();
-            completed.TrySetResult();
+            workEntered.TrySetResult();
+            await innerCompleted.Task;
+            observed = true;
+            workFullyCompleted.TrySetResult();
         }, TestContext.Current.CancellationToken);
 
-        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await workEntered.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        Assert.False(observed);
 
-        Assert.NotNull(workerThreadId);
-        Assert.NotEqual(callerThreadId, workerThreadId.Value);
+        innerCompleted.TrySetResult();
+        await workFullyCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.True(observed);
+    }
+
+    [Fact]
+    public async Task Run_ExecutesWorkOnThreadPoolThread()
+    {
+        var runner = new ThreadPoolBackgroundTaskRunner();
+        var workEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseWork = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var workFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var observedOnPoolThread = false;
+
+        runner.Run(async () =>
+        {
+            workEntered.TrySetResult();
+            await releaseWork.Task;
+            observedOnPoolThread = Thread.CurrentThread.IsThreadPoolThread;
+            workFinished.TrySetResult();
+        }, TestContext.Current.CancellationToken);
+
+        await workEntered.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        Assert.False(releaseWork.Task.IsCompleted);
+
+        releaseWork.TrySetResult();
+        await workFinished.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.True(observedOnPoolThread);
     }
 
     [Fact]
@@ -55,29 +86,5 @@ public class ThreadPoolBackgroundTaskRunnerTests
         await Task.Delay(200, TestContext.Current.CancellationToken);
 
         Assert.False(executed);
-    }
-
-    [Fact]
-    public async Task Run_AwaitsReturnedTaskFromWork()
-    {
-        var runner = new ThreadPoolBackgroundTaskRunner();
-        var innerCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var workFullyCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var observed = false;
-
-        runner.Run(async () =>
-        {
-            await innerCompleted.Task;
-            observed = true;
-            workFullyCompleted.TrySetResult();
-        }, TestContext.Current.CancellationToken);
-
-        await Task.Delay(50, TestContext.Current.CancellationToken);
-        Assert.False(observed);
-
-        innerCompleted.TrySetResult();
-        await workFullyCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
-
-        Assert.True(observed);
     }
 }

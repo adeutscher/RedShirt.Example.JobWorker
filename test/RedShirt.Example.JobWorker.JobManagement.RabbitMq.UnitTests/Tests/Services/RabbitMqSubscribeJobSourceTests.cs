@@ -304,7 +304,7 @@ public class RabbitMqSubscribeJobSourceTests
         AsyncEventHandler<ShutdownEventArgs>? shutdownHandler = null;
         connection
             .SetupAdd(c => c.ConnectionShutdownAsync += It.IsAny<AsyncEventHandler<ShutdownEventArgs>>())
-            .Callback<AsyncEventHandler<ShutdownEventArgs>>(handler => shutdownHandler += handler);
+            .Callback<AsyncEventHandler<ShutdownEventArgs>>(handler => shutdownHandler = handler);
         connection.SetupRemove(c => c.ConnectionShutdownAsync -= It.IsAny<AsyncEventHandler<ShutdownEventArgs>>());
 
         var wrapper = new Mock<IRabbitMqChannelRetryWrapper>(MockBehavior.Strict);
@@ -322,16 +322,20 @@ public class RabbitMqSubscribeJobSourceTests
                 return callback(channel.Object, token);
             });
 
-        var jobSource = CreateJobSource(wrapper, backgroundTaskRunner: new InlineThreadPoolBackgroundTaskRunner());
+        var recordingRunner = new RecordingThreadPoolBackgroundTaskRunner();
+        var jobSource = CreateJobSource(wrapper, backgroundTaskRunner: recordingRunner);
 
         await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
-        await initialSubscribeCompleted.Task.WaitAsync(TestContext.Current.CancellationToken);
+        await initialSubscribeCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10),
+            TestContext.Current.CancellationToken);
 
         Assert.NotNull(shutdownHandler);
         await shutdownHandler!(connection.Object,
             new ShutdownEventArgs(ShutdownInitiator.Peer, 320, "CONNECTION_FORCED",
                 new AlreadyClosedException(new ShutdownEventArgs(ShutdownInitiator.Peer, 320, "CONNECTION_FORCED")),
                 TestContext.Current.CancellationToken));
+
+        await recordingRunner.DrainAllAsync(TestContext.Current.CancellationToken);
 
         wrapper.Verify(w => w.ResetChannel(), Times.AtLeastOnce);
         Assert.Equal(2, consumeCount);
@@ -443,7 +447,7 @@ public class RabbitMqSubscribeJobSourceTests
         AsyncEventHandler<ShutdownEventArgs>? shutdownHandler = null;
         connection
             .SetupAdd(c => c.ConnectionShutdownAsync += It.IsAny<AsyncEventHandler<ShutdownEventArgs>>())
-            .Callback<AsyncEventHandler<ShutdownEventArgs>>(handler => shutdownHandler += handler);
+            .Callback<AsyncEventHandler<ShutdownEventArgs>>(handler => shutdownHandler = handler);
         connection.SetupRemove(c => c.ConnectionShutdownAsync -= It.IsAny<AsyncEventHandler<ShutdownEventArgs>>());
 
         var attempts = 0;
