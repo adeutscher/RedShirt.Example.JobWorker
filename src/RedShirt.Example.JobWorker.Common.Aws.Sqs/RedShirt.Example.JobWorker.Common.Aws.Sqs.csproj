@@ -7,7 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="AWSSDK.SQS" Version="4.0.100.16"/>
+        <PackageReference Include="AWSSDK.SQS" Version="4.0.100.20"/>
         <PackageReference Include="Polly.Core" Version="8.8.0"/>
     </ItemGroup>
 
