@@ -14,9 +14,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.109.1"/>
-        <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.102.6"/>
-        <PackageReference Include="AWSSDK.Kinesis" Version="4.0.104.6"/>
+        <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.1.0" />
+        <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.1.0" />
+        <PackageReference Include="AWSSDK.Kinesis" Version="4.1.0" />
     </ItemGroup>
 
 </Project>
