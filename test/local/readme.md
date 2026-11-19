@@ -626,6 +626,10 @@ VSCode automatically knows how to point to your local `azurite` server after the
 #### Testing Messages
 
 1. Run `generate-azure-key-vault-cert.sh` to generate the certificate files necessary for the Azure Key Vault Emulator to work.
+   The script also copies the public certificate to `config/azure-key-vault-ca/`, which is mounted into the worker. In
+   local testing mode the worker trusts only that certificate, and it fails at startup if the file is missing. If you
+   generated certificates before this behaviour was added, run the script again: older certificates do not include the
+   `azure-key-vault-emulator.vault.azure.net` hostname that the worker connects to.
 
     ```bash
     ./generate-azure-key-vault-cert.sh
@@ -699,6 +703,10 @@ pip install azure.servicebus azure.identity azure.keyvault
 #### Testing Messages
 
 1. Run `generate-azure-key-vault-cert.sh` to generate the certificate files necessary for the Azure Key Vault Emulator to work.
+   The script also copies the public certificate to `config/azure-key-vault-ca/`, which is mounted into the worker. In
+   local testing mode the worker trusts only that certificate, and it fails at startup if the file is missing. If you
+   generated certificates before this behaviour was added, run the script again: older certificates do not include the
+   `azure-key-vault-emulator.vault.azure.net` hostname that the worker connects to.
 
     ```bash
     ./generate-azure-key-vault-cert.sh

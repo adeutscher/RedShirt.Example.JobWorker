@@ -20,24 +20,31 @@ internal class KafkaJobSource(
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
-        if (message is not KafkaJobModel kafkaJobModel
-            || Session is null)
+        if (message is not KafkaJobModel kafkaJobModel)
         {
             return;
         }
 
         // result is intentionally unused for checkpointing: the topic always advances.
         // Unrecoverable failures are handled via IJobFailureHandler (application DLQ).
-        // The `_ = result;` phrasing prevents certain code analysis tools from flagging this as a potential issue 
+        // The `_ = result;` phrasing prevents certain code analysis tools from flagging this as a potential issue
         _ = result;
 
         await _sessionSemaphore.WaitAsync(cancellationToken);
 
         try
         {
-            Session.Increment(kafkaJobModel.MessageId);
+            // Read the session under the semaphore, as the Kinesis job source does with its sessions.
+            // GetJobsAsync assigns it under the same semaphore.
+            var session = Session;
+            if (session is null)
+            {
+                return;
+            }
 
-            if (!Session.IsComplete)
+            session.Increment(kafkaJobModel.MessageId);
+
+            if (!session.IsComplete)
             {
                 return;
             }
@@ -46,11 +53,15 @@ internal class KafkaJobSource(
              * Confirming that this double-retry is intentional
              * Most of the important code within the consumer wrapper implementation is itself wrapped by the retryWrapper.
              * Wrapping again just in case there's something exception-worthy coming from another part of the code.
+             *
+             * Commit every message that was read in the batch, including the ones skipped for empty bodies.
+             * Like the Kinesis checkpoint, this advances past the whole batch, so a skipped message at the end of a
+             * batch is not read again after a restart or rebalance.
              */
             await retryWrapperService.RunAsync(async ct =>
             {
                 var consumer = consumerSource.GetConsumer();
-                await consumer.CommitAsync(Session.MessagesToProcess, ct);
+                await consumer.CommitAsync(session.TotalMessages, ct);
             }, cancellationToken);
 
             Session = null;

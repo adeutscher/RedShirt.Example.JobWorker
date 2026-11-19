@@ -12,12 +12,18 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddSecretManagerAzureKeyVault(this IServiceCollection services,
         IConfigurationRoot configuration)
     {
+        services
+            .AddOptions<AzureKeyVaultClientFactory.ConfigurationModel>()
+            .Bind(configuration.GetSection("Common:Secrets:AzureKeyVault"))
+            .Validate(AzureKeyVaultClientFactory.ConfigurationModel.IsValid,
+                "Azure Key Vault local testing mode (GenerateLocalTestingToken) requires " +
+                "LocalTestingCaCertificatePath to name an existing certificate file.")
+            .ValidateOnStart();
+
         return services
             // Ensure that common Azure services are wired up
             .AddCommonAzureServices()
             // Azure Key Vault
-            .Configure<AzureKeyVaultClientFactory.ConfigurationModel>(
-                configuration.GetSection("Common:Secrets:AzureKeyVault"))
             .AddSingleton<IAzureKeyVaultClientFactory, AzureKeyVaultClientFactory>()
             .AddSingleton<IAzureKeyVaultClientSource, AzureKeyVaultClientSource>()
             .AddSingleton<ISecretManagerService, AzureKeyVaultService>();

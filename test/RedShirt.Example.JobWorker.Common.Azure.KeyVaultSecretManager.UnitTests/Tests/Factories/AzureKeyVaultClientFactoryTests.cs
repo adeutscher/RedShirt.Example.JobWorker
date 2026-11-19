@@ -1,8 +1,11 @@
 using Azure.Core;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Clients;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Factories;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 
 namespace RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.UnitTests.Tests.Factories;
 
@@ -62,6 +65,17 @@ public class AzureKeyVaultClientFactoryTests
 
     public class GetClient
     {
+        private static string WriteTemporaryCaCertificate()
+        {
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            var request = new CertificateRequest("CN=Test CA", key, HashAlgorithmName.SHA256);
+            using var certificate =
+                request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+            var path = Path.Combine(Path.GetTempPath(), $"kv-ca-{Guid.NewGuid()}.crt");
+            File.WriteAllText(path, certificate.ExportCertificatePem());
+            return path;
+        }
+
         [Fact]
         public void LiveCredential_ReturnsWrapperBoundToConfiguredVaultUri()
         {
@@ -71,7 +85,8 @@ public class AzureKeyVaultClientFactoryTests
                 GenerateLocalTestingToken = false
             };
 
-            var factory = new AzureKeyVaultClientFactory(Options.Create(config));
+            var factory = new AzureKeyVaultClientFactory(Options.Create(config),
+                NullLogger<AzureKeyVaultClientFactory>.Instance);
 
             var client = factory.GetClient();
 
@@ -84,20 +99,49 @@ public class AzureKeyVaultClientFactoryTests
         [Fact]
         public void LocalTestingToken_ReturnsWrapperBoundToConfiguredVaultUri()
         {
+            var caPath = WriteTemporaryCaCertificate();
+            try
+            {
+                var config = new AzureKeyVaultClientFactory.ConfigurationModel
+                {
+                    KeyVaultUrl = "https://localhost:8443/",
+                    GenerateLocalTestingToken = true,
+                    LocalTestingCaCertificatePath = caPath
+                };
+
+                var factory = new AzureKeyVaultClientFactory(Options.Create(config),
+                    NullLogger<AzureKeyVaultClientFactory>.Instance);
+
+                var client = factory.GetClient();
+
+                Assert.IsType<AzureKeyVaultClientWrapper>(client);
+                var wrapper = (AzureKeyVaultClientWrapper) client;
+                Assert.NotNull(wrapper.Client);
+                Assert.Equal(new Uri("https://localhost:8443/"), wrapper.Client.VaultUri);
+            }
+            finally
+            {
+                File.Delete(caPath);
+            }
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        public void LocalTestingToken_WithoutCaCertificatePath_Throws(string? caPath)
+        {
             var config = new AzureKeyVaultClientFactory.ConfigurationModel
             {
                 KeyVaultUrl = "https://localhost:8443/",
-                GenerateLocalTestingToken = true
+                GenerateLocalTestingToken = true,
+                LocalTestingCaCertificatePath = caPath
             };
 
-            var factory = new AzureKeyVaultClientFactory(Options.Create(config));
+            var factory = new AzureKeyVaultClientFactory(Options.Create(config),
+                NullLogger<AzureKeyVaultClientFactory>.Instance);
 
-            var client = factory.GetClient();
-
-            Assert.IsType<AzureKeyVaultClientWrapper>(client);
-            var wrapper = (AzureKeyVaultClientWrapper) client;
-            Assert.NotNull(wrapper.Client);
-            Assert.Equal(new Uri("https://localhost:8443/"), wrapper.Client.VaultUri);
+            var thrown = Assert.Throws<InvalidOperationException>(() => factory.GetClient());
+            Assert.Contains("LocalTestingCaCertificatePath", thrown.Message);
         }
     }
 }

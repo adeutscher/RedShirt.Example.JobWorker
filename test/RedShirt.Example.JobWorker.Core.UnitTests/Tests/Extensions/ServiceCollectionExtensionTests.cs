@@ -20,6 +20,27 @@ public class ServiceCollectionExtensionTests
             .Build();
     }
 
+    [Fact]
+    public void AddCoreJobManagement_BindsIdempotencyKeyNamespace()
+    {
+        var configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Jobs:Idempotency:Enabled"] = "true",
+            ["Jobs:Idempotency:ResultCacheDurationSeconds"] = "45",
+            ["Jobs:Idempotency:MonitorIntervalSeconds"] = "7",
+            ["Jobs:Idempotency:IdempotencyIdsCanRepeat"] = "false",
+            ["Jobs:Idempotency:EnableTraceLogging"] = "false",
+            ["Jobs:Idempotency:KeyNamespace"] = "orders-worker"
+        });
+
+        using var provider = new ServiceCollection()
+            .AddCoreJobManagement(configuration)
+            .BuildServiceProvider();
+
+        var options = provider.GetRequiredService<IOptions<IdempotencyConfigurationModel>>().Value;
+        Assert.Equal("orders-worker", options.EffectiveKeyNamespace);
+    }
+
     [Theory]
     [InlineData(true, true)]
     [InlineData(false, false)]
@@ -65,6 +86,7 @@ public class ServiceCollectionExtensionTests
         Assert.Equal(7, options.MonitorIntervalSeconds);
         Assert.True(options.IdempotencyIdsCanRepeat);
         Assert.True(options.EnableTraceLogging);
+        Assert.Equal(AppDomain.CurrentDomain.FriendlyName, options.EffectiveKeyNamespace);
     }
 
     [Theory]
@@ -206,6 +228,28 @@ public class ServiceCollectionExtensionTests
 
         var options = provider.GetRequiredService<IOptions<TimeBorderWrapperService.ConfigurationModel>>().Value;
         Assert.Equal(taskWaitBufferSeconds, options.TaskWaitBufferSeconds);
+    }
+
+    [Fact]
+    public void AddCoreJobManagement_IdempotencyKeyNamespaceWithColon_FailsValidation()
+    {
+        var configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Jobs:Idempotency:Enabled"] = "true",
+            ["Jobs:Idempotency:ResultCacheDurationSeconds"] = "45",
+            ["Jobs:Idempotency:MonitorIntervalSeconds"] = "7",
+            ["Jobs:Idempotency:IdempotencyIdsCanRepeat"] = "false",
+            ["Jobs:Idempotency:EnableTraceLogging"] = "false",
+            ["Jobs:Idempotency:KeyNamespace"] = "orders:worker"
+        });
+
+        using var provider = new ServiceCollection()
+            .AddCoreJobManagement(configuration)
+            .BuildServiceProvider();
+
+        var thrown = Assert.Throws<OptionsValidationException>(() =>
+            provider.GetRequiredService<IOptions<IdempotencyConfigurationModel>>().Value);
+        Assert.Contains("KeyNamespace", thrown.Message);
     }
 
     [Fact]

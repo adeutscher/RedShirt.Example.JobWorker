@@ -2,8 +2,11 @@ using Azure.Core;
 using Azure.Core.Pipeline;
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Clients;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 
@@ -14,7 +17,9 @@ internal interface IAzureKeyVaultClientFactory
     IAzureKeyVaultClientWrapper GetClient();
 }
 
-internal sealed class AzureKeyVaultClientFactory(IOptions<AzureKeyVaultClientFactory.ConfigurationModel> options)
+internal sealed class AzureKeyVaultClientFactory(
+    IOptions<AzureKeyVaultClientFactory.ConfigurationModel> options,
+    ILogger<AzureKeyVaultClientFactory> logger)
     : IAzureKeyVaultClientFactory
 {
     public IAzureKeyVaultClientWrapper GetClient()
@@ -26,32 +31,77 @@ internal sealed class AzureKeyVaultClientFactory(IOptions<AzureKeyVaultClientFac
             return new AzureKeyVaultClientWrapper(liveClient);
         }
 
-        var handler = new HttpClientHandler
+        /*
+         * Local testing mode, for a Key Vault emulator with a self-signed certificate.
+         *
+         * Rather than trusting every certificate, trust only the emulator's own certificate, loaded from a file.
+         * This applies to this one HttpClient and leaves the system trust store alone. Hostname checks stay on.
+         * Pairing a bogus token with a trust-all handler kept real credentials from leaking, but it still let any
+         * server that could intercept the connection hand the worker forged secrets. A pinned certificate closes that.
+         */
+        var caCertificatePath = options.Value.LocalTestingCaCertificatePath;
+        if (string.IsNullOrWhiteSpace(caCertificatePath))
         {
-            /*
-             * Enable an all-trusting server certificate validation handler
-             * Specific phrasing by way of variable is a wormy workaround to suppress Sonar's S4830 rule.
-             *
-             * While we are globally trusting certificates, this is only in effect in tandem with a hard-coded JWT value.
-             * Therefore, the only time that this combination will not result in a catastrophic exception is when paired with an equally-insecure key vault server set up for local testing.
-             *
-             * I'm not entirely thrilled with this setup, as it introduces logic that's caused a bit too directly by local test running for my tastes.
-             * However, pairing the global-cert-trusting with the hard-coded credential is "good enough" for now.
-             */
-            ServerCertificateCustomValidationCallback =
-                (_, _, _, _) => options.Value.GenerateLocalTestingToken
-        };
+            throw new InvalidOperationException(
+                "Azure Key Vault local testing mode requires LocalTestingCaCertificatePath to be set.");
+        }
 
+        logger.LogWarning(
+            "Azure Key Vault local testing mode is enabled. A bogus access token is sent, and only certificates " +
+            "issued by {CaCertificatePath} are trusted. Do not use this mode outside of local testing.",
+            caCertificatePath);
+
+        var caCertificate = X509CertificateLoader.LoadCertificateFromFile(caCertificatePath);
         var clientOptions = new SecretClientOptions
         {
             DisableChallengeResourceVerification = true,
-            Transport = new HttpClientTransport(handler)
+            Transport = new HttpClientTransport(CreateLocalTestingHandler(caCertificate))
         };
 
-        // Make syntactically valid but otherwise bogus credentials to balance out the SSL blank cheque
+        // Syntactically valid but otherwise bogus credentials, accepted only by a local testing emulator.
         var credential = new FakeLocalTestingTokenCredential();
         var innerClient = new SecretClient(new Uri(options.Value.KeyVaultUrl), credential, clientOptions);
         return new AzureKeyVaultClientWrapper(innerClient);
+    }
+
+    /// <summary>
+    ///     Build an <see cref="HttpClientHandler" /> that trusts server certificates chaining to
+    ///     <paramref name="caCertificate" />, in addition to the system trust store.
+    /// </summary>
+    internal static HttpClientHandler CreateLocalTestingHandler(X509Certificate2 caCertificate)
+    {
+        return new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = (_, certificate, _, errors) =>
+                IsTrustedByLocalTestingCa(caCertificate, certificate, errors)
+        };
+    }
+
+    /// <summary>
+    ///     Server certificate check for local testing mode.
+    ///     A certificate that the system already trusts passes. Otherwise, only an untrusted chain is forgiven, and only
+    ///     when the chain builds to <paramref name="caCertificate" />. A hostname mismatch or a missing certificate always
+    ///     fails.
+    /// </summary>
+    internal static bool IsTrustedByLocalTestingCa(X509Certificate2 caCertificate, X509Certificate2? certificate,
+        SslPolicyErrors errors)
+    {
+        if (errors == SslPolicyErrors.None)
+        {
+            return true;
+        }
+
+        if (errors != SslPolicyErrors.RemoteCertificateChainErrors || certificate is null)
+        {
+            return false;
+        }
+
+        using var chain = new X509Chain();
+        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+        chain.ChainPolicy.CustomTrustStore.Add(caCertificate);
+        // A local emulator certificate has no revocation endpoint to check.
+        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+        return chain.Build(certificate);
     }
 
     private sealed class FakeLocalTestingTokenCredential : TokenCredential
@@ -94,5 +144,22 @@ internal sealed class AzureKeyVaultClientFactory(IOptions<AzureKeyVaultClientFac
     {
         public required string KeyVaultUrl { get; init; }
         public required bool GenerateLocalTestingToken { get; init; }
+
+        /// <summary>
+        ///     Path to the PEM or DER certificate of the local Key Vault emulator. Required when
+        ///     <see cref="GenerateLocalTestingToken" /> is <c>true</c>, and ignored otherwise.
+        /// </summary>
+        public string? LocalTestingCaCertificatePath { get; init; }
+
+        /// <summary>
+        ///     Startup check: local testing mode must name a CA certificate file that exists, so that the emulator's
+        ///     certificate is pinned instead of every certificate being trusted.
+        /// </summary>
+        internal static bool IsValid(ConfigurationModel model)
+        {
+            return !model.GenerateLocalTestingToken
+                   || (!string.IsNullOrWhiteSpace(model.LocalTestingCaCertificatePath)
+                       && File.Exists(model.LocalTestingCaCertificatePath));
+        }
     }
 }

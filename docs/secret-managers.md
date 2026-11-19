@@ -59,3 +59,22 @@ Other notes:
     * In general, it's advised not to meddle with secret targets within the container at all if you plan to use them
       with this template's Docker secret manager.
 * The implementation has not been tested under Docker Swarm, and as such hasn't been tested with external secrets.
+
+## Azure Key Vault Local Testing Mode
+
+For local testing against a Key Vault emulator, set `COMMON__SECRETS__AZURE_KEY_VAULT__GENERATE_LOCAL_TESTING_TOKEN` to
+`true`. In this mode the worker:
+
+* Sends a syntactically valid but bogus access token that only an emulator accepts.
+* Trusts only the emulator's own certificate, read from
+  `COMMON__SECRETS__AZURE_KEY_VAULT__LOCAL_TESTING_CA_CERTIFICATE_PATH`, for its Key Vault connection. The system
+  trust store is not changed, and hostname checks stay on.
+* Fails at startup if that path is not set or the file does not exist.
+* Logs a warning when the Key Vault client is created.
+
+Never enable this mode outside of local testing. Pinning the certificate means a worker that was misconfigured with it
+still refuses servers that cannot present a certificate issued by the pinned CA. But the bogus token cannot
+authenticate against a real Key Vault, so secret lookups would fail.
+
+`test/local/generate-azure-key-vault-cert.sh` creates the emulator certificate and copies its public part to
+`test/local/config/azure-key-vault-ca/`, which `test/local/docker-compose.yaml` mounts into the worker.

@@ -20,8 +20,12 @@ fi
 if command -v hadolint >/dev/null 2>&1; then
   echo "==> hadolint"
   hadolint Dockerfile
+elif [ "${CI:-}" = "true" ]; then
+  # A lint step that silently does nothing looks like a passing check, so require hadolint on CI.
+  echo "ERROR: hadolint not on PATH (the workflow installs it before this step)." >&2
+  exit 1
 else
-  echo "==> hadolint not on PATH, skipping (install on the runner to enable)"
+  echo "WARNING: hadolint not on PATH, skipping Dockerfile lint (install it to enable)." >&2
 fi
 
 echo "==> lint clean"

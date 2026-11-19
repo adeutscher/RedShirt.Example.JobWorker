@@ -11,12 +11,46 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
-sln="${SLN_FILE:-RedShirt.Example.JobWorker.slnx}"
+# Use SLN_FILE when set. Otherwise require exactly one root .sln or .slnx.
+resolve_sln_file() {
+  if [[ -n "${SLN_FILE:-}" ]]; then
+    printf '%s\n' "$SLN_FILE"
+    return
+  fi
+
+  local matches=()
+  shopt -s nullglob
+  matches=( *.sln *.slnx )
+  shopt -u nullglob
+
+  if [[ ${#matches[@]} -eq 0 ]]; then
+    echo "ERROR: no .sln or .slnx file in the repository root. Set SLN_FILE." >&2
+    exit 1
+  fi
+  if [[ ${#matches[@]} -gt 1 ]]; then
+    echo "ERROR: multiple solution files in the repository root. Set SLN_FILE." >&2
+    printf '  %s\n' "${matches[@]}" >&2
+    exit 1
+  fi
+  printf '%s\n' "${matches[0]}"
+}
+
+sln="$(resolve_sln_file)" || exit 1
 report_dir="artifacts/scan"
 mkdir -p "$report_dir"
 
+# gitleaks scans the git history. In a shallow clone it only sees the fetched commits, so a secret that was committed
+# and then removed in an earlier commit would be missed while the scan still passes.
+if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+  if [ "${CI:-}" = "true" ]; then
+    echo "ERROR: shallow clone, so gitleaks would scan only part of the history (check out with fetch-depth: 0)." >&2
+    exit 1
+  fi
+  echo "WARNING: shallow clone, so gitleaks scans only the fetched commits." >&2
+fi
+
 if command -v gitleaks >/dev/null 2>&1; then
-  echo "==> gitleaks: secret detection"
+  echo "==> gitleaks: secret detection (full history)"
   gitleaks detect \
     --source="." \
     --report-format=json \

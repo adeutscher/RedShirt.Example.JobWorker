@@ -7,16 +7,36 @@ on:
     branches:
       - develop
 
+# The job only reads the repository. Without this, GITHUB_TOKEN gets the repository's default permissions, which may
+# include write access.
+permissions:
+  contents: read
+
 jobs:
   build:
     if: github.event_name == 'push' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     env:
-      IMAGE_NAME: api
+      IMAGE_NAME: job-worker
       IMAGE_TAG: ci-${{ github.sha }}
+      # Pinned tool downloads. When bumping a version, update its digest from the publisher:
+      #   gitleaks: gitleaks_<version>_checksums.txt on the GitHub release
+      #   trivy:    trivy_<version>_checksums.txt on the GitHub release
+      #   hadolint: hadolint-linux-x86_64.sha256 on the GitHub release
+      GITLEAKS_VERSION: 8.24.2
+      GITLEAKS_SHA256: fa0500f6b7e41d28791ebc680f5dd9899cd42b58629218a5f041efa899151a8e
+      TRIVY_VERSION: 0.76.2
+      TRIVY_SHA256: bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf
+      HADOLINT_VERSION: 2.15.1
+      HADOLINT_SHA256: c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # Do not leave GITHUB_TOKEN in .git/config, where code from the branch under test could read it.
+          persist-credentials: false
+          # Full history, so that gitleaks scans every commit and not only the tip. scan.sh fails on a shallow clone.
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -25,11 +45,30 @@ jobs:
 
       - name: Install gitleaks
         run: |
-          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.24.2/gitleaks_8.24.2_linux_x64.tar.gz \
-            | tar -xz -C /usr/local/bin gitleaks
+          ./scripts/cicd/fetch-verified.sh \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            sha256 "$GITLEAKS_SHA256" "$RUNNER_TEMP/gitleaks.tar.gz"
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C /usr/local/bin gitleaks
+          rm "$RUNNER_TEMP/gitleaks.tar.gz"
+          gitleaks version
 
       - name: Install trivy
-        uses: aquasecurity/setup-trivy@v0.3.1
+        run: |
+          ./scripts/cicd/fetch-verified.sh \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" \
+            sha256 "$TRIVY_SHA256" "$RUNNER_TEMP/trivy.tar.gz"
+          tar -xzf "$RUNNER_TEMP/trivy.tar.gz" -C /usr/local/bin trivy
+          rm "$RUNNER_TEMP/trivy.tar.gz"
+          trivy --version
+
+      - name: Install hadolint
+        run: |
+          ./scripts/cicd/fetch-verified.sh \
+            "https://github.com/hadolint/hadolint/releases/download/v${HADOLINT_VERSION}/hadolint-linux-x86_64" \
+            sha256 "$HADOLINT_SHA256" "$RUNNER_TEMP/hadolint"
+          install -m 0755 "$RUNNER_TEMP/hadolint" /usr/local/bin/hadolint
+          rm "$RUNNER_TEMP/hadolint"
+          hadolint --version
 
       - name: Lint
         run: ./scripts/cicd/lint.sh

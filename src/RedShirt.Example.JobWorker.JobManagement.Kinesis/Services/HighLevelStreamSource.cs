@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Abstractions;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.JobManagement.Kinesis.Configuration;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Checkpoints;
 using RedShirt.Example.JobWorker.JobManagement.Kinesis.Services.Resilience;
@@ -16,6 +18,7 @@ internal class HighLevelStreamSource(
     IAbstractedLockService lockService,
     ILowLevelStreamSource lowLevelStreamSource,
     IKinesisRetryWrapperService retryWrapperService,
+    IOptions<KinesisConfiguration> kinesisOptions,
     ILogger<HighLevelStreamSource> logger) : IJobSource
 {
     internal readonly Dictionary<string, KinesisTrackerSession> Sessions = new();
@@ -102,7 +105,7 @@ internal class HighLevelStreamSource(
 
             // Try to get lock
             var currentIterationLock = await retryWrapperService.RunAsync(
-                ct => lockService.GetLockAsync(KeyHelper.GetLockKey(shard), ct),
+                ct => lockService.GetLockAsync(KeyHelper.GetLockKey(kinesisOptions.Value.StreamArn, shard), ct),
                 cancellationToken);
 
             StreamSourceResponse? lowLevelStreamResponse;
