@@ -1,4 +1,5 @@
 ﻿FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled AS base
+# hadolint ignore=DL3066
 USER $APP_UID
 WORKDIR /app
 
@@ -11,9 +12,10 @@ COPY test test
 COPY *.slnx .
 COPY global.json .
 
-RUN dotnet restore
-RUN dotnet build
+RUN dotnet restore \
+ && dotnet build
 ARG TESTS_ENABLE=1
+# hadolint ignore=SC1072,SC2288
 RUN \[ ${TESTS_ENABLE} -ne 1 \] \
   || \
       ([ -d "test" \] \
@@ -21,7 +23,7 @@ RUN \[ ${TESTS_ENABLE} -ne 1 \] \
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN rm -rf test *slnx global.json \
+RUN rm -rf test ./*slnx global.json \
   && dotnet publish "src/RedShirt.Example.JobWorker/RedShirt.Example.JobWorker.csproj" --self-contained -c $BUILD_CONFIGURATION -o /app/publish \
   && dotnet publish "src/RedShirt.Example.JobWorker.HealthCheck/RedShirt.Example.JobWorker.HealthCheck.csproj" --self-contained -c $BUILD_CONFIGURATION -o /app/publish
 

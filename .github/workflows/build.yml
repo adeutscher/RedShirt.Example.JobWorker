@@ -22,10 +22,13 @@ jobs:
       # Pinned tool downloads. When bumping a version, update its digest from the publisher:
       #   gitleaks: gitleaks_<version>_checksums.txt on the GitHub release
       #   trivy:    trivy_<version>_checksums.txt on the GitHub release
+      #   hadolint: hadolint-linux-x86_64.sha256 on the GitHub release
       GITLEAKS_VERSION: 8.24.2
       GITLEAKS_SHA256: fa0500f6b7e41d28791ebc680f5dd9899cd42b58629218a5f041efa899151a8e
       TRIVY_VERSION: 0.76.2
       TRIVY_SHA256: bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf
+      HADOLINT_VERSION: 2.15.1
+      HADOLINT_SHA256: c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -55,6 +58,15 @@ jobs:
           tar -xzf "$RUNNER_TEMP/trivy.tar.gz" -C /usr/local/bin trivy
           rm "$RUNNER_TEMP/trivy.tar.gz"
           trivy --version
+
+      - name: Install hadolint
+        run: |
+          ./scripts/cicd/fetch-verified.sh \
+            "https://github.com/hadolint/hadolint/releases/download/v${HADOLINT_VERSION}/hadolint-linux-x86_64" \
+            sha256 "$HADOLINT_SHA256" "$RUNNER_TEMP/hadolint"
+          install -m 0755 "$RUNNER_TEMP/hadolint" /usr/local/bin/hadolint
+          rm "$RUNNER_TEMP/hadolint"
+          hadolint --version
 
       - name: Lint
         run: ./scripts/cicd/lint.sh
