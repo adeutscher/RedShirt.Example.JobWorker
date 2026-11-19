@@ -13,6 +13,7 @@ using RedShirt.Example.JobWorker.Core.Services.ExecutionState;
 using RedShirt.Example.JobWorker.Core.Services.Jobs.Subscriptions;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Models;
 using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services.Resilience;
+using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Utility;
 using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
@@ -27,6 +28,7 @@ internal class RabbitMqSubscribeJobSource(
     IRabbitMqDetailedExceptionArbiter detailedExceptionArbiter,
     IRabbitMqConsumerQueueService consumerQueueService,
     IThreadPoolBackgroundTaskRunner threadPoolBackgroundTaskRunner,
+    IRabbitMqRedeliveryPolicy redeliveryPolicy,
     ILogger<RabbitMqSubscribeJobSource> logger)
     : IJobSource
 #pragma warning restore S107
@@ -62,6 +64,8 @@ internal class RabbitMqSubscribeJobSource(
                 MessageId = args.BasicProperties.MessageId ?? "UNKNOWN",
                 IdempotencyId = args.BasicProperties.MessageId,
                 DeliveryTag = args.DeliveryTag,
+                PreviousDeliveryCount =
+                    RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(args.BasicProperties, args.Redelivered),
                 CreatedAtUtc = DateTime.UtcNow,
                 Body = body
             };
@@ -314,6 +318,8 @@ internal class RabbitMqSubscribeJobSource(
             return;
         }
 
+        var requeue = !result.IsSuccessful() && redeliveryPolicy.ShouldRequeue(rabbitMqJobModel, result);
+
         await GetChannelAndDoActionWithRetryAsync(async (channel, ct) =>
         {
             if (result.IsSuccessful())
@@ -322,10 +328,9 @@ internal class RabbitMqSubscribeJobSource(
             }
             else
             {
-                // If recoverable, then NAck with requeue so the message can be delivered again.
-                // Empty / Parsing / InvalidData: NAck without requeue (dead-letter if the queue is configured for it).
-                await channel.BasicNackAsync(rabbitMqJobModel.DeliveryTag, false, result.IsRecoverableFailure(),
-                    ct);
+                // Recoverable failures are requeued until the delivery limit is reached.
+                // Otherwise NAck without requeue (dead-letter if the queue is configured for it).
+                await channel.BasicNackAsync(rabbitMqJobModel.DeliveryTag, false, requeue, ct);
             }
         }, false, cancellationToken);
     }

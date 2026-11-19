@@ -37,6 +37,7 @@ Repo features:
         * Supports short polling, long polling, or JetStream push-style subscribe consumption.
     * [RabbitMQ](https://www.rabbitmq.com/)
         * Supports short polling or consumer subscriptions.
+        * For more details on RabbitMQ, refer to [`docs/job-source-notes-rabbitmq.md`](docs/job-source-notes-rabbitmq.md)
     * [Redis Streams](https://redis.io/docs/latest/develop/data-types/streams/)
 * Cache-based idempotency support
     * Prevents the same message from being run twice in the event that an executor loses custody of a message.
