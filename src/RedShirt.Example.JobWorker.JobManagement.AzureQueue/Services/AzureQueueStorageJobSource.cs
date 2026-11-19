@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Extensions;
@@ -14,8 +15,46 @@ internal class AzureQueueStorageJobSource(
     IQueueConsumerClientSource clientSource,
     IAzureQueueStorageMessageSource azureQueueStorageMessageSource,
     IAzureQueueStorageRetryWrapperService retryWrapperService,
-    IOptions<AzureQueueStorageConfigurationModel> options) : IJobSource
+    IOptions<AzureQueueStorageConfigurationModel> options,
+    ILogger<AzureQueueStorageJobSource> logger) : IJobSource
 {
+    private async Task DeleteAsync(IQueueMessageModel message, CancellationToken cancellationToken)
+    {
+        var client = await clientSource.GetQueueClientAsync(cancellationToken);
+        await retryWrapperService.RunAsync(async ct => { await client.DeleteMessageAsync(message, ct); },
+            cancellationToken);
+    }
+
+    /// <summary>
+    ///     Delete a message that was already received more than the allowed number of times without being acknowledged,
+    ///     for example because it crashed the worker. Returns true if the message should not be run.
+    /// </summary>
+    private async Task<bool> TryDiscardExhaustedMessageAsync(IQueueMessageModel message,
+        CancellationToken cancellationToken)
+    {
+        var maximumReceives = options.Value.EffectiveMaximumReceives;
+        if (message.DequeueCount <= maximumReceives)
+        {
+            return false;
+        }
+
+        logger.LogWarning(
+            "Azure Queue message {MessageId} was received {DequeueCount} times, more than the maximum of {MaximumReceives}, without being acknowledged. Deleting it without running it.",
+            message.MessageId, message.DequeueCount, maximumReceives);
+
+        try
+        {
+            await DeleteAsync(message, cancellationToken);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            // Not fatal for the rest of the batch. The message becomes visible again and is discarded on a later receive.
+            logger.LogError(e, "Could not delete Azure Queue message {MessageId}", message.MessageId);
+        }
+
+        return true;
+    }
+
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
@@ -26,27 +65,43 @@ internal class AzureQueueStorageJobSource(
 
         if (result.IsRecoverableFailure())
         {
-            // Leave the message to expire / become visible again and naturally falling back into the queue.
-            // Azure Queue has no native NAck.
-            return;
-        }
+            var maximumReceives = options.Value.EffectiveMaximumReceives;
+            if (messageAsAzureJobModel.Message.DequeueCount < maximumReceives)
+            {
+                // Leave the message to expire / become visible again and naturally falling back into the queue.
+                // Azure Queue has no native NAck.
+                return;
+            }
 
-        var client = await clientSource.GetQueueClientAsync(cancellationToken);
+            // Out of receives. Azure Queue has no native DLQ, so the message is deleted rather than looping forever.
+            logger.LogWarning(
+                "Azure Queue message {MessageId} failed on receive {DequeueCount} of {MaximumReceives}. Deleting it.",
+                messageAsAzureJobModel.MessageId, messageAsAzureJobModel.Message.DequeueCount, maximumReceives);
+        }
 
         // Success and unrecoverable (Empty / Parsing / InvalidData): delete. Azure Queue has no native DLQ.
         // Queueing failed messages in another DLQ would be an application-defined extension.
-        await retryWrapperService.RunAsync(
-            async ct => { await client.DeleteMessageAsync(messageAsAzureJobModel.Message, ct); }, cancellationToken);
+        await DeleteAsync(messageAsAzureJobModel.Message, cancellationToken);
     }
 
     public async Task<IJobSourceResponse> GetJobsAsync(int batchSize, CancellationToken cancellationToken = default)
     {
         var messages = await azureQueueStorageMessageSource.GetMessagesAsync(batchSize, cancellationToken);
-        var items = messages.Select(IRawJobModel (message) => new AzureQueueStorageRawJobModel
+        var items = new List<IRawJobModel>();
+
+        foreach (var message in messages)
         {
-            Message = message,
-            CreatedAtUtc = DateTime.UtcNow
-        }).ToList();
+            if (await TryDiscardExhaustedMessageAsync(message, cancellationToken))
+            {
+                continue;
+            }
+
+            items.Add(new AzureQueueStorageRawJobModel
+            {
+                Message = message,
+                CreatedAtUtc = DateTime.UtcNow
+            });
+        }
 
         var response = new JobSourceResponse
         {

@@ -31,6 +31,7 @@ Repo features:
         * For more details on Kafka, refer to [`docs/job-source-notes-kafka.md`](docs/job-source-notes-kafka.md)
     * [Apache Pulsar](https://pulsar.apache.org/)
     * [Azure Queue Storage](https://learn.microsoft.com/en-us/azure/storage/queues/storage-queues-introduction)
+        * For more details on Azure Queue Storage, refer to [`docs/job-source-notes-azure-queue-storage.md`](docs/job-source-notes-azure-queue-storage.md)
     * [Azure Service Bus](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview)
     * [Google Pub/Sub](https://cloud.google.com/pubsub/docs)
     * [NATS](https://nats.io/)

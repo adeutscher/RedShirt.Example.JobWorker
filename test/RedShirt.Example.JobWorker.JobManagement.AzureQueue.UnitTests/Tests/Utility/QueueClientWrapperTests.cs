@@ -39,7 +39,7 @@ public class QueueClientWrapperTests
         const int maxMessages = 3;
         var visibilityTimeout = TimeSpan.FromSeconds(30);
         var message1 = QueuesModelFactory.QueueMessage("id-1", "pop-1", BinaryData.FromString("one"), 1);
-        var message2 = QueuesModelFactory.QueueMessage("id-2", "pop-2", BinaryData.FromString("two"), 1);
+        var message2 = QueuesModelFactory.QueueMessage("id-2", "pop-2", BinaryData.FromString("two"), 4);
         var client = new Mock<QueueClient>();
         client
             .Setup(c => c.ReceiveMessagesAsync(maxMessages, visibilityTimeout, TestContext.Current.CancellationToken))
@@ -55,9 +55,11 @@ public class QueueClientWrapperTests
         Assert.Equal("id-1", results[0].MessageId);
         Assert.Equal("pop-1", results[0].PopReceipt);
         Assert.Equal("one", results[0].Body);
+        Assert.Equal(1, results[0].DequeueCount);
         Assert.Equal("id-2", results[1].MessageId);
         Assert.Equal("pop-2", results[1].PopReceipt);
         Assert.Equal("two", results[1].Body);
+        Assert.Equal(4, results[1].DequeueCount);
 
         client.Verify(
             c => c.ReceiveMessagesAsync(maxMessages, visibilityTimeout, TestContext.Current.CancellationToken),
