@@ -22,6 +22,25 @@ template in a number of ways:
 * The stream stores messages in sequential order, but this template supports prioritizing messages received in an
   arbitrary order as defined by the chosen implementation of `ISourceMessageSorter`.
 
+## Checkpoint and Lock Keys
+
+Shard checkpoints and shard locks are stored under keys in the form `checkpoint:{application}:{stream}:{shard}` and
+`lock:{application}:{stream}:{shard}`. The stream name comes from `JOB_SOURCE__KINESIS__STREAM_ARN`. Shard IDs such as
+`shardId-000000000000` repeat across streams, so including the stream name keeps deployments that share Redis or the
+DynamoDB checkpoint table from overwriting each other's checkpoints or holding each other's locks.
+
+Earlier versions used `checkpoint:{application}-{shard}` and `lock:{application}-{shard}`. When upgrading:
+
+* Long-term checkpoints carry over. If no DynamoDB record exists under the new key, the worker reads the old key, and
+  its next checkpoint is saved under the new key. The stream is not replayed from `TRIM_HORIZON`.
+* Short-term iterators in Redis do not carry over, but they only live for a few minutes, and a missing iterator falls
+  back to the long-term checkpoint.
+* Locks do not carry over. During a rolling deploy, an old instance and a new instance could both read the same shard
+  and run its records twice. Stop the old instances before starting the new ones.
+
+The fallback to the old checkpoint key can be removed once every shard has saved a checkpoint under the new key, or once
+the old records have expired.
+
 ## Kinesis AI Audit Notes
 
 The solutions to the above considerations for Kinesis are part of why an AI audit of the key Kinesis using the Composer

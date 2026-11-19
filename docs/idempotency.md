@@ -74,6 +74,22 @@ The Idempotency IDs are considered to be reliably unique based on of the configu
 acknowledgement of a message shall mean that the cached result for that message will be cleared or not entered into the
 cache at all. This is done in hope of saving cache resources.
 
+### Idempotency Key Namespace
+
+Idempotency results and locks are stored in Redis under keys in the form
+`idempotency:{namespace}:{idempotencyId}:{lock|result}`. The namespace keeps deployments that share one Redis from
+treating each other's message IDs as their own. Without it, a message ID that one deployment has already handled could
+make another deployment skip a different message with the same ID.
+
+* The namespace is set with `JOBS__IDEMPOTENCY__KEY_NAMESPACE`.
+* When it is not set, the namespace is the application name (the entry assembly name). Two deployments of the same
+  application that share one Redis but consume different sources should each set their own namespace.
+* The namespace must not contain a colon. The worker fails at startup if it does.
+
+Changing the namespace, or upgrading from a version before it existed, starts with an empty idempotency cache. During a
+rolling deploy, old and new instances do not see each other's locks or cached results, so a message redelivered during
+the overlap could run twice. If that matters, stop the old instances before starting the new ones.
+
 ### RabbitMQ Message IDs
 
 Of the current roster of job sources, RabbitMQ has no option to automatically generate a message ID for the application

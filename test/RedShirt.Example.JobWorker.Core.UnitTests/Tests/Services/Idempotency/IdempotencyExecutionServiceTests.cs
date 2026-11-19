@@ -44,7 +44,8 @@ public class IdempotencyExecutionServiceTests
             ResultCacheDurationSeconds = resultCacheDurationSeconds,
             MonitorIntervalSeconds = 5,
             IdempotencyIdsCanRepeat = idempotencyIdsCanRepeat,
-            EnableTraceLogging = enableTraceLogging
+            EnableTraceLogging = enableTraceLogging,
+            KeyNamespace = "test-ns"
         };
     }
 
@@ -147,7 +148,7 @@ public class IdempotencyExecutionServiceTests
 
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
-            .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
+            .Setup(c => c.GetStringAsync("idempotency:test-ns:idem-1:result", TestContext.Current.CancellationToken))
             .ThrowsAsync(unexpected);
 
         var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
@@ -177,7 +178,7 @@ public class IdempotencyExecutionServiceTests
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
-            .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
+            .Setup(c => c.GetStringAsync("idempotency:test-ns:idem-1:result", TestContext.Current.CancellationToken))
             .ReturnsAsync(CacheGetSuccess(cachedValue));
 
         var logger = CreateLogger();
@@ -201,7 +202,7 @@ public class IdempotencyExecutionServiceTests
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
-            .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
+            .Setup(c => c.GetStringAsync("idempotency:test-ns:idem-1:result", TestContext.Current.CancellationToken))
             .ReturnsAsync(CacheGetSuccess(cachedValue));
 
         var logger = CreateLogger();
@@ -214,7 +215,7 @@ public class IdempotencyExecutionServiceTests
         Assert.Null(result);
         VerifyTraceLogContains(logger, "IdempotencyExecutionService.GetCachedResultAsync", Times.Once());
         VerifyTraceLogContains(logger, "getting value", Times.Once());
-        VerifyTraceLogContains(logger, "idempotency:idem-1:result", Times.Once());
+        VerifyTraceLogContains(logger, "idempotency:test-ns:idem-1:result", Times.Once());
     }
 
     [Theory]
@@ -227,7 +228,7 @@ public class IdempotencyExecutionServiceTests
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
-            .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
+            .Setup(c => c.GetStringAsync("idempotency:test-ns:idem-1:result", TestContext.Current.CancellationToken))
             .ReturnsAsync(CacheGetSuccess(cachedValue));
 
         var logger = CreateLogger();
@@ -253,7 +254,7 @@ public class IdempotencyExecutionServiceTests
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
-            .Setup(c => c.GetStringAsync("idempotency:idem-1:result", TestContext.Current.CancellationToken))
+            .Setup(c => c.GetStringAsync("idempotency:test-ns:idem-1:result", TestContext.Current.CancellationToken))
             .ReturnsAsync(CacheGetSuccess(cachedValue));
 
         var logger = CreateLogger();
@@ -266,7 +267,7 @@ public class IdempotencyExecutionServiceTests
         Assert.NotNull(result);
         VerifyTraceLogContains(logger, "IdempotencyExecutionService.GetCachedResultAsync", Times.Once());
         VerifyTraceLogContains(logger, "getting value", Times.Once());
-        VerifyTraceLogContains(logger, "idempotency:idem-1:result", Times.Once());
+        VerifyTraceLogContains(logger, "idempotency:test-ns:idem-1:result", Times.Once());
     }
 
     [Theory]
@@ -327,7 +328,7 @@ public class IdempotencyExecutionServiceTests
 
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         lockService
-            .Setup(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken))
+            .Setup(s => s.GetLockAsync("idempotency:test-ns:idem-1:lock", TestContext.Current.CancellationToken))
             .ReturnsAsync(LockResponse(expectedLock.Object));
 
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
@@ -341,7 +342,7 @@ public class IdempotencyExecutionServiceTests
         var result = await service.GetLockAsync(job.Object, TestContext.Current.CancellationToken);
 
         Assert.Same(expectedLock.Object, result);
-        lockService.Verify(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken),
+        lockService.Verify(s => s.GetLockAsync("idempotency:test-ns:idem-1:lock", TestContext.Current.CancellationToken),
             Times.Once);
         VerifyNoTraceLogs(logger);
     }
@@ -354,7 +355,7 @@ public class IdempotencyExecutionServiceTests
 
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         lockService
-            .Setup(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken))
+            .Setup(s => s.GetLockAsync("idempotency:test-ns:idem-1:lock", TestContext.Current.CancellationToken))
             .ReturnsAsync(LockResponse(expectedLock.Object));
 
         var logger = CreateLogger();
@@ -368,7 +369,7 @@ public class IdempotencyExecutionServiceTests
         VerifyTraceLogContains(logger, "IdempotencyExecutionService.GetLockAsync", Times.Exactly(2));
         VerifyTraceLogContains(logger, "acquiring lock", Times.Once());
         VerifyTraceLogContains(logger, "finished attempting lock", Times.Once());
-        VerifyTraceLogContains(logger, "idempotency:idem-1:lock", Times.Exactly(2));
+        VerifyTraceLogContains(logger, "idempotency:test-ns:idem-1:lock", Times.Exactly(2));
     }
 
     [Theory]
@@ -433,7 +434,7 @@ public class IdempotencyExecutionServiceTests
 
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         lockService
-            .Setup(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken))
+            .Setup(s => s.GetLockAsync("idempotency:test-ns:idem-1:lock", TestContext.Current.CancellationToken))
             .ReturnsAsync(LockResponse(expectedLock.Object, lockResult));
 
         var logger = CreateLogger();
@@ -467,7 +468,7 @@ public class IdempotencyExecutionServiceTests
 
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         lockService
-            .Setup(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken))
+            .Setup(s => s.GetLockAsync("idempotency:test-ns:idem-1:lock", TestContext.Current.CancellationToken))
             .ReturnsAsync(LockResponse(expectedLock.Object, lockResult));
 
         var logger = CreateLogger();
@@ -497,7 +498,7 @@ public class IdempotencyExecutionServiceTests
 
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         lockService
-            .Setup(s => s.GetLockAsync("idempotency:idem-1:lock", TestContext.Current.CancellationToken))
+            .Setup(s => s.GetLockAsync("idempotency:test-ns:idem-1:lock", TestContext.Current.CancellationToken))
             .ThrowsAsync(unexpected);
 
         var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
@@ -538,7 +539,7 @@ public class IdempotencyExecutionServiceTests
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         var expectedPayload = SerializeCacheReport(jobResult, acknowledgementSuccess);
         cache
-            .Setup(c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
+            .Setup(c => c.SetStringAsync("idempotency:test-ns:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken))
             .ReturnsAsync(CacheSetSuccess());
 
@@ -556,7 +557,7 @@ public class IdempotencyExecutionServiceTests
             }, TestContext.Current.CancellationToken);
 
         cache.Verify(
-            c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
+            c => c.SetStringAsync("idempotency:test-ns:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken), Times.Once);
         VerifyNoTraceLogs(logger);
     }
@@ -568,7 +569,7 @@ public class IdempotencyExecutionServiceTests
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         var expectedPayload = SerializeCacheReport(CoreJobResult.Success, false);
         cache
-            .Setup(c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(10),
+            .Setup(c => c.SetStringAsync("idempotency:test-ns:idem-1:result", expectedPayload, TimeSpan.FromSeconds(10),
                 TestContext.Current.CancellationToken))
             .ReturnsAsync(CacheSetSuccess());
 
@@ -586,7 +587,7 @@ public class IdempotencyExecutionServiceTests
             TestContext.Current.CancellationToken);
 
         cache.Verify(
-            c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(10),
+            c => c.SetStringAsync("idempotency:test-ns:idem-1:result", expectedPayload, TimeSpan.FromSeconds(10),
                 TestContext.Current.CancellationToken), Times.Once);
         VerifyNoTraceLogs(logger);
     }
@@ -598,7 +599,7 @@ public class IdempotencyExecutionServiceTests
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         var expectedPayload = SerializeCacheReport(CoreJobResult.Failure, true, false);
         cache
-            .Setup(c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
+            .Setup(c => c.SetStringAsync("idempotency:test-ns:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken))
             .ReturnsAsync(CacheSetSuccess());
 
@@ -616,7 +617,7 @@ public class IdempotencyExecutionServiceTests
             TestContext.Current.CancellationToken);
 
         cache.Verify(
-            c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
+            c => c.SetStringAsync("idempotency:test-ns:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken), Times.Once);
         VerifyNoTraceLogs(logger);
     }
@@ -628,7 +629,7 @@ public class IdempotencyExecutionServiceTests
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         var expectedPayload = SerializeCacheReport(CoreJobResult.Success, true);
         cache
-            .Setup(c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
+            .Setup(c => c.SetStringAsync("idempotency:test-ns:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken))
             .ReturnsAsync(CacheSetSuccess());
 
@@ -646,7 +647,7 @@ public class IdempotencyExecutionServiceTests
             TestContext.Current.CancellationToken);
 
         cache.Verify(
-            c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
+            c => c.SetStringAsync("idempotency:test-ns:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken), Times.Once);
         VerifyNoTraceLogs(logger);
     }
@@ -657,7 +658,7 @@ public class IdempotencyExecutionServiceTests
         var expectedPayload = SerializeCacheReport(CoreJobResult.Success, true);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
-            .Setup(c => c.SetStringAsync("idempotency:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
+            .Setup(c => c.SetStringAsync("idempotency:test-ns:idem-1:result", expectedPayload, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken))
             .ReturnsAsync(CacheSetSuccess());
 
@@ -691,7 +692,7 @@ public class IdempotencyExecutionServiceTests
         var lockService = new Mock<ISafeAbstractedLockService>(MockBehavior.Strict);
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
-            .Setup(c => c.SetStringAsync("idempotency:idem-1:result", null, TimeSpan.FromSeconds(30),
+            .Setup(c => c.SetStringAsync("idempotency:test-ns:idem-1:result", null, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken))
             .ReturnsAsync(CacheSetSuccess());
 
@@ -709,7 +710,7 @@ public class IdempotencyExecutionServiceTests
             TestContext.Current.CancellationToken);
 
         cache.Verify(
-            c => c.SetStringAsync("idempotency:idem-1:result", null, TimeSpan.FromSeconds(30),
+            c => c.SetStringAsync("idempotency:test-ns:idem-1:result", null, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken), Times.Once);
         VerifyNoTraceLogs(logger);
     }
@@ -722,7 +723,7 @@ public class IdempotencyExecutionServiceTests
     {
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
-            .Setup(c => c.SetStringAsync("idempotency:idem-1:result", null, TimeSpan.FromSeconds(30),
+            .Setup(c => c.SetStringAsync("idempotency:test-ns:idem-1:result", null, TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken))
             .ReturnsAsync(CacheSetSuccess());
 
@@ -744,7 +745,7 @@ public class IdempotencyExecutionServiceTests
         VerifyTraceLogContains(logger, "IdempotencyExecutionService.ClearCacheResultAsync", Times.Exactly(2));
         VerifyTraceLogContains(logger, "clearing value", Times.Once());
         VerifyTraceLogContains(logger, "cleared value", Times.Once());
-        VerifyTraceLogContains(logger, "idempotency:idem-1:result", Times.Exactly(2));
+        VerifyTraceLogContains(logger, "idempotency:test-ns:idem-1:result", Times.Exactly(2));
     }
 
     [Fact]
@@ -755,7 +756,7 @@ public class IdempotencyExecutionServiceTests
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
             .Setup(c => c.SetStringAsync(
-                "idempotency:idem-1:result",
+                "idempotency:test-ns:idem-1:result",
                 null,
                 TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken))
@@ -851,7 +852,7 @@ public class IdempotencyExecutionServiceTests
         var cache = new Mock<ISafeRemoteCacheService>(MockBehavior.Strict);
         cache
             .Setup(c => c.SetStringAsync(
-                "idempotency:idem-1:result",
+                "idempotency:test-ns:idem-1:result",
                 It.IsAny<string>(),
                 TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken))

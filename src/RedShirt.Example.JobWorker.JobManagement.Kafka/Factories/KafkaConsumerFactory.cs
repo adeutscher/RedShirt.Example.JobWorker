@@ -31,6 +31,16 @@ internal class KafkaConsumerFactory(
             GroupId = options.Value.GroupId,
             // KafkaJobSource is responsible for driving commits
             EnableAutoCommit = false,
+            /*
+             * Intentional: a consumer group with no committed offsets starts from the earliest retained message.
+             *
+             * A new or changed GroupId therefore reprocesses everything still retained on the topic.
+             * This is accepted because a changed GroupId suggests a different applied version of the JobWorker, which
+             * should not skip messages that its predecessor's group already handled under different logic.
+             *
+             * An applied version should consider replacing the configurable GroupId with a constant, so that a
+             * configuration typo or an environment variable left over from another deployment cannot start a full replay.
+             */
             AutoOffsetReset = AutoOffsetReset.Earliest
         };
 

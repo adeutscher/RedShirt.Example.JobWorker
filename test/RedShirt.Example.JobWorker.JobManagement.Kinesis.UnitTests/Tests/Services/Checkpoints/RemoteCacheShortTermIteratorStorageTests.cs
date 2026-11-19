@@ -19,7 +19,8 @@ public class RemoteCacheShortTermIteratorStorageTests
         remoteCache.Setup(c => c.GetStringAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(value);
 
-        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object, new PassthroughRetryWrapper());
+        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object, new PassthroughRetryWrapper(),
+            KinesisTestOptions.Create());
         var storedValue = await storage.GetAsync(key, TestContext.Current.CancellationToken);
 
         Assert.Equal(value, storedValue);
@@ -41,7 +42,8 @@ public class RemoteCacheShortTermIteratorStorageTests
         remoteCache.Setup(c => c.GetStringAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(value);
 
-        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object, new PassthroughRetryWrapper());
+        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object, new PassthroughRetryWrapper(),
+            KinesisTestOptions.Create());
         var storedValue = await storage.GetAsync(key, TestContext.Current.CancellationToken);
 
         Assert.Equal(value, storedValue);
@@ -63,7 +65,8 @@ public class RemoteCacheShortTermIteratorStorageTests
         var key = Guid.NewGuid().ToString();
         var value = Guid.NewGuid().ToString();
 
-        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object, new PassthroughRetryWrapper());
+        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object, new PassthroughRetryWrapper(),
+            KinesisTestOptions.Create());
         await storage.SetAsync(key, value, TestContext.Current.CancellationToken);
 
         Assert.Single(remoteCache.Invocations);
@@ -86,7 +89,8 @@ public class RemoteCacheShortTermIteratorStorageTests
         var key = Guid.NewGuid().ToString();
         string? value = null;
 
-        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object, new PassthroughRetryWrapper());
+        var storage = new RemoteCacheShortTermIteratorStorage(remoteCache.Object, new PassthroughRetryWrapper(),
+            KinesisTestOptions.Create());
         await storage.SetAsync(key, value, TestContext.Current.CancellationToken);
 
         Assert.Single(remoteCache.Invocations);

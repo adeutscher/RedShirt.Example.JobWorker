@@ -21,6 +21,18 @@ public static class ServiceCollectionExtensions
 {
     private const string ConfigSectionName = "Jobs";
 
+    private static IServiceCollection AddIdempotencyOptions(this IServiceCollection services,
+        IConfigurationRoot configuration)
+    {
+        services
+            .AddOptions<IdempotencyConfigurationModel>()
+            .Bind(configuration.GetSection($"{ConfigSectionName}:Idempotency"))
+            .Validate(IdempotencyConfigurationModel.IsValid,
+                "Idempotency key namespace (KeyNamespace) must not contain a colon.")
+            .ValidateOnStart();
+        return services;
+    }
+
     public static IServiceCollection AddCoreJobManagement(this IServiceCollection services,
         IConfigurationRoot configuration)
     {
@@ -59,7 +71,7 @@ public static class ServiceCollectionExtensions
             // Idempotency
             .AddSingleton<IIdempotencyMonitor, IdempotencyMonitor>()
             .AddSingleton<IIdempotencyExecutionService, IdempotencyExecutionService>()
-            .Configure<IdempotencyConfigurationModel>(configuration.GetSection($"{ConfigSectionName}:Idempotency"))
+            .AddIdempotencyOptions(configuration)
             .Configure<LoaderModeConfigurationModel>(configuration.GetSection($"{ConfigSectionName}:LoaderMode"))
             // Source Messages
             .AddSingleton<ISourceMessageConverter, SourceMessageConverter>()

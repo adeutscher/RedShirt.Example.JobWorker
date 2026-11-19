@@ -60,17 +60,22 @@ internal sealed class IdempotencyExecutionService(
         return false;
     }
 
-    private static string GetKey(string idempotencyId, string type)
+    /// <summary>
+    ///     Build a key in the form <c>idempotency:{namespace}:{idempotencyId}:{type}</c>.
+    ///     The namespace keeps deployments that share one Redis from treating each other's message IDs as their own.
+    ///     The namespace cannot contain a colon (checked at startup), so the namespace and ID cannot run into each other.
+    /// </summary>
+    private string GetKey(string idempotencyId, string type)
     {
-        return $"{CommonKeyPrefix}:{idempotencyId}:{type}";
+        return $"{CommonKeyPrefix}:{options.Value.EffectiveKeyNamespace}:{idempotencyId}:{type}";
     }
 
-    private static string GetLockKey(string idempotencyId)
+    private string GetLockKey(string idempotencyId)
     {
         return GetKey(idempotencyId, "lock");
     }
 
-    private static string GetResultKey(string idempotencyId)
+    private string GetResultKey(string idempotencyId)
     {
         return GetKey(idempotencyId, "result");
     }
