@@ -10,6 +10,7 @@ using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.UnitTests.Tests.Services;
 
@@ -27,7 +28,9 @@ public class SqsQueueFailureHandlerTests
 
     private static SqsQueueFailureHandler CreateHandler(IAmazonSQS sqs, string? queueUrl = "foo")
     {
-        return new SqsQueueFailureHandler(sqs, new PassthroughRetryWrapper(), Options.Create(
+        // Use the real failure queue wrapper over a pass-through SQS wrapper, so exception translation is exercised.
+        return new SqsQueueFailureHandler(sqs, new KafkaFailureQueueRetryWrapperService(new PassthroughRetryWrapper()),
+            Options.Create(
                 new SqsQueueFailureHandler.ConfigurationModel
                 {
                     QueueUrl = queueUrl!

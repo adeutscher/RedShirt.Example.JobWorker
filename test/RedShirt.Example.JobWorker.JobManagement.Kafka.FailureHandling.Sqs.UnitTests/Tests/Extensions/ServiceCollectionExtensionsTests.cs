@@ -6,6 +6,7 @@ using RedShirt.Example.JobWorker.Common.Aws.Sqs.Services.Resilience;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Extensions;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Services;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.UnitTests.Tests.Extensions;
 
@@ -51,5 +52,9 @@ public class ServiceCollectionExtensionsTests
             d.Lifetime == ServiceLifetime.Singleton);
         Assert.Contains(services, d => d.ServiceType == typeof(IAmazonSQS));
         Assert.Contains(services, d => d.ServiceType == typeof(ISqsRetryWrapperService));
+        Assert.Contains(services, d =>
+            d.ServiceType == typeof(IKafkaFailureQueueRetryWrapperService) &&
+            d.ImplementationType == typeof(KafkaFailureQueueRetryWrapperService) &&
+            d.Lifetime == ServiceLifetime.Singleton);
     }
 }

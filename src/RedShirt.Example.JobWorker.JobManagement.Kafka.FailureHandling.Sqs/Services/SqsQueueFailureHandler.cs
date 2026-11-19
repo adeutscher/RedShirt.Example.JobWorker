@@ -1,13 +1,12 @@
 using Amazon.SQS;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using RedShirt.Example.JobWorker.Common.Aws.Sqs.Exceptions;
-using RedShirt.Example.JobWorker.Common.Aws.Sqs.Services.Resilience;
 using RedShirt.Example.JobWorker.Common.Aws.Sqs.Utility;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.Core.Services.Abstractions;
+using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Services.Resilience;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Services;
 
@@ -19,17 +18,10 @@ namespace RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Ser
 ///         permanently rejects is forwarded as a reference without its body (see <see cref="SqsFailureMessageBuilder" />).
 ///         Transient failures are still thrown, so the record is not acknowledged.
 ///     </para>
-///     <para>
-///         Classified SQS failures (<see cref="WorkerSqsException" />) are rethrown as
-///         <see cref="WorkerJobSourceException" />, the exception type that Core treats as an anticipated job source
-///         failure. Core logs those and leaves the record unacknowledged, instead of treating them as unexpected (which
-///         halts the worker when <c>HaltOnFailure</c> is set). Unclassified exceptions are left raw so they still draw
-///         attention.
-///     </para>
 /// </summary>
 internal class SqsQueueFailureHandler(
     IAmazonSQS sqs,
-    ISqsRetryWrapperService retryWrapperService,
+    IKafkaFailureQueueRetryWrapperService retryWrapperService,
     IOptions<SqsQueueFailureHandler.ConfigurationModel> options,
     ILogger<SqsQueueFailureHandler> logger)
     : IJobFailureHandler
@@ -43,23 +35,6 @@ internal class SqsQueueFailureHandler(
             return;
         }
 
-        try
-        {
-            await ForwardAsync(queueUrl, rawJobModel, cancellationToken);
-        }
-        catch (WorkerSqsException e)
-        {
-            throw new WorkerJobSourceException(e)
-            {
-                IsHandled = e.IsHandled,
-                CouldBeTransient = e.CouldBeTransient,
-                CouldBeExternallySolvable = e.CouldBeExternallySolvable
-            };
-        }
-    }
-
-    private async Task ForwardAsync(string queueUrl, IRawJobModel rawJobModel, CancellationToken cancellationToken)
-    {
         var request = SqsFailureMessageBuilder.Build(queueUrl, rawJobModel.MessageId, rawJobModel.Body);
         try
         {
@@ -82,7 +57,7 @@ internal class SqsQueueFailureHandler(
         {
             OperationCanceledException => false,
             // Retries were exhausted on a transient cause: leave the record unacknowledged rather than drop its body.
-            WorkerSqsException {CouldBeTransient: true} => false,
+            WorkerJobSourceException {CouldBeTransient: true} => false,
             _ => true
         };
     }

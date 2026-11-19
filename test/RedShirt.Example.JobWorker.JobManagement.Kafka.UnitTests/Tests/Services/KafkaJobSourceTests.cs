@@ -74,6 +74,45 @@ public class KafkaJobSourceTests
     }
 
     [Fact]
+    public async Task AcknowledgeAsync_CommitsWholeBatchIncludingSkippedMessages()
+    {
+        var message1 = CreateMessage("t:0:1", Guid.NewGuid().ToString());
+        var skipped = CreateMessage("t:0:2", "   ");
+        var message3 = CreateMessage("t:0:3", Guid.NewGuid().ToString());
+        var skippedLast = CreateMessage("t:0:4", null);
+
+        var kafkaMessageSource = new Mock<IKafkaMessageSource>(MockBehavior.Strict);
+        kafkaMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateResponse(message1, skipped, message3, skippedLast));
+
+        IReadOnlyList<IKafkaMessageContainer>? committed = null;
+        var consumer = new Mock<IKafkaConsumerWrapper>(MockBehavior.Strict);
+        consumer.Setup(c => c.CommitAsync(It.IsAny<IReadOnlyList<IKafkaMessageContainer>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback((IReadOnlyList<IKafkaMessageContainer> messages, CancellationToken _) => committed = messages)
+            .Returns(Task.CompletedTask);
+
+        var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
+        consumerSource.Setup(s => s.GetConsumer()).Returns(consumer.Object);
+
+        var jobSource = new KafkaJobSource(consumerSource.Object, kafkaMessageSource.Object,
+            KafkaRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            new NullLogger<KafkaJobSource>());
+
+        var response = await jobSource.GetJobsAsync(4, TestContext.Current.CancellationToken);
+        Assert.Equal(2, response.Items.Count);
+
+        foreach (var item in response.Items)
+        {
+            await jobSource.AcknowledgeAsync(item, CoreJobResult.Success, TestContext.Current.CancellationToken);
+        }
+
+        Assert.NotNull(committed);
+        Assert.Equal([message1, skipped, message3, skippedLast], committed);
+        Assert.Null(jobSource.Session);
+    }
+
+    [Fact]
     public async Task AcknowledgeAsync_IgnoresNonKafkaModels()
     {
         var consumerSource = new Mock<IKafkaConsumerSource>(MockBehavior.Strict);
