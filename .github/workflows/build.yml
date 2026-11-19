@@ -17,7 +17,7 @@ jobs:
     if: github.event_name == 'push' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     env:
-      IMAGE_NAME: api
+      IMAGE_NAME: job-worker
       IMAGE_TAG: ci-${{ github.sha }}
       # Pinned tool downloads. When bumping a version, update its digest from the publisher:
       #   gitleaks: gitleaks_<version>_checksums.txt on the GitHub release
