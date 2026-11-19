@@ -273,6 +273,39 @@ public class SafeJobAcknowledgementServiceTests
         health.Verify(h => h.NoteIncident(), Times.Once);
     }
 
+    /// <summary>
+    ///     A failure handler that fails with an anticipated <see cref="WorkerJobSourceException" /> must not halt the
+    ///     worker, even with HaltOnFailure set. The job is left unacknowledged so it can be delivered again.
+    /// </summary>
+    [Fact]
+    public async Task AcknowledgeSafelyAsync_WhenFailureHandlerThrowsJobSourceException_AndHaltOnFailure_DoesNotHalt()
+    {
+        var rawJobModel = CreateRawJob();
+
+        var jobFailureHandler = new Mock<IJobFailureHandler>(MockBehavior.Strict);
+        jobFailureHandler
+            .Setup(h => h.HandleFailureAsync(rawJobModel.Object, FailureType.Execution, null,
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new WorkerJobSourceException(new Exception("failure queue missing"))
+                {CouldBeTransient = false, IsHandled = true, CouldBeExternallySolvable = true});
+
+        var jobSource = new Mock<IJobSource>(MockBehavior.Strict);
+        var health = new Mock<ICoreHealthStateUpdateService>(MockBehavior.Strict);
+
+        var service = new SafeJobAcknowledgementService(jobSource.Object, jobFailureHandler.Object,
+            new Mock<ISleepService>(MockBehavior.Strict).Object, health.Object, CreateCoreConfigurationService(true),
+            new NullLogger<SafeJobAcknowledgementService>());
+
+        var result = await service.AcknowledgeSafelyAsync(rawJobModel.Object, CoreJobResult.Failure,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.False(result.Success);
+        Assert.False(result.LoggedFailureSuccessfully);
+        Assert.False(result.AcknowledgedSuccessfully);
+        Assert.Empty(jobSource.Invocations);
+        Assert.Empty(health.Invocations);
+    }
+
     [Fact]
     public async Task AcknowledgeSafelyAsync_WhenUnplannedException_AndHaltOnFailure_Propagates()
     {

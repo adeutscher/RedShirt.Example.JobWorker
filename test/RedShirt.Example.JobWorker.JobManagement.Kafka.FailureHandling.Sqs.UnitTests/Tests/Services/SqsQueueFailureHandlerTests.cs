@@ -7,6 +7,7 @@ using RedShirt.Example.JobWorker.Common.Aws.Sqs.Exceptions;
 using RedShirt.Example.JobWorker.Common.Aws.Sqs.Services.Resilience;
 using RedShirt.Example.JobWorker.Common.Aws.Sqs.Utility;
 using RedShirt.Example.JobWorker.Core.Enums;
+using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Services;
 
@@ -149,12 +150,56 @@ public class SqsQueueFailureHandlerTests
         var failure = SqsFailure(true);
         var sqs = CreateSqs(sent, failure);
 
-        var thrown = await Assert.ThrowsAsync<WorkerSqsException>(() =>
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             CreateHandler(sqs.Object).HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution, null,
                 TestContext.Current.CancellationToken));
 
-        Assert.Same(failure, thrown);
+        Assert.Same(failure, thrown.InnerException);
+        Assert.True(thrown.CouldBeTransient);
         Assert.Single(sent);
+    }
+
+    [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, false)]
+    public async Task SendFailure_SqsFailure_RethrownAsJobSourceExceptionWithSameFlags(bool isHandled,
+        bool couldBeTransient, bool couldBeExternallySolvable)
+    {
+        var sent = new List<SendMessageRequest>();
+        // The empty body goes straight to a reference, so the first failure is the one that surfaces.
+        var failure = new WorkerSqsException(new QueueDoesNotExistException("missing"))
+        {
+            IsHandled = isHandled,
+            CouldBeTransient = couldBeTransient,
+            CouldBeExternallySolvable = couldBeExternallySolvable
+        };
+        var sqs = CreateSqs(sent, failure);
+
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
+            CreateHandler(sqs.Object).HandleFailureAsync(CreateRawJobModel(string.Empty).Object, FailureType.Empty,
+                null, TestContext.Current.CancellationToken));
+
+        Assert.Same(failure, thrown.InnerException);
+        Assert.Equal(isHandled, thrown.IsHandled);
+        Assert.Equal(couldBeTransient, thrown.CouldBeTransient);
+        Assert.Equal(couldBeExternallySolvable, thrown.CouldBeExternallySolvable);
+        Assert.Single(sent);
+    }
+
+    [Fact]
+    public async Task SendFailure_UnclassifiedFailureOnReference_StaysRaw()
+    {
+        var sent = new List<SendMessageRequest>();
+        var unexpected = new InvalidOperationException("unexpected");
+        var sqs = CreateSqs(sent, SqsFailure(false), unexpected);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CreateHandler(sqs.Object).HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution, null,
+                TestContext.Current.CancellationToken));
+
+        Assert.Same(unexpected, thrown);
     }
 
     [Fact]
@@ -164,11 +209,11 @@ public class SqsQueueFailureHandlerTests
         var second = SqsFailure(false);
         var sqs = CreateSqs(sent, SqsFailure(false), second);
 
-        var thrown = await Assert.ThrowsAsync<WorkerSqsException>(() =>
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             CreateHandler(sqs.Object).HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution, null,
                 TestContext.Current.CancellationToken));
 
-        Assert.Same(second, thrown);
+        Assert.Same(second, thrown.InnerException);
         Assert.Equal(2, sent.Count);
     }
 
