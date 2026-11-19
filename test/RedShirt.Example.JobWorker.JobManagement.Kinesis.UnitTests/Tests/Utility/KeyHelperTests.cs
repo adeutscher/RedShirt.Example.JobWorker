@@ -16,17 +16,6 @@ public class KeyHelperTests
     }
 
     [Fact]
-    public void Keys_IncludeApplicationStreamAndShard()
-    {
-        const string arn = "arn:aws:kinesis:us-east-1:000000000000:stream/orders";
-
-        Assert.Equal($"checkpoint:{ApplicationName}:orders:shardId-000000000000",
-            KeyHelper.GetCheckpointKey(arn, "shardId-000000000000"));
-        Assert.Equal($"lock:{ApplicationName}:orders:shardId-000000000000",
-            KeyHelper.GetLockKey(arn, "shardId-000000000000"));
-    }
-
-    [Fact]
     public void Keys_DifferAcrossStreamsForSameShard()
     {
         const string shard = "shardId-000000000000";
@@ -35,6 +24,17 @@ public class KeyHelperTests
 
         Assert.NotEqual(KeyHelper.GetCheckpointKey(ordersArn, shard), KeyHelper.GetCheckpointKey(paymentsArn, shard));
         Assert.NotEqual(KeyHelper.GetLockKey(ordersArn, shard), KeyHelper.GetLockKey(paymentsArn, shard));
+    }
+
+    [Fact]
+    public void Keys_IncludeApplicationStreamAndShard()
+    {
+        const string arn = "arn:aws:kinesis:us-east-1:000000000000:stream/orders";
+
+        Assert.Equal($"checkpoint:{ApplicationName}:orders:shardId-000000000000",
+            KeyHelper.GetCheckpointKey(arn, "shardId-000000000000"));
+        Assert.Equal($"lock:{ApplicationName}:orders:shardId-000000000000",
+            KeyHelper.GetLockKey(arn, "shardId-000000000000"));
     }
 
     [Fact]

@@ -35,6 +35,18 @@ public class KafkaFailureQueueRetryWrapperServiceTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task RunAsync_UnclassifiedException_StaysRaw()
+    {
+        var unexpected = new InvalidOperationException("unexpected");
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new KafkaFailureQueueRetryWrapperService(CreateSqsWrapper().Object)
+                .RunAsync(_ => Task.FromException(unexpected), TestContext.Current.CancellationToken));
+
+        Assert.Same(unexpected, thrown);
+    }
+
     [Theory]
     [InlineData(true, true, true)]
     [InlineData(true, false, true)]
@@ -58,17 +70,5 @@ public class KafkaFailureQueueRetryWrapperServiceTests
         Assert.Equal(isHandled, thrown.IsHandled);
         Assert.Equal(couldBeTransient, thrown.CouldBeTransient);
         Assert.Equal(couldBeExternallySolvable, thrown.CouldBeExternallySolvable);
-    }
-
-    [Fact]
-    public async Task RunAsync_UnclassifiedException_StaysRaw()
-    {
-        var unexpected = new InvalidOperationException("unexpected");
-
-        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new KafkaFailureQueueRetryWrapperService(CreateSqsWrapper().Object)
-                .RunAsync(_ => Task.FromException(unexpected), TestContext.Current.CancellationToken));
-
-        Assert.Same(unexpected, thrown);
     }
 }

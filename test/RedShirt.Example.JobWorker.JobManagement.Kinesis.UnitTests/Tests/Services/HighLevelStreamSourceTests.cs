@@ -173,7 +173,8 @@ public class HighLevelStreamSourceTests
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-a", "shard-b"]);
-        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-b"), TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-b"),
+                TestContext.Current.CancellationToken))
             .ReturnsAsync(secondLock.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-b", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-b");
@@ -200,8 +201,12 @@ public class HighLevelStreamSourceTests
         Assert.Same(secondJob, Assert.Single(response.Items));
         Assert.Equal(2, streamSource.Sessions.Count);
         Assert.True(streamSource.Sessions.ContainsKey("shard-b"));
-        locker.Verify(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-a"), It.IsAny<CancellationToken>()), Times.Never);
-        locker.Verify(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-b"), TestContext.Current.CancellationToken),
+        locker.Verify(
+            l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-a"),
+                It.IsAny<CancellationToken>()), Times.Never);
+        locker.Verify(
+            l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-b"),
+                TestContext.Current.CancellationToken),
             Times.Once);
         // Session retained for shard-b — lock must stay held.
         secondLock.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Never);
@@ -220,9 +225,11 @@ public class HighLevelStreamSourceTests
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-empty", "shard-b"]);
-        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-empty"), TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-empty"),
+                TestContext.Current.CancellationToken))
             .ReturnsAsync(emptyLock.Object);
-        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-b"), TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-b"),
+                TestContext.Current.CancellationToken))
             .ReturnsAsync(jobLock.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-empty", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-empty");
@@ -275,9 +282,11 @@ public class HighLevelStreamSourceTests
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-a", "shard-b"]);
-        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-a"), TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-a"),
+                TestContext.Current.CancellationToken))
             .ReturnsAsync(unavailableLock.Object);
-        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-b"), TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-b"),
+                TestContext.Current.CancellationToken))
             .ReturnsAsync(acquiredLock.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-b", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-b");
@@ -316,7 +325,8 @@ public class HighLevelStreamSourceTests
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-a"]);
-        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-a"), TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-a"),
+                TestContext.Current.CancellationToken))
             .ReturnsAsync(lockHandle.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-a", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-1");
@@ -337,7 +347,9 @@ public class HighLevelStreamSourceTests
         Assert.True(streamSource.Sessions.ContainsKey("shard-a"));
         Assert.Equal(1, streamSource.Sessions["shard-a"].Count);
 
-        locker.Verify(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-a"), TestContext.Current.CancellationToken),
+        locker.Verify(
+            l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-a"),
+                TestContext.Current.CancellationToken),
             Times.Once);
         checkpointStorage.Verify(c => c.GetCheckpointAsync("shard-a", TestContext.Current.CancellationToken),
             Times.Once);
@@ -363,7 +375,8 @@ public class HighLevelStreamSourceTests
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-empty"]);
-        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-empty"), TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-empty"),
+                TestContext.Current.CancellationToken))
             .ReturnsAsync(emptyShardLock.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-empty", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-empty");
@@ -405,7 +418,8 @@ public class HighLevelStreamSourceTests
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-empty"]);
-        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-empty"), TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-empty"),
+                TestContext.Current.CancellationToken))
             .ReturnsAsync(emptyShardLock.Object);
         checkpointStorage.Setup(c => c.GetCheckpointAsync("shard-empty", TestContext.Current.CancellationToken))
             .ReturnsAsync("iterator-empty");
@@ -450,9 +464,11 @@ public class HighLevelStreamSourceTests
 
         lister.Setup(l => l.GetListOfShardsAsync(TestContext.Current.CancellationToken))
             .ReturnsAsync(["shard-a", "shard-b"]);
-        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-a"), TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-a"),
+                TestContext.Current.CancellationToken))
             .ReturnsAsync(lockA.Object);
-        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-b"), TestContext.Current.CancellationToken))
+        locker.Setup(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-b"),
+                TestContext.Current.CancellationToken))
             .ReturnsAsync(lockB.Object);
 
         var streamSource = CreateStreamSource(checkpointStorage, lister, locker, lowLevelStreamSource);
@@ -461,9 +477,13 @@ public class HighLevelStreamSourceTests
 
         Assert.Empty(response.Items);
         Assert.Empty(streamSource.Sessions);
-        locker.Verify(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-a"), TestContext.Current.CancellationToken),
+        locker.Verify(
+            l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-a"),
+                TestContext.Current.CancellationToken),
             Times.Once);
-        locker.Verify(l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-b"), TestContext.Current.CancellationToken),
+        locker.Verify(
+            l => l.GetLockAsync(KeyHelper.GetLockKey(KinesisTestOptions.StreamArn, "shard-b"),
+                TestContext.Current.CancellationToken),
             Times.Once);
         lockA.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);
         lockB.Verify(l => l.UnlockAsync(It.IsAny<CancellationToken>()), Times.Once);

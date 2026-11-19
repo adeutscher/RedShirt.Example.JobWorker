@@ -4,6 +4,34 @@ namespace RedShirt.Example.JobWorker.Core.UnitTests.Tests.Configuration;
 
 public class IdempotencyConfigurationModelTests
 {
+    private static IdempotencyConfigurationModel CreateWithNamespace(string? keyNamespace)
+    {
+        return new IdempotencyConfigurationModel
+        {
+            Enabled = true,
+            ResultCacheDurationSeconds = 10,
+            MonitorIntervalSeconds = 3,
+            IdempotencyIdsCanRepeat = false,
+            EnableTraceLogging = false,
+            KeyNamespace = keyNamespace
+        };
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void EffectiveKeyNamespace_DefaultsToApplicationName(string? keyNamespace)
+    {
+        Assert.Equal(AppDomain.CurrentDomain.FriendlyName, CreateWithNamespace(keyNamespace).EffectiveKeyNamespace);
+    }
+
+    [Fact]
+    public void EffectiveKeyNamespace_UsesTrimmedConfiguredValue()
+    {
+        Assert.Equal("orders-worker", CreateWithNamespace("  orders-worker ").EffectiveKeyNamespace);
+    }
+
     [Theory]
     [InlineData(-1, 3)]
     [InlineData(0, 3)]
@@ -49,6 +77,16 @@ public class IdempotencyConfigurationModelTests
     }
 
     [Theory]
+    [InlineData(null, true)]
+    [InlineData("orders-worker", true)]
+    [InlineData("orders:worker", false)]
+    [InlineData(":", false)]
+    public void IsValid_RejectsColonInNamespace(string? keyNamespace, bool expected)
+    {
+        Assert.Equal(expected, IdempotencyConfigurationModel.IsValid(CreateWithNamespace(keyNamespace)));
+    }
+
+    [Theory]
     [InlineData(true, true, true)]
     [InlineData(true, true, false)]
     [InlineData(true, false, true)]
@@ -71,43 +109,5 @@ public class IdempotencyConfigurationModelTests
         Assert.Equal(enabled, model.Enabled);
         Assert.Equal(idempotencyIdsCanRepeat, model.IdempotencyIdsCanRepeat);
         Assert.Equal(enableTraceLogging, model.EnableTraceLogging);
-    }
-
-    private static IdempotencyConfigurationModel CreateWithNamespace(string? keyNamespace)
-    {
-        return new IdempotencyConfigurationModel
-        {
-            Enabled = true,
-            ResultCacheDurationSeconds = 10,
-            MonitorIntervalSeconds = 3,
-            IdempotencyIdsCanRepeat = false,
-            EnableTraceLogging = false,
-            KeyNamespace = keyNamespace
-        };
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void EffectiveKeyNamespace_DefaultsToApplicationName(string? keyNamespace)
-    {
-        Assert.Equal(AppDomain.CurrentDomain.FriendlyName, CreateWithNamespace(keyNamespace).EffectiveKeyNamespace);
-    }
-
-    [Fact]
-    public void EffectiveKeyNamespace_UsesTrimmedConfiguredValue()
-    {
-        Assert.Equal("orders-worker", CreateWithNamespace("  orders-worker ").EffectiveKeyNamespace);
-    }
-
-    [Theory]
-    [InlineData(null, true)]
-    [InlineData("orders-worker", true)]
-    [InlineData("orders:worker", false)]
-    [InlineData(":", false)]
-    public void IsValid_RejectsColonInNamespace(string? keyNamespace, bool expected)
-    {
-        Assert.Equal(expected, IdempotencyConfigurationModel.IsValid(CreateWithNamespace(keyNamespace)));
     }
 }

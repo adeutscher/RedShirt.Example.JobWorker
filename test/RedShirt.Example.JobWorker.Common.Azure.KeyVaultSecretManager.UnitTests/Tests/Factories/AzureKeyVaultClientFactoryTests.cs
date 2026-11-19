@@ -1,11 +1,11 @@
 using Azure.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Clients;
 using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Factories;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 
 namespace RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.UnitTests.Tests.Factories;
 
@@ -65,6 +65,17 @@ public class AzureKeyVaultClientFactoryTests
 
     public class GetClient
     {
+        private static string WriteTemporaryCaCertificate()
+        {
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            var request = new CertificateRequest("CN=Test CA", key, HashAlgorithmName.SHA256);
+            using var certificate =
+                request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+            var path = Path.Combine(Path.GetTempPath(), $"kv-ca-{Guid.NewGuid()}.crt");
+            File.WriteAllText(path, certificate.ExportCertificatePem());
+            return path;
+        }
+
         [Fact]
         public void LiveCredential_ReturnsWrapperBoundToConfiguredVaultUri()
         {
@@ -131,17 +142,6 @@ public class AzureKeyVaultClientFactoryTests
 
             var thrown = Assert.Throws<InvalidOperationException>(() => factory.GetClient());
             Assert.Contains("LocalTestingCaCertificatePath", thrown.Message);
-        }
-
-        private static string WriteTemporaryCaCertificate()
-        {
-            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-            var request = new CertificateRequest("CN=Test CA", key, HashAlgorithmName.SHA256);
-            using var certificate =
-                request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
-            var path = Path.Combine(Path.GetTempPath(), $"kv-ca-{Guid.NewGuid()}.crt");
-            File.WriteAllText(path, certificate.ExportCertificatePem());
-            return path;
         }
     }
 }

@@ -24,6 +24,36 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddSecretManagerAzureKeyVault_LiveMode_DoesNotNeedCaCertificatePath()
+    {
+        using var provider = BuildProvider(new Dictionary<string, string?>
+        {
+            ["Common:Secrets:AzureKeyVault:KeyVaultUrl"] = "https://test.vault.azure.net/",
+            ["Common:Secrets:AzureKeyVault:GenerateLocalTestingToken"] = "false"
+        });
+
+        var options = provider.GetRequiredService<IOptions<AzureKeyVaultClientFactory.ConfigurationModel>>().Value;
+        Assert.Null(options.LocalTestingCaCertificatePath);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("/nonexistent/azure-key-vault-ca/emulator.local.crt")]
+    public void AddSecretManagerAzureKeyVault_LocalTestingWithoutCaFile_FailsValidation(string? caPath)
+    {
+        using var provider = BuildProvider(new Dictionary<string, string?>
+        {
+            ["Common:Secrets:AzureKeyVault:KeyVaultUrl"] = "https://localhost:4997/",
+            ["Common:Secrets:AzureKeyVault:GenerateLocalTestingToken"] = "true",
+            ["Common:Secrets:AzureKeyVault:LocalTestingCaCertificatePath"] = caPath
+        });
+
+        var thrown = Assert.Throws<OptionsValidationException>(() =>
+            provider.GetRequiredService<IOptions<AzureKeyVaultClientFactory.ConfigurationModel>>().Value);
+        Assert.Contains("LocalTestingCaCertificatePath", thrown.Message);
+    }
+
+    [Fact]
     public void AddSecretManagerAzureKeyVault_RegistersExpectedSingletons()
     {
         const string vaultUrl = "https://test.vault.azure.net/";
@@ -55,36 +85,6 @@ public class ServiceCollectionExtensionsTests
         {
             File.Delete(caPath);
         }
-    }
-
-    [Fact]
-    public void AddSecretManagerAzureKeyVault_LiveMode_DoesNotNeedCaCertificatePath()
-    {
-        using var provider = BuildProvider(new Dictionary<string, string?>
-        {
-            ["Common:Secrets:AzureKeyVault:KeyVaultUrl"] = "https://test.vault.azure.net/",
-            ["Common:Secrets:AzureKeyVault:GenerateLocalTestingToken"] = "false"
-        });
-
-        var options = provider.GetRequiredService<IOptions<AzureKeyVaultClientFactory.ConfigurationModel>>().Value;
-        Assert.Null(options.LocalTestingCaCertificatePath);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("/nonexistent/azure-key-vault-ca/emulator.local.crt")]
-    public void AddSecretManagerAzureKeyVault_LocalTestingWithoutCaFile_FailsValidation(string? caPath)
-    {
-        using var provider = BuildProvider(new Dictionary<string, string?>
-        {
-            ["Common:Secrets:AzureKeyVault:KeyVaultUrl"] = "https://localhost:4997/",
-            ["Common:Secrets:AzureKeyVault:GenerateLocalTestingToken"] = "true",
-            ["Common:Secrets:AzureKeyVault:LocalTestingCaCertificatePath"] = caPath
-        });
-
-        var thrown = Assert.Throws<OptionsValidationException>(() =>
-            provider.GetRequiredService<IOptions<AzureKeyVaultClientFactory.ConfigurationModel>>().Value);
-        Assert.Contains("LocalTestingCaCertificatePath", thrown.Message);
     }
 
     [Fact]

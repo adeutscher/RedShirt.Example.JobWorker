@@ -18,6 +18,14 @@ internal class DynamoSequenceNumberStorage(
     IOptions<DynamoSequenceNumberStorage.ConfigurationModel> options,
     IOptions<KinesisConfiguration> kinesisOptions) : ISequenceNumberStorage
 {
+    private Task<Record?> LoadAsync(string recordKey, CancellationToken cancellationToken)
+    {
+        return dynamoDbContext.LoadAsync<Record>(recordKey, new LoadConfig
+        {
+            OverrideTableName = options.Value.TableName
+        }, cancellationToken)!;
+    }
+
     /// <summary>
     ///     Read the last sequence number for a shard.
     ///     If there is none under the current key, read the key format used before the stream name was added, so that an
@@ -31,14 +39,6 @@ internal class DynamoSequenceNumberStorage(
                          ?? await LoadAsync(KeyHelper.GetLegacyCheckpointKey(key), ct);
             return record?.Value;
         }, cancellationToken);
-    }
-
-    private Task<Record?> LoadAsync(string recordKey, CancellationToken cancellationToken)
-    {
-        return dynamoDbContext.LoadAsync<Record>(recordKey, new LoadConfig
-        {
-            OverrideTableName = options.Value.TableName
-        }, cancellationToken)!;
     }
 
     public Task SetLastSequenceNumber(string key, string value, CancellationToken cancellationToken = default)

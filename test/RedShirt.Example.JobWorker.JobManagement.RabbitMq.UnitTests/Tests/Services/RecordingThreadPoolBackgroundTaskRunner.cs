@@ -7,8 +7,8 @@ namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Serv
 /// </summary>
 internal sealed class RecordingThreadPoolBackgroundTaskRunner : IThreadPoolBackgroundTaskRunner
 {
-    private readonly Queue<Func<Task>> _pending = new();
     private readonly object _lock = new();
+    private readonly Queue<Func<Task>> _pending = new();
 
     public void Run(Func<Task> work, CancellationToken cancellationToken)
     {

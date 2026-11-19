@@ -74,36 +74,6 @@ public class SqsQueueFailureHandlerTests
     }
 
     [Fact]
-    public async Task SendFailure_NoQueueUrl()
-    {
-        var sqs = new Mock<IAmazonSQS>();
-        var sender = CreateHandler(sqs.Object, null);
-
-        await sender.HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution, null,
-            TestContext.Current.CancellationToken);
-
-        Assert.Empty(sqs.Invocations);
-    }
-
-    [Fact]
-    public async Task SendFailure_QueueUrl()
-    {
-        var sqs = new Mock<IAmazonSQS>();
-        var body = Guid.NewGuid().ToString();
-        var sender = CreateHandler(sqs.Object);
-
-        await sender.HandleFailureAsync(CreateRawJobModel(body).Object, FailureType.Execution, null,
-            TestContext.Current.CancellationToken);
-
-        Assert.Single(sqs.Invocations);
-        sqs.Verify(
-            a => a.SendMessageAsync(
-                It.Is<SendMessageRequest>(r => r.QueueUrl == "foo" && r.MessageBody == body
-                                               && (r.MessageAttributes == null || r.MessageAttributes.Count == 0)),
-                TestContext.Current.CancellationToken), Times.Once);
-    }
-
-    [Fact]
     public async Task SendFailure_BodyWithCharactersSqsRejects_SendsBase64WithShardId()
     {
         var sent = new List<SendMessageRequest>();
@@ -118,6 +88,18 @@ public class SqsQueueFailureHandlerTests
         Assert.Equal(ShardId, request.MessageAttributes[SqsQueueFailureHandler.ShardIdAttribute].StringValue);
         Assert.Equal(SequenceNumber,
             request.MessageAttributes[SqsFailureMessageBuilder.SourceMessageIdAttribute].StringValue);
+    }
+
+    [Fact]
+    public async Task SendFailure_NoQueueUrl()
+    {
+        var sqs = new Mock<IAmazonSQS>();
+        var sender = CreateHandler(sqs.Object, null);
+
+        await sender.HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution, null,
+            TestContext.Current.CancellationToken);
+
+        Assert.Empty(sqs.Invocations);
     }
 
     [Fact]
@@ -140,18 +122,22 @@ public class SqsQueueFailureHandlerTests
     }
 
     [Fact]
-    public async Task SendFailure_TransientFailure_ThrowsWithoutReference()
+    public async Task SendFailure_QueueUrl()
     {
-        var sent = new List<SendMessageRequest>();
-        var failure = SourceFailure(true);
-        var sqs = CreateSqs(sent, failure);
+        var sqs = new Mock<IAmazonSQS>();
+        var body = Guid.NewGuid().ToString();
+        var sender = CreateHandler(sqs.Object);
 
-        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
-            CreateHandler(sqs.Object).HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution, null,
-                TestContext.Current.CancellationToken));
+        await sender.HandleFailureAsync(CreateRawJobModel(body).Object, FailureType.Execution, null,
+            TestContext.Current.CancellationToken);
 
-        Assert.Same(failure, thrown);
-        Assert.Single(sent);
+        Assert.Single(sqs.Invocations);
+        sqs.Verify(
+            a => a.SendMessageAsync(
+                It.Is<SendMessageRequest>(r => r.QueueUrl == "foo" && r.MessageBody == body
+                                                                   && (r.MessageAttributes == null ||
+                                                                       r.MessageAttributes.Count == 0)),
+                TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Fact]
@@ -167,6 +153,21 @@ public class SqsQueueFailureHandlerTests
 
         Assert.Same(second, thrown);
         Assert.Equal(2, sent.Count);
+    }
+
+    [Fact]
+    public async Task SendFailure_TransientFailure_ThrowsWithoutReference()
+    {
+        var sent = new List<SendMessageRequest>();
+        var failure = SourceFailure(true);
+        var sqs = CreateSqs(sent, failure);
+
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
+            CreateHandler(sqs.Object).HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution, null,
+                TestContext.Current.CancellationToken));
+
+        Assert.Same(failure, thrown);
+        Assert.Single(sent);
     }
 
     private sealed class PassthroughRetryWrapper : IKinesisRetryWrapperService

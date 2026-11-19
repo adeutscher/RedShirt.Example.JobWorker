@@ -30,6 +30,18 @@ internal class SqsQueueFailureHandler(
 {
     internal const string ShardIdAttribute = "SourceShardId";
 
+    private static bool IsPermanentRejection(Exception exception)
+    {
+        return exception switch
+        {
+            OperationCanceledException => false,
+            // Retries were exhausted on a transient cause: leave the record unacknowledged rather than drop its body.
+            WorkerJobSourceException {CouldBeTransient: true} => false,
+            WorkerSqsException {CouldBeTransient: true} => false,
+            _ => true
+        };
+    }
+
     public async Task HandleFailureAsync(IRawJobModel rawJobModel, FailureType failureType, Exception? exception,
         CancellationToken cancellationToken = default)
     {
@@ -59,18 +71,6 @@ internal class SqsQueueFailureHandler(
                 $"SQS rejected the record body ({e.GetType().Name})", sourceAttributes);
             await retryWrapperService.RunAsync(ct => sqs.SendMessageAsync(reference, ct), cancellationToken);
         }
-    }
-
-    private static bool IsPermanentRejection(Exception exception)
-    {
-        return exception switch
-        {
-            OperationCanceledException => false,
-            // Retries were exhausted on a transient cause: leave the record unacknowledged rather than drop its body.
-            WorkerJobSourceException {CouldBeTransient: true} => false,
-            WorkerSqsException {CouldBeTransient: true} => false,
-            _ => true
-        };
     }
 
     internal class ConfigurationModel

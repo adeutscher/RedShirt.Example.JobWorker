@@ -13,16 +13,6 @@ internal static class KeyHelper
 {
     private static string ApplicationName => AppDomain.CurrentDomain.FriendlyName;
 
-    /// <summary>
-    ///     Stream name from a stream ARN (<c>arn:aws:kinesis:{region}:{account}:stream/{name}</c>).
-    ///     A value without a slash is treated as the name itself.
-    /// </summary>
-    internal static string GetStreamName(string streamArn)
-    {
-        var index = streamArn.LastIndexOf('/');
-        return index >= 0 ? streamArn[(index + 1)..] : streamArn;
-    }
-
     private static string GetShardWorkerId(string streamArn, string shardName)
     {
         return $"{ApplicationName}:{GetStreamName(streamArn)}:{shardName}";
@@ -31,11 +21,6 @@ internal static class KeyHelper
     public static string GetCheckpointKey(string streamArn, string shardName)
     {
         return $"checkpoint:{GetShardWorkerId(streamArn, shardName)}";
-    }
-
-    public static string GetLockKey(string streamArn, string shardName)
-    {
-        return $"lock:{GetShardWorkerId(streamArn, shardName)}";
     }
 
     /// <summary>
@@ -47,5 +32,20 @@ internal static class KeyHelper
     public static string GetLegacyCheckpointKey(string shardName)
     {
         return $"checkpoint:{ApplicationName}-{shardName}";
+    }
+
+    public static string GetLockKey(string streamArn, string shardName)
+    {
+        return $"lock:{GetShardWorkerId(streamArn, shardName)}";
+    }
+
+    /// <summary>
+    ///     Stream name from a stream ARN (<c>arn:aws:kinesis:{region}:{account}:stream/{name}</c>).
+    ///     A value without a slash is treated as the name itself.
+    /// </summary>
+    internal static string GetStreamName(string streamArn)
+    {
+        var index = streamArn.LastIndexOf('/');
+        return index >= 0 ? streamArn[(index + 1)..] : streamArn;
     }
 }

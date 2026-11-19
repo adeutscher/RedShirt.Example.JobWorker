@@ -342,7 +342,8 @@ public class IdempotencyExecutionServiceTests
         var result = await service.GetLockAsync(job.Object, TestContext.Current.CancellationToken);
 
         Assert.Same(expectedLock.Object, result);
-        lockService.Verify(s => s.GetLockAsync("idempotency:test-ns:idem-1:lock", TestContext.Current.CancellationToken),
+        lockService.Verify(
+            s => s.GetLockAsync("idempotency:test-ns:idem-1:lock", TestContext.Current.CancellationToken),
             Times.Once);
         VerifyNoTraceLogs(logger);
     }

@@ -1,4 +1,3 @@
-using System.Text;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -11,6 +10,7 @@ using RedShirt.Example.JobWorker.Core.Exceptions;
 using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Services;
 using RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.Services.Resilience;
+using System.Text;
 
 namespace RedShirt.Example.JobWorker.JobManagement.Kafka.FailureHandling.Sqs.UnitTests.Tests.Services;
 
@@ -66,36 +66,6 @@ public class SqsQueueFailureHandlerTests
     }
 
     [Fact]
-    public async Task SendFailure_NoQueueUrl()
-    {
-        var sqs = new Mock<IAmazonSQS>();
-        var sender = CreateHandler(sqs.Object, null);
-
-        await sender.HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution, null,
-            TestContext.Current.CancellationToken);
-
-        Assert.Empty(sqs.Invocations);
-    }
-
-    [Fact]
-    public async Task SendFailure_QueueUrl()
-    {
-        var sqs = new Mock<IAmazonSQS>();
-        var body = Guid.NewGuid().ToString();
-        var sender = CreateHandler(sqs.Object);
-
-        await sender.HandleFailureAsync(CreateRawJobModel(body).Object, FailureType.Execution, null,
-            TestContext.Current.CancellationToken);
-
-        Assert.Single(sqs.Invocations);
-        sqs.Verify(
-            a => a.SendMessageAsync(
-                It.Is<SendMessageRequest>(r => r.QueueUrl == "foo" && r.MessageBody == body
-                                               && (r.MessageAttributes == null || r.MessageAttributes.Count == 0)),
-                TestContext.Current.CancellationToken), Times.Once);
-    }
-
-    [Fact]
     public async Task SendFailure_BodyWithCharactersSqsRejects_SendsBase64()
     {
         var sent = new List<SendMessageRequest>();
@@ -111,6 +81,31 @@ public class SqsQueueFailureHandlerTests
             request.MessageAttributes[SqsFailureMessageBuilder.BodyEncodingAttribute].StringValue);
         Assert.Equal(MessageId,
             request.MessageAttributes[SqsFailureMessageBuilder.SourceMessageIdAttribute].StringValue);
+    }
+
+    [Fact]
+    public async Task SendFailure_EmptyBody_SendsReferenceOnce()
+    {
+        var sent = new List<SendMessageRequest>();
+        var sqs = CreateSqs(sent);
+
+        await CreateHandler(sqs.Object).HandleFailureAsync(CreateRawJobModel(string.Empty).Object,
+            FailureType.Empty, null, TestContext.Current.CancellationToken);
+
+        var request = Assert.Single(sent);
+        Assert.True(SqsFailureMessageBuilder.IsReference(request));
+    }
+
+    [Fact]
+    public async Task SendFailure_NoQueueUrl()
+    {
+        var sqs = new Mock<IAmazonSQS>();
+        var sender = CreateHandler(sqs.Object, null);
+
+        await sender.HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution, null,
+            TestContext.Current.CancellationToken);
+
+        Assert.Empty(sqs.Invocations);
     }
 
     [Fact]
@@ -134,32 +129,37 @@ public class SqsQueueFailureHandlerTests
     }
 
     [Fact]
-    public async Task SendFailure_UnclassifiedRejection_SendsReference()
+    public async Task SendFailure_QueueUrl()
     {
-        var sent = new List<SendMessageRequest>();
-        var sqs = CreateSqs(sent, new AmazonSQSException("Message must be shorter than 262144 bytes."));
+        var sqs = new Mock<IAmazonSQS>();
+        var body = Guid.NewGuid().ToString();
+        var sender = CreateHandler(sqs.Object);
 
-        await CreateHandler(sqs.Object).HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution,
-            null, TestContext.Current.CancellationToken);
+        await sender.HandleFailureAsync(CreateRawJobModel(body).Object, FailureType.Execution, null,
+            TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, sent.Count);
-        Assert.True(SqsFailureMessageBuilder.IsReference(sent[1]));
+        Assert.Single(sqs.Invocations);
+        sqs.Verify(
+            a => a.SendMessageAsync(
+                It.Is<SendMessageRequest>(r => r.QueueUrl == "foo" && r.MessageBody == body
+                                                                   && (r.MessageAttributes == null ||
+                                                                       r.MessageAttributes.Count == 0)),
+                TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Fact]
-    public async Task SendFailure_TransientFailure_ThrowsWithoutReference()
+    public async Task SendFailure_ReferenceAlsoRejected_Throws()
     {
         var sent = new List<SendMessageRequest>();
-        var failure = SqsFailure(true);
-        var sqs = CreateSqs(sent, failure);
+        var second = SqsFailure(false);
+        var sqs = CreateSqs(sent, SqsFailure(false), second);
 
         var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
             CreateHandler(sqs.Object).HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution, null,
                 TestContext.Current.CancellationToken));
 
-        Assert.Same(failure, thrown.InnerException);
-        Assert.True(thrown.CouldBeTransient);
-        Assert.Single(sent);
+        Assert.Same(second, thrown.InnerException);
+        Assert.Equal(2, sent.Count);
     }
 
     [Theory]
@@ -192,6 +192,22 @@ public class SqsQueueFailureHandlerTests
     }
 
     [Fact]
+    public async Task SendFailure_TransientFailure_ThrowsWithoutReference()
+    {
+        var sent = new List<SendMessageRequest>();
+        var failure = SqsFailure(true);
+        var sqs = CreateSqs(sent, failure);
+
+        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
+            CreateHandler(sqs.Object).HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution, null,
+                TestContext.Current.CancellationToken));
+
+        Assert.Same(failure, thrown.InnerException);
+        Assert.True(thrown.CouldBeTransient);
+        Assert.Single(sent);
+    }
+
+    [Fact]
     public async Task SendFailure_UnclassifiedFailureOnReference_StaysRaw()
     {
         var sent = new List<SendMessageRequest>();
@@ -206,31 +222,16 @@ public class SqsQueueFailureHandlerTests
     }
 
     [Fact]
-    public async Task SendFailure_ReferenceAlsoRejected_Throws()
+    public async Task SendFailure_UnclassifiedRejection_SendsReference()
     {
         var sent = new List<SendMessageRequest>();
-        var second = SqsFailure(false);
-        var sqs = CreateSqs(sent, SqsFailure(false), second);
+        var sqs = CreateSqs(sent, new AmazonSQSException("Message must be shorter than 262144 bytes."));
 
-        var thrown = await Assert.ThrowsAsync<WorkerJobSourceException>(() =>
-            CreateHandler(sqs.Object).HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution, null,
-                TestContext.Current.CancellationToken));
+        await CreateHandler(sqs.Object).HandleFailureAsync(CreateRawJobModel().Object, FailureType.Execution,
+            null, TestContext.Current.CancellationToken);
 
-        Assert.Same(second, thrown.InnerException);
         Assert.Equal(2, sent.Count);
-    }
-
-    [Fact]
-    public async Task SendFailure_EmptyBody_SendsReferenceOnce()
-    {
-        var sent = new List<SendMessageRequest>();
-        var sqs = CreateSqs(sent);
-
-        await CreateHandler(sqs.Object).HandleFailureAsync(CreateRawJobModel(string.Empty).Object,
-            FailureType.Empty, null, TestContext.Current.CancellationToken);
-
-        var request = Assert.Single(sent);
-        Assert.True(SqsFailureMessageBuilder.IsReference(request));
+        Assert.True(SqsFailureMessageBuilder.IsReference(sent[1]));
     }
 
     private sealed class PassthroughRetryWrapper : ISqsRetryWrapperService

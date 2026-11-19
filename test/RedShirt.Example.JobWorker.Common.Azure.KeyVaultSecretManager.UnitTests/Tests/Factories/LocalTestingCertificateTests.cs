@@ -1,3 +1,4 @@
+using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Factories;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -5,7 +6,6 @@ using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
-using RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.Factories;
 
 namespace RedShirt.Example.JobWorker.Common.Azure.KeyVaultSecretManager.UnitTests.Tests.Factories;
 
@@ -129,89 +129,6 @@ public class LocalTestingCertificateTests
         }
     }
 
-    [Fact]
-    public async Task Handshake_CertificateFromPinnedCa_Succeeds()
-    {
-        using var ca = CreateCa("Pinned CA");
-        using var server = CreateServerCertificate(ca, "localhost");
-        using var pinned = PublicOnly(ca);
-
-        Assert.True(await RequestSucceedsAsync(server, pinned, TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task Handshake_SelfSignedCertificatePinnedDirectly_Succeeds()
-    {
-        using var server = CreateSelfSignedServerCertificate("localhost");
-        using var pinned = PublicOnly(server);
-
-        Assert.True(await RequestSucceedsAsync(server, pinned, TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task Handshake_CertificateFromOtherCa_Fails()
-    {
-        using var pinnedCa = CreateCa("Pinned CA");
-        using var otherCa = CreateCa("Attacker CA");
-        using var server = CreateServerCertificate(otherCa, "localhost");
-        using var pinned = PublicOnly(pinnedCa);
-
-        Assert.False(await RequestSucceedsAsync(server, pinned, TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task Handshake_HostnameMismatch_FailsEvenFromPinnedCa()
-    {
-        using var ca = CreateCa("Pinned CA");
-        using var server = CreateServerCertificate(ca, "not-localhost.example");
-        using var pinned = PublicOnly(ca);
-
-        Assert.False(await RequestSucceedsAsync(server, pinned, TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public void IsTrustedByLocalTestingCa_NoErrors_Trusted()
-    {
-        using var ca = CreateCa("Pinned CA");
-
-        Assert.True(AzureKeyVaultClientFactory.IsTrustedByLocalTestingCa(ca, null, SslPolicyErrors.None));
-    }
-
-    [Theory]
-    [InlineData(SslPolicyErrors.RemoteCertificateNameMismatch)]
-    [InlineData(SslPolicyErrors.RemoteCertificateNotAvailable)]
-    [InlineData(SslPolicyErrors.RemoteCertificateChainErrors | SslPolicyErrors.RemoteCertificateNameMismatch)]
-    public void IsTrustedByLocalTestingCa_OtherErrors_NotTrusted(SslPolicyErrors errors)
-    {
-        using var ca = CreateCa("Pinned CA");
-        using var server = CreateServerCertificate(ca, "localhost");
-
-        Assert.False(AzureKeyVaultClientFactory.IsTrustedByLocalTestingCa(ca, server, errors));
-    }
-
-    [Fact]
-    public void IsTrustedByLocalTestingCa_ChainErrorsWithoutCertificate_NotTrusted()
-    {
-        using var ca = CreateCa("Pinned CA");
-
-        Assert.False(AzureKeyVaultClientFactory.IsTrustedByLocalTestingCa(ca, null,
-            SslPolicyErrors.RemoteCertificateChainErrors));
-    }
-
-    [Fact]
-    public void IsTrustedByLocalTestingCa_ChainErrors_TrustedOnlyForPinnedCa()
-    {
-        using var ca = CreateCa("Pinned CA");
-        using var otherCa = CreateCa("Attacker CA");
-        using var fromPinned = CreateServerCertificate(ca, "localhost");
-        using var fromOther = CreateServerCertificate(otherCa, "localhost");
-
-        Assert.True(AzureKeyVaultClientFactory.IsTrustedByLocalTestingCa(ca, fromPinned,
-            SslPolicyErrors.RemoteCertificateChainErrors));
-        Assert.False(AzureKeyVaultClientFactory.IsTrustedByLocalTestingCa(ca, fromOther,
-            SslPolicyErrors.RemoteCertificateChainErrors));
-    }
-
     [Theory]
     [InlineData(false, null, false, true)]
     [InlineData(false, "", false, true)]
@@ -251,5 +168,88 @@ public class LocalTestingCertificateTests
                 File.Delete(path);
             }
         }
+    }
+
+    [Fact]
+    public async Task Handshake_CertificateFromOtherCa_Fails()
+    {
+        using var pinnedCa = CreateCa("Pinned CA");
+        using var otherCa = CreateCa("Attacker CA");
+        using var server = CreateServerCertificate(otherCa, "localhost");
+        using var pinned = PublicOnly(pinnedCa);
+
+        Assert.False(await RequestSucceedsAsync(server, pinned, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Handshake_CertificateFromPinnedCa_Succeeds()
+    {
+        using var ca = CreateCa("Pinned CA");
+        using var server = CreateServerCertificate(ca, "localhost");
+        using var pinned = PublicOnly(ca);
+
+        Assert.True(await RequestSucceedsAsync(server, pinned, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Handshake_HostnameMismatch_FailsEvenFromPinnedCa()
+    {
+        using var ca = CreateCa("Pinned CA");
+        using var server = CreateServerCertificate(ca, "not-localhost.example");
+        using var pinned = PublicOnly(ca);
+
+        Assert.False(await RequestSucceedsAsync(server, pinned, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Handshake_SelfSignedCertificatePinnedDirectly_Succeeds()
+    {
+        using var server = CreateSelfSignedServerCertificate("localhost");
+        using var pinned = PublicOnly(server);
+
+        Assert.True(await RequestSucceedsAsync(server, pinned, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void IsTrustedByLocalTestingCa_ChainErrorsWithoutCertificate_NotTrusted()
+    {
+        using var ca = CreateCa("Pinned CA");
+
+        Assert.False(AzureKeyVaultClientFactory.IsTrustedByLocalTestingCa(ca, null,
+            SslPolicyErrors.RemoteCertificateChainErrors));
+    }
+
+    [Fact]
+    public void IsTrustedByLocalTestingCa_ChainErrors_TrustedOnlyForPinnedCa()
+    {
+        using var ca = CreateCa("Pinned CA");
+        using var otherCa = CreateCa("Attacker CA");
+        using var fromPinned = CreateServerCertificate(ca, "localhost");
+        using var fromOther = CreateServerCertificate(otherCa, "localhost");
+
+        Assert.True(AzureKeyVaultClientFactory.IsTrustedByLocalTestingCa(ca, fromPinned,
+            SslPolicyErrors.RemoteCertificateChainErrors));
+        Assert.False(AzureKeyVaultClientFactory.IsTrustedByLocalTestingCa(ca, fromOther,
+            SslPolicyErrors.RemoteCertificateChainErrors));
+    }
+
+    [Fact]
+    public void IsTrustedByLocalTestingCa_NoErrors_Trusted()
+    {
+        using var ca = CreateCa("Pinned CA");
+
+        Assert.True(AzureKeyVaultClientFactory.IsTrustedByLocalTestingCa(ca, null, SslPolicyErrors.None));
+    }
+
+    [Theory]
+    [InlineData(SslPolicyErrors.RemoteCertificateNameMismatch)]
+    [InlineData(SslPolicyErrors.RemoteCertificateNotAvailable)]
+    [InlineData(SslPolicyErrors.RemoteCertificateChainErrors | SslPolicyErrors.RemoteCertificateNameMismatch)]
+    public void IsTrustedByLocalTestingCa_OtherErrors_NotTrusted(SslPolicyErrors errors)
+    {
+        using var ca = CreateCa("Pinned CA");
+        using var server = CreateServerCertificate(ca, "localhost");
+
+        Assert.False(AzureKeyVaultClientFactory.IsTrustedByLocalTestingCa(ca, server, errors));
     }
 }

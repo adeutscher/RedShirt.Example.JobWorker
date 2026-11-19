@@ -1,10 +1,29 @@
-using RedShirt.Example.JobWorker.JobManagement.RabbitMq.Services;
-
 namespace RedShirt.Example.JobWorker.JobManagement.RabbitMq.UnitTests.Tests.Services;
 
 [Collection("RabbitMq serial tests")]
 public class RecordingThreadPoolBackgroundTaskRunnerTests
 {
+    [Fact]
+    public async Task DrainAllAsync_AwaitsReturnedTaskFromWork()
+    {
+        var recording = new RecordingThreadPoolBackgroundTaskRunner();
+        var innerCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var observed = false;
+
+        recording.Run(async () =>
+        {
+            await innerCompleted.Task;
+            observed = true;
+        }, CancellationToken.None);
+
+        Assert.False(observed);
+
+        innerCompleted.TrySetResult();
+        await recording.DrainAllAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(observed);
+    }
+
     [Fact]
     public async Task DrainAllAsync_RunsEnqueuedWorkInOrder()
     {
@@ -43,26 +62,5 @@ public class RecordingThreadPoolBackgroundTaskRunnerTests
         }, cts.Token);
 
         Assert.False(executed);
-    }
-
-    [Fact]
-    public async Task DrainAllAsync_AwaitsReturnedTaskFromWork()
-    {
-        var recording = new RecordingThreadPoolBackgroundTaskRunner();
-        var innerCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var observed = false;
-
-        recording.Run(async () =>
-        {
-            await innerCompleted.Task;
-            observed = true;
-        }, CancellationToken.None);
-
-        Assert.False(observed);
-
-        innerCompleted.TrySetResult();
-        await recording.DrainAllAsync(TestContext.Current.CancellationToken);
-
-        Assert.True(observed);
     }
 }

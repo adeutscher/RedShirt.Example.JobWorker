@@ -1,6 +1,6 @@
+using Amazon.SQS.Model;
 using System.Text;
 using System.Text.Json;
-using Amazon.SQS.Model;
 
 namespace RedShirt.Example.JobWorker.Common.Aws.Sqs.Utility;
 
@@ -30,6 +30,36 @@ public static class SqsFailureMessageBuilder
     public const string Base64Encoding = "base64";
     public const string BodyOmittedAttribute = "BodyOmitted";
     public const string SourceMessageIdAttribute = "SourceMessageId";
+
+    private static Dictionary<string, MessageAttributeValue> BuildAttributes(string sourceMessageId,
+        IReadOnlyDictionary<string, string>? sourceAttributes)
+    {
+        var attributes = new Dictionary<string, MessageAttributeValue>
+        {
+            [SourceMessageIdAttribute] = StringAttribute(sourceMessageId)
+        };
+
+        if (sourceAttributes is null)
+        {
+            return attributes;
+        }
+
+        foreach (var (key, value) in sourceAttributes)
+        {
+            attributes[key] = StringAttribute(value);
+        }
+
+        return attributes;
+    }
+
+    private static MessageAttributeValue StringAttribute(string value)
+    {
+        return new MessageAttributeValue
+        {
+            DataType = "String",
+            StringValue = value
+        };
+    }
 
     /// <summary>
     ///     Build the first-choice failure message for a record: its body unchanged if SQS accepts it, otherwise a base64
@@ -94,14 +124,6 @@ public static class SqsFailureMessageBuilder
     }
 
     /// <summary>
-    ///     Whether a request is a reference message built by <see cref="BuildReference" />.
-    /// </summary>
-    public static bool IsReference(SendMessageRequest request)
-    {
-        return request.MessageAttributes?.ContainsKey(BodyOmittedAttribute) == true;
-    }
-
-    /// <summary>
     ///     Whether every character is in the set that SQS accepts in a message body:
     ///     #x9, #xA, #xD, #x20 to #xD7FF, #xE000 to #xFFFD, and #x10000 to #x10FFFF.
     /// </summary>
@@ -134,34 +156,12 @@ public static class SqsFailureMessageBuilder
         return true;
     }
 
-    private static Dictionary<string, MessageAttributeValue> BuildAttributes(string sourceMessageId,
-        IReadOnlyDictionary<string, string>? sourceAttributes)
+    /// <summary>
+    ///     Whether a request is a reference message built by <see cref="BuildReference" />.
+    /// </summary>
+    public static bool IsReference(SendMessageRequest request)
     {
-        var attributes = new Dictionary<string, MessageAttributeValue>
-        {
-            [SourceMessageIdAttribute] = StringAttribute(sourceMessageId)
-        };
-
-        if (sourceAttributes is null)
-        {
-            return attributes;
-        }
-
-        foreach (var (key, value) in sourceAttributes)
-        {
-            attributes[key] = StringAttribute(value);
-        }
-
-        return attributes;
-    }
-
-    private static MessageAttributeValue StringAttribute(string value)
-    {
-        return new MessageAttributeValue
-        {
-            DataType = "String",
-            StringValue = value
-        };
+        return request.MessageAttributes?.ContainsKey(BodyOmittedAttribute) == true;
     }
 
     private sealed class ReferenceBody

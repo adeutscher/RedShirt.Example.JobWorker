@@ -363,7 +363,7 @@ public class RabbitMqSubscribeJobSourceTests
         await waitStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
         Assert.True(waitForFinishedExecuted);
         executionEndArbiter.Verify(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()), Times.Once);
-        channel.Verify(c => c.BasicQosAsync(0, (ushort) 5, false, TestContext.Current.CancellationToken),
+        channel.Verify(c => c.BasicQosAsync(0, 5, false, TestContext.Current.CancellationToken),
             Times.Once);
         channel.Verify(c => c.BasicConsumeAsync(
             QueueName,

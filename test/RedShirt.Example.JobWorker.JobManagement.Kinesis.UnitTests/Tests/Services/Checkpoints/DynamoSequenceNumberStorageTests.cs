@@ -50,6 +50,30 @@ public class DynamoSequenceNumberStorageTests
     }
 
     [Fact]
+    public async Task Test_Get_CurrentKeyIncludesStreamName_AndSkipsLegacyWhenFound()
+    {
+        var ctx = new Mock<IDynamoDBContext>(MockBehavior.Strict);
+        var currentKey = KeyHelper.GetCheckpointKey(KinesisTestOptions.StreamArn, "shardId-000000000001");
+        ctx.Setup(c => c.LoadAsync<DynamoSequenceNumberStorage.Record>(currentKey, It.IsAny<LoadConfig>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DynamoSequenceNumberStorage.Record {Value = "current"});
+
+        var storage = new DynamoSequenceNumberStorage(ctx.Object, new PassthroughRetryWrapper(), Options.Create(
+            new DynamoSequenceNumberStorage.ConfigurationModel
+            {
+                TableName = "table",
+                RecordDurationHours = 1
+            }), KinesisTestOptions.Create());
+
+        var result = await storage.GetLastSequenceNumber("shardId-000000000001",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("current", result);
+        Assert.Contains($":{KinesisTestOptions.StreamName}:shardId-000000000001", currentKey);
+        Assert.Single(ctx.Invocations);
+    }
+
+    [Fact]
     public async Task Test_Get_Fail()
     {
         var ctx = new Mock<IDynamoDBContext>();
@@ -82,30 +106,6 @@ public class DynamoSequenceNumberStorageTests
     }
 
     [Fact]
-    public async Task Test_Get_CurrentKeyIncludesStreamName_AndSkipsLegacyWhenFound()
-    {
-        var ctx = new Mock<IDynamoDBContext>(MockBehavior.Strict);
-        var currentKey = KeyHelper.GetCheckpointKey(KinesisTestOptions.StreamArn, "shardId-000000000001");
-        ctx.Setup(c => c.LoadAsync<DynamoSequenceNumberStorage.Record>(currentKey, It.IsAny<LoadConfig>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DynamoSequenceNumberStorage.Record {Value = "current"});
-
-        var storage = new DynamoSequenceNumberStorage(ctx.Object, new PassthroughRetryWrapper(), Options.Create(
-            new DynamoSequenceNumberStorage.ConfigurationModel
-            {
-                TableName = "table",
-                RecordDurationHours = 1
-            }), KinesisTestOptions.Create());
-
-        var result = await storage.GetLastSequenceNumber("shardId-000000000001",
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal("current", result);
-        Assert.Contains($":{KinesisTestOptions.StreamName}:shardId-000000000001", currentKey);
-        Assert.Single(ctx.Invocations);
-    }
-
-    [Fact]
     public async Task Test_Get_FallsBackToLegacyKey()
     {
         var ctx = new Mock<IDynamoDBContext>(MockBehavior.Strict);
@@ -127,30 +127,6 @@ public class DynamoSequenceNumberStorageTests
         var result = await storage.GetLastSequenceNumber("shard-1", TestContext.Current.CancellationToken);
 
         Assert.Equal("legacy", result);
-    }
-
-    [Fact]
-    public async Task Test_Set_WritesCurrentKeyOnly()
-    {
-        var ctx = new Mock<IDynamoDBContext>(MockBehavior.Strict);
-        DynamoSequenceNumberStorage.Record? saved = null;
-        ctx.Setup(c => c.SaveAsync(It.IsAny<DynamoSequenceNumberStorage.Record>(), It.IsAny<SaveConfig>(),
-                It.IsAny<CancellationToken>()))
-            .Callback((DynamoSequenceNumberStorage.Record r, SaveConfig _, CancellationToken _) => saved = r)
-            .Returns(Task.CompletedTask);
-
-        var storage = new DynamoSequenceNumberStorage(ctx.Object, new PassthroughRetryWrapper(), Options.Create(
-            new DynamoSequenceNumberStorage.ConfigurationModel
-            {
-                TableName = "table",
-                RecordDurationHours = 1
-            }), KinesisTestOptions.Create());
-
-        await storage.SetLastSequenceNumber("shard-1", "42", TestContext.Current.CancellationToken);
-
-        Assert.NotNull(saved);
-        Assert.Equal(KeyHelper.GetCheckpointKey(KinesisTestOptions.StreamArn, "shard-1"), saved.ShardId);
-        Assert.Single(ctx.Invocations);
     }
 
     [Fact]
@@ -187,6 +163,30 @@ public class DynamoSequenceNumberStorageTests
         var opConfig = invocation.Arguments[1] as SaveConfig;
         Assert.NotNull(opConfig);
         Assert.Equal(tableName, opConfig.OverrideTableName);
+    }
+
+    [Fact]
+    public async Task Test_Set_WritesCurrentKeyOnly()
+    {
+        var ctx = new Mock<IDynamoDBContext>(MockBehavior.Strict);
+        DynamoSequenceNumberStorage.Record? saved = null;
+        ctx.Setup(c => c.SaveAsync(It.IsAny<DynamoSequenceNumberStorage.Record>(), It.IsAny<SaveConfig>(),
+                It.IsAny<CancellationToken>()))
+            .Callback((DynamoSequenceNumberStorage.Record r, SaveConfig _, CancellationToken _) => saved = r)
+            .Returns(Task.CompletedTask);
+
+        var storage = new DynamoSequenceNumberStorage(ctx.Object, new PassthroughRetryWrapper(), Options.Create(
+            new DynamoSequenceNumberStorage.ConfigurationModel
+            {
+                TableName = "table",
+                RecordDurationHours = 1
+            }), KinesisTestOptions.Create());
+
+        await storage.SetLastSequenceNumber("shard-1", "42", TestContext.Current.CancellationToken);
+
+        Assert.NotNull(saved);
+        Assert.Equal(KeyHelper.GetCheckpointKey(KinesisTestOptions.StreamArn, "shard-1"), saved.ShardId);
+        Assert.Single(ctx.Invocations);
     }
 
     private sealed class PassthroughRetryWrapper : IKinesisRetryWrapperService
