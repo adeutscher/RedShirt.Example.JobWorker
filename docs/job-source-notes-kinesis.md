@@ -41,6 +41,22 @@ Earlier versions used `checkpoint:{application}-{shard}` and `lock:{application}
 The fallback to the old checkpoint key can be removed once every shard has saved a checkpoint under the new key, or once
 the old records have expired.
 
+## Checkpoint Ordering
+
+Only the worker holding a shard's lock reads and saves that shard's checkpoint, so in normal operation two workers never
+write the same checkpoint. The lock is a Redis lease, though, not a fence. It can lapse while its holder keeps working,
+for example when Redis restarts without persistence or fails over to a replica without the lock key, when a network
+partition outlasts the lease, or when the process stalls for longer than the lease. Another worker can then take the
+shard and process the same records.
+
+As a backstop, the long-term DynamoDB checkpoint is saved with a conditional write that refuses to move it backward. Kinesis
+sequence numbers are compared through a zero-padded `SortableValue` attribute, because they vary in length and are too
+long for a DynamoDB number. A refused write is logged as a warning, and the newer checkpoint is kept.
+
+This does not prevent the duplicate processing itself. Idempotency handling softens that. The short-term iterator in
+Redis cannot be compared, so a stale worker can still overwrite it for the few minutes that it lives. Records saved
+before this change have no `SortableValue`, so the first save after upgrading is unconditional.
+
 ## Kinesis AI Audit Notes
 
 The solutions to the above considerations for Kinesis are part of why an AI audit of the key Kinesis using the Composer
