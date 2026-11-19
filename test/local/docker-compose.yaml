@@ -208,6 +208,10 @@ services:
       timeout: 3s
       retries: 5
       start_period: 20s
+    volumes:
+      # Public certificate of the Azure Key Vault emulator, pinned by the worker in local testing mode.
+      # Written by generate-azure-key-vault-cert.sh. Holds no private key.
+      - ./config/azure-key-vault-ca:/run/azure-key-vault-ca:ro
     environment:
       # General
       AWS_SERVICE_URL: http://ministack:4566
@@ -247,8 +251,9 @@ services:
       COMMON__SECRETS__AZURE_KEY_VAULT__KEY_VAULT_URL: https://azure-key-vault-emulator.vault.azure.net:4997
       # Tell the worker to generate a syntactically valid auth token for James Gould's key vault emulator
       # The below option generates a token for Key Vault auth with obviously bogus values
-      # Using an obviously-bogus token that would only work on a local testing server is the only way that I can justify the blanket SSL trust that goes with it
+      # In this mode the worker trusts only the emulator's own certificate, named below. Startup fails without it.
       COMMON__SECRETS__AZURE_KEY_VAULT__GENERATE_LOCAL_TESTING_TOKEN: true
+      COMMON__SECRETS__AZURE_KEY_VAULT__LOCAL_TESTING_CA_CERTIFICATE_PATH: /run/azure-key-vault-ca/emulator.local.crt
       # Docker Secrets
       # Set alternate secret path (default on null: /run/secrets)
       COMMON__SECRETS__DOCKER__DIRECTORY: null

@@ -8,6 +8,12 @@ import time
 # Define your unique Key Vault URL
 VAULT_URL = "https://127.0.0.1:4997"
 
+# The emulator's self-signed certificate, written by generate-azure-key-vault-cert.sh.
+# Requests to the emulator are verified against this certificate only, instead of skipping TLS checks.
+CA_CERTIFICATE_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "config", "azure-key-vault-ca", "emulator.local.crt"
+)
+
 
 class EmulatorCredential:
     def get_token(self, *scopes, **kwargs):
@@ -29,8 +35,7 @@ def set(secret_name, secret_value):
     client = SecretClient(
         vault_url=VAULT_URL,
         credential=credential,
-        verify=False,
-        connection_verify=False,
+        connection_verify=CA_CERTIFICATE_PATH,
         verify_challenge_resource=False,
     )
     print(f'Setting {secret_name}')
@@ -44,7 +49,6 @@ if __name__ == '__main__':
         "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
     )
     os.environ["AZURE_KEYVAULT_DISABLE_CHALLENGE_RESOURCE_VERIFICATION"] = "true"
-    os.environ["REQUESTS_CA_BUNDLE"] = ""
     set(
         'azure-queue-storage-connection-string',
         "QueueEndpoint=http://azurite:10001/devstoreaccount1;DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;",
