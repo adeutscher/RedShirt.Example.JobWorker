@@ -18,7 +18,7 @@ internal static class KeyHelper
         return $"{ApplicationName}:{GetStreamName(streamArn)}:{shardName}";
     }
 
-    public static string GetCheckpointKey(string streamArn, string shardName)
+    internal static string GetCheckpointKey(string streamArn, string shardName)
     {
         return $"checkpoint:{GetShardWorkerId(streamArn, shardName)}";
     }
@@ -29,12 +29,12 @@ internal static class KeyHelper
     ///     from <c>TRIM_HORIZON</c>. Once every shard has saved a checkpoint under the new key (or the old records have
     ///     expired), this fallback can be removed.
     /// </summary>
-    public static string GetLegacyCheckpointKey(string shardName)
+    internal static string GetLegacyCheckpointKey(string shardName)
     {
         return $"checkpoint:{ApplicationName}-{shardName}";
     }
 
-    public static string GetLockKey(string streamArn, string shardName)
+    internal static string GetLockKey(string streamArn, string shardName)
     {
         return $"lock:{GetShardWorkerId(streamArn, shardName)}";
     }
