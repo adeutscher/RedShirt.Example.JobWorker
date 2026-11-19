@@ -27,15 +27,14 @@ jobs:
       TRIVY_VERSION: 0.76.2
       TRIVY_SHA256: bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf
     steps:
-      # Actions are pinned to commit SHAs, because tags can be moved. The comment names the release.
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           # Do not leave GITHUB_TOKEN in .git/config, where code from the branch under test could read it.
           persist-credentials: false
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
