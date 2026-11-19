@@ -39,3 +39,23 @@ include but are not limited to:
 
 While Composer really doesn't like the Kinesis job source in particular, these issues are in fact fundamental to the
 operation of Kinesis within this framework.
+
+## Kinesis Failure Queue Messages
+
+When `JOB_SOURCE__KINESIS__FAILURES__QUEUE_URL` is set, failed records are forwarded to that SQS queue. The stream only
+advances once every record in a batch has been acknowledged, and a failed record is only acknowledged after it has been
+forwarded. A record that SQS can never accept would hold up the stream, so every record is sent in a form that SQS
+accepts:
+
+* **Plain**: The record body, unchanged, with no message attributes. This is the usual case.
+* **Base64**: The body contains characters that SQS does not allow (such as control characters). The message body is the
+  base64 of the record's UTF-8 bytes, with the `BodyEncoding` attribute set to `base64`.
+* **Reference**: The body is empty, or SQS still rejects it for a reason that will not go away (for example it is larger
+  than the queue's maximum message size). The message is a small JSON object with `BodyOmitted`, `SourceMessageId`,
+  `SourceAttributes` and `Reason` fields, and the `BodyOmitted` attribute is set to `true`. Use the source message ID
+  (the sequence number) and shard ID to read the record again from the stream while it is still retained.
+
+Base64 and reference messages also carry a `SourceMessageId` attribute and a `SourceShardId` attribute.
+
+If SQS fails for a reason that could be transient (such as throttling) and retries run out, the record is not
+acknowledged. The stream does not advance, and the record is processed again after the worker restarts.
