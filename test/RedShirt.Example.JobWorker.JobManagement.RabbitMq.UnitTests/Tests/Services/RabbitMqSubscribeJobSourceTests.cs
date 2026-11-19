@@ -98,7 +98,7 @@ public class RabbitMqSubscribeJobSourceTests
         Action<IAsyncBasicConsumer>? captureConsumer = null)
     {
         channel
-            .Setup(c => c.BasicQosAsync(0, ushort.MaxValue, false, It.IsAny<CancellationToken>()))
+            .Setup(c => c.BasicQosAsync(0, It.IsAny<ushort>(), false, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         channel
             .Setup(c => c.BasicConsumeAsync(
@@ -281,7 +281,7 @@ public class RabbitMqSubscribeJobSourceTests
         var consumeCount = 0;
 
         channel
-            .Setup(c => c.BasicQosAsync(0, ushort.MaxValue, false, It.IsAny<CancellationToken>()))
+            .Setup(c => c.BasicQosAsync(0, It.IsAny<ushort>(), false, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         channel
             .Setup(c => c.BasicConsumeAsync(
@@ -363,7 +363,7 @@ public class RabbitMqSubscribeJobSourceTests
         await waitStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
         Assert.True(waitForFinishedExecuted);
         executionEndArbiter.Verify(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()), Times.Once);
-        channel.Verify(c => c.BasicQosAsync(0, ushort.MaxValue, false, TestContext.Current.CancellationToken),
+        channel.Verify(c => c.BasicQosAsync(0, (ushort) 5, false, TestContext.Current.CancellationToken),
             Times.Once);
         channel.Verify(c => c.BasicConsumeAsync(
             QueueName,
@@ -374,6 +374,32 @@ public class RabbitMqSubscribeJobSourceTests
             It.IsAny<IDictionary<string, object?>>(),
             It.IsAny<IAsyncBasicConsumer>(),
             TestContext.Current.CancellationToken), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(1, (ushort) 1)]
+    [InlineData(10, (ushort) 10)]
+    [InlineData(ushort.MaxValue, ushort.MaxValue)]
+    [InlineData(ushort.MaxValue + 1, ushort.MaxValue)]
+    [InlineData(int.MaxValue, ushort.MaxValue)]
+    public async Task StartSubscriberAsync_SetsPrefetchFromFetchCountCappedAtUshortMax(int fetchCount,
+        ushort expectedPrefetch)
+    {
+        var channel = new Mock<IChannel>(MockBehavior.Strict);
+        SetupConsume(channel);
+
+        var wrapper = CreatePassthroughWrapper(channel.Object);
+        var executionEndArbiter = new Mock<IExecutionEndArbiter>(MockBehavior.Strict);
+        executionEndArbiter
+            .Setup(a => a.WaitForFinishedAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var jobSource = CreateJobSource(wrapper, executionEndArbiter: executionEndArbiter, backlogSize: fetchCount);
+
+        await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
+
+        channel.Verify(c => c.BasicQosAsync(0, expectedPrefetch, false, TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Fact]
