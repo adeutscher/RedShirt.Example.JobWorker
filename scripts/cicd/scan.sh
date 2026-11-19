@@ -39,8 +39,18 @@ sln="$(resolve_sln_file)" || exit 1
 report_dir="artifacts/scan"
 mkdir -p "$report_dir"
 
+# gitleaks scans the git history. In a shallow clone it only sees the fetched commits, so a secret that was committed
+# and then removed in an earlier commit would be missed while the scan still passes.
+if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+  if [ "${CI:-}" = "true" ]; then
+    echo "ERROR: shallow clone, so gitleaks would scan only part of the history (check out with fetch-depth: 0)." >&2
+    exit 1
+  fi
+  echo "WARNING: shallow clone, so gitleaks scans only the fetched commits." >&2
+fi
+
 if command -v gitleaks >/dev/null 2>&1; then
-  echo "==> gitleaks: secret detection"
+  echo "==> gitleaks: secret detection (full history)"
   gitleaks detect \
     --source="." \
     --report-format=json \

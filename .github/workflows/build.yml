@@ -35,6 +35,8 @@ jobs:
         with:
           # Do not leave GITHUB_TOKEN in .git/config, where code from the branch under test could read it.
           persist-credentials: false
+          # Full history, so that gitleaks scans every commit and not only the tip. scan.sh fails on a shallow clone.
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
