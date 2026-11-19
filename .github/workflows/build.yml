@@ -7,6 +7,11 @@ on:
     branches:
       - develop
 
+# The job only reads the repository. Without this, GITHUB_TOKEN gets the repository's default permissions, which may
+# include write access.
+permissions:
+  contents: read
+
 jobs:
   build:
     if: github.event_name == 'push' || github.event.pull_request.draft == false
@@ -25,6 +30,9 @@ jobs:
       # Actions are pinned to commit SHAs, because tags can be moved. The comment names the release.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Do not leave GITHUB_TOKEN in .git/config, where code from the branch under test could read it.
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
