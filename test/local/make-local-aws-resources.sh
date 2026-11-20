@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Creates local MiniStack resources.
+# Run it through the ministack-init Compose service (`docker compose up ministack-init`), or directly from the host.
+
 export AWS_DEFAULT_REGION=us-east-1
 
 # Common

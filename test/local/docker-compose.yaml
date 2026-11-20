@@ -3,6 +3,36 @@ services:
     image: ministackorg/ministack:latest
     ports:
       - 127.0.0.1:4566:4566
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4566/_ministack/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # One-shot: waits for ministack to be healthy, then runs make-local-aws-resources.sh to create the SQS queues,
+  # Kinesis stream, DynamoDB checkpoint table and SSM parameters.
+  # Run manually with `docker compose up ministack-init`. No other service depends on it.
+  ministack-init:
+    image: ministackorg/ministack:latest
+    depends_on:
+      ministack:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/make-local-aws-resources.sh"]
+    environment:
+      MINISTACK_ENDPOINT: http://ministack:4566
+      # Placeholder credentials. MiniStack does not validate them.
+      AWS_ACCESS_KEY_ID: foo
+      AWS_SECRET_ACCESS_KEY: bar
+      # Same defaults as the rabbitmq service, so the SSM parameters match the broker's credentials.
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_DEFAULT_USER:-foo}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_DEFAULT_PASS:-bar}"
+    restart: "no"
+    volumes:
+      - type: bind
+        source: ./make-local-aws-resources.sh
+        target: /make-local-aws-resources.sh
+        read_only: true
 
   redis:
     image: redis:latest
