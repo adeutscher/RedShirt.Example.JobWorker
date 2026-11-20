@@ -177,6 +177,18 @@ internal class DynamoSequenceNumberStorage(
     internal class ConfigurationModel
     {
         public required string TableName { get; init; }
+
+        /// <summary>
+        ///     How long a checkpoint lives after it was last saved.
+        /// </summary>
+        /// <remarks>
+        ///     Set this to at least the stream's retention period, plus a margin of an hour or more, and update it whenever
+        ///     the retention period changes. A checkpoint is only saved when a batch contains records, so an idle shard's
+        ///     checkpoint eventually expires and the shard is read again from TRIM_HORIZON. With this setting, every record
+        ///     up to the expired checkpoint has already left the stream, so nothing is replayed. With a shorter setting,
+        ///     every record still retained is processed again. Nothing checks this at runtime.
+        ///     See "Checkpoint Expiry" in docs/job-source-notes-kinesis.md.
+        /// </remarks>
         public required int RecordDurationHours { get; init; }
     }
 }
