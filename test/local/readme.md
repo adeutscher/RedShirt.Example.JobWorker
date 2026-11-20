@@ -13,6 +13,32 @@ Run the following to install all of the assumed modules at once:
 pip install --user boto3 awscli awslocal stomp.py azure-cli azure.servicebus azure-storage-queue azure.identity azure.keyvault kafka-python redis pika google-cloud-pubsub pulsar-client
 ```
 
+### Local AWS Resources
+
+Most sections below need local AWS resources in ministack: SQS queues, the Kinesis stream, the DynamoDB checkpoint
+table, and SSM parameters. Create them with the one-shot `ministack-init` Compose service:
+
+```bash
+docker compose up ministack-init
+```
+
+`ministack-init` waits for `ministack` to be healthy, runs `make-local-aws-resources.sh` inside a container, and exits.
+It starts `ministack` first if it is not already running. No other service depends on it, so run it yourself whenever
+ministack is started fresh. Check its output with:
+
+```bash
+docker compose logs ministack-init
+```
+
+The script can still be run directly from the host instead. That needs the `awslocal` module from the install above:
+
+```bash
+./make-local-aws-resources.sh
+```
+
+Running the script a second time against the same ministack prints errors for resources that already exist, such as
+the Kinesis stream and the DynamoDB table. Those errors are harmless. The SSM parameters are overwritten each time.
+
 ## Idempotency
 
 Idempotency testing relies on having a reliable way of setting a message ID.
@@ -60,10 +86,10 @@ To initialize SQS and queue sample messages:
 docker compose up -d ministack redis wiremock-bar
 ```
 
-2. Run the `make-local-aws-resources.sh` script:
+2. Create the local AWS resources with `ministack-init`:
 
 ```bash
-./make-local-aws-resources.sh
+docker compose up ministack-init
 ```
 
 3. Use the `send-sqs-message.py` script to send a message into SQS. Specify the number of seconds the worker should sleep for in the first argument:
@@ -112,10 +138,10 @@ To initialize Kinesis and queue sample messages:
     docker compose up -d ministack redis wiremock-bar
     ```
 
-2. Run the `make-local-aws-resources.sh` script:
+2. Create the local AWS resources with `ministack-init`:
 
     ```bash
-    ./make-local-aws-resources.sh
+    docker compose up ministack-init
     ```
 
 3. Use the `send-sqs-message.py` script to send a message into SQS. Specify the number of seconds the worker should sleep for in the first argument:
@@ -165,10 +191,10 @@ To initialize Kafka and queue sample messages:
     docker compose up -d ministack kafka redis wiremock-bar
     ```
 
-2. Run the `make-local-aws-resources.sh` script (creates the SQS queue used for Kafka job failures):
+2. Create the local AWS resources with `ministack-init` (creates the SQS queue used for Kafka job failures):
 
     ```bash
-    ./make-local-aws-resources.sh
+    docker compose up ministack-init
     ```
 
 3. Use the `put-kafka-job.py` script (requires the `kafka-python` module) to publish a message to the `jobs` topic. Specify the number of seconds the worker should sleep for in the first argument:
@@ -218,10 +244,10 @@ To initialize Apache Pulsar and queue sample messages:
     docker compose up -d ministack pulsar redis wiremock-bar
     ```
 
-2. Run the `make-local-aws-resources.sh` script (creates shared local AWS resources such as Redis SSM params):
+2. Create the local AWS resources with `ministack-init` (creates shared local AWS resources such as Redis SSM params):
 
     ```bash
-    ./make-local-aws-resources.sh
+    docker compose up ministack-init
     ```
 
 3. Wait for Pulsar to become ready, then create the local topic with `make-local-pulsar-resources.py` (uses the admin HTTP API; no extra Python packages):
@@ -281,10 +307,10 @@ To initialize RabbitMQ and queue messages:
     docker compose up -d ministack redis wiremock-bar
     ```
 
-2. Run the `make-local-aws-resources.sh` script:
+2. Create the local AWS resources with `ministack-init`:
 
     ```bash
-    ./make-local-aws-resources.sh
+    docker compose up ministack-init
     ```
 
 3. Bring up RabbitMQ:
@@ -363,10 +389,10 @@ To initialize ActiveMQ and queue messages:
     docker compose up -d ministack redis wiremock-bar
     ```
 
-2. Run the `make-local-aws-resources.sh` script:
+2. Create the local AWS resources with `ministack-init`:
 
     ```bash
-    ./make-local-aws-resources.sh
+    docker compose up ministack-init
     ```
 
 3. Bring up ActiveMQ:
@@ -478,10 +504,10 @@ To install the `nats` command:
     docker compose up -d ministack redis wiremock-bar
     ```
 
-2. Run the `make-local-aws-resources.sh` script:
+2. Create the local AWS resources with `ministack-init`:
 
     ```bash
-    ./make-local-aws-resources.sh
+    docker compose up ministack-init
     ```
 3. Bring up NATS:
 
@@ -549,10 +575,10 @@ Redis Streams testing requires the `redis` Python module to be installed.
     docker compose up -d ministack redis wiremock-bar
     ```
 
-2. Run the `make-local-aws-resources.sh` script:
+2. Create the local AWS resources with `ministack-init`:
 
     ```bash
-    ./make-local-aws-resources.sh
+    docker compose up ministack-init
     ```
 
 3. Create the Redis stream consumer group (creates the `jobs` stream if needed). This is safe to re-run if the group already exists:
@@ -797,10 +823,10 @@ To initialize Google Pub/Sub and queue sample messages:
     docker compose up -d google-pubsub-emulator ministack redis wiremock-bar
     ```
 
-2. Run the `make-local-aws-resources.sh` script (creates the Redis SSM parameter used for idempotency):
+2. Create the local AWS resources with `ministack-init` (creates the Redis SSM parameter used for idempotency):
 
     ```bash
-    ./make-local-aws-resources.sh
+    docker compose up ministack-init
     ```
 
 3. Create the local topic and pull subscription (emulator state is in-memory and is lost when the `pubsub` container is recreated):
@@ -877,7 +903,7 @@ Bring up WireMock with ministack (for SSM) and Redis before running jobs that ca
 
 ```bash
 docker compose up -d ministack redis wiremock-bar
-./make-local-aws-resources.sh
+docker compose up ministack-init
 ```
 
 ### Secret paths: SSM vs Azure Key Vault

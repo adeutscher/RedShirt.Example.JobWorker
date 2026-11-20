@@ -8,7 +8,7 @@ Kafka is more of an append-only event log rather than a traditional message queu
 
 I go into more detail on each of these points below, but the cliff notes for implementing Kafka are:
 
-* This template's version of Kafka assumes no authentication, which is currently left as an excercise for the reader.
+* This template's version of Kafka assumes no authentication, which is currently left as an exercise for the reader.
 * It is strongly advised to use Batch mode polling when using Kafka as a job source.
 * It is strongly advised to enable idempotency handling for Kafka. Basic enabling of idempotency handling hinges off of
   the `JOBS__IDEMPOTENCY__ENABLED` environment variable, with other options described in the configuration section of
@@ -21,7 +21,9 @@ there are currently 5 different SASL mechanisms to choose from when implementing
 authentication for Kafka when adapting this template is currently left as an exercise for the reader.
 
 Kafka clients are constructed in the `RedShirt.Example.JobWorker.JobManagement.Kafka` project, in
-`Factories/KafkaConsumerFactory.cs`.
+`Factories/KafkaConsumerFactory.cs`. As written, the consumer connects in plaintext, with no TLS and no authentication.
+A comment in
+that factory shows illustrative `ConsumerConfig` settings for TLS, SASL/SCRAM, mutual TLS, and SASL/OAUTHBEARER.
 
 ## Kinesis Comparisons and Batch Mode Recommendation
 

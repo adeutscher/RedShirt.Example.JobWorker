@@ -16,6 +16,11 @@ internal static class RedisStreamsRetryTestHelpers
                 It.IsAny<CancellationToken>()))
             .Returns<Func<CancellationToken, Task<StreamEntry[]>>, CancellationToken>((func, token) => func(token));
         retry
+            .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<StreamPendingMessageInfo[]>>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<Func<CancellationToken, Task<StreamPendingMessageInfo[]>>, CancellationToken>((func, token) =>
+                func(token));
+        retry
             .Setup(r => r.RunAsync(It.IsAny<Func<CancellationToken, Task<long>>>(), It.IsAny<CancellationToken>()))
             .Returns<Func<CancellationToken, Task<long>>, CancellationToken>((func, token) => func(token));
         return retry;

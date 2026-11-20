@@ -20,6 +20,11 @@ Environment variables related to health:
 * `HEALTH__ENABLED`: HTTP listener with health pages (default: `true`). When `false`, the worker runs without binding a
   health port.
 * `HEALTH__PORT`: TCP port for health endpoints, bound on `0.0.0.0` (default: `8080`).
+* `HEALTH__MAXIMUM_CONCURRENT_REQUESTS`: How many health requests are handled at once (default: `4`). Zero or negative
+  uses the default. When every slot is taken, the listener stops accepting requests until one finishes, so extra
+  requests wait instead of being answered with an error. An error would make a probe report the worker as unhealthy, or
+  dead for `/live`, only because the listener was busy. The limit caps the work done for a flood of requests, but probes
+  queued behind the flood can still time out.
 * `HEALTH__RECENT_INCIDENT_THRESHOLD_SECONDS`: Amount of seconds after a major exception in `Core` project for which the
   system will be considered unhealthy.
 * `JOBS__HALT_ON_FAILURE`: Related. If set to `true`, then the application shall immediately throw major exceptions to

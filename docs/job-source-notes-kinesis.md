@@ -41,6 +41,54 @@ Earlier versions used `checkpoint:{application}-{shard}` and `lock:{application}
 The fallback to the old checkpoint key can be removed once every shard has saved a checkpoint under the new key, or once
 the old records have expired.
 
+## Checkpoint Ordering
+
+Only the worker holding a shard's lock reads and saves that shard's checkpoint, so in normal operation two workers never
+write the same checkpoint. The lock is a Redis lease, though, not a fence. It can lapse while its holder keeps working,
+for example when Redis restarts without persistence or fails over to a replica without the lock key, when a network
+partition outlasts the lease, or when the process stalls for longer than the lease. Another worker can then take the
+shard and process the same records.
+
+As a backstop, the long-term DynamoDB checkpoint is saved with a conditional write that refuses to move it backward.
+Kinesis
+sequence numbers are compared through a zero-padded `SortableValue` attribute, because they vary in length and are too
+long for a DynamoDB number. A refused write is logged as a warning, and the newer checkpoint is kept.
+
+This does not prevent the duplicate processing itself. Idempotency handling softens that. The short-term iterator in
+Redis cannot be compared, so a stale worker can still overwrite it for the few minutes that it lives. Records saved
+before this change have no `SortableValue`, so the first save after upgrading is unconditional.
+
+## Checkpoint Expiry
+
+Long-term DynamoDB checkpoints expire `JOB_SOURCE__KINESIS__CHECKPOINT__RECORD_DURATION_HOURS` after they were last
+saved. A checkpoint is only saved when a batch contains records, so a shard that receives nothing new never refreshes
+its
+checkpoint. Once that checkpoint expires, the next read of the shard starts from `TRIM_HORIZON`.
+
+Set `RECORD_DURATION_HOURS` to at least the stream's retention period, plus a margin of an hour or more. With that
+setting, an expired checkpoint never causes a replay:
+
+* A checkpoint saved at time T points at a record that arrived at or before T.
+* The checkpoint expires at T plus `RECORD_DURATION_HOURS`. By then, that record and every record before it are older
+  than the retention period, so Kinesis has already dropped them.
+* Any record still in the shard arrived after the checkpoint and has not been processed. Reading from `TRIM_HORIZON`
+  returns exactly those records, the same as reading from the checkpoint would.
+
+The margin matters because Kinesis does not drop records at exactly the retention boundary, and the worker sets the
+expiry a few seconds short. Setting the two values exactly equal can replay the last record or two.
+
+If `RECORD_DURATION_HOURS` is shorter than the retention period, an idle shard replays every record still retained once
+its checkpoint expires. Nothing in the worker checks for this, so:
+
+* Update `RECORD_DURATION_HOURS` whenever the stream's retention period is changed. Kinesis allows retention from 24
+  hours up to 365 days.
+* Check the setting when pointing a deployment at a different stream.
+
+A longer expiry costs very little. There is one small item per shard, including closed shards after resharding, and
+DynamoDB removes expired items on its own schedule, sometimes days late. That delay only keeps a checkpoint longer,
+which
+is harmless.
+
 ## Kinesis AI Audit Notes
 
 The solutions to the above considerations for Kinesis are part of why an AI audit of the key Kinesis using the Composer

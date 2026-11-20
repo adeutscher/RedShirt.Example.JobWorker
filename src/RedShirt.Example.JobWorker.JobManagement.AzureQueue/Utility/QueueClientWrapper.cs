@@ -49,5 +49,6 @@ internal class QueueClientWrapper(QueueClient client) : IQueueConsumerClientWrap
         public string Body => innerMsg.Body.ToString();
         public string MessageId => innerMsg.MessageId;
         public string PopReceipt => innerMsg.PopReceipt;
+        public long DequeueCount => innerMsg.DequeueCount;
     }
 }

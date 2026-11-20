@@ -3,6 +3,36 @@ services:
     image: ministackorg/ministack:latest
     ports:
       - 127.0.0.1:4566:4566
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4566/_ministack/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # One-shot: waits for ministack to be healthy, then runs make-local-aws-resources.sh to create the SQS queues,
+  # Kinesis stream, DynamoDB checkpoint table and SSM parameters.
+  # Run manually with `docker compose up ministack-init`. No other service depends on it.
+  ministack-init:
+    image: ministackorg/ministack:latest
+    depends_on:
+      ministack:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/make-local-aws-resources.sh"]
+    environment:
+      MINISTACK_ENDPOINT: http://ministack:4566
+      # Placeholder credentials. MiniStack does not validate them.
+      AWS_ACCESS_KEY_ID: foo
+      AWS_SECRET_ACCESS_KEY: bar
+      # Same defaults as the rabbitmq service, so the SSM parameters match the broker's credentials.
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_DEFAULT_USER:-foo}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_DEFAULT_PASS:-bar}"
+    restart: "no"
+    volumes:
+      - type: bind
+        source: ./make-local-aws-resources.sh
+        target: /make-local-aws-resources.sh
+        read_only: true
 
   redis:
     image: redis:latest
@@ -223,6 +253,7 @@ services:
       ## Health pages
       HEALTH__ENABLED: "${HEALTH__ENABLED:-true}"
       HEALTH__PORT: "${HEALTH__PORT:-8081}"
+      HEALTH__MAXIMUM_CONCURRENT_REQUESTS: "${HEALTH__MAXIMUM_CONCURRENT_REQUESTS:-4}"
       HEALTH__RECENT_INCIDENT_THRESHOLD_SECONDS: "${HEALTH__RECENT_INCIDENT_THRESHOLD_SECONDS:-30}"
       JOBS__HALT_ON_FAILURE: "${JOBS__HALT_ON_FAILURE:-false}"
       JOBS__TREAT_TRANSIENT_EXCEPTION_AS_FAILURE: "${JOBS__TREAT_TRANSIENT_EXCEPTION_AS_FAILURE:-false}"
@@ -273,7 +304,9 @@ services:
       JOB_SOURCE__KINESIS__ROUND_ROBIN_SHARDS: true
       JOB_SOURCE__KINESIS__SHUFFLE_SHARDS: false
       JOB_SOURCE__KINESIS__CHECKPOINT__TABLE_NAME: checkpoint
-      JOB_SOURCE__KINESIS__CHECKPOINT__RECORD_DURATION_HOURS: 24
+      # At least the stream's retention period (the default 24 hours locally) plus a margin.
+      # See "Checkpoint Expiry" in docs/job-source-notes-kinesis.md.
+      JOB_SOURCE__KINESIS__CHECKPOINT__RECORD_DURATION_HOURS: 25
       JOB_SOURCE__KINESIS__FAILURES__QUEUE_URL: http://localhost:4566/000000000000/kinesis-failures
       ## Job Management (Kafka)
       USE_KAFKA: "${USE_KAFKA-0}"
@@ -297,6 +330,7 @@ services:
       JOB_SOURCE__RABBITMQ__USER_PATH: /rabbitmq/user
       JOB_SOURCE__RABBITMQ__PASSWORD_PATH: /rabbitmq/password
       JOB_SOURCE__RABBITMQ__QUEUE_NAME: RabbitQueue
+      JOB_SOURCE__RABBITMQ__MAXIMUM_DELIVERIES: 3
       JOB_SOURCE__RABBITMQ__SUBSCRIBE: ${JOB_SOURCE__RABBITMQ__SUBSCRIBE:-false}
       JOB_SOURCE__RABBITMQ__USE_EXCHANGE: ${JOB_SOURCE__RABBITMQ__USE_EXCHANGE:-false}
       JOB_SOURCE__RABBITMQ__TEMPORARY_QUEUE_EXCHANGE_NAME: ${JOB_SOURCE__RABBITMQ__TEMPORARY_QUEUE_EXCHANGE_NAME:-RabbitExchange}
@@ -323,6 +357,9 @@ services:
       JOB_SOURCE__REDIS_STREAMS__STREAM_NAME: jobs
       JOB_SOURCE__REDIS_STREAMS__GROUP_NAME: job-worker
       JOB_SOURCE__REDIS_STREAMS__CONSUMER_NAME: worker-1
+      # Short values so that reclaiming can be seen locally. See docs/job-source-notes-redis-streams.md.
+      JOB_SOURCE__REDIS_STREAMS__PENDING_RECLAIM_IDLE_SECONDS: 60
+      JOB_SOURCE__REDIS_STREAMS__MAXIMUM_DELIVERIES: 3
       ## Job Management (Azure Key Vault, used by both Azure Queue Storage and Azure Service Bus)
       ## Job Management (Azure Queue Storage)
       USE_AZURE_QUEUE_STORAGE: "${USE_AZURE_QUEUE_STORAGE-0}"
@@ -332,6 +369,7 @@ services:
       JOB_SOURCE__AZURE_QUEUE_STORAGE__CONNECTION_STRING_PATH: "azure-queue-storage-connection-string"
       JOB_SOURCE__AZURE_QUEUE_STORAGE__QUEUE_NAME: test-azure-queue
       JOB_SOURCE__AZURE_QUEUE_STORAGE__VISIBILITY_TIMEOUT_SECONDS: 300
+      JOB_SOURCE__AZURE_QUEUE_STORAGE__MAXIMUM_RECEIVES: 3
       ## Job Management (Azure Service Bus)
       USE_AZURE_SERVICE_BUS: "${USE_AZURE_SERVICE_BUS-0}"
       JOB_SOURCE__AZURE_SERVICE_BUS__MAX_MESSAGES_PER_REQUEST: 100

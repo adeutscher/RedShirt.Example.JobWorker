@@ -79,6 +79,7 @@ public class RabbitMqJobSourceTests
             channelRetryWrapper.Object,
             CreateDetailedExceptionArbiter(),
             RabbitMqConsumerQueueTestHelpers.Create(queueName ?? "jobs"),
+            RabbitMqRedeliveryPolicyTestHelpers.Create(),
             NullLogger<RabbitMqJobSource>.Instance);
 
         return (jobSource, channelRetryWrapper);
@@ -119,6 +120,7 @@ public class RabbitMqJobSourceTests
             wrapper,
             CreateDetailedExceptionArbiter(),
             RabbitMqConsumerQueueTestHelpers.Create(queueName ?? "jobs"),
+            RabbitMqRedeliveryPolicyTestHelpers.Create(),
             NullLogger<RabbitMqJobSource>.Instance);
     }
 
@@ -167,6 +169,7 @@ public class RabbitMqJobSourceTests
             channelRetryWrapper.Object,
             CreateDetailedExceptionArbiter(),
             RabbitMqConsumerQueueTestHelpers.CreateLoose(),
+            RabbitMqRedeliveryPolicyTestHelpers.Create(),
             NullLogger<RabbitMqJobSource>.Instance);
 
         var job = new Mock<IRawJobModel>();
@@ -268,6 +271,37 @@ public class RabbitMqJobSourceTests
         mockChannel.Verify(
             c => c.BasicAckAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Theory]
+    [InlineData(4, false)]
+    [InlineData(3, true)]
+    [InlineData(null, false)]
+    public async Task Test_AcknowledgeAsync_Recoverable_StopsRequeueingAtDeliveryLimit(int? previousDeliveryCount,
+        bool requeue)
+    {
+        var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
+        mockChannel
+            .Setup(c => c.BasicNackAsync(It.IsAny<ulong>(), It.IsAny<bool>(), It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(() => new ValueTask());
+
+        // Default limit of five deliveries.
+        var (jobSource, _) = CreateJobSource(mockChannel.Object);
+
+        var job = new RabbitMqRawJobModel
+        {
+            MessageId = "1234",
+            DeliveryTag = 5555,
+            CreatedAtUtc = DateTime.UtcNow,
+            Body = "body",
+            PreviousDeliveryCount = previousDeliveryCount
+        };
+
+        await jobSource.AcknowledgeAsync(job, CoreJobResult.Failure, TestContext.Current.CancellationToken);
+
+        mockChannel.Verify(c => c.BasicNackAsync(5555, false, requeue, TestContext.Current.CancellationToken),
+            Times.Once);
     }
 
     [Fact]
@@ -498,6 +532,34 @@ public class RabbitMqJobSourceTests
         Assert.Equal(deliveryTag, Assert.IsType<RabbitMqRawJobModel>(returnedJobItem).DeliveryTag);
     }
 
+    [Theory]
+    [InlineData(false, null, 0)]
+    [InlineData(true, null, null)]
+    [InlineData(true, 2L, 2)]
+    public async Task Test_GetJobs_ReadsPreviousDeliveryCount(bool redelivered, long? deliveryCountHeader,
+        int? expected)
+    {
+        var basicProperties = new Mock<IReadOnlyBasicProperties>();
+        basicProperties.Setup(p => p.MessageId).Returns("m");
+        basicProperties.Setup(p => p.Headers).Returns(deliveryCountHeader is null
+            ? null
+            : new Dictionary<string, object?> {["x-delivery-count"] = deliveryCountHeader.Value});
+
+        var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
+        mockChannel
+            .SetupSequence(c => c.BasicGetAsync("jobs", false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BasicGetResult(1, redelivered, "foo", "bar", 1, basicProperties.Object,
+                new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes("{}"))))
+            .ReturnsAsync((BasicGetResult?) null);
+
+        var (jobSource, _) = CreateJobSource(mockChannel.Object);
+
+        var response = await jobSource.GetJobsAsync(5, TestContext.Current.CancellationToken);
+
+        var job = Assert.IsType<RabbitMqRawJobModel>(Assert.Single(response.Items));
+        Assert.Equal(expected, job.PreviousDeliveryCount);
+    }
+
     [Fact]
     public async Task Test_GetJobs_ReconnectReason_AfterPartialBatch_ReturnsPartialAndForcesNextConnection()
     {
@@ -597,6 +659,7 @@ public class RabbitMqJobSourceTests
             null!,
             CreateDetailedExceptionArbiter(),
             RabbitMqConsumerQueueTestHelpers.CreateLoose(),
+            RabbitMqRedeliveryPolicyTestHelpers.Create(),
             NullLogger<RabbitMqJobSource>.Instance);
 
         await jobSource.HeartbeatAsync(null!, TestContext.Current.CancellationToken);

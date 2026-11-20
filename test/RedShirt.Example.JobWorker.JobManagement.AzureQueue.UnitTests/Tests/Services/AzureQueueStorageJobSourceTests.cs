@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Core.Enums;
 using RedShirt.Example.JobWorker.Core.Models;
@@ -12,6 +13,21 @@ namespace RedShirt.Example.JobWorker.JobManagement.AzureQueue.UnitTests.Tests.Se
 
 public class AzureQueueStorageJobSourceTests
 {
+    [Theory]
+    [InlineData(null, AzureQueueStorageConfigurationModel.DefaultMaximumReceives)]
+    [InlineData(0, AzureQueueStorageConfigurationModel.DefaultMaximumReceives)]
+    [InlineData(-1, AzureQueueStorageConfigurationModel.DefaultMaximumReceives)]
+    [InlineData(1, 1)]
+    [InlineData(12, 12)]
+    public void TestEffectiveMaximumReceives(int? configured, int expected)
+    {
+        Assert.Equal(expected, new AzureQueueStorageConfigurationModel
+        {
+            VisibilityTimeoutSeconds = 0,
+            MaximumReceives = configured
+        }.EffectiveMaximumReceives);
+    }
+
     [Theory]
     [InlineData(2)]
     [InlineData(5)]
@@ -66,7 +82,8 @@ public class AzureQueueStorageJobSourceTests
             Options.Create(new AzureQueueStorageConfigurationModel
             {
                 VisibilityTimeoutSeconds = 100
-            }));
+            }),
+            NullLogger<AzureQueueStorageJobSource>.Instance);
 
         using var cts = new CancellationTokenSource();
         var response = await jobSource.GetJobsAsync(batchSize, TestContext.Current.CancellationToken);
@@ -85,6 +102,73 @@ public class AzureQueueStorageJobSourceTests
     }
 
     [Fact]
+    public async Task TestGetJobsAsync_DiscardDeleteFailure_SkipsMessageAndKeepsBatch()
+    {
+        var client = new Mock<IQueueConsumerClientWrapper>();
+        var source = new Mock<IQueueConsumerClientSource>();
+        source
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var overLimit = new BasicMessageModel
+            {MessageId = "over-limit", Body = "b", PopReceipt = "r2", DequeueCount = 9};
+        var fresh = new BasicMessageModel {MessageId = "fresh", Body = "c", PopReceipt = "r3", DequeueCount = 1};
+        client.Setup(s => s.DeleteMessageAsync(overLimit, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("delete failed"));
+
+        var azureMessageSource = new Mock<IAzureQueueStorageMessageSource>(MockBehavior.Strict);
+        azureMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => [overLimit, fresh]);
+
+        var jobSource = new AzureQueueStorageJobSource(source.Object, azureMessageSource.Object,
+            AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            Options.Create(new AzureQueueStorageConfigurationModel
+            {
+                VisibilityTimeoutSeconds = 100
+            }),
+            NullLogger<AzureQueueStorageJobSource>.Instance);
+
+        var response = await jobSource.GetJobsAsync(10, TestContext.Current.CancellationToken);
+
+        Assert.Equal("fresh", Assert.Single(response.Items).MessageId);
+    }
+
+    [Fact]
+    public async Task TestGetJobsAsync_DiscardsMessagesReceivedMoreThanMaximum()
+    {
+        var client = new Mock<IQueueConsumerClientWrapper>();
+        var source = new Mock<IQueueConsumerClientSource>();
+        source
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var atLimit = new BasicMessageModel {MessageId = "at-limit", Body = "a", PopReceipt = "r1", DequeueCount = 3};
+        var overLimit = new BasicMessageModel
+            {MessageId = "over-limit", Body = "b", PopReceipt = "r2", DequeueCount = 4};
+        var fresh = new BasicMessageModel {MessageId = "fresh", Body = "c", PopReceipt = "r3", DequeueCount = 1};
+
+        var azureMessageSource = new Mock<IAzureQueueStorageMessageSource>(MockBehavior.Strict);
+        azureMessageSource.Setup(a => a.GetMessagesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => [atLimit, overLimit, fresh]);
+
+        var jobSource = new AzureQueueStorageJobSource(source.Object, azureMessageSource.Object,
+            AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            Options.Create(new AzureQueueStorageConfigurationModel
+            {
+                VisibilityTimeoutSeconds = 100,
+                MaximumReceives = 3
+            }),
+            NullLogger<AzureQueueStorageJobSource>.Instance);
+
+        var response = await jobSource.GetJobsAsync(10, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["at-limit", "fresh"], response.Items.Select(i => i.MessageId));
+        client.Verify(s => s.DeleteMessageAsync(overLimit, TestContext.Current.CancellationToken), Times.Once);
+        client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public void TestGetRecommendedHeartbeatInterval()
     {
         var options = new AzureQueueStorageConfigurationModel
@@ -94,7 +178,8 @@ public class AzureQueueStorageJobSourceTests
 
         var jobSource = new AzureQueueStorageJobSource(null!, null!,
             AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(options));
+            Options.Create(options),
+            NullLogger<AzureQueueStorageJobSource>.Instance);
 
         Assert.Equal(15, jobSource.RecommendedHeartbeatIntervalSeconds);
     }
@@ -119,7 +204,8 @@ public class AzureQueueStorageJobSourceTests
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
             AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(config));
+            Options.Create(config),
+            NullLogger<AzureQueueStorageJobSource>.Instance);
 
         var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
         var job = new AzureQueueStorageRawJobModel
@@ -155,7 +241,8 @@ public class AzureQueueStorageJobSourceTests
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
             AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(config));
+            Options.Create(config),
+            NullLogger<AzureQueueStorageJobSource>.Instance);
 
         var job = new Mock<IRawJobModel>();
 
@@ -164,6 +251,50 @@ public class AzureQueueStorageJobSourceTests
 
         client.Verify(s => s.DeleteMessageAsync(It.IsAny<IQueueMessageModel>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Theory]
+    // Default limit of five receives.
+    [InlineData(null, 4, false)]
+    [InlineData(null, 5, true)]
+    [InlineData(null, 9, true)]
+    [InlineData(2, 1, false)]
+    [InlineData(2, 2, true)]
+    [InlineData(1, 1, true)]
+    public async Task Test_AcknowledgeAsync_Recoverable_DeletesOnLastReceive(int? maximumReceives, long dequeueCount,
+        bool expectDelete)
+    {
+        var client = new Mock<IQueueConsumerClientWrapper>();
+        var source = new Mock<IQueueConsumerClientSource>();
+        source
+            .Setup(s => s.GetQueueClientAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client.Object);
+
+        var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
+            AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            Options.Create(new AzureQueueStorageConfigurationModel
+            {
+                VisibilityTimeoutSeconds = 0,
+                MaximumReceives = maximumReceives
+            }),
+            NullLogger<AzureQueueStorageJobSource>.Instance);
+
+        var innerMessage = new BasicMessageModel
+        {
+            MessageId = "m",
+            Body = "body",
+            PopReceipt = "receipt",
+            DequeueCount = dequeueCount
+        };
+
+        await jobSource.AcknowledgeAsync(new AzureQueueStorageRawJobModel
+        {
+            Message = innerMessage,
+            CreatedAtUtc = DateTime.UtcNow
+        }, CoreJobResult.Failure, TestContext.Current.CancellationToken);
+
+        client.Verify(s => s.DeleteMessageAsync(innerMessage, TestContext.Current.CancellationToken),
+            expectDelete ? Times.Once() : Times.Never());
     }
 
     [Theory]
@@ -181,9 +312,11 @@ public class AzureQueueStorageJobSourceTests
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
             AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(config));
+            Options.Create(config),
+            NullLogger<AzureQueueStorageJobSource>.Instance);
 
         var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
+        innerMessage.SetupGet(m => m.DequeueCount).Returns(1);
         var job = new AzureQueueStorageRawJobModel
         {
             Message = innerMessage.Object,
@@ -215,7 +348,8 @@ public class AzureQueueStorageJobSourceTests
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
             AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(config));
+            Options.Create(config),
+            NullLogger<AzureQueueStorageJobSource>.Instance);
 
         var innerMessage = new Mock<IQueueMessageModel>(MockBehavior.Strict);
         var job = new AzureQueueStorageRawJobModel
@@ -256,7 +390,8 @@ public class AzureQueueStorageJobSourceTests
 
         var jobSource = new AzureQueueStorageJobSource(source.Object, null!,
             AzureQueueStorageRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            Options.Create(config));
+            Options.Create(config),
+            NullLogger<AzureQueueStorageJobSource>.Instance);
 
         var job = new Mock<IRawJobModel>();
 
@@ -272,5 +407,6 @@ public class AzureQueueStorageJobSourceTests
         public required string Body { get; init; }
         public required string MessageId { get; init; }
         public required string PopReceipt { get; init; }
+        public long DequeueCount { get; init; } = 1;
     }
 }

@@ -71,6 +71,7 @@ public class RabbitMqSubscribeJobSourceTests
             subscribeExceptionArbiter.Object,
             RabbitMqConsumerQueueTestHelpers.Create(QueueName),
             backgroundTaskRunner ?? new ThreadPoolBackgroundTaskRunner(),
+            RabbitMqRedeliveryPolicyTestHelpers.Create(),
             NullLogger<RabbitMqSubscribeJobSource>.Instance);
     }
 
@@ -191,6 +192,33 @@ public class RabbitMqSubscribeJobSourceTests
             It.IsAny<bool>(),
             It.IsAny<Action<IConnection>?>(),
             It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(4, false)]
+    [InlineData(3, true)]
+    [InlineData(null, false)]
+    public async Task AcknowledgeAsync_WhenRecoverable_StopsRequeueingAtDeliveryLimit(int? previousDeliveryCount,
+        bool requeue)
+    {
+        var channel = new Mock<IChannel>(MockBehavior.Strict);
+        channel
+            .Setup(c => c.BasicNackAsync(7, false, requeue, TestContext.Current.CancellationToken))
+            .Returns(ValueTask.CompletedTask);
+
+        var wrapper = CreatePassthroughWrapper(channel.Object);
+        var jobSource = CreateJobSource(wrapper);
+
+        await jobSource.AcknowledgeAsync(new RabbitMqRawJobModel
+        {
+            MessageId = "m",
+            DeliveryTag = 7,
+            CreatedAtUtc = DateTime.UtcNow,
+            Body = "body",
+            PreviousDeliveryCount = previousDeliveryCount
+        }, CoreJobResult.Failure, TestContext.Current.CancellationToken);
+
+        channel.Verify(c => c.BasicNackAsync(7, false, requeue, TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Fact]
@@ -422,6 +450,7 @@ public class RabbitMqSubscribeJobSourceTests
 
         var properties = new Mock<IReadOnlyBasicProperties>(MockBehavior.Strict);
         properties.SetupGet(p => p.MessageId).Returns((string?) null);
+        properties.SetupGet(p => p.Headers).Returns((IDictionary<string, object?>?) null);
 
         await consumer!.HandleBasicDeliverAsync("ctag", 1, false, "", "", properties.Object,
             Encoding.UTF8.GetBytes("body"), TestContext.Current.CancellationToken);
@@ -478,6 +507,7 @@ public class RabbitMqSubscribeJobSourceTests
         Assert.NotNull(consumer);
         var properties = new Mock<IReadOnlyBasicProperties>(MockBehavior.Strict);
         properties.SetupGet(p => p.MessageId).Returns("msg-1");
+        properties.SetupGet(p => p.Headers).Returns((IDictionary<string, object?>?) null);
 
         await consumer!.HandleBasicDeliverAsync("ctag", 12, false, "", "", properties.Object,
             Encoding.UTF8.GetBytes("payload"), TestContext.Current.CancellationToken);
@@ -487,6 +517,41 @@ public class RabbitMqSubscribeJobSourceTests
         Assert.Equal("msg-1", job.IdempotencyId);
         Assert.Equal(12UL, job.DeliveryTag);
         Assert.Equal("payload", job.Body);
+    }
+
+    [Theory]
+    [InlineData(false, null, 0)]
+    [InlineData(true, null, null)]
+    [InlineData(true, 6L, 6)]
+    public async Task StartSubscriberAsync_WhenReceiveFires_ReadsPreviousDeliveryCount(bool redelivered,
+        long? deliveryCountHeader, int? expected)
+    {
+        var channel = new Mock<IChannel>(MockBehavior.Strict);
+        IAsyncBasicConsumer? consumer = null;
+        SetupConsume(channel, captureConsumer: c => consumer = c);
+
+        var intakeQueue = new Mock<IJobSubscriberIntakeQueue>(MockBehavior.Strict);
+        IJobSourceResponse? loaded = null;
+        intakeQueue
+            .Setup(q => q.Load(It.IsAny<IJobSourceResponse>()))
+            .Callback<IJobSourceResponse>(response => loaded = response);
+
+        var wrapper = CreatePassthroughWrapper(channel.Object);
+        var jobSource = CreateJobSource(wrapper, intakeQueue);
+
+        await jobSource.StartSubscriberAsync(TestContext.Current.CancellationToken);
+
+        var properties = new Mock<IReadOnlyBasicProperties>(MockBehavior.Strict);
+        properties.SetupGet(p => p.MessageId).Returns("msg-1");
+        properties.SetupGet(p => p.Headers).Returns(deliveryCountHeader is null
+            ? null
+            : new Dictionary<string, object?> {["x-delivery-count"] = deliveryCountHeader.Value});
+
+        await consumer!.HandleBasicDeliverAsync("ctag", 12, redelivered, "", "", properties.Object,
+            Encoding.UTF8.GetBytes("payload"), TestContext.Current.CancellationToken);
+
+        var job = Assert.IsType<RabbitMqRawJobModel>(Assert.Single(loaded!.Items));
+        Assert.Equal(expected, job.PreviousDeliveryCount);
     }
 
     [Fact]
