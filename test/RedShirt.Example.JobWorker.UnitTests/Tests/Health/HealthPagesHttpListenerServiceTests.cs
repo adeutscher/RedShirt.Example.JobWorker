@@ -26,7 +26,8 @@ public class HealthPagesHttpListenerServiceTests
         bool enabled,
         int port,
         ICoreHealthStateReaderService? healthService = null,
-        ICoreStatisticsService? statisticsService = null)
+        ICoreStatisticsService? statisticsService = null,
+        int? maximumConcurrentRequests = null)
     {
         healthService ??= CreateHealthyReader();
         statisticsService ??= CreateEmptyStatisticsService();
@@ -34,7 +35,12 @@ public class HealthPagesHttpListenerServiceTests
         return new HealthPagesHttpListenerService(
             healthService,
             statisticsService,
-            Options.Create(new CommonHealthConfigurationModel {Enabled = enabled, Port = port}),
+            Options.Create(new CommonHealthConfigurationModel
+            {
+                Enabled = enabled,
+                Port = port,
+                MaximumConcurrentRequests = maximumConcurrentRequests
+            }),
             NullLogger<HealthPagesHttpListenerService>.Instance);
     }
 
@@ -48,7 +54,29 @@ public class HealthPagesHttpListenerServiceTests
     private static ICoreStatisticsService CreateEmptyStatisticsService()
     {
         var statistics = new Mock<ICoreStatisticsService>(MockBehavior.Strict);
-        statistics.Setup(s => s.GetStatistics()).Returns(new StatisticsModel
+        statistics.Setup(s => s.GetStatistics()).Returns(CreateEmptyStatistics());
+        return statistics.Object;
+    }
+
+    /// <summary>
+    ///     Statistics requests block until <paramref name="release" /> is set, holding their request slot.
+    /// </summary>
+    private static ICoreStatisticsService CreateBlockingStatisticsService(ManualResetEventSlim entered,
+        ManualResetEventSlim release)
+    {
+        var statistics = new Mock<ICoreStatisticsService>(MockBehavior.Strict);
+        statistics.Setup(s => s.GetStatistics()).Returns(() =>
+        {
+            entered.Set();
+            release.Wait(TimeSpan.FromSeconds(10));
+            return CreateEmptyStatistics();
+        });
+        return statistics.Object;
+    }
+
+    private static StatisticsModel CreateEmptyStatistics()
+    {
+        return new StatisticsModel
         {
             Uptime = TimeSpan.Zero,
             Lifetime = new JobStatisticsModel
@@ -68,8 +96,7 @@ public class HealthPagesHttpListenerServiceTests
                     InvalidData = 0
                 }
             }
-        });
-        return statistics.Object;
+        };
     }
 
     private static int GetFreePort()
@@ -113,13 +140,15 @@ public class HealthPagesHttpListenerServiceTests
     }
 
     private static async Task<(HealthPagesHttpListenerService Service, int Port)> StartEnabledServiceAsync(
-        ICoreHealthStateReaderService? healthService = null)
+        ICoreHealthStateReaderService? healthService = null,
+        ICoreStatisticsService? statisticsService = null,
+        int? maximumConcurrentRequests = null)
     {
         // Ephemeral-port reservation is inherently racy; retry if another process claims the port first.
         for (var attempt = 0; attempt < 5; attempt++)
         {
             var port = GetFreePort();
-            var service = CreateService(true, port, healthService);
+            var service = CreateService(true, port, healthService, statisticsService, maximumConcurrentRequests);
             try
             {
                 await service.StartAsync(CancellationToken.None);
@@ -224,5 +253,87 @@ public class HealthPagesHttpListenerServiceTests
         {
             await service.StopAsync(CancellationToken.None);
         }
+    }
+
+    [Fact]
+    public async Task Requests_WhenAtTheConcurrencyLimit_WaitForASlot()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var (service, port) = await StartEnabledServiceAsync(
+            statisticsService: CreateBlockingStatisticsService(entered, release),
+            maximumConcurrentRequests: 1);
+        try
+        {
+            await WaitForEndpointAsync($"http://127.0.0.1:{port}{HealthPathConstants.LivePath}", HttpStatusCode.OK);
+
+            using var client = new HttpClient {Timeout = TimeSpan.FromSeconds(10)};
+            var blocking = client.GetAsync($"http://127.0.0.1:{port}{HealthPathConstants.StatisticsPath}",
+                TestContext.Current.CancellationToken);
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+
+            var waiting = client.GetAsync($"http://127.0.0.1:{port}{HealthPathConstants.LivePath}",
+                TestContext.Current.CancellationToken);
+            var finished = await Task.WhenAny(waiting, Task.Delay(500, TestContext.Current.CancellationToken));
+            Assert.NotSame(waiting, finished);
+
+            release.Set();
+
+            using var blockingResponse = await blocking;
+            using var waitingResponse = await waiting;
+            Assert.Equal(HttpStatusCode.OK, blockingResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, waitingResponse.StatusCode);
+        }
+        finally
+        {
+            release.Set();
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task Requests_WhenBelowTheConcurrencyLimit_DoNotWait()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var (service, port) = await StartEnabledServiceAsync(
+            statisticsService: CreateBlockingStatisticsService(entered, release),
+            maximumConcurrentRequests: 2);
+        try
+        {
+            await WaitForEndpointAsync($"http://127.0.0.1:{port}{HealthPathConstants.LivePath}", HttpStatusCode.OK);
+
+            using var client = new HttpClient {Timeout = TimeSpan.FromSeconds(10)};
+            var blocking = client.GetAsync($"http://127.0.0.1:{port}{HealthPathConstants.StatisticsPath}",
+                TestContext.Current.CancellationToken);
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+
+            using var liveResponse = await client.GetAsync($"http://127.0.0.1:{port}{HealthPathConstants.LivePath}",
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.OK, liveResponse.StatusCode);
+            Assert.False(blocking.IsCompleted);
+
+            release.Set();
+            using var blockingResponse = await blocking;
+            Assert.Equal(HttpStatusCode.OK, blockingResponse.StatusCode);
+        }
+        finally
+        {
+            release.Set();
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Theory]
+    [InlineData(null, CommonHealthConfigurationModel.DefaultMaximumConcurrentRequests)]
+    [InlineData(0, CommonHealthConfigurationModel.DefaultMaximumConcurrentRequests)]
+    [InlineData(-2, CommonHealthConfigurationModel.DefaultMaximumConcurrentRequests)]
+    [InlineData(1, 1)]
+    [InlineData(16, 16)]
+    public void EffectiveMaximumConcurrentRequests_FallsBackToDefault(int? configured, int expected)
+    {
+        var config = new CommonHealthConfigurationModel {MaximumConcurrentRequests = configured};
+
+        Assert.Equal(expected, config.EffectiveMaximumConcurrentRequests);
     }
 }

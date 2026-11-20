@@ -111,7 +111,20 @@ public sealed class HealthPagesHttpListenerService(
             throw;
         }
 
-        logger.LogInformation("Health listening on port {Port}", options.Value.Port);
+        var maximumConcurrentRequests = options.Value.EffectiveMaximumConcurrentRequests;
+        logger.LogInformation(
+            "Health listening on port {Port}, handling up to {MaximumConcurrentRequests} requests at once",
+            options.Value.Port, maximumConcurrentRequests);
+
+        /*
+         * Limits how many requests are handled at once. When every slot is taken, the loop stops accepting requests
+         * until one finishes, instead of answering the extra requests with an error. An error response would make a
+         * probe report the worker as unhealthy (or dead, for /live) just because the listener was busy.
+         *
+         * Not disposed: handlers that are still running after the listener stops release their slot afterward, and a
+         * SemaphoreSlim that never creates its wait handle holds nothing that needs disposing.
+         */
+        var requestSlots = new SemaphoreSlim(maximumConcurrentRequests, maximumConcurrentRequests);
 
         stoppingToken.Register(() =>
         {
@@ -133,21 +146,44 @@ public sealed class HealthPagesHttpListenerService(
         {
             while (!stoppingToken.IsCancellationRequested)
             {
+                try
+                {
+                    await requestSlots.WaitAsync(stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
                 HttpListenerContext context;
                 try
                 {
                     context = await _listener.GetContextAsync();
                 }
-                catch (HttpListenerException) when (stoppingToken.IsCancellationRequested)
+                catch (Exception ex) when ((ex is HttpListenerException or ObjectDisposedException) &&
+                                           stoppingToken.IsCancellationRequested)
                 {
+                    requestSlots.Release();
                     break;
                 }
-                catch (ObjectDisposedException) when (stoppingToken.IsCancellationRequested)
+                catch
                 {
-                    break;
+                    requestSlots.Release();
+                    throw;
                 }
 
-                _ = HandleRequestAsync(context, stoppingToken);
+                // Task.Run so that a handler's synchronous work does not hold up the accept loop.
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await HandleRequestAsync(context, stoppingToken);
+                    }
+                    finally
+                    {
+                        requestSlots.Release();
+                    }
+                }, CancellationToken.None);
             }
         }
         finally
