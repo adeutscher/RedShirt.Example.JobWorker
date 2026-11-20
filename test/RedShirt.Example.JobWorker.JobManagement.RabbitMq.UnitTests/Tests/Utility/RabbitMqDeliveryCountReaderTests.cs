@@ -28,21 +28,6 @@ public class RabbitMqDeliveryCountReaderTests
         3UL
     };
 
-    [Theory]
-    [MemberData(nameof(NumericHeaderValues))]
-    public void NumericHeader_IsReadWhetherOrNotRedelivered(object headerValue)
-    {
-        Assert.Equal(3, RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(CreateProperties(headerValue), true));
-        Assert.Equal(3, RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(CreateProperties(headerValue), false));
-    }
-
-    [Fact]
-    public void HugeHeader_IsClampedToIntMaxValue()
-    {
-        Assert.Equal(int.MaxValue,
-            RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(CreateProperties(long.MaxValue), true));
-    }
-
     public static TheoryData<object> UnusableHeaderValues => new()
     {
         -1L,
@@ -51,19 +36,11 @@ public class RabbitMqDeliveryCountReaderTests
         ulong.MaxValue
     };
 
-    [Theory]
-    [MemberData(nameof(UnusableHeaderValues))]
-    public void UnusableHeader_FallsBackToRedeliveredFlag(object headerValue)
-    {
-        Assert.Null(RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(CreateProperties(headerValue), true));
-        Assert.Equal(0, RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(CreateProperties(headerValue), false));
-    }
-
     [Fact]
-    public void NullHeader_FallsBackToRedeliveredFlag()
+    public void HugeHeader_IsClampedToIntMaxValue()
     {
-        Assert.Null(RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(CreateProperties(null), true));
-        Assert.Equal(0, RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(CreateProperties(null), false));
+        Assert.Equal(int.MaxValue,
+            RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(CreateProperties(long.MaxValue), true));
     }
 
     [Fact]
@@ -79,5 +56,28 @@ public class RabbitMqDeliveryCountReaderTests
     {
         Assert.Null(RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(CreateProperties(null, false), true));
         Assert.Null(RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(null, true));
+    }
+
+    [Fact]
+    public void NullHeader_FallsBackToRedeliveredFlag()
+    {
+        Assert.Null(RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(CreateProperties(null), true));
+        Assert.Equal(0, RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(CreateProperties(null), false));
+    }
+
+    [Theory]
+    [MemberData(nameof(NumericHeaderValues))]
+    public void NumericHeader_IsReadWhetherOrNotRedelivered(object headerValue)
+    {
+        Assert.Equal(3, RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(CreateProperties(headerValue), true));
+        Assert.Equal(3, RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(CreateProperties(headerValue), false));
+    }
+
+    [Theory]
+    [MemberData(nameof(UnusableHeaderValues))]
+    public void UnusableHeader_FallsBackToRedeliveredFlag(object headerValue)
+    {
+        Assert.Null(RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(CreateProperties(headerValue), true));
+        Assert.Equal(0, RabbitMqDeliveryCountReader.TryGetPreviousDeliveryCount(CreateProperties(headerValue), false));
     }
 }

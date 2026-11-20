@@ -49,7 +49,8 @@ for example when Redis restarts without persistence or fails over to a replica w
 partition outlasts the lease, or when the process stalls for longer than the lease. Another worker can then take the
 shard and process the same records.
 
-As a backstop, the long-term DynamoDB checkpoint is saved with a conditional write that refuses to move it backward. Kinesis
+As a backstop, the long-term DynamoDB checkpoint is saved with a conditional write that refuses to move it backward.
+Kinesis
 sequence numbers are compared through a zero-padded `SortableValue` attribute, because they vary in length and are too
 long for a DynamoDB number. A refused write is logged as a warning, and the newer checkpoint is kept.
 
@@ -60,7 +61,8 @@ before this change have no `SortableValue`, so the first save after upgrading is
 ## Checkpoint Expiry
 
 Long-term DynamoDB checkpoints expire `JOB_SOURCE__KINESIS__CHECKPOINT__RECORD_DURATION_HOURS` after they were last
-saved. A checkpoint is only saved when a batch contains records, so a shard that receives nothing new never refreshes its
+saved. A checkpoint is only saved when a batch contains records, so a shard that receives nothing new never refreshes
+its
 checkpoint. Once that checkpoint expires, the next read of the shard starts from `TRIM_HORIZON`.
 
 Set `RECORD_DURATION_HOURS` to at least the stream's retention period, plus a margin of an hour or more. With that
@@ -83,7 +85,8 @@ its checkpoint expires. Nothing in the worker checks for this, so:
 * Check the setting when pointing a deployment at a different stream.
 
 A longer expiry costs very little. There is one small item per shard, including closed shards after resharding, and
-DynamoDB removes expired items on its own schedule, sometimes days late. That delay only keeps a checkpoint longer, which
+DynamoDB removes expired items on its own schedule, sometimes days late. That delay only keeps a checkpoint longer,
+which
 is harmless.
 
 ## Kinesis AI Audit Notes

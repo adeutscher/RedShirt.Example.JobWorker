@@ -18,6 +18,117 @@ internal class RedisStreamsJobSource(
 {
     private const string UnreadEntriesMarker = ">";
 
+    /// <summary>
+    ///     Takes over entries that were delivered to a consumer but not acknowledged for longer than the reclaim idle
+    ///     time, such as entries held by a worker that crashed or was stopped mid-batch.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Reading with ">" only ever returns new entries, so without this an entry delivered to a worker that died
+    ///         stays pending forever. That is true even when the replacement worker uses the same consumer name.
+    ///     </para>
+    ///     <para>
+    ///         Entries already delivered <see cref="ConfigurationModel.EffectiveMaximumDeliveries" /> times are
+    ///         acknowledged without running, so that an entry which crashes the worker every time cannot loop forever.
+    ///         Redis Streams has no dead-letter queue, so such entries are only logged.
+    ///     </para>
+    ///     <para>
+    ///         The scan always starts from the oldest pending entry. Every entry that it returns is either claimed,
+    ///         acknowledged, or was claimed by another worker in the meantime, which resets its idle time. So the next
+    ///         scan moves on to other entries, and no cursor needs to be kept.
+    ///     </para>
+    ///     <para>
+    ///         XCLAIM is sent with the same minimum idle time, so when two workers scan at once, only one of them
+    ///         claims each entry.
+    ///     </para>
+    ///     <para>
+    ///         Needs Redis 6.2 or later, for the IDLE option of XPENDING.
+    ///     </para>
+    /// </remarks>
+    private async Task<StreamEntry[]> ReclaimIdleEntriesAsync(int batchSize, CancellationToken cancellationToken)
+    {
+        if (!options.Value.IsPendingReclaimEnabled || batchSize <= 0)
+        {
+            return [];
+        }
+
+        var minimumIdleMilliseconds = options.Value.EffectivePendingReclaimIdleSeconds * 1000L;
+
+        var pending = await retryWrapperService.RunAsync(async ct =>
+        {
+            var database = await redisConnectionCacheService.GetDatabaseAsync(ct);
+            return await database.StreamPendingMessagesAsync(
+                options.Value.StreamName,
+                options.Value.GroupName,
+                batchSize,
+                RedisValue.Null,
+                null,
+                null,
+                minimumIdleMilliseconds);
+        }, cancellationToken);
+
+        if (pending.Length == 0)
+        {
+            return [];
+        }
+
+        var maximumDeliveries = options.Value.EffectiveMaximumDeliveries;
+        var toDrop = new List<RedisValue>();
+        var toClaim = new List<RedisValue>();
+        foreach (var info in pending)
+        {
+            if (info.DeliveryCount >= maximumDeliveries)
+            {
+                logger.LogWarning(
+                    "Dropping Redis stream entry {MessageId} without running it: it was delivered {DeliveryCount} times (limit {MaximumDeliveries}) without being acknowledged. It was last held by consumer {ConsumerName}.",
+                    (string?) info.MessageId, info.DeliveryCount, maximumDeliveries, (string?) info.ConsumerName);
+                toDrop.Add(info.MessageId);
+            }
+            else
+            {
+                toClaim.Add(info.MessageId);
+            }
+        }
+
+        if (toDrop.Count > 0)
+        {
+            await retryWrapperService.RunAsync(async ct =>
+            {
+                var database = await redisConnectionCacheService.GetDatabaseAsync(ct);
+                await database.StreamAcknowledgeAsync(options.Value.StreamName, options.Value.GroupName,
+                    toDrop.ToArray());
+            }, cancellationToken);
+        }
+
+        if (toClaim.Count == 0)
+        {
+            return [];
+        }
+
+        var claimed = await retryWrapperService.RunAsync(async ct =>
+        {
+            var database = await redisConnectionCacheService.GetDatabaseAsync(ct);
+            return await database.StreamClaimAsync(
+                options.Value.StreamName,
+                options.Value.GroupName,
+                options.Value.EffectiveConsumerName,
+                minimumIdleMilliseconds,
+                toClaim.ToArray());
+        }, cancellationToken);
+
+        // An entry trimmed from the stream while pending has no content to run. Redis 7 removes those from the pending
+        // list during the claim. Older versions keep them, and they are dropped once they reach the delivery limit.
+        var reclaimed = claimed.Where(entry => !entry.IsNull).ToArray();
+        if (reclaimed.Length > 0)
+        {
+            logger.LogInformation(
+                "Reclaimed {Count} Redis stream entries that were idle for at least {IdleSeconds} seconds.",
+                reclaimed.Length, options.Value.EffectivePendingReclaimIdleSeconds);
+        }
+
+        return reclaimed;
+    }
+
     public async Task AcknowledgeAsync(IRawJobModel message, CoreJobResult result,
         CancellationToken cancellationToken = default)
     {
@@ -110,127 +221,13 @@ internal class RedisStreamsJobSource(
                 options.Value.GroupName,
                 options.Value.EffectiveConsumerName,
                 0,
-                [redisStreamJobModel.Message.Id],
-                CommandFlags.None);
+                [redisStreamJobModel.Message.Id]);
         }, cancellationToken);
     }
 
     public Task StartSubscriberAsync(CancellationToken cancellationToken = default)
     {
         throw new NotSupportedException();
-    }
-
-    /// <summary>
-    ///     Takes over entries that were delivered to a consumer but not acknowledged for longer than the reclaim idle
-    ///     time, such as entries held by a worker that crashed or was stopped mid-batch.
-    /// </summary>
-    /// <remarks>
-    ///     <para>
-    ///         Reading with ">" only ever returns new entries, so without this an entry delivered to a worker that died
-    ///         stays pending forever. That is true even when the replacement worker uses the same consumer name.
-    ///     </para>
-    ///     <para>
-    ///         Entries already delivered <see cref="ConfigurationModel.EffectiveMaximumDeliveries" /> times are
-    ///         acknowledged without running, so that an entry which crashes the worker every time cannot loop forever.
-    ///         Redis Streams has no dead-letter queue, so such entries are only logged.
-    ///     </para>
-    ///     <para>
-    ///         The scan always starts from the oldest pending entry. Every entry that it returns is either claimed,
-    ///         acknowledged, or was claimed by another worker in the meantime, which resets its idle time. So the next
-    ///         scan moves on to other entries, and no cursor needs to be kept.
-    ///     </para>
-    ///     <para>
-    ///         XCLAIM is sent with the same minimum idle time, so when two workers scan at once, only one of them
-    ///         claims each entry.
-    ///     </para>
-    ///     <para>
-    ///         Needs Redis 6.2 or later, for the IDLE option of XPENDING.
-    ///     </para>
-    /// </remarks>
-    private async Task<StreamEntry[]> ReclaimIdleEntriesAsync(int batchSize, CancellationToken cancellationToken)
-    {
-        if (!options.Value.IsPendingReclaimEnabled || batchSize <= 0)
-        {
-            return [];
-        }
-
-        var minimumIdleMilliseconds = options.Value.EffectivePendingReclaimIdleSeconds * 1000L;
-
-        var pending = await retryWrapperService.RunAsync(async ct =>
-        {
-            var database = await redisConnectionCacheService.GetDatabaseAsync(ct);
-            return await database.StreamPendingMessagesAsync(
-                options.Value.StreamName,
-                options.Value.GroupName,
-                batchSize,
-                RedisValue.Null,
-                null,
-                null,
-                minimumIdleMilliseconds,
-                CommandFlags.None);
-        }, cancellationToken);
-
-        if (pending.Length == 0)
-        {
-            return [];
-        }
-
-        var maximumDeliveries = options.Value.EffectiveMaximumDeliveries;
-        var toDrop = new List<RedisValue>();
-        var toClaim = new List<RedisValue>();
-        foreach (var info in pending)
-        {
-            if (info.DeliveryCount >= maximumDeliveries)
-            {
-                logger.LogWarning(
-                    "Dropping Redis stream entry {MessageId} without running it: it was delivered {DeliveryCount} times (limit {MaximumDeliveries}) without being acknowledged. It was last held by consumer {ConsumerName}.",
-                    (string?) info.MessageId, info.DeliveryCount, maximumDeliveries, (string?) info.ConsumerName);
-                toDrop.Add(info.MessageId);
-            }
-            else
-            {
-                toClaim.Add(info.MessageId);
-            }
-        }
-
-        if (toDrop.Count > 0)
-        {
-            await retryWrapperService.RunAsync(async ct =>
-            {
-                var database = await redisConnectionCacheService.GetDatabaseAsync(ct);
-                await database.StreamAcknowledgeAsync(options.Value.StreamName, options.Value.GroupName,
-                    toDrop.ToArray());
-            }, cancellationToken);
-        }
-
-        if (toClaim.Count == 0)
-        {
-            return [];
-        }
-
-        var claimed = await retryWrapperService.RunAsync(async ct =>
-        {
-            var database = await redisConnectionCacheService.GetDatabaseAsync(ct);
-            return await database.StreamClaimAsync(
-                options.Value.StreamName,
-                options.Value.GroupName,
-                options.Value.EffectiveConsumerName,
-                minimumIdleMilliseconds,
-                toClaim.ToArray(),
-                CommandFlags.None);
-        }, cancellationToken);
-
-        // An entry trimmed from the stream while pending has no content to run. Redis 7 removes those from the pending
-        // list during the claim. Older versions keep them, and they are dropped once they reach the delivery limit.
-        var reclaimed = claimed.Where(entry => !entry.IsNull).ToArray();
-        if (reclaimed.Length > 0)
-        {
-            logger.LogInformation(
-                "Reclaimed {Count} Redis stream entries that were idle for at least {IdleSeconds} seconds.",
-                reclaimed.Length, options.Value.EffectivePendingReclaimIdleSeconds);
-        }
-
-        return reclaimed;
     }
 
     public sealed class ConfigurationModel

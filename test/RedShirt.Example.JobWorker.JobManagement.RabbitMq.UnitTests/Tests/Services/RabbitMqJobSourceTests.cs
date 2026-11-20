@@ -304,34 +304,6 @@ public class RabbitMqJobSourceTests
             Times.Once);
     }
 
-    [Theory]
-    [InlineData(false, null, 0)]
-    [InlineData(true, null, null)]
-    [InlineData(true, 2L, 2)]
-    public async Task Test_GetJobs_ReadsPreviousDeliveryCount(bool redelivered, long? deliveryCountHeader,
-        int? expected)
-    {
-        var basicProperties = new Mock<IReadOnlyBasicProperties>();
-        basicProperties.Setup(p => p.MessageId).Returns("m");
-        basicProperties.Setup(p => p.Headers).Returns(deliveryCountHeader is null
-            ? null
-            : new Dictionary<string, object?> {["x-delivery-count"] = deliveryCountHeader.Value});
-
-        var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
-        mockChannel
-            .SetupSequence(c => c.BasicGetAsync("jobs", false, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new BasicGetResult(1, redelivered, "foo", "bar", 1, basicProperties.Object,
-                new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes("{}"))))
-            .ReturnsAsync((BasicGetResult?) null);
-
-        var (jobSource, _) = CreateJobSource(mockChannel.Object);
-
-        var response = await jobSource.GetJobsAsync(5, TestContext.Current.CancellationToken);
-
-        var job = Assert.IsType<RabbitMqRawJobModel>(Assert.Single(response.Items));
-        Assert.Equal(expected, job.PreviousDeliveryCount);
-    }
-
     [Fact]
     public async Task Test_AcknowledgeAsync_RegularExceptionNotIgnored()
     {
@@ -558,6 +530,34 @@ public class RabbitMqJobSourceTests
         Assert.Null(returnedJobItem.IdempotencyId);
         Assert.Equal(bodyString, returnedJobItem.Body);
         Assert.Equal(deliveryTag, Assert.IsType<RabbitMqRawJobModel>(returnedJobItem).DeliveryTag);
+    }
+
+    [Theory]
+    [InlineData(false, null, 0)]
+    [InlineData(true, null, null)]
+    [InlineData(true, 2L, 2)]
+    public async Task Test_GetJobs_ReadsPreviousDeliveryCount(bool redelivered, long? deliveryCountHeader,
+        int? expected)
+    {
+        var basicProperties = new Mock<IReadOnlyBasicProperties>();
+        basicProperties.Setup(p => p.MessageId).Returns("m");
+        basicProperties.Setup(p => p.Headers).Returns(deliveryCountHeader is null
+            ? null
+            : new Dictionary<string, object?> {["x-delivery-count"] = deliveryCountHeader.Value});
+
+        var mockChannel = new Mock<IChannel>(MockBehavior.Strict);
+        mockChannel
+            .SetupSequence(c => c.BasicGetAsync("jobs", false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BasicGetResult(1, redelivered, "foo", "bar", 1, basicProperties.Object,
+                new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes("{}"))))
+            .ReturnsAsync((BasicGetResult?) null);
+
+        var (jobSource, _) = CreateJobSource(mockChannel.Object);
+
+        var response = await jobSource.GetJobsAsync(5, TestContext.Current.CancellationToken);
+
+        var job = Assert.IsType<RabbitMqRawJobModel>(Assert.Single(response.Items));
+        Assert.Equal(expected, job.PreviousDeliveryCount);
     }
 
     [Fact]

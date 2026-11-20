@@ -31,15 +31,6 @@ public class RabbitMqRedeliveryPolicyTests
     }
 
     [Theory]
-    [InlineData(CoreJobResult.Empty)]
-    [InlineData(CoreJobResult.Parsing)]
-    [InlineData(CoreJobResult.InvalidData)]
-    public void ShouldRequeue_NonRecoverable_Never(CoreJobResult result)
-    {
-        Assert.False(RabbitMqRedeliveryPolicyTestHelpers.Create().ShouldRequeue(CreateMessage(0), result));
-    }
-
-    [Theory]
     // Five deliveries allowed: requeue after deliveries 1 to 4, reject on delivery 5.
     [InlineData(0, 5, true)]
     [InlineData(3, 5, true)]
@@ -54,6 +45,15 @@ public class RabbitMqRedeliveryPolicyTests
 
         Assert.Equal(expected, policy.ShouldRequeue(CreateMessage(previousDeliveries), CoreJobResult.Failure));
         Assert.Equal(expected, policy.ShouldRequeue(CreateMessage(previousDeliveries), CoreJobResult.Cancelled));
+    }
+
+    [Theory]
+    [InlineData(CoreJobResult.Empty)]
+    [InlineData(CoreJobResult.Parsing)]
+    [InlineData(CoreJobResult.InvalidData)]
+    public void ShouldRequeue_NonRecoverable_Never(CoreJobResult result)
+    {
+        Assert.False(RabbitMqRedeliveryPolicyTestHelpers.Create().ShouldRequeue(CreateMessage(0), result));
     }
 
     [Theory]

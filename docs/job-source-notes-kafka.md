@@ -21,7 +21,8 @@ there are currently 5 different SASL mechanisms to choose from when implementing
 authentication for Kafka when adapting this template is currently left as an exercise for the reader.
 
 Kafka clients are constructed in the `RedShirt.Example.JobWorker.JobManagement.Kafka` project, in
-`Factories/KafkaConsumerFactory.cs`. As written, the consumer connects in plaintext, with no TLS and no authentication. A comment in
+`Factories/KafkaConsumerFactory.cs`. As written, the consumer connects in plaintext, with no TLS and no authentication.
+A comment in
 that factory shows illustrative `ConsumerConfig` settings for TLS, SASL/SCRAM, mutual TLS, and SASL/OAUTHBEARER.
 
 ## Kinesis Comparisons and Batch Mode Recommendation

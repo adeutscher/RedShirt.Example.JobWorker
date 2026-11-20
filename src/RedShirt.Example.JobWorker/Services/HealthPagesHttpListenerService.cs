@@ -160,7 +160,7 @@ public sealed class HealthPagesHttpListenerService(
                 {
                     context = await _listener.GetContextAsync();
                 }
-                catch (Exception ex) when ((ex is HttpListenerException or ObjectDisposedException) &&
+                catch (Exception ex) when (ex is HttpListenerException or ObjectDisposedException &&
                                            stoppingToken.IsCancellationRequested)
                 {
                     requestSlots.Release();

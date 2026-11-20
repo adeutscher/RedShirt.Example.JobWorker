@@ -194,6 +194,33 @@ public class RabbitMqSubscribeJobSourceTests
             It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Theory]
+    [InlineData(4, false)]
+    [InlineData(3, true)]
+    [InlineData(null, false)]
+    public async Task AcknowledgeAsync_WhenRecoverable_StopsRequeueingAtDeliveryLimit(int? previousDeliveryCount,
+        bool requeue)
+    {
+        var channel = new Mock<IChannel>(MockBehavior.Strict);
+        channel
+            .Setup(c => c.BasicNackAsync(7, false, requeue, TestContext.Current.CancellationToken))
+            .Returns(ValueTask.CompletedTask);
+
+        var wrapper = CreatePassthroughWrapper(channel.Object);
+        var jobSource = CreateJobSource(wrapper);
+
+        await jobSource.AcknowledgeAsync(new RabbitMqRawJobModel
+        {
+            MessageId = "m",
+            DeliveryTag = 7,
+            CreatedAtUtc = DateTime.UtcNow,
+            Body = "body",
+            PreviousDeliveryCount = previousDeliveryCount
+        }, CoreJobResult.Failure, TestContext.Current.CancellationToken);
+
+        channel.Verify(c => c.BasicNackAsync(7, false, requeue, TestContext.Current.CancellationToken), Times.Once);
+    }
+
     [Fact]
     public async Task AcknowledgeAsync_WhenSuccessful_AcksDeliveryTag()
     {
@@ -240,33 +267,6 @@ public class RabbitMqSubscribeJobSourceTests
             CreatedAtUtc = DateTime.UtcNow,
             Body = "body"
         }, result, TestContext.Current.CancellationToken);
-
-        channel.Verify(c => c.BasicNackAsync(7, false, requeue, TestContext.Current.CancellationToken), Times.Once);
-    }
-
-    [Theory]
-    [InlineData(4, false)]
-    [InlineData(3, true)]
-    [InlineData(null, false)]
-    public async Task AcknowledgeAsync_WhenRecoverable_StopsRequeueingAtDeliveryLimit(int? previousDeliveryCount,
-        bool requeue)
-    {
-        var channel = new Mock<IChannel>(MockBehavior.Strict);
-        channel
-            .Setup(c => c.BasicNackAsync(7, false, requeue, TestContext.Current.CancellationToken))
-            .Returns(ValueTask.CompletedTask);
-
-        var wrapper = CreatePassthroughWrapper(channel.Object);
-        var jobSource = CreateJobSource(wrapper);
-
-        await jobSource.AcknowledgeAsync(new RabbitMqRawJobModel
-        {
-            MessageId = "m",
-            DeliveryTag = 7,
-            CreatedAtUtc = DateTime.UtcNow,
-            Body = "body",
-            PreviousDeliveryCount = previousDeliveryCount
-        }, CoreJobResult.Failure, TestContext.Current.CancellationToken);
 
         channel.Verify(c => c.BasicNackAsync(7, false, requeue, TestContext.Current.CancellationToken), Times.Once);
     }

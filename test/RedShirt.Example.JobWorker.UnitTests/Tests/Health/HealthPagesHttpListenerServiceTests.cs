@@ -164,6 +164,19 @@ public class HealthPagesHttpListenerServiceTests
     }
 
     [Theory]
+    [InlineData(null, CommonHealthConfigurationModel.DefaultMaximumConcurrentRequests)]
+    [InlineData(0, CommonHealthConfigurationModel.DefaultMaximumConcurrentRequests)]
+    [InlineData(-2, CommonHealthConfigurationModel.DefaultMaximumConcurrentRequests)]
+    [InlineData(1, 1)]
+    [InlineData(16, 16)]
+    public void EffectiveMaximumConcurrentRequests_FallsBackToDefault(int? configured, int expected)
+    {
+        var config = new CommonHealthConfigurationModel {MaximumConcurrentRequests = configured};
+
+        Assert.Equal(expected, config.EffectiveMaximumConcurrentRequests);
+    }
+
+    [Theory]
     [InlineData(HealthPathConstants.LivePath)]
     [InlineData(HealthPathConstants.HealthPath)]
     public async Task GetEndpoint_WhenEnabled_ReturnsOk(string path)
@@ -225,29 +238,6 @@ public class HealthPagesHttpListenerServiceTests
             Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
             Assert.Equal("unhealthy", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
             health.Verify(h => h.IsHealthy(), Times.AtLeastOnce);
-        }
-        finally
-        {
-            await service.StopAsync(CancellationToken.None);
-        }
-    }
-
-    [Fact]
-    public async Task StartAsync_WhenDisabled_DoesNotBindPort()
-    {
-        var port = GetFreePort();
-        var service = CreateService(false, port);
-
-        await service.StartAsync(CancellationToken.None);
-        try
-        {
-            using var client = new HttpClient
-            {
-                Timeout = TimeSpan.FromSeconds(1)
-            };
-            await Assert.ThrowsAsync<HttpRequestException>(() =>
-                client.GetAsync($"http://127.0.0.1:{port}{HealthPathConstants.LivePath}",
-                    TestContext.Current.CancellationToken));
         }
         finally
         {
@@ -324,16 +314,26 @@ public class HealthPagesHttpListenerServiceTests
         }
     }
 
-    [Theory]
-    [InlineData(null, CommonHealthConfigurationModel.DefaultMaximumConcurrentRequests)]
-    [InlineData(0, CommonHealthConfigurationModel.DefaultMaximumConcurrentRequests)]
-    [InlineData(-2, CommonHealthConfigurationModel.DefaultMaximumConcurrentRequests)]
-    [InlineData(1, 1)]
-    [InlineData(16, 16)]
-    public void EffectiveMaximumConcurrentRequests_FallsBackToDefault(int? configured, int expected)
+    [Fact]
+    public async Task StartAsync_WhenDisabled_DoesNotBindPort()
     {
-        var config = new CommonHealthConfigurationModel {MaximumConcurrentRequests = configured};
+        var port = GetFreePort();
+        var service = CreateService(false, port);
 
-        Assert.Equal(expected, config.EffectiveMaximumConcurrentRequests);
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            using var client = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(1)
+            };
+            await Assert.ThrowsAsync<HttpRequestException>(() =>
+                client.GetAsync($"http://127.0.0.1:{port}{HealthPathConstants.LivePath}",
+                    TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
     }
 }

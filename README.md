@@ -31,16 +31,19 @@ Repo features:
         * For more details on Kafka, refer to [`docs/job-source-notes-kafka.md`](docs/job-source-notes-kafka.md)
     * [Apache Pulsar](https://pulsar.apache.org/)
     * [Azure Queue Storage](https://learn.microsoft.com/en-us/azure/storage/queues/storage-queues-introduction)
-        * For more details on Azure Queue Storage, refer to [`docs/job-source-notes-azure-queue-storage.md`](docs/job-source-notes-azure-queue-storage.md)
+        * For more details on Azure Queue Storage, refer to [
+          `docs/job-source-notes-azure-queue-storage.md`](docs/job-source-notes-azure-queue-storage.md)
     * [Azure Service Bus](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview)
     * [Google Pub/Sub](https://cloud.google.com/pubsub/docs)
     * [NATS](https://nats.io/)
         * Supports short polling, long polling, or JetStream push-style subscribe consumption.
     * [RabbitMQ](https://www.rabbitmq.com/)
         * Supports short polling or consumer subscriptions.
-        * For more details on RabbitMQ, refer to [`docs/job-source-notes-rabbitmq.md`](docs/job-source-notes-rabbitmq.md)
+        * For more details on RabbitMQ, refer to [
+          `docs/job-source-notes-rabbitmq.md`](docs/job-source-notes-rabbitmq.md)
     * [Redis Streams](https://redis.io/docs/latest/develop/data-types/streams/)
-        * For more details on Redis Streams, refer to [`docs/job-source-notes-redis-streams.md`](docs/job-source-notes-redis-streams.md)
+        * For more details on Redis Streams, refer to [
+          `docs/job-source-notes-redis-streams.md`](docs/job-source-notes-redis-streams.md)
 * Cache-based idempotency support
     * Prevents the same message from being run twice in the event that an executor loses custody of a message.
         * Messages could be dropped by connection issues with the message source or because of a protocol decision by

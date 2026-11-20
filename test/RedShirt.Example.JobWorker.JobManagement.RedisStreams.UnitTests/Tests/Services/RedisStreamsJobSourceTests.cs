@@ -1,4 +1,3 @@
-using System.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RedShirt.Example.JobWorker.Common.Distributed.Services.Redis;
@@ -7,6 +6,7 @@ using RedShirt.Example.JobWorker.Core.Models;
 using RedShirt.Example.JobWorker.JobManagement.RedisStreams.Models;
 using RedShirt.Example.JobWorker.JobManagement.RedisStreams.Services;
 using StackExchange.Redis;
+using System.Reflection;
 
 namespace RedShirt.Example.JobWorker.JobManagement.RedisStreams.UnitTests.Tests.Services;
 
@@ -126,108 +126,57 @@ public class RedisStreamsJobSourceTests
         connection.Verify(c => c.GetDatabaseAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    [Fact]
-    public async Task GetJobsAsync_MapsEntriesToRawJobModels()
+    [Theory]
+    [InlineData(null, RedisStreamsJobSource.ConfigurationModel.DefaultMaximumDeliveries)]
+    [InlineData(0, RedisStreamsJobSource.ConfigurationModel.DefaultMaximumDeliveries)]
+    [InlineData(-3, RedisStreamsJobSource.ConfigurationModel.DefaultMaximumDeliveries)]
+    [InlineData(1, 1)]
+    [InlineData(9, 9)]
+    public void EffectiveMaximumDeliveries_FallsBackToDefault(int? configured, int expected)
     {
-        var entry1 = CreateEntry("1-0", """{"a":1}""", "idem-1");
-        var entry2 = CreateEntry("1-1", """{"b":2}""", "idem-2");
+        Assert.Equal(expected, CreateConfig(maximumDeliveries: configured).EffectiveMaximumDeliveries);
+    }
 
+    [Fact]
+    public async Task GetJobsAsync_DoesNotClaim_WhenEveryIdleEntryIsAtTheLimit()
+    {
         var database = new Mock<IDatabase>(MockBehavior.Strict);
-        SetupPending(database, 2);
+        SetupPending(database, 2, CreatePending("1-0", 5));
+        database
+            .Setup(d => d.StreamAcknowledgeAsync("jobs", "job-worker", It.IsAny<RedisValue[]>(), CommandFlags.None))
+            .ReturnsAsync(1);
         database
             .Setup(d => d.StreamReadGroupAsync("jobs", "job-worker", "worker-1", ">", 2, false, CommandFlags.None))
-            .ReturnsAsync([entry1, entry2]);
+            .ReturnsAsync([]);
 
         var jobSource = CreateJobSource(database.Object);
 
         var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, response.Items.Count);
-        Assert.All(response.Items, item => Assert.IsType<RedisStreamRawJobModel>(item));
-        Assert.Equal("1-0", response.Items[0].MessageId);
-        Assert.Equal("idem-1", response.Items[0].IdempotencyId);
-        Assert.Equal("""{"a":1}""", response.Items[0].Body);
-        Assert.Equal("1-1", response.Items[1].MessageId);
-        Assert.Equal("idem-2", response.Items[1].IdempotencyId);
-    }
-
-    [Fact]
-    public async Task GetJobsAsync_ReturnsEmpty_WhenNoEntries()
-    {
-        var database = new Mock<IDatabase>(MockBehavior.Strict);
-        SetupPending(database, 5);
-        database
-            .Setup(d => d.StreamReadGroupAsync("jobs", "job-worker", "worker-1", ">", 5, false, CommandFlags.None))
-            .ReturnsAsync([]);
-
-        var jobSource = CreateJobSource(database.Object);
-
-        var response = await jobSource.GetJobsAsync(5, TestContext.Current.CancellationToken);
-
         Assert.Empty(response.Items);
+        database.Verify(d => d.StreamClaimAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(),
+                It.IsAny<RedisValue>(), It.IsAny<long>(), It.IsAny<RedisValue[]>(), It.IsAny<CommandFlags>()),
+            Times.Never);
     }
 
-    [Fact]
-    public async Task GetJobsAsync_UsesMachineName_WhenConsumerNameUnset()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task GetJobsAsync_DoesNotScanPendingEntries_WhenReclaimIsDisabled(int idleSeconds)
     {
         var database = new Mock<IDatabase>(MockBehavior.Strict);
-        SetupPending(database, 1);
         database
-            .Setup(d => d.StreamReadGroupAsync("jobs", "job-worker", Environment.MachineName, ">", 1, false,
-                CommandFlags.None))
+            .Setup(d => d.StreamReadGroupAsync("jobs", "job-worker", "worker-1", ">", 4, false, CommandFlags.None))
             .ReturnsAsync([]);
 
-        var jobSource = CreateJobSource(database.Object, CreateConfig(consumer: null));
+        var jobSource = CreateJobSource(database.Object, CreateConfig(pendingReclaimIdleSeconds: idleSeconds));
 
-        await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
+        await jobSource.GetJobsAsync(4, TestContext.Current.CancellationToken);
 
-        database.Verify(
-            d => d.StreamReadGroupAsync("jobs", "job-worker", Environment.MachineName, ">", 1, false,
-                CommandFlags.None), Times.Once);
-    }
-
-    [Fact]
-    public async Task GetJobsAsync_ReclaimsIdleEntries_ThenFillsTheBatchWithNewEntries()
-    {
-        var stale = CreateEntry("1-0", """{"old":1}""");
-        var fresh = CreateEntry("2-0", """{"new":1}""");
-
-        var database = new Mock<IDatabase>(MockBehavior.Strict);
-        SetupPending(database, 3, CreatePending("1-0", 1));
-        database
-            .Setup(d => d.StreamClaimAsync("jobs", "job-worker", "worker-1", DefaultIdleMilliseconds,
-                It.Is<RedisValue[]>(ids => ids.SequenceEqual(new RedisValue[] {"1-0"})), CommandFlags.None))
-            .ReturnsAsync([stale]);
-        database
-            .Setup(d => d.StreamReadGroupAsync("jobs", "job-worker", "worker-1", ">", 2, false, CommandFlags.None))
-            .ReturnsAsync([fresh]);
-
-        var jobSource = CreateJobSource(database.Object);
-
-        var response = await jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken);
-
-        Assert.Equal(["1-0", "2-0"], response.Items.Select(i => i.MessageId));
-        Assert.Equal("""{"old":1}""", response.Items[0].Body);
-    }
-
-    [Fact]
-    public async Task GetJobsAsync_SkipsNewRead_WhenReclaimFillsTheBatch()
-    {
-        var database = new Mock<IDatabase>(MockBehavior.Strict);
-        SetupPending(database, 1, CreatePending("1-0", 2));
-        database
-            .Setup(d => d.StreamClaimAsync("jobs", "job-worker", "worker-1", DefaultIdleMilliseconds,
-                It.IsAny<RedisValue[]>(), CommandFlags.None))
-            .ReturnsAsync([CreateEntry("1-0")]);
-
-        var jobSource = CreateJobSource(database.Object);
-
-        var response = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
-
-        Assert.Single(response.Items);
-        database.Verify(d => d.StreamReadGroupAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(),
-            It.IsAny<RedisValue>(), It.IsAny<RedisValue?>(), It.IsAny<int?>(), It.IsAny<bool>(),
-            It.IsAny<CommandFlags>()), Times.Never);
+        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
+        database.Verify(d => d.StreamPendingMessagesAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(),
+            It.IsAny<int>(), It.IsAny<RedisValue>(), It.IsAny<RedisValue?>(), It.IsAny<RedisValue?>(),
+            It.IsAny<long?>(), It.IsAny<CommandFlags>()), Times.Never);
     }
 
     [Fact]
@@ -257,28 +206,6 @@ public class RedisStreamsJobSourceTests
     }
 
     [Fact]
-    public async Task GetJobsAsync_DoesNotClaim_WhenEveryIdleEntryIsAtTheLimit()
-    {
-        var database = new Mock<IDatabase>(MockBehavior.Strict);
-        SetupPending(database, 2, CreatePending("1-0", 5));
-        database
-            .Setup(d => d.StreamAcknowledgeAsync("jobs", "job-worker", It.IsAny<RedisValue[]>(), CommandFlags.None))
-            .ReturnsAsync(1);
-        database
-            .Setup(d => d.StreamReadGroupAsync("jobs", "job-worker", "worker-1", ">", 2, false, CommandFlags.None))
-            .ReturnsAsync([]);
-
-        var jobSource = CreateJobSource(database.Object);
-
-        var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
-
-        Assert.Empty(response.Items);
-        database.Verify(d => d.StreamClaimAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(),
-            It.IsAny<RedisValue>(), It.IsAny<long>(), It.IsAny<RedisValue[]>(), It.IsAny<CommandFlags>()),
-            Times.Never);
-    }
-
-    [Fact]
     public async Task GetJobsAsync_IgnoresClaimedEntriesThatNoLongerExist()
     {
         var database = new Mock<IDatabase>(MockBehavior.Strict);
@@ -298,24 +225,143 @@ public class RedisStreamsJobSourceTests
         Assert.Equal(["2-0"], response.Items.Select(i => i.MessageId));
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public async Task GetJobsAsync_DoesNotScanPendingEntries_WhenReclaimIsDisabled(int idleSeconds)
+    [Fact]
+    public async Task GetJobsAsync_MapsEntriesToRawJobModels()
+    {
+        var entry1 = CreateEntry("1-0", """{"a":1}""", "idem-1");
+        var entry2 = CreateEntry("1-1", """{"b":2}""", "idem-2");
+
+        var database = new Mock<IDatabase>(MockBehavior.Strict);
+        SetupPending(database, 2);
+        database
+            .Setup(d => d.StreamReadGroupAsync("jobs", "job-worker", "worker-1", ">", 2, false, CommandFlags.None))
+            .ReturnsAsync([entry1, entry2]);
+
+        var jobSource = CreateJobSource(database.Object);
+
+        var response = await jobSource.GetJobsAsync(2, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, response.Items.Count);
+        Assert.All(response.Items, item => Assert.IsType<RedisStreamRawJobModel>(item));
+        Assert.Equal("1-0", response.Items[0].MessageId);
+        Assert.Equal("idem-1", response.Items[0].IdempotencyId);
+        Assert.Equal("""{"a":1}""", response.Items[0].Body);
+        Assert.Equal("1-1", response.Items[1].MessageId);
+        Assert.Equal("idem-2", response.Items[1].IdempotencyId);
+    }
+
+    [Fact]
+    public async Task GetJobsAsync_ReclaimsIdleEntries_ThenFillsTheBatchWithNewEntries()
+    {
+        var stale = CreateEntry("1-0", """{"old":1}""");
+        var fresh = CreateEntry("2-0", """{"new":1}""");
+
+        var database = new Mock<IDatabase>(MockBehavior.Strict);
+        SetupPending(database, 3, CreatePending("1-0", 1));
+        database
+            .Setup(d => d.StreamClaimAsync("jobs", "job-worker", "worker-1", DefaultIdleMilliseconds,
+                It.Is<RedisValue[]>(ids => ids.SequenceEqual(new RedisValue[] {"1-0"})), CommandFlags.None))
+            .ReturnsAsync([stale]);
+        database
+            .Setup(d => d.StreamReadGroupAsync("jobs", "job-worker", "worker-1", ">", 2, false, CommandFlags.None))
+            .ReturnsAsync([fresh]);
+
+        var jobSource = CreateJobSource(database.Object);
+
+        var response = await jobSource.GetJobsAsync(3, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["1-0", "2-0"], response.Items.Select(i => i.MessageId));
+        Assert.Equal("""{"old":1}""", response.Items[0].Body);
+    }
+
+    [Fact]
+    public async Task GetJobsAsync_ReturnsEmpty_WhenNoEntries()
     {
         var database = new Mock<IDatabase>(MockBehavior.Strict);
+        SetupPending(database, 5);
         database
-            .Setup(d => d.StreamReadGroupAsync("jobs", "job-worker", "worker-1", ">", 4, false, CommandFlags.None))
+            .Setup(d => d.StreamReadGroupAsync("jobs", "job-worker", "worker-1", ">", 5, false, CommandFlags.None))
             .ReturnsAsync([]);
 
-        var jobSource = CreateJobSource(database.Object, CreateConfig(pendingReclaimIdleSeconds: idleSeconds));
+        var jobSource = CreateJobSource(database.Object);
 
-        await jobSource.GetJobsAsync(4, TestContext.Current.CancellationToken);
+        var response = await jobSource.GetJobsAsync(5, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, jobSource.RecommendedHeartbeatIntervalSeconds);
-        database.Verify(d => d.StreamPendingMessagesAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(),
-            It.IsAny<int>(), It.IsAny<RedisValue>(), It.IsAny<RedisValue?>(), It.IsAny<RedisValue?>(),
-            It.IsAny<long?>(), It.IsAny<CommandFlags>()), Times.Never);
+        Assert.Empty(response.Items);
+    }
+
+    [Fact]
+    public async Task GetJobsAsync_SkipsNewRead_WhenReclaimFillsTheBatch()
+    {
+        var database = new Mock<IDatabase>(MockBehavior.Strict);
+        SetupPending(database, 1, CreatePending("1-0", 2));
+        database
+            .Setup(d => d.StreamClaimAsync("jobs", "job-worker", "worker-1", DefaultIdleMilliseconds,
+                It.IsAny<RedisValue[]>(), CommandFlags.None))
+            .ReturnsAsync([CreateEntry("1-0")]);
+
+        var jobSource = CreateJobSource(database.Object);
+
+        var response = await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
+
+        Assert.Single(response.Items);
+        database.Verify(d => d.StreamReadGroupAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(),
+            It.IsAny<RedisValue>(), It.IsAny<RedisValue?>(), It.IsAny<int?>(), It.IsAny<bool>(),
+            It.IsAny<CommandFlags>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetJobsAsync_UsesMachineName_WhenConsumerNameUnset()
+    {
+        var database = new Mock<IDatabase>(MockBehavior.Strict);
+        SetupPending(database, 1);
+        database
+            .Setup(d => d.StreamReadGroupAsync("jobs", "job-worker", Environment.MachineName, ">", 1, false,
+                CommandFlags.None))
+            .ReturnsAsync([]);
+
+        var jobSource = CreateJobSource(database.Object, CreateConfig(consumer: null));
+
+        await jobSource.GetJobsAsync(1, TestContext.Current.CancellationToken);
+
+        database.Verify(
+            d => d.StreamReadGroupAsync("jobs", "job-worker", Environment.MachineName, ">", 1, false,
+                CommandFlags.None), Times.Once);
+    }
+
+    [Fact]
+    public async Task HeartbeatAsync_IgnoresIncompatibleModels()
+    {
+        var connection = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
+        var jobSource = new RedisStreamsJobSource(
+            connection.Object,
+            RedisStreamsRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            new NullLogger<RedisStreamsJobSource>(),
+            Options.Create(CreateConfig()));
+
+        await jobSource.HeartbeatAsync(new Mock<IRawJobModel>().Object, TestContext.Current.CancellationToken);
+
+        connection.Verify(c => c.GetDatabaseAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HeartbeatAsync_IsNoOp_WhenReclaimIsDisabled()
+    {
+        var connection = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
+        var jobSource = new RedisStreamsJobSource(
+            connection.Object,
+            RedisStreamsRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
+            new NullLogger<RedisStreamsJobSource>(),
+            Options.Create(CreateConfig(pendingReclaimIdleSeconds: 0)));
+
+        await jobSource.HeartbeatAsync(new RedisStreamRawJobModel
+        {
+            Message = CreateEntry("1-0"),
+            MessageId = "1-0",
+            CreatedAtUtc = DateTime.UtcNow
+        }, TestContext.Current.CancellationToken);
+
+        connection.Verify(c => c.GetDatabaseAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -340,41 +386,6 @@ public class RedisStreamsJobSourceTests
         database.VerifyAll();
     }
 
-    [Fact]
-    public async Task HeartbeatAsync_IsNoOp_WhenReclaimIsDisabled()
-    {
-        var connection = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
-        var jobSource = new RedisStreamsJobSource(
-            connection.Object,
-            RedisStreamsRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new NullLogger<RedisStreamsJobSource>(),
-            Options.Create(CreateConfig(pendingReclaimIdleSeconds: 0)));
-
-        await jobSource.HeartbeatAsync(new RedisStreamRawJobModel
-        {
-            Message = CreateEntry("1-0"),
-            MessageId = "1-0",
-            CreatedAtUtc = DateTime.UtcNow
-        }, TestContext.Current.CancellationToken);
-
-        connection.Verify(c => c.GetDatabaseAsync(It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task HeartbeatAsync_IgnoresIncompatibleModels()
-    {
-        var connection = new Mock<IRedisConnectionCacheService>(MockBehavior.Strict);
-        var jobSource = new RedisStreamsJobSource(
-            connection.Object,
-            RedisStreamsRetryTestHelpers.CreatePassthroughRetryWrapper().Object,
-            new NullLogger<RedisStreamsJobSource>(),
-            Options.Create(CreateConfig()));
-
-        await jobSource.HeartbeatAsync(new Mock<IRawJobModel>().Object, TestContext.Current.CancellationToken);
-
-        connection.Verify(c => c.GetDatabaseAsync(It.IsAny<CancellationToken>()), Times.Never);
-    }
-
     [Theory]
     [InlineData(null, 150)]
     [InlineData(60, 30)]
@@ -387,16 +398,5 @@ public class RedisStreamsJobSourceTests
             CreateConfig(pendingReclaimIdleSeconds: idleSeconds));
 
         Assert.Equal(expected, jobSource.RecommendedHeartbeatIntervalSeconds);
-    }
-
-    [Theory]
-    [InlineData(null, RedisStreamsJobSource.ConfigurationModel.DefaultMaximumDeliveries)]
-    [InlineData(0, RedisStreamsJobSource.ConfigurationModel.DefaultMaximumDeliveries)]
-    [InlineData(-3, RedisStreamsJobSource.ConfigurationModel.DefaultMaximumDeliveries)]
-    [InlineData(1, 1)]
-    [InlineData(9, 9)]
-    public void EffectiveMaximumDeliveries_FallsBackToDefault(int? configured, int expected)
-    {
-        Assert.Equal(expected, CreateConfig(maximumDeliveries: configured).EffectiveMaximumDeliveries);
     }
 }

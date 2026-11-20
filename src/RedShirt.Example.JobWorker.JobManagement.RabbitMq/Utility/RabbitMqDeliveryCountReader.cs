@@ -11,22 +11,6 @@ internal static class RabbitMqDeliveryCountReader
     /// </summary>
     internal const string DeliveryCountHeader = "x-delivery-count";
 
-    /// <summary>
-    ///     Number of earlier unsuccessful deliveries, or null when the queue does not track it.
-    ///     A missing header on a message that is not redelivered means no earlier deliveries.
-    /// </summary>
-    public static int? TryGetPreviousDeliveryCount(IReadOnlyBasicProperties? properties, bool redelivered)
-    {
-        if (properties?.Headers is not null
-            && properties.Headers.TryGetValue(DeliveryCountHeader, out var value)
-            && TryConvert(value, out var count))
-        {
-            return count;
-        }
-
-        return redelivered ? null : 0;
-    }
-
     private static bool TryConvert(object? value, out int count)
     {
         count = 0;
@@ -50,5 +34,21 @@ internal static class RabbitMqDeliveryCountReader
         {
             return false;
         }
+    }
+
+    /// <summary>
+    ///     Number of earlier unsuccessful deliveries, or null when the queue does not track it.
+    ///     A missing header on a message that is not redelivered means no earlier deliveries.
+    /// </summary>
+    public static int? TryGetPreviousDeliveryCount(IReadOnlyBasicProperties? properties, bool redelivered)
+    {
+        if (properties?.Headers is not null
+            && properties.Headers.TryGetValue(DeliveryCountHeader, out var value)
+            && TryConvert(value, out var count))
+        {
+            return count;
+        }
+
+        return redelivered ? null : 0;
     }
 }

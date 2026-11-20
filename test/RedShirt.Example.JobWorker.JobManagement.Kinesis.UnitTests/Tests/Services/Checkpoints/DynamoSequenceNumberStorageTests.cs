@@ -11,6 +11,20 @@ namespace RedShirt.Example.JobWorker.JobManagement.Kinesis.UnitTests.Tests.Servi
 
 public class DynamoSequenceNumberStorageTests
 {
+    private static (DynamoSequenceNumberStorage Storage, Mock<IAmazonDynamoDB> DynamoDb, Mock<IDynamoDBContext> Context)
+        CreateForSet(string tableName = "table")
+    {
+        var ctx = new Mock<IDynamoDBContext>(MockBehavior.Strict);
+        var dynamoDb = new Mock<IAmazonDynamoDB>(MockBehavior.Strict);
+        var storage = new DynamoSequenceNumberStorage(ctx.Object, dynamoDb.Object, new PassthroughRetryWrapper(),
+            Options.Create(new DynamoSequenceNumberStorage.ConfigurationModel
+            {
+                TableName = tableName,
+                RecordDurationHours = 1
+            }), KinesisTestOptions.Create(), NullLogger<DynamoSequenceNumberStorage>.Instance);
+        return (storage, dynamoDb, ctx);
+    }
+
     [Fact]
     public async Task Test_Get()
     {
@@ -27,11 +41,11 @@ public class DynamoSequenceNumberStorageTests
 
         var storage = new DynamoSequenceNumberStorage(ctx.Object, Mock.Of<IAmazonDynamoDB>(MockBehavior.Strict),
             new PassthroughRetryWrapper(), Options.Create(
-            new DynamoSequenceNumberStorage.ConfigurationModel
-            {
-                TableName = tableName,
-                RecordDurationHours = 0
-            }), KinesisTestOptions.Create(), NullLogger<DynamoSequenceNumberStorage>.Instance);
+                new DynamoSequenceNumberStorage.ConfigurationModel
+                {
+                    TableName = tableName,
+                    RecordDurationHours = 0
+                }), KinesisTestOptions.Create(), NullLogger<DynamoSequenceNumberStorage>.Instance);
 
         var result = await storage.GetLastSequenceNumber("foo", TestContext.Current.CancellationToken);
         Assert.Equal(value, result);
@@ -64,11 +78,11 @@ public class DynamoSequenceNumberStorageTests
 
         var storage = new DynamoSequenceNumberStorage(ctx.Object, Mock.Of<IAmazonDynamoDB>(MockBehavior.Strict),
             new PassthroughRetryWrapper(), Options.Create(
-            new DynamoSequenceNumberStorage.ConfigurationModel
-            {
-                TableName = "table",
-                RecordDurationHours = 1
-            }), KinesisTestOptions.Create(), NullLogger<DynamoSequenceNumberStorage>.Instance);
+                new DynamoSequenceNumberStorage.ConfigurationModel
+                {
+                    TableName = "table",
+                    RecordDurationHours = 1
+                }), KinesisTestOptions.Create(), NullLogger<DynamoSequenceNumberStorage>.Instance);
 
         var result = await storage.GetLastSequenceNumber("shardId-000000000001",
             TestContext.Current.CancellationToken);
@@ -89,11 +103,11 @@ public class DynamoSequenceNumberStorageTests
 
         var storage = new DynamoSequenceNumberStorage(ctx.Object, Mock.Of<IAmazonDynamoDB>(MockBehavior.Strict),
             new PassthroughRetryWrapper(), Options.Create(
-            new DynamoSequenceNumberStorage.ConfigurationModel
-            {
-                TableName = tableName,
-                RecordDurationHours = 0
-            }), KinesisTestOptions.Create(), NullLogger<DynamoSequenceNumberStorage>.Instance);
+                new DynamoSequenceNumberStorage.ConfigurationModel
+                {
+                    TableName = tableName,
+                    RecordDurationHours = 0
+                }), KinesisTestOptions.Create(), NullLogger<DynamoSequenceNumberStorage>.Instance);
 
         var result = await storage.GetLastSequenceNumber("foo", TestContext.Current.CancellationToken);
         Assert.Null(result);
@@ -125,29 +139,28 @@ public class DynamoSequenceNumberStorageTests
 
         var storage = new DynamoSequenceNumberStorage(ctx.Object, Mock.Of<IAmazonDynamoDB>(MockBehavior.Strict),
             new PassthroughRetryWrapper(), Options.Create(
-            new DynamoSequenceNumberStorage.ConfigurationModel
-            {
-                TableName = "table",
-                RecordDurationHours = 1
-            }), KinesisTestOptions.Create(), NullLogger<DynamoSequenceNumberStorage>.Instance);
+                new DynamoSequenceNumberStorage.ConfigurationModel
+                {
+                    TableName = "table",
+                    RecordDurationHours = 1
+                }), KinesisTestOptions.Create(), NullLogger<DynamoSequenceNumberStorage>.Instance);
 
         var result = await storage.GetLastSequenceNumber("shard-1", TestContext.Current.CancellationToken);
 
         Assert.Equal("legacy", result);
     }
 
-    private static (DynamoSequenceNumberStorage Storage, Mock<IAmazonDynamoDB> DynamoDb, Mock<IDynamoDBContext> Context)
-        CreateForSet(string tableName = "table")
+    [Fact]
+    public async Task Test_Set_ConditionFailed_KeepsNewerCheckpointWithoutThrowing()
     {
-        var ctx = new Mock<IDynamoDBContext>(MockBehavior.Strict);
-        var dynamoDb = new Mock<IAmazonDynamoDB>(MockBehavior.Strict);
-        var storage = new DynamoSequenceNumberStorage(ctx.Object, dynamoDb.Object, new PassthroughRetryWrapper(),
-            Options.Create(new DynamoSequenceNumberStorage.ConfigurationModel
-            {
-                TableName = tableName,
-                RecordDurationHours = 1
-            }), KinesisTestOptions.Create(), NullLogger<DynamoSequenceNumberStorage>.Instance);
-        return (storage, dynamoDb, ctx);
+        var (storage, dynamoDb, _) = CreateForSet();
+        dynamoDb.Setup(d => d.PutItemAsync(It.IsAny<PutItemRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ConditionalCheckFailedException("newer checkpoint exists"));
+
+        await storage.SetLastSequenceNumber("shard-1", "42", TestContext.Current.CancellationToken);
+
+        dynamoDb.Verify(d => d.PutItemAsync(It.IsAny<PutItemRequest>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -183,30 +196,6 @@ public class DynamoSequenceNumberStorageTests
         Assert.Empty(ctx.Invocations);
     }
 
-    [Fact]
-    public async Task Test_Set_ConditionFailed_KeepsNewerCheckpointWithoutThrowing()
-    {
-        var (storage, dynamoDb, _) = CreateForSet();
-        dynamoDb.Setup(d => d.PutItemAsync(It.IsAny<PutItemRequest>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new ConditionalCheckFailedException("newer checkpoint exists"));
-
-        await storage.SetLastSequenceNumber("shard-1", "42", TestContext.Current.CancellationToken);
-
-        dynamoDb.Verify(d => d.PutItemAsync(It.IsAny<PutItemRequest>(), It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    [Fact]
-    public async Task Test_Set_OtherDynamoFailure_Propagates()
-    {
-        var (storage, dynamoDb, _) = CreateForSet();
-        dynamoDb.Setup(d => d.PutItemAsync(It.IsAny<PutItemRequest>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new AmazonDynamoDBException("boom"));
-
-        await Assert.ThrowsAsync<AmazonDynamoDBException>(() =>
-            storage.SetLastSequenceNumber("shard-1", "42", TestContext.Current.CancellationToken));
-    }
-
     [Theory]
     [InlineData("bar")]
     [InlineData("-1")]
@@ -227,6 +216,31 @@ public class DynamoSequenceNumberStorageTests
         Assert.Null(request.ConditionExpression);
     }
 
+    [Fact]
+    public async Task Test_Set_OtherDynamoFailure_Propagates()
+    {
+        var (storage, dynamoDb, _) = CreateForSet();
+        dynamoDb.Setup(d => d.PutItemAsync(It.IsAny<PutItemRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new AmazonDynamoDBException("boom"));
+
+        await Assert.ThrowsAsync<AmazonDynamoDBException>(() =>
+            storage.SetLastSequenceNumber("shard-1", "42", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void ToSortableValue_RejectsValuesThatDoNotFit()
+    {
+        Assert.Null(DynamoSequenceNumberStorage.ToSortableValue(""));
+        Assert.Null(DynamoSequenceNumberStorage.ToSortableValue("12a"));
+        Assert.Null(DynamoSequenceNumberStorage.ToSortableValue("\u0661\u0662"));
+        Assert.Null(
+            DynamoSequenceNumberStorage.ToSortableValue(new string('9',
+                DynamoSequenceNumberStorage.SortableValueWidth + 1)));
+        Assert.Equal(new string('9', DynamoSequenceNumberStorage.SortableValueWidth),
+            DynamoSequenceNumberStorage.ToSortableValue(new string('9',
+                DynamoSequenceNumberStorage.SortableValueWidth)));
+    }
+
     [Theory]
     // Kinesis sequence numbers vary in length, so plain string comparison would get these wrong.
     [InlineData("9", "10")]
@@ -243,17 +257,6 @@ public class DynamoSequenceNumberStorageTests
         Assert.NotNull(lowerSortable);
         Assert.NotNull(higherSortable);
         Assert.True(string.CompareOrdinal(lowerSortable, higherSortable) < 0);
-    }
-
-    [Fact]
-    public void ToSortableValue_RejectsValuesThatDoNotFit()
-    {
-        Assert.Null(DynamoSequenceNumberStorage.ToSortableValue(""));
-        Assert.Null(DynamoSequenceNumberStorage.ToSortableValue("12a"));
-        Assert.Null(DynamoSequenceNumberStorage.ToSortableValue("\u0661\u0662"));
-        Assert.Null(DynamoSequenceNumberStorage.ToSortableValue(new string('9', DynamoSequenceNumberStorage.SortableValueWidth + 1)));
-        Assert.Equal(new string('9', DynamoSequenceNumberStorage.SortableValueWidth),
-            DynamoSequenceNumberStorage.ToSortableValue(new string('9', DynamoSequenceNumberStorage.SortableValueWidth)));
     }
 
     private sealed class PassthroughRetryWrapper : IKinesisRetryWrapperService
