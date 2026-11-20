@@ -40,6 +40,7 @@ Repo features:
         * Supports short polling or consumer subscriptions.
         * For more details on RabbitMQ, refer to [`docs/job-source-notes-rabbitmq.md`](docs/job-source-notes-rabbitmq.md)
     * [Redis Streams](https://redis.io/docs/latest/develop/data-types/streams/)
+        * For more details on Redis Streams, refer to [`docs/job-source-notes-redis-streams.md`](docs/job-source-notes-redis-streams.md)
 * Cache-based idempotency support
     * Prevents the same message from being run twice in the event that an executor loses custody of a message.
         * Messages could be dropped by connection issues with the message source or because of a protocol decision by

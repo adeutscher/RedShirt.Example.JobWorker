@@ -326,6 +326,9 @@ services:
       JOB_SOURCE__REDIS_STREAMS__STREAM_NAME: jobs
       JOB_SOURCE__REDIS_STREAMS__GROUP_NAME: job-worker
       JOB_SOURCE__REDIS_STREAMS__CONSUMER_NAME: worker-1
+      # Short values so that reclaiming can be seen locally. See docs/job-source-notes-redis-streams.md.
+      JOB_SOURCE__REDIS_STREAMS__PENDING_RECLAIM_IDLE_SECONDS: 60
+      JOB_SOURCE__REDIS_STREAMS__MAXIMUM_DELIVERIES: 3
       ## Job Management (Azure Key Vault, used by both Azure Queue Storage and Azure Service Bus)
       ## Job Management (Azure Queue Storage)
       USE_AZURE_QUEUE_STORAGE: "${USE_AZURE_QUEUE_STORAGE-0}"
