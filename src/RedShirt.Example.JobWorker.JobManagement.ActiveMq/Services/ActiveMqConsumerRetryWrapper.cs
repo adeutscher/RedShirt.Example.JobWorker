@@ -85,7 +85,13 @@ internal class ActiveMqConsumerRetryWrapper(
             cancellationToken);
         onNewConnectionCallback?.Invoke(connection);
         await connection.StartAsync();
-        var session = await connection.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge);
+        /*
+         * IndividualAcknowledge, not ClientAcknowledge. In ClientAcknowledge mode, acknowledging one message
+         * acknowledges every message the session has received so far. Jobs run concurrently and finish out of order,
+         * so a fast job would acknowledge slower jobs that are still running, and a crash would then lose them.
+         * IndividualAcknowledge only acknowledges the message it is called on.
+         */
+        var session = await connection.CreateSessionAsync(AcknowledgementMode.IndividualAcknowledge);
         var queue = await session.GetQueueAsync(configuration.Value.QueueName);
 
         if (queue is null)

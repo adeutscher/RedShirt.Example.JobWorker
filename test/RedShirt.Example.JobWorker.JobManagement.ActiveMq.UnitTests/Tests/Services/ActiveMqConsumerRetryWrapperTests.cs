@@ -26,7 +26,7 @@ public class ActiveMqConsumerRetryWrapperTests
 
         var connection = new Mock<IConnection>(MockBehavior.Strict);
         connection.Setup(c => c.StartAsync()).Returns(Task.CompletedTask);
-        connection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
+        connection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.IndividualAcknowledge))
             .ReturnsAsync(session.Object);
 
         var factory = new Mock<IActiveMqConnectionFactory>(MockBehavior.Strict);
@@ -98,7 +98,7 @@ public class ActiveMqConsumerRetryWrapperTests
 
         var connection = new Mock<IConnection>(MockBehavior.Strict);
         connection.Setup(c => c.StartAsync()).Returns(Task.CompletedTask);
-        connection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
+        connection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.IndividualAcknowledge))
             .ReturnsAsync(session.Object);
 
         var factory = new Mock<IActiveMqConnectionFactory>(MockBehavior.Strict);
@@ -142,7 +142,7 @@ public class ActiveMqConsumerRetryWrapperTests
 
         var connection = new Mock<IConnection>(MockBehavior.Strict);
         connection.Setup(c => c.StartAsync()).Returns(Task.CompletedTask);
-        connection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
+        connection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.IndividualAcknowledge))
             .ReturnsAsync(session.Object);
 
         var factory = new Mock<IActiveMqConnectionFactory>(MockBehavior.Strict);
@@ -173,7 +173,7 @@ public class ActiveMqConsumerRetryWrapperTests
 
         var connection = new Mock<IConnection>(MockBehavior.Strict);
         connection.Setup(c => c.StartAsync()).Returns(Task.CompletedTask);
-        connection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.ClientAcknowledge))
+        connection.Setup(c => c.CreateSessionAsync(AcknowledgementMode.IndividualAcknowledge))
             .ReturnsAsync(session.Object);
 
         var factory = new Mock<IActiveMqConnectionFactory>(MockBehavior.Strict);
